@@ -185,6 +185,71 @@ pub fn generate_layering_wgsl(
     wgsl
 }
 
+pub fn generate_normal_layering_wgsl(
+    assignments: &OutputAssignment,
+    name_to_index: &mut IndexMap<SmolStr, usize>,
+    name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
+) -> String {
+    let mut wgsl = String::new();
+
+    for (x_layer, y_layer) in assignments.x_layers.iter().zip(&assignments.y_layers) {
+        if x_layer.blend_mode != y_layer.blend_mode {
+            error!("o2.x and o2.y layer blend modes do not match");
+        }
+
+        // Assume add normals always blend xy vectors.
+        if x_layer.blend_mode == LayerBlendMode::AddNormal {
+            let value = layer_wgsl(
+                name_to_index,
+                name_to_uv_wgsl,
+                x_layer,
+                &OUT_VAR,
+                Some("xy"),
+            );
+            writeln!(wgsl, "{OUT_VAR}.x = {value}.x;").unwrap();
+            writeln!(wgsl, "{OUT_VAR}.y = {value}.y;").unwrap();
+        } else {
+            let value = layer_wgsl(
+                name_to_index,
+                name_to_uv_wgsl,
+                x_layer,
+                &format!("{OUT_VAR}.x"),
+                None,
+            );
+            writeln!(wgsl, "{OUT_VAR}.x = {value};").unwrap();
+
+            let value = layer_wgsl(
+                name_to_index,
+                name_to_uv_wgsl,
+                y_layer,
+                &format!("{OUT_VAR}.y"),
+                None,
+            );
+            writeln!(wgsl, "{OUT_VAR}.y = {value};").unwrap();
+        }
+    }
+
+    if !wgsl.is_empty() {
+        println!("{wgsl}");
+    }
+
+    write_layers(
+        &mut wgsl,
+        name_to_index,
+        name_to_uv_wgsl,
+        &assignments.z_layers,
+        'z',
+    );
+    write_layers(
+        &mut wgsl,
+        name_to_index,
+        name_to_uv_wgsl,
+        &assignments.w_layers,
+        'w',
+    );
+    wgsl
+}
+
 fn write_layers(
     wgsl: &mut String,
     name_to_index: &mut IndexMap<SmolStr, usize>,
@@ -198,6 +263,7 @@ fn write_layers(
             name_to_uv_wgsl,
             layer,
             &format!("{OUT_VAR}.{c}"),
+            None,
         );
         writeln!(wgsl, "{OUT_VAR}.{c} = {value};").unwrap();
     }
@@ -208,100 +274,96 @@ fn layer_wgsl(
     name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
     layer: &LayerChannelAssignment,
     var: &str,
+    channel_override: Option<&str>,
 ) -> String {
     // TODO: Skip missing values instead of using a default?
     let b = match &layer.value {
         LayerChannelAssignmentValue::Value(value) => {
             channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, value.as_ref())
-                .unwrap_or_else(|| "0.0".to_string())
         }
         LayerChannelAssignmentValue::Layers(layers) => {
             // Get the final assigned value after applying all layers recursively.
             let mut output = var.to_string();
             for layer in layers {
                 if layer.weight.is_some() {
-                    let layer_var = format!("{output}");
-                    output = layer_wgsl(name_to_index, name_to_uv_wgsl, layer, &layer_var);
+                    output = layer_wgsl(
+                        name_to_index,
+                        name_to_uv_wgsl,
+                        layer,
+                        &output,
+                        channel_override,
+                    );
                 }
             }
-            output
+            Some(output)
         }
     };
 
-    let mut ratio = channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, layer.weight.as_ref())
-        .unwrap_or_else(|| "0.0".to_string());
-    if layer.is_fresnel {
-        ratio = format!("fresnel_ratio({ratio}, n_dot_v)");
-    }
+    match b {
+        Some(b) => {
+            let mut var = var.to_string();
+            let mut b = b;
+            if let Some(channels) = channel_override {
+                var = format!("{}.{channels}", trim_channels(&var));
+                b = format!("{}.{channels}", trim_channels(&b));
+            }
 
-    // TODO: handle ratio of 0.0?
-    match layer.blend_mode {
-        LayerBlendMode::Mix => {
-            if ratio == "1.0" {
-                b
-            } else {
-                format!("mix({var}, {b}, {ratio})")
+            let mut ratio =
+                channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, layer.weight.as_ref())
+                    .unwrap_or_else(|| "0.0".to_string());
+            if layer.is_fresnel {
+                ratio = format!("fresnel_ratio({ratio}, n_dot_v)");
             }
-        }
-        LayerBlendMode::MixRatio => {
-            if ratio == "1.0" {
-                format!("({var} * {b})")
-            } else {
-                format!("mix({var}, {var} * {b}, {ratio})")
-            }
-        }
-        LayerBlendMode::Add => {
-            if ratio == "1.0" {
-                format!("({var} + {b})")
-            } else {
-                format!("{var} + {b} * {ratio}")
-            }
-        }
-        LayerBlendMode::AddNormal => {
-            // TODO: This doesn't work.
-            // let (var, c) = if var.ends_with(".x") {
-            //     (var.trim_end_matches(".x"), "x")
-            // } else if var.ends_with(".y") {
-            //     (var.trim_end_matches(".y"), "y")
-            // } else if var.ends_with(".z") {
-            //     (var.trim_end_matches(".z"), "z")
-            // } else if var.ends_with(".w") {
-            //     (var.trim_end_matches(".w"), "w")
-            // } else {
-            //     (var, "")
-            // };
-            // let b = b.trim_end_matches(".x").trim_end_matches(".y").trim_end_matches(".z").trim_end_matches(".w");
 
-            // let c = if !c.is_empty() {
-            // format!(".{c}")
-            // } else {
-            // String::new()
-            // };
-
-            // TODO: Assume this mode applies to x and y?
-            // Ensure that z blending does not affect normals.
-            // let a_nrm = format!("vec3({var}.xy, normal_z({var}.x, {var}.y))");
-            // let b_nrm = format!("create_normal_map({b}.xy)");
-            // format!("add_normal_maps({a_nrm}, {b_nrm}, {ratio}){c}")
-            // format!("{var}{c}")
-            var.to_string()
-        }
-        LayerBlendMode::Overlay => {
-            if ratio == "1.0" {
-                format!("overlay_blend({var}, {b})")
-            } else {
-                format!("mix({var}, overlay_blend({var}, {b}), {ratio})")
+            // TODO: handle ratio of 0.0?
+            match layer.blend_mode {
+                LayerBlendMode::Mix => {
+                    if ratio == "1.0" {
+                        b
+                    } else {
+                        format!("mix({var}, {b}, {ratio})")
+                    }
+                }
+                LayerBlendMode::MixRatio => {
+                    if ratio == "1.0" {
+                        format!("({var} * {b})")
+                    } else {
+                        format!("mix({var}, {var} * {b}, {ratio})")
+                    }
+                }
+                LayerBlendMode::Add => {
+                    if ratio == "1.0" {
+                        format!("({var} + {b})")
+                    } else {
+                        format!("{var} + {b} * {ratio}")
+                    }
+                }
+                LayerBlendMode::AddNormal => {
+                    // Assume this mode applies to both x and y.
+                    // Ensure that z blending does not affect normals.
+                    let a_nrm = format!("vec3({var}.xy, normal_z({var}.x, {var}.y))");
+                    let b_nrm = format!("create_normal_map({b}.xy)");
+                    format!("add_normal_maps({a_nrm}, {b_nrm}, {ratio})")
+                }
+                LayerBlendMode::Overlay => {
+                    if ratio == "1.0" {
+                        format!("overlay_blend({var}, {b})")
+                    } else {
+                        format!("mix({var}, overlay_blend({var}, {b}), {ratio})")
+                    }
+                }
+                LayerBlendMode::Power => {
+                    if ratio == "1.0" {
+                        format!("pow({var}, {b})")
+                    } else {
+                        format!("mix({var}, pow({var}, {b}), {ratio})")
+                    }
+                }
+                LayerBlendMode::Min => format!("min({var}, {b})"),
+                LayerBlendMode::Max => format!("max({var}, {b})"),
             }
         }
-        LayerBlendMode::Power => {
-            if ratio == "1.0" {
-                format!("pow({var}, {b})")
-            } else {
-                format!("mix({var}, pow({var}, {b}), {ratio})")
-            }
-        }
-        LayerBlendMode::Min => format!("min({var}, {b})"),
-        LayerBlendMode::Max => format!("max({var}, {b})"),
+        None => var.to_string(),
     }
 }
 
@@ -337,6 +399,20 @@ fn channel_assignment_wgsl(
             Some(format!("{name}.{}", ['x', 'y', 'z', 'w'][*channel_index]))
         }
         ChannelAssignment::Value(f) => Some(format!("{f:?}")),
+    }
+}
+
+fn trim_channels(s: &str) -> &str {
+    if s.ends_with(".x") {
+        s.trim_end_matches(".x")
+    } else if s.ends_with(".y") {
+        s.trim_end_matches(".y")
+    } else if s.ends_with(".z") {
+        s.trim_end_matches(".z")
+    } else if s.ends_with(".w") {
+        s.trim_end_matches(".w")
+    } else {
+        s
     }
 }
 
