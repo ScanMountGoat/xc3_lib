@@ -386,7 +386,6 @@ fn find_layers(current: &Expr, graph: &Graph, attributes: &Attributes) -> Vec<Ou
                 blend_mode,
                 is_fresnel: fresnel_ratio,
             });
-            current = assign_x_recursive(&graph.nodes, layer_a);
         } else {
             // There are ambiguous cases like a*b or a+b.
             // TODO: Find a more accurate method than checking b for layers.
@@ -401,8 +400,12 @@ fn find_layers(current: &Expr, graph: &Graph, attributes: &Attributes) -> Vec<Ou
                 blend_mode,
                 is_fresnel: fresnel_ratio,
             });
+        }
+        current = assign_x_recursive(&graph.nodes, layer_a);
 
-            current = assign_x_recursive(&graph.nodes, layer_a);
+        // TODO: Is there a better way to avoid detecting this as a layer?
+        if let Some(new_current) = normal_map_fma(&graph.nodes, current) {
+            current = new_current;
         }
     }
 
@@ -761,9 +764,15 @@ fn blend_add_normal<'a>(
     // TODO: Reduce assignments to allow combining lines?
     // TODO: Allow 0.0 - x or -x
     let result = query_nodes(nom_work, nodes, &BLEND_ADD_NORMAL.nodes)?;
-    let nom_work = result.get("nom_work")?;
+    let mut nom_work = *result.get("nom_work")?;
     let ratio = result.get("ratio")?;
     let n2 = result.get("n2")?;
+
+    // Remove normal map channel remapping to avoid detecting this as a layer.
+    if let Some(new_nom_work) = normal_map_fma(nodes, nom_work) {
+        nom_work = new_nom_work;
+    }
+
     Some((nom_work, n2, ratio, LayerBlendMode::AddNormal))
 }
 
@@ -1493,8 +1502,8 @@ mod tests {
             vec![
                 OutputLayer {
                     value: OutputLayerValue::Value(tex("s2", 'x', "in_attr3", 'x', 'y')),
-                    ratio: Some(Dependency::Constant(2.0.into())),
-                    blend_mode: LayerBlendMode::Add,
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
                 OutputLayer {
@@ -1604,8 +1613,8 @@ mod tests {
                 layers: vec![
                     OutputLayer {
                         value: OutputLayerValue::Value(tex("s2", 'x', "in_attr4", 'x', 'y')),
-                        ratio: Some(Dependency::Constant(2.0.into())),
-                        blend_mode: LayerBlendMode::Add,
+                        ratio: None,
+                        blend_mode: LayerBlendMode::Mix,
                         is_fresnel: false
                     },
                     OutputLayer {
@@ -1811,8 +1820,8 @@ mod tests {
             vec![
                 OutputLayer {
                     value: OutputLayerValue::Value(tex("s6", 'x', "in_attr3", 'x', 'y')),
-                    ratio: Some(Dependency::Constant(2.0.into())),
-                    blend_mode: LayerBlendMode::Add,
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
                 OutputLayer {
@@ -1828,8 +1837,8 @@ mod tests {
             vec![
                 OutputLayer {
                     value: OutputLayerValue::Value(tex("s6", 'y', "in_attr3", 'x', 'y')),
-                    ratio: Some(Dependency::Constant(2.0.into())),
-                    blend_mode: LayerBlendMode::Add,
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
                 OutputLayer {
@@ -1898,8 +1907,8 @@ mod tests {
             vec![
                 OutputLayer {
                     value: OutputLayerValue::Value(tex("s2", 'x', "in_attr4", 'x', 'y')),
-                    ratio: Some(Dependency::Constant(2.0.into())),
-                    blend_mode: LayerBlendMode::Add,
+                    ratio: None,
+                    blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
                 OutputLayer {
@@ -1947,8 +1956,8 @@ mod tests {
                 layers: vec![
                     OutputLayer {
                         value: OutputLayerValue::Value(tex("s2", 'x', "in_attr4", 'x', 'y')),
-                        ratio: Some(Dependency::Constant(2.0.into())),
-                        blend_mode: LayerBlendMode::Add,
+                        ratio: None,
+                        blend_mode: LayerBlendMode::Mix,
                         is_fresnel: false,
                     },
                     OutputLayer {
