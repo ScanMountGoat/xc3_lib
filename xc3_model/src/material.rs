@@ -10,7 +10,7 @@ pub use xc3_lib::mxmd::{
 
 use crate::{
     shader_database::{
-        BufferDependency, Dependency, LayerBlendMode, OutputLayer, OutputLayerValue, ProgramHash,
+        BufferDependency, Dependency, Layer, LayerBlendMode, LayerValue, ProgramHash,
         ShaderDatabase, ShaderProgram, TexCoordParams, TextureDependency,
     },
     ImageTexture, Sampler,
@@ -697,7 +697,7 @@ pub struct LayerChannelAssignment {
     /// The layer value to blend with the previous layer.
     pub value: LayerChannelAssignmentValue,
     /// The factor or blend weight for this layer.
-    pub weight: Option<ChannelAssignment>,
+    pub weight: LayerChannelAssignmentValue,
     /// The blending operation for this layer.
     pub blend_mode: LayerBlendMode,
     pub is_fresnel: bool,
@@ -917,33 +917,36 @@ fn texture_layers(
 fn layer_channel_assignment(
     parameters: &MaterialParameters,
     channel: char,
-    l: &OutputLayer,
+    l: &Layer,
 ) -> LayerChannelAssignment {
-    // TODO: Is it worth detecting layers for each channel individually?
-    // TODO: Is it safe to assume assigned channels are always xyzw?
-    let value = match &l.value {
-        crate::shader_database::OutputLayerValue::Value(d) => LayerChannelAssignmentValue::Value(
-            ChannelAssignment::from_dependency(d, parameters, channel),
-        ),
-        crate::shader_database::OutputLayerValue::Layers(layers) => {
-            LayerChannelAssignmentValue::Layers(
-                layers
-                    .iter()
-                    .map(|l| layer_channel_assignment(parameters, channel, l))
-                    .collect(),
-            )
-        }
-    };
+    let value = layer_channel_assignment_value(parameters, channel, &l.value);
+    let weight = layer_channel_assignment_value(parameters, channel, &l.ratio);
 
     LayerChannelAssignment {
         value,
-        weight: l
-            .ratio
-            .as_ref()
-            .and_then(|r| ChannelAssignment::from_dependency(r, parameters, 'x')),
+        weight,
         blend_mode: l.blend_mode,
         is_fresnel: l.is_fresnel,
     }
+}
+
+fn layer_channel_assignment_value(
+    parameters: &MaterialParameters,
+    channel: char,
+    value: &LayerValue,
+) -> LayerChannelAssignmentValue {
+    let value = match value {
+        crate::shader_database::LayerValue::Value(d) => LayerChannelAssignmentValue::Value(
+            ChannelAssignment::from_dependency(d, parameters, channel),
+        ),
+        crate::shader_database::LayerValue::Layers(layers) => LayerChannelAssignmentValue::Layers(
+            layers
+                .iter()
+                .map(|l| layer_channel_assignment(parameters, channel, l))
+                .collect(),
+        ),
+    };
+    value
 }
 
 fn channel_assignment(
@@ -964,7 +967,7 @@ fn channel_assignment(
             dependencies
                 .layers
                 .iter()
-                .position(|l| layer_name(l) == sampler_name(d))
+                .position(|l| layer_dependency(l) == Some(d))
                 .unwrap_or(usize::MAX)
         });
     } else if output_index == 0 {
@@ -1085,10 +1088,10 @@ fn sampler_name(d: &Dependency) -> Option<&SmolStr> {
     }
 }
 
-fn layer_name(l: &OutputLayer) -> Option<&SmolStr> {
+fn layer_dependency(l: &Layer) -> Option<&Dependency> {
     match &l.value {
-        OutputLayerValue::Value(Dependency::Texture(t)) => Some(&t.name),
-        _ => None,
+        LayerValue::Value(d) => Some(d),
+        LayerValue::Layers(layers) => layer_dependency(layers.first()?),
     }
 }
 
