@@ -116,7 +116,7 @@ pub struct OutputDependencies {
     /// All of the possible dependencies that may affect the output.
     pub dependencies: Vec<Dependency>,
     /// Layering information if this output blends multiple texture dependencies.
-    pub layers: Vec<OutputLayer>,
+    pub layers: Vec<Layer>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -214,18 +214,18 @@ impl Default for LayerBlendMode {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct OutputLayer {
-    pub value: OutputLayerValue,
-    pub ratio: Option<Dependency>,
+pub struct Layer {
+    pub value: LayerValue,
+    pub ratio: LayerValue,
     pub blend_mode: LayerBlendMode,
     pub is_fresnel: bool,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum OutputLayerValue {
+pub enum LayerValue {
     Value(Dependency),
-    Layers(Vec<OutputLayer>),
+    Layers(Vec<Layer>),
 }
 
 impl ShaderProgram {

@@ -1463,16 +1463,21 @@ fn check_shader_dependencies(root: &ModelRoot, path: &Path) {
 
 fn add_dependencies(
     dependencies: &mut HashSet<xc3_model::shader_database::Dependency>,
-    l: &xc3_model::shader_database::OutputLayer,
+    l: &xc3_model::shader_database::Layer,
 ) {
-    if let Some(r) = &l.ratio {
-        dependencies.insert(r.clone());
-    }
-    match &l.value {
-        xc3_model::shader_database::OutputLayerValue::Value(d) => {
+    add_value_dependencies(dependencies, &l.ratio);
+    add_value_dependencies(dependencies, &l.value);
+}
+
+fn add_value_dependencies(
+    dependencies: &mut HashSet<xc3_model::shader_database::Dependency>,
+    r: &xc3_model::shader_database::LayerValue,
+) {
+    match r {
+        xc3_model::shader_database::LayerValue::Value(d) => {
             dependencies.insert(d.clone());
         }
-        xc3_model::shader_database::OutputLayerValue::Layers(layers) => {
+        xc3_model::shader_database::LayerValue::Layers(layers) => {
             for l in layers {
                 add_dependencies(dependencies, l);
             }

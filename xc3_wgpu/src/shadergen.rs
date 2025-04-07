@@ -223,10 +223,6 @@ pub fn generate_normal_layering_wgsl(
         }
     }
 
-    if !wgsl.is_empty() {
-        println!("{wgsl}");
-    }
-
     write_layers(
         &mut wgsl,
         name_to_index,
@@ -271,27 +267,13 @@ fn layer_wgsl(
     channel_override: Option<&str>,
 ) -> String {
     // TODO: Skip missing values instead of using a default?
-    let b = match &layer.value {
-        LayerChannelAssignmentValue::Value(value) => {
-            channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, value.as_ref())
-        }
-        LayerChannelAssignmentValue::Layers(layers) => {
-            // Get the final assigned value after applying all layers recursively.
-            let mut output = var.to_string();
-            for layer in layers {
-                if layer.weight.is_some() {
-                    output = layer_wgsl(
-                        name_to_index,
-                        name_to_uv_wgsl,
-                        layer,
-                        &output,
-                        channel_override,
-                    );
-                }
-            }
-            Some(output)
-        }
-    };
+    let b = layer_value_wgsl(
+        name_to_index,
+        name_to_uv_wgsl,
+        &layer.value,
+        var,
+        channel_override,
+    );
 
     match b {
         Some(b) => {
@@ -302,9 +284,11 @@ fn layer_wgsl(
                 b = format!("{}.{channels}", trim_channels(&b));
             }
 
+            // TODO: How to initialize the variable for this?
             let mut ratio =
-                channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, layer.weight.as_ref())
+                layer_value_wgsl(name_to_index, name_to_uv_wgsl, &layer.weight, "0.0", None)
                     .unwrap_or_else(|| "0.0".to_string());
+
             if layer.is_fresnel {
                 ratio = format!("fresnel_ratio({ratio}, n_dot_v)");
             }
@@ -358,6 +342,34 @@ fn layer_wgsl(
             }
         }
         None => var.to_string(),
+    }
+}
+
+fn layer_value_wgsl(
+    name_to_index: &mut IndexMap<SmolStr, usize>,
+    name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
+    value: &LayerChannelAssignmentValue,
+    var: &str,
+    channel_override: Option<&str>,
+) -> Option<String> {
+    match value {
+        LayerChannelAssignmentValue::Value(value) => {
+            channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, value.as_ref())
+        }
+        LayerChannelAssignmentValue::Layers(layers) => {
+            // Get the final assigned value after applying all layers recursively.
+            let mut output = var.to_string();
+            for layer in layers {
+                output = layer_wgsl(
+                    name_to_index,
+                    name_to_uv_wgsl,
+                    layer,
+                    &output,
+                    channel_override,
+                );
+            }
+            Some(output)
+        }
     }
 }
 

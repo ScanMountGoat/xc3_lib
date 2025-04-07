@@ -7,9 +7,8 @@ use smol_str::ToSmolStr;
 use varint_rs::{VarintReader, VarintWriter};
 
 use super::{
-    AttributeDependency, BufferDependency, Dependency, LayerBlendMode, OutputDependencies,
-    OutputLayer, OutputLayerValue, ProgramHash, ShaderProgram, TexCoord, TexCoordParams,
-    TextureDependency,
+    AttributeDependency, BufferDependency, Dependency, Layer, LayerBlendMode, LayerValue,
+    OutputDependencies, ProgramHash, ShaderProgram, TexCoord, TexCoordParams, TextureDependency,
 };
 
 // Create a separate optimized representation for on disk.
@@ -100,19 +99,19 @@ struct OutputDependenciesIndexed {
 
     #[br(parse_with = parse_count)]
     #[bw(write_with = write_count)]
-    layers: Vec<OutputLayerIndexed>,
+    layers: Vec<LayerIndexed>,
 }
 
 #[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
-struct OutputLayerIndexed {
-    value: OutputLayerValueIndexed,
-    ratio: OptVarInt,
+struct LayerIndexed {
+    value: LayerValueIndexed,
+    ratio: LayerValueIndexed,
     blend_mode: LayerBlendModeIndexed,
     is_fresnel: u8,
 }
 
 #[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
-enum OutputLayerValueIndexed {
+enum LayerValueIndexed {
     #[brw(magic(0u8))]
     Value(VarInt),
 
@@ -120,7 +119,7 @@ enum OutputLayerValueIndexed {
     Layers(
         #[br(parse_with = parse_count)]
         #[bw(write_with = write_count)]
-        Vec<OutputLayerIndexed>,
+        Vec<LayerIndexed>,
     ),
 }
 
@@ -388,20 +387,21 @@ impl ShaderDatabaseIndexed {
 
     fn add_output_layer_indexed(
         &mut self,
-        l: OutputLayer,
+        l: Layer,
         dependency_to_index: &mut IndexMap<Dependency, usize>,
         buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
-    ) -> OutputLayerIndexed {
-        OutputLayerIndexed {
+    ) -> LayerIndexed {
+        LayerIndexed {
             value: self.add_output_layer_value_indexed(
                 dependency_to_index,
                 buffer_dependency_to_index,
                 l.value,
             ),
-            ratio: OptVarInt(l.ratio.map(|r| {
-                self.add_dependency(r, dependency_to_index, buffer_dependency_to_index)
-                    .0
-            })),
+            ratio: self.add_output_layer_value_indexed(
+                dependency_to_index,
+                buffer_dependency_to_index,
+                l.ratio,
+            ),
             blend_mode: l.blend_mode.into(),
             is_fresnel: l.is_fresnel.into(),
         }
@@ -411,15 +411,15 @@ impl ShaderDatabaseIndexed {
         &mut self,
         dependency_to_index: &mut IndexMap<Dependency, usize>,
         buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
-        value: OutputLayerValue,
-    ) -> OutputLayerValueIndexed {
+        value: LayerValue,
+    ) -> LayerValueIndexed {
         match value {
-            OutputLayerValue::Value(d) => OutputLayerValueIndexed::Value(self.add_dependency(
+            LayerValue::Value(d) => LayerValueIndexed::Value(self.add_dependency(
                 d,
                 dependency_to_index,
                 buffer_dependency_to_index,
             )),
-            OutputLayerValue::Layers(layers) => OutputLayerValueIndexed::Layers(
+            LayerValue::Layers(layers) => LayerValueIndexed::Layers(
                 layers
                     .into_iter()
                     .map(|l| {
@@ -525,22 +525,24 @@ impl ShaderDatabaseIndexed {
         }
     }
 
-    fn output_layer_from_indexed(&self, l: &OutputLayerIndexed) -> OutputLayer {
-        OutputLayer {
-            value: match &l.value {
-                OutputLayerValueIndexed::Value(d) => {
-                    OutputLayerValue::Value(self.dependency_from_indexed(*d))
-                }
-                OutputLayerValueIndexed::Layers(layers) => OutputLayerValue::Layers(
-                    layers
-                        .iter()
-                        .map(|l| self.output_layer_from_indexed(l))
-                        .collect(),
-                ),
-            },
-            ratio: l.ratio.0.map(|i| self.dependency_from_indexed(VarInt(i))),
+    fn output_layer_from_indexed(&self, l: &LayerIndexed) -> Layer {
+        Layer {
+            value: self.output_layer_value_from_indexed(&l.value),
+            ratio: self.output_layer_value_from_indexed(&l.ratio),
             blend_mode: l.blend_mode.into(),
             is_fresnel: l.is_fresnel != 0,
+        }
+    }
+
+    fn output_layer_value_from_indexed(&self, value: &LayerValueIndexed) -> LayerValue {
+        match value {
+            LayerValueIndexed::Value(d) => LayerValue::Value(self.dependency_from_indexed(*d)),
+            LayerValueIndexed::Layers(layers) => LayerValue::Layers(
+                layers
+                    .iter()
+                    .map(|l| self.output_layer_from_indexed(l))
+                    .collect(),
+            ),
         }
     }
 
