@@ -113,7 +113,7 @@ pub fn generate_layering_wgsl(
     name_to_index: &mut IndexMap<SmolStr, usize>,
     name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
 ) -> String {
-    let mut value_to_wgsl = IndexMap::new();
+    let mut value_to_wgsl = WgslVarCache::new(OUT_VAR.to_string());
 
     let mut wgsl = String::new();
     write_value_to_output(
@@ -152,12 +152,9 @@ pub fn generate_layering_wgsl(
     prepend_assignments(value_to_wgsl, wgsl)
 }
 
-fn prepend_assignments(
-    value_to_wgsl: IndexMap<&LayerAssignmentValue, WgslVar>,
-    wgsl: String,
-) -> String {
+fn prepend_assignments(value_to_wgsl: WgslVarCache<'_>, wgsl: String) -> String {
     let mut assignments = String::new();
-    for WgslVar { name, wgsl } in value_to_wgsl.values() {
+    for WgslVar { name, wgsl } in value_to_wgsl.value_to_var.values() {
         writeln!(&mut assignments, "let {name} = {wgsl};").unwrap();
     }
 
@@ -169,19 +166,19 @@ pub fn generate_normal_layering_wgsl(
     name_to_index: &mut IndexMap<SmolStr, usize>,
     name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
 ) -> String {
-    let mut value_to_wgsl = IndexMap::new();
-
     let mut wgsl = String::new();
 
     // XY channels need special logic since normal blend modes can affect multiple channels.
-    write_normal_value_to_output(
+    let mut value_to_wgsl_xy = WgslVarCache::new(format!("{OUT_VAR}_xy"));
+    write_normal_xy_to_output(
         &mut wgsl,
         name_to_index,
         name_to_uv_wgsl,
         assignment,
-        &mut value_to_wgsl,
+        &mut value_to_wgsl_xy,
     );
 
+    let mut value_to_wgsl = WgslVarCache::new(OUT_VAR.to_string());
     write_value_to_output(
         &mut wgsl,
         name_to_index,
@@ -195,30 +192,30 @@ pub fn generate_normal_layering_wgsl(
         name_to_index,
         name_to_uv_wgsl,
         &mut value_to_wgsl,
-        &assignment.w,
+        &assignment.z,
         'w',
     );
 
+    wgsl = prepend_assignments(value_to_wgsl_xy, wgsl);
     prepend_assignments(value_to_wgsl, wgsl)
 }
 
-fn write_normal_value_to_output<'a>(
+fn write_normal_xy_to_output<'a>(
     wgsl: &mut String,
     name_to_index: &mut IndexMap<SmolStr, usize>,
     name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
     assignments: &'a OutputAssignment,
-    value_to_wgsl: &mut IndexMap<&'a LayerAssignmentValue, WgslVar>,
+    value_to_wgsl: &mut WgslVarCache<'a>,
 ) {
+    // The database and shader analysis all use scalar values for simplicity.
+    // Assume normals always blend xy values to make normal layers work.
     match (&assignments.x, &assignments.y) {
-        (LayerAssignmentValue::Value(x), LayerAssignmentValue::Value(y)) => {
-            if let Some(value) = channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, x.as_ref())
+        (LayerAssignmentValue::Value(x), LayerAssignmentValue::Value(_y)) => {
+            if let Some(value) =
+                channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, x.as_ref(), Some("xy"))
             {
-                writeln!(wgsl, "{OUT_VAR}.x = {value};").unwrap();
-            }
-
-            if let Some(value) = channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, y.as_ref())
-            {
-                writeln!(wgsl, "{OUT_VAR}.y = {value};").unwrap();
+                writeln!(wgsl, "{OUT_VAR}.x = {value}.x;").unwrap();
+                writeln!(wgsl, "{OUT_VAR}.y = {value}.y;").unwrap();
             }
             // TODO: Find a better way to handle normal map value ranges.
             writeln!(wgsl, "{OUT_VAR}.x = create_normal_map({OUT_VAR}.xy).x;").unwrap();
@@ -230,7 +227,6 @@ fn write_normal_value_to_output<'a>(
                     error!("o2.x and o2.y layer blend modes do not match");
                 }
 
-                // Assume add normals always blend xy vectors.
                 if x_layer.blend_mode == LayerBlendMode::AddNormal {
                     if let Some(value) = layer_wgsl(
                         name_to_index,
@@ -249,21 +245,11 @@ fn write_normal_value_to_output<'a>(
                         name_to_uv_wgsl,
                         x_layer,
                         &format!("{OUT_VAR}.x"),
-                        None,
+                        Some("xy"),
                         value_to_wgsl,
                     ) {
-                        writeln!(wgsl, "{OUT_VAR}.x = {value};").unwrap();
-                    }
-
-                    if let Some(value) = layer_wgsl(
-                        name_to_index,
-                        name_to_uv_wgsl,
-                        y_layer,
-                        &format!("{OUT_VAR}.y"),
-                        None,
-                        value_to_wgsl,
-                    ) {
-                        writeln!(wgsl, "{OUT_VAR}.y = {value};").unwrap();
+                        writeln!(wgsl, "{OUT_VAR}.x = {value}.x;").unwrap();
+                        writeln!(wgsl, "{OUT_VAR}.y = {value}.y;").unwrap();
                     }
                 }
 
@@ -282,7 +268,7 @@ fn write_value_to_output<'a>(
     wgsl: &mut String,
     name_to_index: &mut IndexMap<SmolStr, usize>,
     name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
-    value_to_wgsl: &mut IndexMap<&'a LayerAssignmentValue, WgslVar>,
+    value_to_wgsl: &mut WgslVarCache<'a>,
     value: &'a LayerAssignmentValue,
     c: char,
 ) {
@@ -304,7 +290,7 @@ fn layer_wgsl<'a>(
     layer: &'a LayerAssignment,
     var: &str,
     channel_override: Option<&str>,
-    value_to_wgsl: &mut IndexMap<&'a LayerAssignmentValue, WgslVar>,
+    value_to_wgsl: &mut WgslVarCache<'a>,
 ) -> Option<String> {
     // TODO: Skip missing values instead of using a default?
     let b = layer_value_wgsl(
@@ -319,8 +305,8 @@ fn layer_wgsl<'a>(
     let mut var = var.to_string();
     let mut b = b;
     if let Some(channels) = channel_override {
-        var = format!("{}.{channels}", trim_channels(&var));
-        b = format!("{}.{channels}", trim_channels(&b));
+        var = replace_channels(&var, channels);
+        b = replace_channels(&b, channels);
     }
 
     let mut ratio = layer_value_wgsl(
@@ -393,21 +379,38 @@ struct WgslVar {
     wgsl: String,
 }
 
+struct WgslVarCache<'a> {
+    prefix: String,
+    value_to_var: IndexMap<&'a LayerAssignmentValue, WgslVar>,
+}
+
+impl<'a> WgslVarCache<'a> {
+    fn new(name: String) -> WgslVarCache<'a> {
+        Self {
+            prefix: name,
+            value_to_var: IndexMap::new(),
+        }
+    }
+}
+
 fn layer_value_wgsl<'a>(
     name_to_index: &mut IndexMap<SmolStr, usize>,
     name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
     value: &'a LayerAssignmentValue,
     var: &str,
     channel_override: Option<&str>,
-    value_to_wgsl: &mut IndexMap<&'a LayerAssignmentValue, WgslVar>,
+    value_to_wgsl: &mut WgslVarCache<'a>,
 ) -> Option<String> {
-    match value_to_wgsl.get(value) {
+    match value_to_wgsl.value_to_var.get(value) {
         Some(var) => Some(var.name.clone()),
         None => {
             let wgsl = match value {
-                LayerAssignmentValue::Value(value) => {
-                    channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, value.as_ref())
-                }
+                LayerAssignmentValue::Value(value) => channel_assignment_wgsl(
+                    name_to_index,
+                    name_to_uv_wgsl,
+                    value.as_ref(),
+                    channel_override,
+                ),
                 LayerAssignmentValue::Layers(layers) => {
                     // Get the final assigned value after applying all layers recursively.
                     let mut output = var.to_string();
@@ -428,16 +431,20 @@ fn layer_value_wgsl<'a>(
             }?;
 
             // Give each variable a unique name.
-            let name = format!("{OUT_VAR}_{}", value_to_wgsl.len());
+            let name = format!(
+                "{}_{}",
+                value_to_wgsl.prefix,
+                value_to_wgsl.value_to_var.len()
+            );
 
             // Workaround for normal map XY layers.
             let wgsl = if let Some(channels) = channel_override {
-                format!("{}.{channels}", trim_channels(&wgsl))
+                replace_channels(&wgsl, channels)
             } else {
                 wgsl
             };
 
-            value_to_wgsl.insert(
+            value_to_wgsl.value_to_var.insert(
                 value,
                 WgslVar {
                     name: name.clone(),
@@ -454,6 +461,7 @@ fn channel_assignment_wgsl(
     name_to_index: &mut IndexMap<SmolStr, usize>,
     name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
     value: Option<&ValueAssignment>,
+    channel_override: Option<&str>,
 ) -> Option<String> {
     match value? {
         ValueAssignment::Texture(t) => {
@@ -463,7 +471,10 @@ fn channel_assignment_wgsl(
                 let uvs = generate_uv_wgsl(t, name_to_index);
                 name_to_uv_wgsl.insert(t.name.clone(), uvs);
 
-                Some(format!("s{i}_color.{}", t.channels))
+                Some(format!(
+                    "s{i}_color.{}",
+                    channel_override.unwrap_or_else(|| t.channels.as_str())
+                ))
             } else {
                 error!("Sampler index {i} exceeds supported max of 10");
                 None
@@ -479,23 +490,29 @@ fn channel_assignment_wgsl(
                 "vColor" => Some("in.vertex_color"),
                 _ => None,
             }?;
-            Some(format!("{name}.{}", ['x', 'y', 'z', 'w'][*channel_index]))
+            Some(format!(
+                "{name}.{}",
+                channel_override.unwrap_or_else(|| &["x", "y", "z", "w"][*channel_index])
+            ))
         }
-        ValueAssignment::Value(f) => Some(format!("{f:?}")),
+        ValueAssignment::Value(f) => match channel_override {
+            Some(channels) => Some(format!("vec{}({f:?})", channels.len())),
+            None => Some(format!("{f:?}")),
+        },
     }
 }
 
-fn trim_channels(s: &str) -> &str {
+fn replace_channels(s: &str, c: &str) -> String {
     if s.ends_with(".x") {
-        s.trim_end_matches(".x")
+        format!("{}.{c}", s.trim_end_matches(".x"))
     } else if s.ends_with(".y") {
-        s.trim_end_matches(".y")
+        format!("{}.{c}", s.trim_end_matches(".y"))
     } else if s.ends_with(".z") {
-        s.trim_end_matches(".z")
+        format!("{}.{c}", s.trim_end_matches(".z"))
     } else if s.ends_with(".w") {
-        s.trim_end_matches(".w")
+        format!("{}.{c}", s.trim_end_matches(".w"))
     } else {
-        s
+        s.to_string()
     }
 }
 
