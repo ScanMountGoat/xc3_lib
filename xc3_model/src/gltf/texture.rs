@@ -1,7 +1,5 @@
 use crate::{
-    material::{
-        ChannelAssignment, LayerChannelAssignmentValue, OutputAssignments, TextureAssignment,
-    },
+    material::{LayerAssignmentValue, OutputAssignments, TextureAssignment, ValueAssignment},
     monolib::ShaderTextures,
     ImageTexture, IndexMapExt,
 };
@@ -451,26 +449,19 @@ fn channel_name(index: &Option<ImageIndex>) -> Option<String> {
     }
 }
 
-fn image_index(
-    material: &crate::Material,
-    value: &LayerChannelAssignmentValue,
-) -> Option<ImageIndex> {
+fn image_index(material: &crate::Material, value: &LayerAssignmentValue) -> Option<ImageIndex> {
     match value {
-        LayerChannelAssignmentValue::Value(assignment) => {
-            assignment_image_index(material, assignment)
-        }
-        LayerChannelAssignmentValue::Layers(layers) => {
-            image_index(material, &layers.first()?.value)
-        }
+        LayerAssignmentValue::Value(assignment) => assignment_image_index(material, assignment),
+        LayerAssignmentValue::Layers(layers) => image_index(material, &layers.first()?.value),
     }
 }
 
 fn assignment_image_index(
     material: &crate::Material,
-    assignment: &Option<ChannelAssignment>,
+    assignment: &Option<ValueAssignment>,
 ) -> Option<ImageIndex> {
     match assignment.as_ref()? {
-        ChannelAssignment::Texture(texture) => {
+        ValueAssignment::Texture(texture) => {
             let TextureAssignment {
                 name,
                 channels,
@@ -482,7 +473,7 @@ fn assignment_image_index(
             let channel_index = "xyzw".find(channels.chars().next().unwrap()).unwrap();
 
             // TODO: proper mat2x4 support?
-            let texcoord_scale = texcoord_transforms.map(|(u, v)| [u.x.into(), v.y.into()]);
+            let texcoord_scale = texcoord_transforms.map(|(u, v)| [u[0], v[1]]);
 
             let texcoord_name = texcoord_name.clone().unwrap_or_default();
 
@@ -509,8 +500,8 @@ fn assignment_image_index(
                 texcoord_scale,
             }))
         }
-        ChannelAssignment::Attribute { .. } => None,
-        ChannelAssignment::Value(v) => Some(ImageIndex::Value((*v).into())),
+        ValueAssignment::Attribute { .. } => None,
+        ValueAssignment::Value(v) => Some(ImageIndex::Value((*v).into())),
     }
 }
 

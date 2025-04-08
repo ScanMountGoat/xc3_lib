@@ -1,5 +1,5 @@
-use glam::{vec4, Vec4};
 use log::warn;
+use ordered_float::OrderedFloat;
 use smol_str::{SmolStr, ToSmolStr};
 
 pub use xc3_lib::mxmd::{
@@ -656,17 +656,16 @@ fn assign_parameters_legacy(
 pub struct OutputAssignments {
     pub assignments: [OutputAssignment; 6],
     /// The parameter multiplied by vertex alpha to determine outline width.
-    pub outline_width: Option<ChannelAssignment>,
+    pub outline_width: Option<ValueAssignment>,
 }
 
 impl OutputAssignments {
     /// Calculate the material ID from a hardcoded shader constant if present.
     pub fn mat_id(&self) -> Option<u32> {
-        if let LayerChannelAssignmentValue::Value(Some(ChannelAssignment::Value(v))) =
-            self.assignments[1].w
+        if let LayerAssignmentValue::Value(Some(ValueAssignment::Value(v))) = self.assignments[1].w
         {
             // TODO: Why is this sometimes 7?
-            Some((v * 255.0 + 0.1) as u32 & 0x7)
+            Some((v.0 * 255.0 + 0.1) as u32 & 0x7)
         } else {
             None
         }
@@ -676,40 +675,40 @@ impl OutputAssignments {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct OutputAssignment {
     /// The x values.
-    pub x: LayerChannelAssignmentValue,
+    pub x: LayerAssignmentValue,
     /// The y values.
-    pub y: LayerChannelAssignmentValue,
+    pub y: LayerAssignmentValue,
     /// The z values.
-    pub z: LayerChannelAssignmentValue,
+    pub z: LayerAssignmentValue,
     /// The w values.
-    pub w: LayerChannelAssignmentValue,
+    pub w: LayerAssignmentValue,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct LayerChannelAssignment {
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LayerAssignment {
     /// The layer value to blend with the previous layer.
-    pub value: LayerChannelAssignmentValue,
+    pub value: LayerAssignmentValue,
     /// The factor or blend weight for this layer.
-    pub weight: LayerChannelAssignmentValue,
+    pub weight: LayerAssignmentValue,
     /// The blending operation for this layer.
     pub blend_mode: LayerBlendMode,
     pub is_fresnel: bool,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum LayerChannelAssignmentValue {
-    Value(Option<ChannelAssignment>),
-    Layers(Vec<LayerChannelAssignment>),
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum LayerAssignmentValue {
+    Value(Option<ValueAssignment>),
+    Layers(Vec<LayerAssignment>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ChannelAssignment {
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ValueAssignment {
     Texture(TextureAssignment),
     Attribute { name: SmolStr, channel_index: usize },
-    Value(f32),
+    Value(OrderedFloat<f32>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TextureAssignment {
     // TODO: Include matrix transform or scale?
     // TODO: Always convert everything to a matrix?
@@ -717,32 +716,32 @@ pub struct TextureAssignment {
     pub name: SmolStr,
     pub channels: SmolStr,
     pub texcoord_name: Option<SmolStr>,
-    pub texcoord_transforms: Option<(Vec4, Vec4)>,
+    pub texcoord_transforms: Option<([OrderedFloat<f32>; 4], [OrderedFloat<f32>; 4])>,
     pub parallax: Option<TexCoordParallax>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TexCoordParallax {
-    pub mask_a: Box<ChannelAssignment>,
-    pub mask_b: Box<ChannelAssignment>,
-    pub ratio: f32,
+    pub mask_a: Box<ValueAssignment>,
+    pub mask_b: Box<ValueAssignment>,
+    pub ratio: OrderedFloat<f32>,
 }
 
-impl Default for LayerChannelAssignmentValue {
+impl Default for LayerAssignmentValue {
     fn default() -> Self {
         Self::Value(None)
     }
 }
 
-impl ChannelAssignment {
+impl ValueAssignment {
     pub fn from_dependency(
         d: &Dependency,
         parameters: &MaterialParameters,
         channel: char,
     ) -> Option<Self> {
         match d {
-            Dependency::Constant(f) => Some(Self::Value(f.0)),
-            Dependency::Buffer(b) => parameters.get_dependency(b).map(Self::Value),
+            Dependency::Constant(f) => Some(Self::Value(f.0.into())),
+            Dependency::Buffer(b) => parameters.get_dependency(b).map(|f| Self::Value(f.into())),
             Dependency::Texture(texture) => {
                 Some(Self::Texture(texture_assignment(texture, parameters)))
             }
@@ -791,8 +790,8 @@ impl Material {
         // No assignment data is available.
         // Guess reasonable defaults based on the texture names or types.
         let assignment = |i: Option<usize>, c: usize| {
-            LayerChannelAssignmentValue::Value(i.map(|i| {
-                ChannelAssignment::Texture(TextureAssignment {
+            LayerAssignmentValue::Value(i.map(|i| {
+                ValueAssignment::Texture(TextureAssignment {
                     name: format!("s{i}").into(),
                     channels: ["x", "y", "z", "w"][c].into(),
                     texcoord_name: None,
@@ -867,7 +866,7 @@ fn output_assignments(
         outline_width: shader
             .outline_width
             .as_ref()
-            .and_then(|d| ChannelAssignment::from_dependency(d, parameters, 'x')),
+            .and_then(|d| ValueAssignment::from_dependency(d, parameters, 'x')),
     }
 }
 
@@ -889,17 +888,17 @@ fn output_channel_assignment(
     parameters: &MaterialParameters,
     output_index: usize,
     channel_index: usize,
-) -> LayerChannelAssignmentValue {
+) -> LayerAssignmentValue {
     let layers = texture_layers(shader, parameters, output_index, channel_index);
     if layers.is_empty() {
-        LayerChannelAssignmentValue::Value(channel_assignment(
+        LayerAssignmentValue::Value(channel_assignment(
             shader,
             parameters,
             output_index,
             channel_index,
         ))
     } else {
-        LayerChannelAssignmentValue::Layers(layers)
+        LayerAssignmentValue::Layers(layers)
     }
 }
 
@@ -908,7 +907,7 @@ fn texture_layers(
     parameters: &MaterialParameters,
     output_index: usize,
     channel_index: usize,
-) -> Vec<LayerChannelAssignment> {
+) -> Vec<LayerAssignment> {
     let channel = ['x', 'y', 'z', 'w'][channel_index];
     let output = format!("o{output_index}.{channel}");
     let layers = shader
@@ -927,11 +926,11 @@ fn layer_channel_assignment(
     parameters: &MaterialParameters,
     channel: char,
     l: &Layer,
-) -> LayerChannelAssignment {
+) -> LayerAssignment {
     let value = layer_channel_assignment_value(parameters, channel, &l.value);
     let weight = layer_channel_assignment_value(parameters, channel, &l.ratio);
 
-    LayerChannelAssignment {
+    LayerAssignment {
         value,
         weight,
         blend_mode: l.blend_mode,
@@ -943,12 +942,12 @@ fn layer_channel_assignment_value(
     parameters: &MaterialParameters,
     channel: char,
     value: &LayerValue,
-) -> LayerChannelAssignmentValue {
+) -> LayerAssignmentValue {
     let value = match value {
-        crate::shader_database::LayerValue::Value(d) => LayerChannelAssignmentValue::Value(
-            ChannelAssignment::from_dependency(d, parameters, channel),
-        ),
-        crate::shader_database::LayerValue::Layers(layers) => LayerChannelAssignmentValue::Layers(
+        crate::shader_database::LayerValue::Value(d) => {
+            LayerAssignmentValue::Value(ValueAssignment::from_dependency(d, parameters, channel))
+        }
+        crate::shader_database::LayerValue::Layers(layers) => LayerAssignmentValue::Layers(
             layers
                 .iter()
                 .map(|l| layer_channel_assignment(parameters, channel, l))
@@ -963,7 +962,7 @@ fn channel_assignment(
     parameters: &MaterialParameters,
     output_index: usize,
     channel_index: usize,
-) -> Option<ChannelAssignment> {
+) -> Option<ValueAssignment> {
     let channel = ['x', 'y', 'z', 'w'][channel_index];
     let output = format!("o{output_index}.{channel}");
 
@@ -1034,7 +1033,7 @@ fn channel_assignment(
     }?;
 
     // If a parameter or attribute is assigned, it will likely be the only dependency.
-    ChannelAssignment::from_dependency(dependency, parameters, channel)
+    ValueAssignment::from_dependency(dependency, parameters, channel)
 }
 
 fn texture_assignment(
@@ -1055,14 +1054,14 @@ fn texture_assignment(
                 mask_b,
                 ratio,
             }) => {
-                let mask_a = ChannelAssignment::from_dependency(mask_a, parameters, 'x');
-                let mask_b = ChannelAssignment::from_dependency(mask_b, parameters, 'x');
+                let mask_a = ValueAssignment::from_dependency(mask_a, parameters, 'x');
+                let mask_b = ValueAssignment::from_dependency(mask_b, parameters, 'x');
                 // TODO: Why are these sometimes none for xcx de?
                 match (mask_a, mask_b) {
                     (Some(mask_a), Some(mask_b)) => Some(TexCoordParallax {
                         mask_a: Box::new(mask_a),
                         mask_b: Box::new(mask_b),
-                        ratio: parameters.get_dependency(ratio).unwrap_or_default(),
+                        ratio: parameters.get_dependency(ratio).unwrap_or_default().into(),
                     }),
                     _ => None,
                 }
@@ -1107,7 +1106,7 @@ fn layer_dependency(l: &Layer) -> Option<&Dependency> {
 fn texcoord_transforms(
     texture: &TextureDependency,
     parameters: &MaterialParameters,
-) -> Option<(Vec4, Vec4)> {
+) -> Option<([OrderedFloat<f32>; 4], [OrderedFloat<f32>; 4])> {
     // Each texcoord component has its own params.
     // TODO: return a vector for everything.
     if let Some([u, v]) = texture.texcoords.get(..2) {
@@ -1123,21 +1122,21 @@ fn texcoord_transform(
     u: &crate::shader_database::TexCoord,
     parameters: &MaterialParameters,
     index: usize,
-) -> Option<Vec4> {
+) -> Option<[OrderedFloat<f32>; 4]> {
     match u.params.as_ref()? {
         crate::shader_database::TexCoordParams::Scale(s) => {
             // Select and scale the appropriate component.
             let scale = parameters.get_dependency(s)?;
-            let mut transform = Vec4::ZERO;
-            transform[index] = scale;
+            let mut transform = [0.0.into(); 4];
+            transform[index] = scale.into();
             Some(transform)
         }
-        crate::shader_database::TexCoordParams::Matrix([x, y, z, w]) => Some(vec4(
-            parameters.get_dependency(x)?,
-            parameters.get_dependency(y)?,
-            parameters.get_dependency(z)?,
-            parameters.get_dependency(w)?,
-        )),
+        crate::shader_database::TexCoordParams::Matrix([x, y, z, w]) => Some([
+            parameters.get_dependency(x)?.into(),
+            parameters.get_dependency(y)?.into(),
+            parameters.get_dependency(z)?.into(),
+            parameters.get_dependency(w)?.into(),
+        ]),
         crate::shader_database::TexCoordParams::Parallax { .. } => None,
     }
 }
