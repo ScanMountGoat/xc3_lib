@@ -26,7 +26,6 @@ pub struct PipelineKey {
     pub is_outline: bool,
     pub output5_type: Output5Type,
     pub is_instanced_static: bool,
-    pub output_assignments_wgsl: Vec<String>,
     pub output_layers_wgsl: Vec<String>,
     pub alpha_test_wgsl: String,
     pub uvs_wgsl: Vec<String>,

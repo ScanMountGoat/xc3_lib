@@ -21,23 +21,12 @@ pub fn create_model_shader(key: &PipelineKey) -> String {
     let mut source = include_str!("shader/model.wgsl").to_string();
 
     for ((from, var), to) in [
-        ("// ASSIGN_G_COLOR_GENERATED", "g_color"),
-        ("// ASSIGN_G_ETC_BUFFER_GENERATED", "g_etc_buffer"),
-        ("// ASSIGN_G_NORMAL_GENERATED", "g_normal"),
+        ("// ASSIGN_COLOR_GENERATED", "g_color"),
+        ("// ASSIGN_ETC_GENERATED", "g_etc_buffer"),
+        ("// ASSIGN_NORMAL_GENERATED", "normal_map"),
         ("// ASSIGN_G_VELOCITY_GENERATED", "g_velocity"),
         ("// ASSIGN_G_DEPTH_GENERATED", "g_depth"),
         ("// ASSIGN_G_LGT_COLOR_GENERATED", "g_lgt_color"),
-    ]
-    .iter()
-    .zip(&key.output_assignments_wgsl)
-    {
-        source = source.replace(from, &to.replace(OUT_VAR, var));
-    }
-
-    for ((from, var), to) in [
-        ("// BLEND_COLOR_LAYERS_GENERATED", "color"),
-        ("// BLEND_ETC_LAYERS_GENERATED", "etc_buffer"),
-        ("// BLEND_NORMAL_LAYERS_GENERATED", "normal_map"),
     ]
     .iter()
     .zip(&key.output_layers_wgsl)
@@ -119,67 +108,38 @@ pub fn generate_alpha_test_wgsl(
     }
 }
 
-pub fn generate_assignment_wgsl(
-    assignments: &OutputAssignment,
-    name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
-) -> String {
-    let mut wgsl = String::new();
-    if let Some(value) =
-        channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, assignments.x.as_ref())
-    {
-        writeln!(&mut wgsl, "{OUT_VAR}.x = {value};").unwrap();
-    }
-    if let Some(value) =
-        channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, assignments.y.as_ref())
-    {
-        writeln!(&mut wgsl, "{OUT_VAR}.y = {value};").unwrap();
-    }
-    if let Some(value) =
-        channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, assignments.z.as_ref())
-    {
-        writeln!(&mut wgsl, "{OUT_VAR}.z = {value};").unwrap();
-    }
-    if let Some(value) =
-        channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, assignments.w.as_ref())
-    {
-        writeln!(&mut wgsl, "{OUT_VAR}.w = {value};").unwrap();
-    }
-    wgsl
-}
-
 pub fn generate_layering_wgsl(
     assignments: &OutputAssignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
     name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
 ) -> String {
     let mut wgsl = String::new();
-    write_layers(
+    write_value_to_output(
         &mut wgsl,
         name_to_index,
         name_to_uv_wgsl,
-        &assignments.x_layers,
+        &assignments.x,
         'x',
     );
-    write_layers(
+    write_value_to_output(
         &mut wgsl,
         name_to_index,
         name_to_uv_wgsl,
-        &assignments.y_layers,
+        &assignments.y,
         'y',
     );
-    write_layers(
+    write_value_to_output(
         &mut wgsl,
         name_to_index,
         name_to_uv_wgsl,
-        &assignments.z_layers,
+        &assignments.z,
         'z',
     );
-    write_layers(
+    write_value_to_output(
         &mut wgsl,
         name_to_index,
         name_to_uv_wgsl,
-        &assignments.w_layers,
+        &assignments.w,
         'w',
     );
     wgsl
@@ -192,76 +152,109 @@ pub fn generate_normal_layering_wgsl(
 ) -> String {
     let mut wgsl = String::new();
 
-    for (x_layer, y_layer) in assignments.x_layers.iter().zip(&assignments.y_layers) {
-        if x_layer.blend_mode != y_layer.blend_mode {
-            error!("o2.x and o2.y layer blend modes do not match");
-        }
+    // XY channels need special logic since normal blend modes can affect multiple channels.
+    write_normal_value_to_output(&mut wgsl, name_to_index, name_to_uv_wgsl, &assignments);
 
-        // Assume add normals always blend xy vectors.
-        if x_layer.blend_mode == LayerBlendMode::AddNormal {
-            if let Some(value) =
-                layer_wgsl(name_to_index, name_to_uv_wgsl, x_layer, OUT_VAR, Some("xy"))
-            {
-                writeln!(wgsl, "{OUT_VAR}.x = {value}.x;").unwrap();
-                writeln!(wgsl, "{OUT_VAR}.y = {value}.y;").unwrap();
-            }
-        } else {
-            if let Some(value) = layer_wgsl(
-                name_to_index,
-                name_to_uv_wgsl,
-                x_layer,
-                &format!("{OUT_VAR}.x"),
-                None,
-            ) {
-                writeln!(wgsl, "{OUT_VAR}.x = {value};").unwrap();
-            }
-
-            if let Some(value) = layer_wgsl(
-                name_to_index,
-                name_to_uv_wgsl,
-                y_layer,
-                &format!("{OUT_VAR}.y"),
-                None,
-            ) {
-                writeln!(wgsl, "{OUT_VAR}.y = {value};").unwrap();
-            }
-        }
-    }
-
-    write_layers(
+    write_value_to_output(
         &mut wgsl,
         name_to_index,
         name_to_uv_wgsl,
-        &assignments.z_layers,
+        &assignments.z,
         'z',
     );
-    write_layers(
+    write_value_to_output(
         &mut wgsl,
         name_to_index,
         name_to_uv_wgsl,
-        &assignments.w_layers,
+        &assignments.w,
         'w',
     );
     wgsl
 }
 
-fn write_layers(
+fn write_normal_value_to_output(
     wgsl: &mut String,
     name_to_index: &mut IndexMap<SmolStr, usize>,
     name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
-    layers: &[LayerChannelAssignment],
+    assignments: &OutputAssignment,
+) {
+    match (&assignments.x, &assignments.y) {
+        (LayerChannelAssignmentValue::Value(x), LayerChannelAssignmentValue::Value(y)) => {
+            if let Some(value) = channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, x.as_ref())
+            {
+                writeln!(wgsl, "{OUT_VAR}.x = {value};").unwrap();
+            }
+
+            if let Some(value) = channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, y.as_ref())
+            {
+                writeln!(wgsl, "{OUT_VAR}.y = {value};").unwrap();
+            }
+            // TODO: Find a better way to handle normal map value ranges.
+            writeln!(wgsl, "{OUT_VAR}.x = create_normal_map({OUT_VAR}.xy).x;").unwrap();
+            writeln!(wgsl, "{OUT_VAR}.y = create_normal_map({OUT_VAR}.xy).y;").unwrap();
+        }
+        (LayerChannelAssignmentValue::Layers(x), LayerChannelAssignmentValue::Layers(y)) => {
+            for (i, (x_layer, y_layer)) in x.iter().zip(y).enumerate() {
+                if x_layer.blend_mode != y_layer.blend_mode {
+                    error!("o2.x and o2.y layer blend modes do not match");
+                }
+
+                // Assume add normals always blend xy vectors.
+                if x_layer.blend_mode == LayerBlendMode::AddNormal {
+                    if let Some(value) =
+                        layer_wgsl(name_to_index, name_to_uv_wgsl, x_layer, OUT_VAR, Some("xy"))
+                    {
+                        writeln!(wgsl, "{OUT_VAR}.x = {value}.x;").unwrap();
+                        writeln!(wgsl, "{OUT_VAR}.y = {value}.y;").unwrap();
+                    }
+                } else {
+                    if let Some(value) = layer_wgsl(
+                        name_to_index,
+                        name_to_uv_wgsl,
+                        x_layer,
+                        &format!("{OUT_VAR}.x"),
+                        None,
+                    ) {
+                        writeln!(wgsl, "{OUT_VAR}.x = {value};").unwrap();
+                    }
+
+                    if let Some(value) = layer_wgsl(
+                        name_to_index,
+                        name_to_uv_wgsl,
+                        y_layer,
+                        &format!("{OUT_VAR}.y"),
+                        None,
+                    ) {
+                        writeln!(wgsl, "{OUT_VAR}.y = {value};").unwrap();
+                    }
+                }
+
+                if i == 0 {
+                    // TODO: Find a better way to handle normal map value ranges.
+                    writeln!(wgsl, "{OUT_VAR}.x = create_normal_map({OUT_VAR}.xy).x;").unwrap();
+                    writeln!(wgsl, "{OUT_VAR}.y = create_normal_map({OUT_VAR}.xy).y;").unwrap();
+                }
+            }
+        }
+        _ => error!("o2.x and o2.y layer values do not match"),
+    };
+}
+
+fn write_value_to_output(
+    wgsl: &mut String,
+    name_to_index: &mut IndexMap<SmolStr, usize>,
+    name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
+    value: &LayerChannelAssignmentValue,
     c: char,
 ) {
-    for layer in layers {
-        if let Some(value) = layer_wgsl(
-            name_to_index,
-            name_to_uv_wgsl,
-            layer,
-            &format!("{OUT_VAR}.{c}"),
-            None,
-        ) {
-            writeln!(wgsl, "{OUT_VAR}.{c} = {value};").unwrap();
-        }
+    if let Some(value) = layer_value_wgsl(
+        name_to_index,
+        name_to_uv_wgsl,
+        value,
+        &format!("{OUT_VAR}.{c}"),
+        None,
+    ) {
+        writeln!(wgsl, "{OUT_VAR}.{c} = {value};").unwrap();
     }
 }
 
