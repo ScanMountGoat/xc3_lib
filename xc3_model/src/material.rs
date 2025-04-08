@@ -837,7 +837,6 @@ impl Material {
                     y: assignment(color_index, 1),
                     z: assignment(color_index, 2),
                     w: assignment(color_index, 3),
-                    ..Default::default()
                 },
                 OutputAssignment::default(),
                 OutputAssignment {

@@ -146,27 +146,27 @@ pub fn generate_layering_wgsl(
 }
 
 pub fn generate_normal_layering_wgsl(
-    assignments: &OutputAssignment,
+    assignment: &OutputAssignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
     name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
 ) -> String {
     let mut wgsl = String::new();
 
     // XY channels need special logic since normal blend modes can affect multiple channels.
-    write_normal_value_to_output(&mut wgsl, name_to_index, name_to_uv_wgsl, &assignments);
+    write_normal_value_to_output(&mut wgsl, name_to_index, name_to_uv_wgsl, assignment);
 
     write_value_to_output(
         &mut wgsl,
         name_to_index,
         name_to_uv_wgsl,
-        &assignments.z,
+        &assignment.z,
         'z',
     );
     write_value_to_output(
         &mut wgsl,
         name_to_index,
         name_to_uv_wgsl,
-        &assignments.w,
+        &assignment.w,
         'w',
     );
     wgsl

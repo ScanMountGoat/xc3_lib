@@ -1214,6 +1214,10 @@ mod tests {
         })
     }
 
+    fn constant(f: f32) -> Dependency {
+        Dependency::Constant(f.into())
+    }
+
     #[test]
     fn find_attribute_locations_outputs() {
         let glsl = indoc! {"
@@ -1267,7 +1271,7 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("s0", 'x', "vTex0", 'x', 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
                 },
@@ -1276,13 +1280,13 @@ mod tests {
                     ratio: LayerValue::Layers(vec![
                         Layer {
                             value: LayerValue::Value(tex("s2", 'x', "vTex0", 'x', 'y')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false
                         },
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(0), 'z')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false
                         },
@@ -1292,7 +1296,7 @@ mod tests {
                 },
                 Layer {
                     value: LayerValue::Value(attr("vColor", 'x')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::MixRatio,
                     is_fresnel: false,
                 },
@@ -1322,7 +1326,7 @@ mod tests {
         );
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![Dependency::Constant(0.07098039.into())],
+                dependencies: vec![constant(0.07098039)],
                 layers: Vec::new()
             },
             shader.output_dependencies[&SmolStr::from("o1.w")]
@@ -1425,7 +1429,7 @@ mod tests {
         );
         assert_eq!(
             OutputDependencies {
-                dependencies: vec![Dependency::Constant(0.0.into())],
+                dependencies: vec![constant(0.0)],
                 layers: Vec::new()
             },
             shader.output_dependencies[&SmolStr::from("o5.w")]
@@ -1447,13 +1451,13 @@ mod tests {
                 layers: vec![
                     Layer {
                         value: LayerValue::Value(tex("s0", 'x', "in_attr2", 'x', 'y')),
-                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                        ratio: LayerValue::Value(constant(1.0)),
                         blend_mode: LayerBlendMode::Mix,
                         is_fresnel: false,
                     },
                     Layer {
                         value: LayerValue::Value(attr("in_attr3", 'x')),
-                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                        ratio: LayerValue::Value(constant(1.0)),
                         blend_mode: LayerBlendMode::MixRatio,
                         is_fresnel: false,
                     },
@@ -1478,7 +1482,7 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("s0", 'x', "in_attr3", 'x', 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
@@ -1487,13 +1491,13 @@ mod tests {
                     ratio: LayerValue::Layers(vec![
                         Layer {
                             value: LayerValue::Value(tex("s1", 'z', "in_attr3", 'x', 'y')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false
                         },
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'x')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false
                         },
@@ -1520,7 +1524,7 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("s0", 'y', "in_attr3", 'x', 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
@@ -1529,13 +1533,13 @@ mod tests {
                     ratio: LayerValue::Layers(vec![
                         Layer {
                             value: LayerValue::Value(tex("s1", 'z', "in_attr3", 'x', 'y')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false
                         },
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'x')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false
                         },
@@ -1562,7 +1566,7 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("s0", 'z', "in_attr3", 'x', 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
@@ -1571,13 +1575,13 @@ mod tests {
                     ratio: LayerValue::Layers(vec![
                         Layer {
                             value: LayerValue::Value(tex("s1", 'z', "in_attr3", 'x', 'y')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false
                         },
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'x')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false
                         },
@@ -1604,7 +1608,7 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("s2", 'x', "in_attr3", 'x', 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
@@ -1639,7 +1643,7 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("s0", 'x', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
@@ -1654,13 +1658,13 @@ mod tests {
                     ratio: LayerValue::Layers(vec![
                         Layer {
                             value: LayerValue::Value(tex("s1", 'x', "in_attr4", 'x', 'y')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false
                         },
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'w')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false
                         },
@@ -1703,7 +1707,7 @@ mod tests {
                 layers: vec![
                     Layer {
                         value: LayerValue::Value(tex("s2", 'x', "in_attr4", 'x', 'y')),
-                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                        ratio: LayerValue::Value(constant(1.0)),
                         blend_mode: LayerBlendMode::Mix,
                         is_fresnel: false
                     },
@@ -1737,7 +1741,7 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("s0", 'x', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
@@ -1752,13 +1756,13 @@ mod tests {
                     ratio: LayerValue::Layers(vec![
                         Layer {
                             value: LayerValue::Value(tex("s1", 'x', "in_attr4", 'x', 'y')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false
                         },
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(0), 'w')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false
                         },
@@ -1883,7 +1887,7 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("s6", 'x', "in_attr3", 'x', 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
@@ -1900,7 +1904,7 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("s6", 'y', "in_attr3", 'x', 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
@@ -1927,7 +1931,7 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("s0", 'x', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
@@ -1942,13 +1946,13 @@ mod tests {
                     ratio: LayerValue::Layers(vec![
                         Layer {
                             value: LayerValue::Value(tex("s1", 'y', "in_attr4", 'x', 'y')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false
                         },
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'z')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false
                         },
@@ -1983,7 +1987,7 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("s2", 'x', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
@@ -2021,7 +2025,7 @@ mod tests {
                 layers: vec![
                     Layer {
                         value: LayerValue::Value(tex("s2", 'x', "in_attr4", 'x', 'y')),
-                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                        ratio: LayerValue::Value(constant(1.0)),
                         blend_mode: LayerBlendMode::Mix,
                         is_fresnel: false,
                     },
@@ -2057,7 +2061,7 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("s0", 'x', "vTex0", 'x', 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false
                 },
@@ -2066,13 +2070,13 @@ mod tests {
                     ratio: LayerValue::Layers(vec![
                         Layer {
                             value: LayerValue::Value(tex("s2", 'x', "vTex0", 'x', 'y')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false,
                         },
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(0), 'x')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false,
                         },
@@ -2109,7 +2113,7 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("s2", 'y', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
                 },
@@ -2136,7 +2140,7 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("s2", 'z', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
                 },
@@ -2148,7 +2152,7 @@ mod tests {
                 },
                 Layer {
                     value: LayerValue::Value(attr("in_attr5", 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::MixRatio,
                     is_fresnel: false,
                 },
@@ -2168,7 +2172,7 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("texAO", 'z', "in_attr6", 'w', 'w')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
                 },
@@ -2176,13 +2180,13 @@ mod tests {
                     value: LayerValue::Layers(vec![
                         Layer {
                             value: LayerValue::Value(buf("U_LGT", "gLgtPreDir", Some(0), 'w')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false,
                         },
                         Layer {
-                            value: LayerValue::Value(Dependency::Constant(1.0.into())),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            value: LayerValue::Value(constant(1.0)),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Min,
                             is_fresnel: false,
                         },
@@ -2192,7 +2196,7 @@ mod tests {
                                     value: LayerValue::Value(tex(
                                         "texLgt", 'x', "in_attr6", 'w', 'w'
                                     )),
-                                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                                    ratio: LayerValue::Value(constant(1.0)),
                                     blend_mode: LayerBlendMode::Mix,
                                     is_fresnel: false,
                                 },
@@ -2206,7 +2210,7 @@ mod tests {
                                                 'w',
                                                 'w'
                                             )),
-                                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                                            ratio: LayerValue::Value(constant(1.0)),
                                             blend_mode: LayerBlendMode::Mix,
                                             is_fresnel: false,
                                         },
@@ -2229,9 +2233,7 @@ mod tests {
                                                 Some(0),
                                                 'y'
                                             )),
-                                            ratio: LayerValue::Value(Dependency::Constant(
-                                                1.0.into()
-                                            )),
+                                            ratio: LayerValue::Value(constant(1.0)),
                                             blend_mode: LayerBlendMode::Add,
                                             is_fresnel: false,
                                         },
@@ -2242,9 +2244,7 @@ mod tests {
                                                 Some(0),
                                                 'x'
                                             )),
-                                            ratio: LayerValue::Value(Dependency::Constant(
-                                                1.0.into()
-                                            )),
+                                            ratio: LayerValue::Value(constant(1.0)),
                                             blend_mode: LayerBlendMode::MixRatio,
                                             is_fresnel: false,
                                         },
@@ -2260,28 +2260,28 @@ mod tests {
                                 },
                                 Layer {
                                     value: LayerValue::Value(attr("in_attr2", 'x')),
-                                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                                    ratio: LayerValue::Value(constant(1.0)),
                                     blend_mode: LayerBlendMode::Add,
                                     is_fresnel: false,
                                 },
                                 Layer {
                                     value: LayerValue::Layers(vec![Layer {
                                         value: LayerValue::Layers(vec![]),
-                                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                                        ratio: LayerValue::Value(constant(1.0)),
                                         blend_mode: LayerBlendMode::MixRatio,
                                         is_fresnel: false,
                                     }]),
-                                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                                    ratio: LayerValue::Value(constant(1.0)),
                                     blend_mode: LayerBlendMode::MixRatio,
                                     is_fresnel: false,
                                 },
                             ]),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false,
                         }
                     ]),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::MixRatio,
                     is_fresnel: false,
                 },
@@ -2290,7 +2290,7 @@ mod tests {
                     ratio: LayerValue::Layers(vec![
                         Layer {
                             value: LayerValue::Value(attr("in_attr5", 'x')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false,
                         },
@@ -2384,13 +2384,13 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("s0", 'x', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
                 },
                 Layer {
                     value: LayerValue::Value(buf("U_Mate", "gWrkCol", Some(1), 'x')),
-                    ratio: LayerValue::Value(Dependency::Constant((-1.0).into())),
+                    ratio: LayerValue::Value(constant(-1.0)),
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false,
                 },
@@ -2405,13 +2405,13 @@ mod tests {
                     ratio: LayerValue::Layers(vec![
                         Layer {
                             value: LayerValue::Value(tex("s1", 'y', "in_attr4", 'x', 'y')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false,
                         },
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'x')),
-                            ratio: LayerValue::Value(Dependency::Constant((1.0).into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false,
                         },
@@ -2606,7 +2606,7 @@ mod tests {
                     (
                         "o1.w".into(),
                         OutputDependencies {
-                            dependencies: vec![Dependency::Constant(0.0.into())],
+                            dependencies: vec![constant(0.0)],
                             layers: Vec::new()
                         },
                     ),
@@ -2683,19 +2683,19 @@ mod tests {
                 layers: vec![
                     Layer {
                         value: LayerValue::Value(tex("s0", 'x', "vTex0", 'x', 'y')),
-                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                        ratio: LayerValue::Value(constant(1.0)),
                         blend_mode: LayerBlendMode::Mix,
                         is_fresnel: false,
                     },
                     Layer {
                         value: LayerValue::Value(buf("U_CHR", "gAvaSkin", None, 'x')),
-                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                        ratio: LayerValue::Value(constant(1.0)),
                         blend_mode: LayerBlendMode::Overlay,
                         is_fresnel: false,
                     },
                     Layer {
                         value: LayerValue::Value(attr("vColor", 'x')),
-                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                        ratio: LayerValue::Value(constant(1.0)),
                         blend_mode: LayerBlendMode::MixRatio,
                         is_fresnel: false,
                     },
@@ -2709,19 +2709,19 @@ mod tests {
                 layers: vec![
                     Layer {
                         value: LayerValue::Value(tex("s0", 'y', "vTex0", 'x', 'y')),
-                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                        ratio: LayerValue::Value(constant(1.0)),
                         blend_mode: LayerBlendMode::Mix,
                         is_fresnel: false,
                     },
                     Layer {
                         value: LayerValue::Value(buf("U_CHR", "gAvaSkin", None, 'y')),
-                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                        ratio: LayerValue::Value(constant(1.0)),
                         blend_mode: LayerBlendMode::Overlay,
                         is_fresnel: false,
                     },
                     Layer {
                         value: LayerValue::Value(attr("vColor", 'y')),
-                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                        ratio: LayerValue::Value(constant(1.0)),
                         blend_mode: LayerBlendMode::MixRatio,
                         is_fresnel: false,
                     },
@@ -2735,19 +2735,19 @@ mod tests {
                 layers: vec![
                     Layer {
                         value: LayerValue::Value(tex("s0", 'z', "vTex0", 'x', 'y')),
-                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                        ratio: LayerValue::Value(constant(1.0)),
                         blend_mode: LayerBlendMode::Mix,
                         is_fresnel: false,
                     },
                     Layer {
                         value: LayerValue::Value(buf("U_CHR", "gAvaSkin", None, 'z')),
-                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                        ratio: LayerValue::Value(constant(1.0)),
                         blend_mode: LayerBlendMode::Overlay,
                         is_fresnel: false,
                     },
                     Layer {
                         value: LayerValue::Value(attr("vColor", 'z')),
-                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                        ratio: LayerValue::Value(constant(1.0)),
                         blend_mode: LayerBlendMode::MixRatio,
                         is_fresnel: false,
                     },
@@ -2769,13 +2769,13 @@ mod tests {
             vec![
                 Layer {
                     value: LayerValue::Value(tex("gIBL", 'x', "in_attr0", 'x', 'x')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Mix,
                     is_fresnel: false,
                 },
                 Layer {
                     value: LayerValue::Value(buf("U_Mate", "gMatAmb", None, 'x')),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::MixRatio,
                     is_fresnel: false,
                 },
@@ -2783,7 +2783,7 @@ mod tests {
                     value: LayerValue::Layers(vec![
                         Layer {
                             value: LayerValue::Value(buf("U_Static", "gLgtPreCol", Some(1), 'x')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false,
                         },
@@ -2795,7 +2795,7 @@ mod tests {
                                     Some(0),
                                     'x'
                                 )),
-                                ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                                ratio: LayerValue::Value(constant(1.0)),
                                 blend_mode: LayerBlendMode::MixRatio,
                                 is_fresnel: false,
                             }]),
@@ -2804,15 +2804,15 @@ mod tests {
                             is_fresnel: false,
                         },
                     ]),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false,
                 },
                 Layer {
                     value: LayerValue::Layers(vec![
                         Layer {
-                            value: LayerValue::Value(Dependency::Constant(0.0.into())),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            value: LayerValue::Value(constant(0.0)),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false,
                         },
@@ -2822,7 +2822,7 @@ mod tests {
                                     value: LayerValue::Value(tex(
                                         "texLgt", 'x', "in_attr6", 'w', 'w'
                                     )),
-                                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                                    ratio: LayerValue::Value(constant(1.0)),
                                     blend_mode: LayerBlendMode::Mix,
                                     is_fresnel: false,
                                 },
@@ -2832,7 +2832,7 @@ mod tests {
                                             value: LayerValue::Value(tex(
                                                 "gIBL", 'x', "in_attr0", 'x', 'x'
                                             )),
-                                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                                            ratio: LayerValue::Value(constant(1.0)),
                                             blend_mode: LayerBlendMode::Mix,
                                             is_fresnel: false,
                                         },
@@ -2840,9 +2840,7 @@ mod tests {
                                             value: LayerValue::Value(buf(
                                                 "U_Mate", "gMatAmb", None, 'x'
                                             )),
-                                            ratio: LayerValue::Value(Dependency::Constant(
-                                                1.0.into()
-                                            )),
+                                            ratio: LayerValue::Value(constant(1.0)),
                                             blend_mode: LayerBlendMode::MixRatio,
                                             is_fresnel: false,
                                         },
@@ -2852,26 +2850,26 @@ mod tests {
                                     is_fresnel: false,
                                 },
                                 Layer {
-                                    value: LayerValue::Value(Dependency::Constant(10.0.into())),
-                                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                                    value: LayerValue::Value(constant(10.0)),
+                                    ratio: LayerValue::Value(constant(1.0)),
                                     blend_mode: LayerBlendMode::Min,
                                     is_fresnel: false,
                                 },
                             ]),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Max,
                             is_fresnel: false,
                         },
                     ]),
-                    ratio: LayerValue::Value(Dependency::Constant(2.0.into())),
+                    ratio: LayerValue::Value(constant(2.0)),
                     blend_mode: LayerBlendMode::Add,
                     is_fresnel: false,
                 },
                 Layer {
                     value: LayerValue::Layers(vec![
                         Layer {
-                            value: LayerValue::Value(Dependency::Constant(0.0.into())),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            value: LayerValue::Value(constant(0.0)),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false,
                         },
@@ -2879,29 +2877,29 @@ mod tests {
                             value: LayerValue::Layers(vec![
                                 Layer {
                                     value: LayerValue::Value(tex("s0", 'x', "in_attr3", 'y', 'y')),
-                                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                                    ratio: LayerValue::Value(constant(1.0)),
                                     blend_mode: LayerBlendMode::Mix,
                                     is_fresnel: false,
                                 },
                                 Layer {
                                     value: LayerValue::Value(attr("in_attr5", 'x')),
-                                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                                    ratio: LayerValue::Value(constant(1.0)),
                                     blend_mode: LayerBlendMode::MixRatio,
                                     is_fresnel: false,
                                 },
                             ]),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Max,
                             is_fresnel: false,
                         },
                         Layer {
                             value: LayerValue::Value(buf("U_Static", "gCDep", None, 'w')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Power,
                             is_fresnel: false,
                         },
                     ]),
-                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                    ratio: LayerValue::Value(constant(1.0)),
                     blend_mode: LayerBlendMode::MixRatio,
                     is_fresnel: false,
                 },
@@ -2909,21 +2907,21 @@ mod tests {
                     value: LayerValue::Layers(vec![
                         Layer {
                             value: LayerValue::Value(tex("gIBL", 'w', "in_attr0", 'x', 'x')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::Mix,
                             is_fresnel: false,
                         },
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gMatAmb", None, 'w')),
-                            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                            ratio: LayerValue::Value(constant(1.0)),
                             blend_mode: LayerBlendMode::MixRatio,
                             is_fresnel: false,
                         },
                         Layer {
                             value: LayerValue::Layers(vec![
                                 Layer {
-                                    value: LayerValue::Value(Dependency::Constant(100.0.into())),
-                                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                                    value: LayerValue::Value(constant(100.0)),
+                                    ratio: LayerValue::Value(constant(1.0)),
                                     blend_mode: LayerBlendMode::Mix,
                                     is_fresnel: false,
                                 },
@@ -2934,13 +2932,13 @@ mod tests {
                                         Some(0),
                                         'x'
                                     )),
-                                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                                    ratio: LayerValue::Value(constant(1.0)),
                                     blend_mode: LayerBlendMode::Min,
                                     is_fresnel: false,
                                 },
                                 Layer {
-                                    value: LayerValue::Value(Dependency::Constant(0.4.into())),
-                                    ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                                    value: LayerValue::Value(constant(0.4)),
+                                    ratio: LayerValue::Value(constant(1.0)),
                                     blend_mode: LayerBlendMode::Max,
                                     is_fresnel: false,
                                 },
