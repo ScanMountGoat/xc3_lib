@@ -1,5 +1,7 @@
 use crate::{
-    material::{ChannelAssignment, OutputAssignments, TextureAssignment},
+    material::{
+        ChannelAssignment, LayerChannelAssignmentValue, OutputAssignments, TextureAssignment,
+    },
     monolib::ShaderTextures,
     ImageTexture, IndexMapExt,
 };
@@ -132,7 +134,7 @@ pub fn albedo_generated_key(
     root_index: usize,
 ) -> GeneratedImageKey {
     // Assume the first texture is albedo if no assignments are possible.
-    let red_index = image_index(material, assignments.assignments[0].x.as_ref()).or_else(|| {
+    let red_index = image_index(material, &assignments.assignments[0].x).or_else(|| {
         material.textures.first().map(|t| ImageIndex::Image {
             image_texture: t.image_texture_index,
             sampler: 0,
@@ -141,7 +143,7 @@ pub fn albedo_generated_key(
             texcoord_scale: None,
         })
     });
-    let green_index = image_index(material, assignments.assignments[0].y.as_ref()).or_else(|| {
+    let green_index = image_index(material, &assignments.assignments[0].y).or_else(|| {
         material.textures.first().map(|t| ImageIndex::Image {
             image_texture: t.image_texture_index,
             sampler: 0,
@@ -150,7 +152,7 @@ pub fn albedo_generated_key(
             texcoord_scale: None,
         })
     });
-    let blue_index = image_index(material, assignments.assignments[0].z.as_ref()).or_else(|| {
+    let blue_index = image_index(material, &assignments.assignments[0].z).or_else(|| {
         material.textures.first().map(|t| ImageIndex::Image {
             image_texture: t.image_texture_index,
             sampler: 0,
@@ -193,8 +195,8 @@ pub fn normal_generated_key(
     assignments: &OutputAssignments,
     root_index: usize,
 ) -> GeneratedImageKey {
-    let red_index = image_index(material, assignments.assignments[2].x.as_ref());
-    let green_index = image_index(material, assignments.assignments[2].y.as_ref());
+    let red_index = image_index(material, &assignments.assignments[2].x);
+    let green_index = image_index(material, &assignments.assignments[2].y);
 
     GeneratedImageKey {
         root_index,
@@ -213,9 +215,9 @@ pub fn metallic_roughness_generated_key(
     root_index: usize,
 ) -> GeneratedImageKey {
     // The red channel is unused, we can pack occlusion here.
-    let occlusion_index = image_index(material, assignments.assignments[2].z.as_ref());
-    let metalness_index = image_index(material, assignments.assignments[1].x.as_ref());
-    let glossiness_index = image_index(material, assignments.assignments[1].y.as_ref());
+    let occlusion_index = image_index(material, &assignments.assignments[2].z);
+    let metalness_index = image_index(material, &assignments.assignments[1].x);
+    let glossiness_index = image_index(material, &assignments.assignments[1].y);
 
     // Invert the glossiness since glTF uses roughness.
     GeneratedImageKey {
@@ -237,9 +239,9 @@ pub fn emissive_generated_key(
     // TODO: Is it correct to assume only toon and hair materials use specular?
     let has_emission = !matches!(assignments.mat_id(), Some(2 | 5));
     if has_emission {
-        let red_index = image_index(material, assignments.assignments[5].x.as_ref());
-        let green_index = image_index(material, assignments.assignments[5].y.as_ref());
-        let blue_index = image_index(material, assignments.assignments[5].z.as_ref());
+        let red_index = image_index(material, &assignments.assignments[5].x);
+        let green_index = image_index(material, &assignments.assignments[5].y);
+        let blue_index = image_index(material, &assignments.assignments[5].z);
 
         GeneratedImageKey {
             root_index,
@@ -451,10 +453,23 @@ fn channel_name(index: &Option<ImageIndex>) -> Option<String> {
 
 fn image_index(
     material: &crate::Material,
-    assignment: Option<&ChannelAssignment>,
+    value: &LayerChannelAssignmentValue,
 ) -> Option<ImageIndex> {
-    // TODO: scale?
-    match assignment? {
+    match value {
+        LayerChannelAssignmentValue::Value(assignment) => {
+            assignment_image_index(material, assignment)
+        }
+        LayerChannelAssignmentValue::Layers(layers) => {
+            image_index(material, &layers.first()?.value)
+        }
+    }
+}
+
+fn assignment_image_index(
+    material: &crate::Material,
+    assignment: &Option<ChannelAssignment>,
+) -> Option<ImageIndex> {
+    match assignment.as_ref()? {
         ChannelAssignment::Texture(texture) => {
             let TextureAssignment {
                 name,

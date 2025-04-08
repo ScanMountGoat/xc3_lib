@@ -482,26 +482,20 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     var g_depth = assignments[4].default_value;
     var g_lgt_color = assignments[5].default_value;
 
-    // ASSIGN_G_COLOR_GENERATED
-    // ASSIGN_G_ETC_BUFFER_GENERATED
-    // ASSIGN_G_NORMAL_GENERATED
-    // ASSIGN_G_VELOCITY_GENERATED
-    // ASSIGN_G_DEPTH_GENERATED
-    // ASSIGN_G_LGT_COLOR_GENERATED
-
-    var normal = vertex_normal;
-    var ao = g_normal.z;
-
     // Normal layers never use fresnel blending, so just use a default for dot(N, V).
     // This avoids needing to define N before layering normal maps.
     var n_dot_v = 1.0;
 
+    var normal = vertex_normal;
+    var ao = g_normal.z;
+
     // Not all materials and shaders use normal mapping.
     if assignments[2].has_channels.x != 0u || assignments[2].has_channels.y != 0u {
-        var normal_map = create_normal_map(g_normal.xy);
-        // BLEND_NORMAL_LAYERS_GENERATED
+        // TODO: Does the w value matter?
+        var normal_map = g_normal;
+        // ASSIGN_NORMAL_GENERATED
 
-        normal = apply_normal_map(normal_map, tangent, bitangent, vertex_normal);
+        normal = apply_normal_map(normal_map.xyz, tangent, bitangent, vertex_normal);
         ao = normal_map.z;
     }
 
@@ -509,17 +503,17 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let view = vec3(0.0, 0.0, 1.0);
     n_dot_v = max(dot(view, normal), 0.0);
 
-    var color = g_color.rgba;
-    // BLEND_COLOR_LAYERS_GENERATED
-
-    var etc_buffer = g_etc_buffer;
-    // BLEND_ETC_LAYERS_GENERATED
+    // ASSIGN_COLOR_GENERATED
+    // ASSIGN_ETC_GENERATED
+    // ASSIGN_G_VELOCITY_GENERATED
+    // ASSIGN_G_DEPTH_GENERATED
+    // ASSIGN_G_LGT_COLOR_GENERATED
 
     // The ordering here is the order of per material fragment shader outputs.
     // The input order for the deferred lighting pass is slightly different.
     var out: FragmentOutput;
-    out.g_color = color;
-    out.g_etc_buffer = mrt_etc_buffer(etc_buffer, normal);
+    out.g_color = g_color;
+    out.g_etc_buffer = mrt_etc_buffer(g_etc_buffer, normal);
     out.g_normal = mrt_normal(normal, ao);
     out.g_velocity = g_velocity;
     out.g_depth = mrt_depth(in.position.z, g_depth.w);

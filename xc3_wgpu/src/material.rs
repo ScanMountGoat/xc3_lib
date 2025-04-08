@@ -4,16 +4,13 @@ use glam::{uvec4, vec3, vec4, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use xc3_model::{
-    material::{ChannelAssignment, OutputAssignment, OutputAssignments},
+    material::{ChannelAssignment, LayerChannelAssignmentValue, OutputAssignments},
     ImageTexture, IndexMapExt,
 };
 
 use crate::{
     pipeline::{Output5Type, PipelineKey},
-    shadergen::{
-        generate_alpha_test_wgsl, generate_assignment_wgsl, generate_layering_wgsl,
-        generate_normal_layering_wgsl,
-    },
+    shadergen::{generate_alpha_test_wgsl, generate_layering_wgsl, generate_normal_layering_wgsl},
     texture::create_default_black_texture,
     DeviceBufferExt, MonolibShaderTextures,
 };
@@ -71,13 +68,6 @@ pub fn create_material(
 
     let mut name_to_uv_wgsl = IndexMap::new();
 
-    let output_assignments_wgsl = material_assignments
-        .assignments
-        .iter()
-        .map(|a| generate_assignment_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl))
-        .collect();
-
-    let start = std::time::Instant::now();
     let output_layers_wgsl: Vec<_> = material_assignments
         .assignments
         .iter()
@@ -90,7 +80,6 @@ pub fn create_material(
             }
         })
         .collect();
-    println!("{:?}: {:?}", &material.name, start.elapsed());
 
     // Generate empty code if alpha testing is disabled.
     let alpha_test_wgsl = material
@@ -113,13 +102,6 @@ pub fn create_material(
         } else {
             warn!("Missing texture for {name:?}. Assigning default black texture.");
         }
-    }
-
-    if material.name == "eye_re" || material.name == "ho_BL_TS2" {
-        // dbg!(&name_to_index);
-        // dbg!(material.shader.as_ref().map(|s| &s.output_dependencies));
-        // dbg!(&material_assignments.assignments[0].x_layers);
-        println!("{}", output_layers_wgsl[0]);
     }
 
     // Use similar calculated parameter values as in game vertex shaders.
@@ -218,7 +200,6 @@ pub fn create_material(
         is_outline: material.name.ends_with("_outline"),
         output5_type,
         is_instanced_static,
-        output_assignments_wgsl,
         output_layers_wgsl,
         alpha_test_wgsl,
         uvs_wgsl,
@@ -236,20 +217,34 @@ pub fn create_material(
 fn output_assignments(
     assignments: &OutputAssignments,
 ) -> [crate::shader::model::OutputAssignment; 6] {
-    // Each output channel may have a different input sampler and channel.
     [0, 1, 2, 3, 4, 5].map(|i| {
         let assignment = &assignments.assignments[i];
 
         crate::shader::model::OutputAssignment {
             has_channels: uvec4(
-                assignment.x.is_some() as u32,
-                assignment.y.is_some() as u32,
-                assignment.z.is_some() as u32,
-                assignment.w.is_some() as u32,
+                has_value(&assignment.x) as u32,
+                has_value(&assignment.y) as u32,
+                has_value(&assignment.z) as u32,
+                has_value(&assignment.w) as u32,
             ),
-            default_value: output_default(assignment, i),
+            default_value: output_default(i),
         }
     })
+}
+
+fn has_value(value: &LayerChannelAssignmentValue) -> bool {
+    match value {
+        LayerChannelAssignmentValue::Value(c) => c.is_some(),
+        LayerChannelAssignmentValue::Layers(layers) => layers.iter().any(|l| has_value(&l.value)),
+    }
+}
+
+fn value_channel_assignment(assignment: Option<&ChannelAssignment>) -> Option<f32> {
+    if let Some(ChannelAssignment::Value(f)) = assignment {
+        Some(*f)
+    } else {
+        None
+    }
 }
 
 fn create_bit_info(
@@ -268,7 +263,7 @@ fn create_bit_info(
     (n_val as f32 + 0.1) / 255.0
 }
 
-fn output_default(a: &OutputAssignment, i: usize) -> Vec4 {
+fn output_default(i: usize) -> Vec4 {
     // TODO: Create a special ID for unrecognized materials instead of toon?
     let etc_flags = create_bit_info(2, false, false, true, false);
 
@@ -285,19 +280,11 @@ fn output_default(a: &OutputAssignment, i: usize) -> Vec4 {
     ];
 
     vec4(
-        value_channel_assignment(a.x.as_ref()).unwrap_or(output_defaults[i][0]),
-        value_channel_assignment(a.y.as_ref()).unwrap_or(output_defaults[i][1]),
-        value_channel_assignment(a.z.as_ref()).unwrap_or(output_defaults[i][2]),
-        value_channel_assignment(a.w.as_ref()).unwrap_or(output_defaults[i][3]),
+        output_defaults[i][0],
+        output_defaults[i][1],
+        output_defaults[i][2],
+        output_defaults[i][3],
     )
-}
-
-fn value_channel_assignment(assignment: Option<&ChannelAssignment>) -> Option<f32> {
-    if let Some(ChannelAssignment::Value(f)) = assignment {
-        Some(*f)
-    } else {
-        None
-    }
 }
 
 fn assign_texture<'a>(

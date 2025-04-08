@@ -662,7 +662,9 @@ pub struct OutputAssignments {
 impl OutputAssignments {
     /// Calculate the material ID from a hardcoded shader constant if present.
     pub fn mat_id(&self) -> Option<u32> {
-        if let Some(ChannelAssignment::Value(v)) = self.assignments[1].w {
+        if let LayerChannelAssignmentValue::Value(Some(ChannelAssignment::Value(v))) =
+            self.assignments[1].w
+        {
             // TODO: Why is this sometimes 7?
             Some((v * 255.0 + 0.1) as u32 & 0x7)
         } else {
@@ -671,25 +673,16 @@ impl OutputAssignments {
     }
 }
 
-// TODO: Should the base layer contain all textures?
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct OutputAssignment {
-    /// The base x value.
-    pub x: Option<ChannelAssignment>,
-    /// The base y value.
-    pub y: Option<ChannelAssignment>,
-    /// The base z value.
-    pub z: Option<ChannelAssignment>,
-    /// The base w value.
-    pub w: Option<ChannelAssignment>,
-    /// Additional layers to blend with the current x value.
-    pub x_layers: Vec<LayerChannelAssignment>,
-    /// Additional layers to blend with the current y value.
-    pub y_layers: Vec<LayerChannelAssignment>,
-    /// Additional layers to blend with the current z value.
-    pub z_layers: Vec<LayerChannelAssignment>,
-    /// Additional layers to blend with the current w value.
-    pub w_layers: Vec<LayerChannelAssignment>,
+    /// The x values.
+    pub x: LayerChannelAssignmentValue,
+    /// The y values.
+    pub y: LayerChannelAssignmentValue,
+    /// The z values.
+    pub z: LayerChannelAssignmentValue,
+    /// The w values.
+    pub w: LayerChannelAssignmentValue,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -733,6 +726,12 @@ pub struct TexCoordParallax {
     pub mask_a: Box<ChannelAssignment>,
     pub mask_b: Box<ChannelAssignment>,
     pub ratio: f32,
+}
+
+impl Default for LayerChannelAssignmentValue {
+    fn default() -> Self {
+        Self::Value(None)
+    }
 }
 
 impl ChannelAssignment {
@@ -792,7 +791,7 @@ impl Material {
         // No assignment data is available.
         // Guess reasonable defaults based on the texture names or types.
         let assignment = |i: Option<usize>, c: usize| {
-            i.map(|i| {
+            LayerChannelAssignmentValue::Value(i.map(|i| {
                 ChannelAssignment::Texture(TextureAssignment {
                     name: format!("s{i}").into(),
                     channels: ["x", "y", "z", "w"][c].into(),
@@ -800,7 +799,7 @@ impl Material {
                     texcoord_transforms: None,
                     parallax: None,
                 })
-            })
+            }))
         };
 
         let color_index = self.textures.iter().position(|t| {
@@ -879,15 +878,29 @@ fn output_assignment(
     output_index: usize,
 ) -> OutputAssignment {
     OutputAssignment {
-        // TODO: Combine all layers as a single vec?
-        x: channel_assignment(shader, parameters, output_index, 0),
-        y: channel_assignment(shader, parameters, output_index, 1),
-        z: channel_assignment(shader, parameters, output_index, 2),
-        w: channel_assignment(shader, parameters, output_index, 3),
-        x_layers: texture_layers(shader, parameters, output_index, 0),
-        y_layers: texture_layers(shader, parameters, output_index, 1),
-        z_layers: texture_layers(shader, parameters, output_index, 2),
-        w_layers: texture_layers(shader, parameters, output_index, 3),
+        x: output_channel_assignment(shader, parameters, output_index, 0),
+        y: output_channel_assignment(shader, parameters, output_index, 1),
+        z: output_channel_assignment(shader, parameters, output_index, 2),
+        w: output_channel_assignment(shader, parameters, output_index, 3),
+    }
+}
+
+fn output_channel_assignment(
+    shader: &ShaderProgram,
+    parameters: &MaterialParameters,
+    output_index: usize,
+    channel_index: usize,
+) -> LayerChannelAssignmentValue {
+    let layers = texture_layers(shader, parameters, output_index, channel_index);
+    if layers.is_empty() {
+        LayerChannelAssignmentValue::Value(channel_assignment(
+            shader,
+            parameters,
+            output_index,
+            channel_index,
+        ))
+    } else {
+        LayerChannelAssignmentValue::Layers(layers)
     }
 }
 
@@ -905,11 +918,8 @@ fn texture_layers(
         .map(|d| d.layers.as_slice())
         .unwrap_or_default();
 
-    // TODO: Don't skip base layer?
-    // Skip the base layer in the first element.
     layers
         .iter()
-        .skip(1)
         .map(|l| layer_channel_assignment(parameters, channel, l))
         .collect()
 }
