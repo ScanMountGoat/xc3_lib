@@ -4,7 +4,7 @@ use glam::{uvec4, vec3, vec4, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use xc3_model::{
-    material::{ChannelAssignment, LayerChannelAssignmentValue, OutputAssignments},
+    material::{LayerAssignmentValue, OutputAssignments, ValueAssignment},
     ImageTexture, IndexMapExt,
 };
 
@@ -232,16 +232,16 @@ fn output_assignments(
     })
 }
 
-fn has_value(value: &LayerChannelAssignmentValue) -> bool {
+fn has_value(value: &LayerAssignmentValue) -> bool {
     match value {
-        LayerChannelAssignmentValue::Value(c) => c.is_some(),
-        LayerChannelAssignmentValue::Layers(layers) => layers.iter().any(|l| has_value(&l.value)),
+        LayerAssignmentValue::Value(c) => c.is_some(),
+        LayerAssignmentValue::Layers(layers) => layers.iter().any(|l| has_value(&l.value)),
     }
 }
 
-fn value_channel_assignment(assignment: Option<&ChannelAssignment>) -> Option<f32> {
-    if let Some(ChannelAssignment::Value(f)) = assignment {
-        Some(*f)
+fn value_channel_assignment(assignment: Option<&ValueAssignment>) -> Option<f32> {
+    if let Some(ValueAssignment::Value(f)) = assignment {
+        Some(f.0)
     } else {
         None
     }
