@@ -185,7 +185,7 @@ pub struct AttributeDependency {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum LayerBlendMode {
     /// `mix(a, b, ratio)`
     Mix,
@@ -213,7 +213,7 @@ impl Default for LayerBlendMode {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Layer {
     pub value: LayerValue,
     pub ratio: LayerValue,
@@ -222,7 +222,7 @@ pub struct Layer {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum LayerValue {
     Value(Dependency),
     Layers(Vec<Layer>),
