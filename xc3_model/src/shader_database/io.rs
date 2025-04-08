@@ -40,6 +40,10 @@ pub struct ShaderDatabaseIndexed {
     #[bw(write_with = write_count)]
     buffer_dependencies: Vec<BufferDependencyIndexed>,
 
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
+    layer_values: Vec<LayerValueIndexed>,
+
     // Storing multiple string tables enables 8-bit instead of 16-bit indices.
     #[br(parse_with = parse_count)]
     #[bw(write_with = write_count)]
@@ -104,8 +108,8 @@ struct OutputDependenciesIndexed {
 
 #[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
 struct LayerIndexed {
-    value: LayerValueIndexed,
-    ratio: LayerValueIndexed,
+    value: VarInt,
+    ratio: VarInt,
     blend_mode: LayerBlendModeIndexed,
     is_fresnel: u8,
 }
@@ -294,6 +298,7 @@ impl ShaderDatabaseIndexed {
     pub fn from_programs(programs: BTreeMap<ProgramHash, ShaderProgram>) -> Self {
         let mut dependency_to_index = IndexMap::new();
         let mut buffer_dependency_to_index = IndexMap::new();
+        let mut layer_value_to_index = IndexMap::new();
 
         let mut database = Self::default();
 
@@ -303,6 +308,7 @@ impl ShaderDatabaseIndexed {
                 p,
                 &mut dependency_to_index,
                 &mut buffer_dependency_to_index,
+                &mut layer_value_to_index,
             );
             database.programs.insert(hash.0, program);
         }
@@ -313,6 +319,7 @@ impl ShaderDatabaseIndexed {
     pub fn merge(&self, other: &Self) -> Self {
         let mut dependency_to_index = IndexMap::new();
         let mut buffer_dependency_to_index = IndexMap::new();
+        let mut layer_value_to_index = IndexMap::new();
 
         let mut merged = Self::default();
 
@@ -323,6 +330,7 @@ impl ShaderDatabaseIndexed {
                 program,
                 &mut dependency_to_index,
                 &mut buffer_dependency_to_index,
+                &mut layer_value_to_index,
             );
             merged.programs.insert(*hash, indexed);
         }
@@ -333,6 +341,7 @@ impl ShaderDatabaseIndexed {
                 program,
                 &mut dependency_to_index,
                 &mut buffer_dependency_to_index,
+                &mut layer_value_to_index,
             );
             merged.programs.insert(*hash, indexed);
         }
@@ -345,6 +354,7 @@ impl ShaderDatabaseIndexed {
         p: ShaderProgram,
         dependency_to_index: &mut IndexMap<Dependency, usize>,
         buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
+        layer_value_to_index: &mut IndexMap<LayerValue, usize>,
     ) -> ShaderProgramIndexed {
         ShaderProgramIndexed {
             output_dependencies: p
@@ -368,12 +378,13 @@ impl ShaderDatabaseIndexed {
                                 .collect(),
                             layers: dependencies
                                 .layers
-                                .into_iter()
+                                .iter()
                                 .map(|l| {
                                     self.add_output_layer_indexed(
                                         l,
                                         dependency_to_index,
                                         buffer_dependency_to_index,
+                                        layer_value_to_index,
                                     )
                                 })
                                 .collect(),
@@ -387,51 +398,70 @@ impl ShaderDatabaseIndexed {
 
     fn add_output_layer_indexed(
         &mut self,
-        l: Layer,
+        l: &Layer,
         dependency_to_index: &mut IndexMap<Dependency, usize>,
         buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
+        layer_value_to_index: &mut IndexMap<LayerValue, usize>,
     ) -> LayerIndexed {
         LayerIndexed {
-            value: self.add_output_layer_value_indexed(
+            value: self.add_layer_value(
                 dependency_to_index,
                 buffer_dependency_to_index,
-                l.value,
+                layer_value_to_index,
+                &l.value,
             ),
-            ratio: self.add_output_layer_value_indexed(
+            ratio: self.add_layer_value(
                 dependency_to_index,
                 buffer_dependency_to_index,
-                l.ratio,
+                layer_value_to_index,
+                &l.ratio,
             ),
             blend_mode: l.blend_mode.into(),
             is_fresnel: l.is_fresnel.into(),
         }
     }
 
-    fn add_output_layer_value_indexed(
+    fn add_layer_value(
         &mut self,
         dependency_to_index: &mut IndexMap<Dependency, usize>,
         buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
-        value: LayerValue,
-    ) -> LayerValueIndexed {
-        match value {
-            LayerValue::Value(d) => LayerValueIndexed::Value(self.add_dependency(
-                d,
-                dependency_to_index,
-                buffer_dependency_to_index,
-            )),
-            LayerValue::Layers(layers) => LayerValueIndexed::Layers(
-                layers
-                    .into_iter()
-                    .map(|l| {
-                        self.add_output_layer_indexed(
-                            l,
-                            dependency_to_index,
-                            buffer_dependency_to_index,
-                        )
-                    })
-                    .collect(),
-            ),
-        }
+        layer_value_to_index: &mut IndexMap<LayerValue, usize>,
+        value: &LayerValue,
+    ) -> VarInt {
+        let index = match layer_value_to_index.get(value) {
+            Some(index) => *index,
+            None => {
+                let v = match &value {
+                    LayerValue::Value(d) => LayerValueIndexed::Value(self.add_dependency(
+                        d.clone(),
+                        dependency_to_index,
+                        buffer_dependency_to_index,
+                    )),
+                    LayerValue::Layers(layers) => LayerValueIndexed::Layers(
+                        layers
+                            .into_iter()
+                            .map(|l| {
+                                self.add_output_layer_indexed(
+                                    l,
+                                    dependency_to_index,
+                                    buffer_dependency_to_index,
+                                    layer_value_to_index,
+                                )
+                            })
+                            .collect(),
+                    ),
+                };
+
+                let index = self.layer_values.len();
+
+                self.layer_values.push(v);
+                layer_value_to_index.insert(value.clone(), index);
+
+                index
+            }
+        };
+
+        VarInt(index)
     }
 
     fn add_dependency(
@@ -527,8 +557,8 @@ impl ShaderDatabaseIndexed {
 
     fn output_layer_from_indexed(&self, l: &LayerIndexed) -> Layer {
         Layer {
-            value: self.output_layer_value_from_indexed(&l.value),
-            ratio: self.output_layer_value_from_indexed(&l.ratio),
+            value: self.output_layer_value_from_indexed(&self.layer_values[l.value.0]),
+            ratio: self.output_layer_value_from_indexed(&self.layer_values[l.ratio.0]),
             blend_mode: l.blend_mode.into(),
             is_fresnel: l.is_fresnel != 0,
         }
