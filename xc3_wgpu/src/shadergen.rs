@@ -333,7 +333,7 @@ fn layer_wgsl<'a>(
                 format!("mix({var}, {b}, {ratio})")
             }
         }
-        LayerBlendMode::MixRatio => {
+        LayerBlendMode::Mul => {
             if ratio == "1.0" {
                 format!("({var} * {b})")
             } else {
@@ -347,9 +347,10 @@ fn layer_wgsl<'a>(
                 format!("{var} + {b} * {ratio}")
             }
         }
-        LayerBlendMode::AddNormal => {
+        LayerBlendMode::AddNormal | LayerBlendMode::UnkNormal => {
             // Assume this mode applies to both x and y.
             // Ensure that z blending does not affect normals.
+            // TODO: UnkNormal blending works very differently.
             let a_nrm = format!("vec3({var}.xy, normal_z({var}.x, {var}.y))");
             let b_nrm = format!("create_normal_map({b}.xy)");
             format!("add_normal_maps({a_nrm}, {b_nrm}, {ratio})")
