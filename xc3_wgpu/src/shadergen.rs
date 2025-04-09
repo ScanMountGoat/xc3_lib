@@ -192,7 +192,7 @@ pub fn generate_normal_layering_wgsl(
         name_to_index,
         name_to_uv_wgsl,
         &mut value_to_wgsl,
-        &assignment.z,
+        &assignment.w,
         'w',
     );
 
@@ -347,13 +347,19 @@ fn layer_wgsl<'a>(
                 format!("{var} + {b} * {ratio}")
             }
         }
-        LayerBlendMode::AddNormal | LayerBlendMode::UnkNormal => {
+        LayerBlendMode::AddNormal => {
             // Assume this mode applies to both x and y.
             // Ensure that z blending does not affect normals.
-            // TODO: UnkNormal blending works very differently.
             let a_nrm = format!("vec3({var}.xy, normal_z({var}.x, {var}.y))");
             let b_nrm = format!("create_normal_map({b}.xy)");
             format!("add_normal_maps({a_nrm}, {b_nrm}, {ratio})")
+        }
+        LayerBlendMode::Overlay2 => {
+            if ratio == "1.0" {
+                format!("overlay_blend2({var}, {b})")
+            } else {
+                format!("mix({var}, overlay_blend2({var}, {b}), {ratio})")
+            }
         }
         LayerBlendMode::Overlay => {
             if ratio == "1.0" {
@@ -513,7 +519,7 @@ fn replace_channels(s: &str, c: &str) -> String {
     } else if s.ends_with(".w") {
         format!("{}.{c}", s.trim_end_matches(".w"))
     } else {
-        s.to_string()
+        format!("{s}.{c}")
     }
 }
 
