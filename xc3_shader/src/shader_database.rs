@@ -373,7 +373,7 @@ fn find_layers(current: &Expr, graph: &Graph, attributes: &Attributes) -> Vec<La
 
     // Detect the layers and blend mode from most to least specific.
     while let Some((layer_a, layer_b, ratio, blend_mode)) = blend_add_normal(&graph.nodes, current)
-        .or_else(|| blend_unk_normal(&graph.nodes, current))
+        .or_else(|| blend_overlay2(&graph.nodes, current))
         .or_else(|| blend_overlay_ratio(&graph.nodes, current))
         .or_else(|| blend_overlay(&graph.nodes, current))
         .or_else(|| blend_over(&graph.nodes, current))
@@ -791,38 +791,39 @@ fn blend_add_normal<'a>(
     Some((nom_work, n2, ratio, LayerBlendMode::AddNormal))
 }
 
-static BLEND_UNK_NORMAL: LazyLock<Graph> = LazyLock::new(|| {
+static BLEND_OVERLAY2: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
-            result4 = fma(n1, -2.0, 2.0);
+            ratio2 = b * b;
+            ratio3 = ratio * ratio2;
+            ratio4 = ratio * ratio3;
+            ratio = clamp(ratio4, 0.0, 1.0);
+
+            result4 = fma(a, -2.0, 2.0);
             neg_result4 = 0.0 - result4;
-            result3 = fma(n2, neg_result4, result4);
+            result3 = fma(b, neg_result4, result4);
             neg_result3 = 0.0 - result3;
             result1 = fma(ratio, neg_result3, ratio);
 
-            result2 = fma(temp, temp, temp);
+            a_2 = a * 2.0;
+            a_2_b = a_2 * b;
+            neg_a_2_b = 0.0 - a_2_b;
+            result2 = fma(ratio, neg_a_2_b, a_2_b);
 
-            n1 = result1 + result2;
+            result = result1 + result2;
         }
     "};
     Graph::parse_glsl(query).unwrap()
 });
 
-fn blend_unk_normal<'a>(
+fn blend_overlay2<'a>(
     nodes: &'a [Node],
     nom_work: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
-    let result = query_nodes(nom_work, nodes, &BLEND_UNK_NORMAL.nodes)?;
-    let mut n1 = *result.get("n1")?;
-    let n2 = result.get("n2")?;
-    let ratio = result.get("ratio")?;
-
-    // Remove normal map channel remapping to avoid detecting this as a layer.
-    if let Some(new_nom_work) = normal_map_fma(nodes, n1) {
-        n1 = new_nom_work;
-    }
-
-    Some((n1, n2, ratio, LayerBlendMode::UnkNormal))
+    let result = query_nodes(nom_work, nodes, &BLEND_OVERLAY2.nodes)?;
+    let a = *result.get("a")?;
+    let b = result.get("b")?;
+    Some((a, b, &Expr::Float(1.0), LayerBlendMode::Overlay2))
 }
 
 static NORMAL_MAP_FMA: LazyLock<Graph> = LazyLock::new(|| {
@@ -2165,8 +2166,8 @@ mod tests {
                                     },
                                 ],
                             })),
-                            ratio: LayerValue::Layers(Vec::new()),
-                            blend_mode: LayerBlendMode::UnkNormal,
+                            ratio: LayerValue::Value(constant(1.0)),
+                            blend_mode: LayerBlendMode::Overlay2,
                             is_fresnel: false
                         },
                     ]),

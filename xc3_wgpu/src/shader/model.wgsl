@@ -418,6 +418,15 @@ fn overlay_blend(a: f32, b: f32) -> f32 {
     return screen * is_a_gt_half + multiply * (1.0 - is_a_gt_half);
 }
 
+fn overlay_blend2(a: f32, b: f32) -> f32 {
+    // An overlay variant for xeno1/model/obj/oj110006.wimdo.
+    // This is used for normals and other values.
+    let ratio = clamp(pow(b, 4.0), 0.0, 1.0);
+    let screen = 1.0 - 2.0 * (1.0 - a) * (1.0 - b);
+    let multiply = 2.0 * a * b;
+    return screen * ratio + multiply * (1.0 - ratio);
+}
+
 fn fresnel_ratio(ratio: f32, n_dot_v: f32) -> f32 {
     // Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00016, getPixelCalcFresnel.
     return pow(1.0 - n_dot_v, ratio * 5.0);
@@ -450,9 +459,12 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     var uv8 = tex0;
     var uv9 = tex0;
 
+    // TODO: Combine this with texture sampling code gen.
     // UVS_GENERATED
+    // TODO: s0_0, s0_1 if used with different uvs?
 
     // Assume one access per texture and compute values ahead of time.
+    // TODO: Move sampling to code gen since this isn't true in all cases.
     let s0_color = textureSample(s0, s0_sampler, uv0);
     let s1_color = textureSample(s1, s1_sampler, uv1);
     let s2_color = textureSample(s2, s2_sampler, uv2);
