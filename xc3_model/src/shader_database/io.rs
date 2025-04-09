@@ -131,22 +131,24 @@ enum LayerValueIndexed {
 #[brw(repr(u8))]
 pub enum LayerBlendModeIndexed {
     Mix = 0,
-    MixRatio = 1,
+    Mul = 1,
     Add = 2,
     AddNormal = 3,
-    Overlay = 4,
-    Power = 5,
-    Min = 6,
-    Max = 7,
+    UnkNormal = 4,
+    Overlay = 5,
+    Power = 6,
+    Min = 7,
+    Max = 8,
 }
 
 impl From<LayerBlendMode> for LayerBlendModeIndexed {
     fn from(value: LayerBlendMode) -> Self {
         match value {
             LayerBlendMode::Mix => Self::Mix,
-            LayerBlendMode::MixRatio => Self::MixRatio,
+            LayerBlendMode::Mul => Self::Mul,
             LayerBlendMode::Add => Self::Add,
             LayerBlendMode::AddNormal => Self::AddNormal,
+            LayerBlendMode::UnkNormal => Self::UnkNormal,
             LayerBlendMode::Overlay => Self::Overlay,
             LayerBlendMode::Power => Self::Power,
             LayerBlendMode::Min => Self::Min,
@@ -159,9 +161,10 @@ impl From<LayerBlendModeIndexed> for LayerBlendMode {
     fn from(value: LayerBlendModeIndexed) -> Self {
         match value {
             LayerBlendModeIndexed::Mix => Self::Mix,
-            LayerBlendModeIndexed::MixRatio => Self::MixRatio,
+            LayerBlendModeIndexed::Mul => Self::Mul,
             LayerBlendModeIndexed::Add => Self::Add,
             LayerBlendModeIndexed::AddNormal => Self::AddNormal,
+            LayerBlendModeIndexed::UnkNormal => Self::UnkNormal,
             LayerBlendModeIndexed::Overlay => Self::Overlay,
             LayerBlendModeIndexed::Power => Self::Power,
             LayerBlendModeIndexed::Min => Self::Min,

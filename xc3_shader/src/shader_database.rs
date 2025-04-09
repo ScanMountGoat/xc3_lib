@@ -373,6 +373,7 @@ fn find_layers(current: &Expr, graph: &Graph, attributes: &Attributes) -> Vec<La
 
     // Detect the layers and blend mode from most to least specific.
     while let Some((layer_a, layer_b, ratio, blend_mode)) = blend_add_normal(&graph.nodes, current)
+        .or_else(|| blend_unk_normal(&graph.nodes, current))
         .or_else(|| blend_overlay_ratio(&graph.nodes, current))
         .or_else(|| blend_overlay(&graph.nodes, current))
         .or_else(|| blend_over(&graph.nodes, current))
@@ -454,12 +455,25 @@ static BLEND_OVER: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
+static BLEND_OVER2: LazyLock<Graph> = LazyLock::new(|| {
+    // Alternative form used for some XC1 shaders.
+    let query = indoc! {"
+        void main() {
+            neg_ratio = 0.0 - ratio;
+            a_inv_ratio = fma(a, neg_ratio, a);
+            result = fma(b, ratio, a_inv_ratio);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
 fn blend_over<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
     // getPixelCalcOver in pcmdo fragment shaders for XC1 and XC3.
-    let result = query_nodes(expr, nodes, &BLEND_OVER.nodes)?;
+    let result = query_nodes(expr, nodes, &BLEND_OVER.nodes)
+        .or_else(|| query_nodes(expr, nodes, &BLEND_OVER2.nodes))?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     let ratio = result.get("ratio")?;
@@ -486,7 +500,7 @@ fn blend_ratio<'a>(
     let a = result.get("a")?;
     let b = result.get("b")?;
     let ratio = result.get("ratio")?;
-    Some((a, b, ratio, LayerBlendMode::MixRatio))
+    Some((a, b, ratio, LayerBlendMode::Mul))
 }
 
 fn blend_add_ratio(expr: &Expr) -> Option<(&Expr, &Expr, &Expr, LayerBlendMode)> {
@@ -561,9 +575,9 @@ fn blend_mul<'a>(
     if !matches!(a_value, Some(Dependency::Texture(_)))
         && matches!(b_value, Some(Dependency::Texture(_)))
     {
-        Some((b, a, &Expr::Float(1.0), LayerBlendMode::MixRatio))
+        Some((b, a, &Expr::Float(1.0), LayerBlendMode::Mul))
     } else {
-        Some((a, b, &Expr::Float(1.0), LayerBlendMode::MixRatio))
+        Some((a, b, &Expr::Float(1.0), LayerBlendMode::Mul))
     }
 }
 
@@ -775,6 +789,40 @@ fn blend_add_normal<'a>(
     }
 
     Some((nom_work, n2, ratio, LayerBlendMode::AddNormal))
+}
+
+static BLEND_UNK_NORMAL: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            result4 = fma(n1, -2.0, 2.0);
+            neg_result4 = 0.0 - result4;
+            result3 = fma(n2, neg_result4, result4);
+            neg_result3 = 0.0 - result3;
+            result1 = fma(ratio, neg_result3, ratio);
+
+            result2 = fma(temp, temp, temp);
+
+            n1 = result1 + result2;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn blend_unk_normal<'a>(
+    nodes: &'a [Node],
+    nom_work: &'a Expr,
+) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+    let result = query_nodes(nom_work, nodes, &BLEND_UNK_NORMAL.nodes)?;
+    let mut n1 = *result.get("n1")?;
+    let n2 = result.get("n2")?;
+    let ratio = result.get("ratio")?;
+
+    // Remove normal map channel remapping to avoid detecting this as a layer.
+    if let Some(new_nom_work) = normal_map_fma(nodes, n1) {
+        n1 = new_nom_work;
+    }
+
+    Some((n1, n2, ratio, LayerBlendMode::UnkNormal))
 }
 
 static NORMAL_MAP_FMA: LazyLock<Graph> = LazyLock::new(|| {
@@ -1287,7 +1335,7 @@ mod tests {
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(0), 'z')),
                             ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false
                         },
                     ]),
@@ -1297,7 +1345,7 @@ mod tests {
                 Layer {
                     value: LayerValue::Value(attr("vColor", 'x')),
                     ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::MixRatio,
+                    blend_mode: LayerBlendMode::Mul,
                     is_fresnel: false,
                 },
             ],
@@ -1458,7 +1506,7 @@ mod tests {
                     Layer {
                         value: LayerValue::Value(attr("in_attr3", 'x')),
                         ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::MixRatio,
+                        blend_mode: LayerBlendMode::Mul,
                         is_fresnel: false,
                     },
                 ],
@@ -1498,7 +1546,7 @@ mod tests {
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'x')),
                             ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false
                         },
                         Layer {
@@ -1510,7 +1558,7 @@ mod tests {
                                 'w'
                             )),
                             ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'y')),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false
                         },
                     ]),
@@ -1540,7 +1588,7 @@ mod tests {
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'x')),
                             ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false
                         },
                         Layer {
@@ -1552,7 +1600,7 @@ mod tests {
                                 'w'
                             )),
                             ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'y')),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false
                         },
                     ]),
@@ -1582,7 +1630,7 @@ mod tests {
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'x')),
                             ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false
                         },
                         Layer {
@@ -1594,7 +1642,7 @@ mod tests {
                                 'w'
                             )),
                             ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'y')),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false
                         },
                     ]),
@@ -1665,7 +1713,7 @@ mod tests {
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'w')),
                             ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false
                         },
                         Layer {
@@ -1677,7 +1725,7 @@ mod tests {
                                 'y'
                             )),
                             ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(2), 'x')),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false
                         },
                     ]),
@@ -1763,7 +1811,7 @@ mod tests {
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(0), 'w')),
                             ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false
                         },
                         Layer {
@@ -1775,7 +1823,7 @@ mod tests {
                                 'y'
                             )),
                             ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'x')),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false
                         },
                     ]),
@@ -1953,7 +2001,7 @@ mod tests {
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'z')),
                             ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false
                         },
                         Layer {
@@ -1965,7 +2013,7 @@ mod tests {
                                 'w'
                             )),
                             ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'w')),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false
                         },
                     ]),
@@ -1997,6 +2045,272 @@ mod tests {
                     blend_mode: LayerBlendMode::AddNormal,
                     is_fresnel: false
                 }
+            ],
+            shader.output_dependencies[&SmolStr::from("o2.x")].layers
+        );
+    }
+
+    #[test]
+    fn shader_from_vertex_fragment_platform() {
+        // xeno1/model/obj/oj110006, "ma14toride03", shd0003
+        let vert_glsl = include_str!("data/xc1/oj110006.3.vert");
+        let frag_glsl = include_str!("data/xc1/oj110006.3.frag");
+
+        // Test detecting multiple normal layers with different blend modes.
+        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
+        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
+        let shader = shader_from_glsl(Some(&vertex), &fragment);
+        assert_eq!(
+            vec![
+                Layer {
+                    value: LayerValue::Value(tex("s5", 'x', "vTex0", 'x', 'y')),
+                    ratio: LayerValue::Value(constant(1.0)),
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
+                },
+                Layer {
+                    value: LayerValue::Value(Dependency::Texture(TextureDependency {
+                        name: "s6".into(),
+                        channel: Some('x'),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "vTex0".into(),
+                                channel: Some('x'),
+                                params: Some(TexCoordParams::Scale(BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(0),
+                                    channel: Some('z')
+                                })),
+                            },
+                            TexCoord {
+                                name: "vTex0".into(),
+                                channel: Some('y'),
+                                params: Some(TexCoordParams::Scale(BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(0),
+                                    channel: Some('w')
+                                })),
+                            },
+                        ],
+                    })),
+                    ratio: LayerValue::Value(tex("s2", 'x', "vTex0", 'x', 'y')),
+                    blend_mode: LayerBlendMode::AddNormal,
+                    is_fresnel: false
+                },
+                Layer {
+                    value: LayerValue::Layers(vec![
+                        Layer {
+                            value: LayerValue::Value(tex("s5", 'x', "vTex0", 'x', 'y')),
+                            ratio: LayerValue::Value(constant(1.0)),
+                            blend_mode: LayerBlendMode::Mix,
+                            is_fresnel: false
+                        },
+                        Layer {
+                            value: LayerValue::Value(Dependency::Texture(TextureDependency {
+                                name: "s6".into(),
+                                channel: Some('x'),
+                                texcoords: vec![
+                                    TexCoord {
+                                        name: "vTex0".into(),
+                                        channel: Some('x'),
+                                        params: Some(TexCoordParams::Scale(BufferDependency {
+                                            name: "U_Mate".into(),
+                                            field: "gWrkFl4".into(),
+                                            index: Some(0),
+                                            channel: Some('z')
+                                        })),
+                                    },
+                                    TexCoord {
+                                        name: "vTex0".into(),
+                                        channel: Some('y'),
+                                        params: Some(TexCoordParams::Scale(BufferDependency {
+                                            name: "U_Mate".into(),
+                                            field: "gWrkFl4".into(),
+                                            index: Some(0),
+                                            channel: Some('w')
+                                        })),
+                                    },
+                                ],
+                            })),
+                            ratio: LayerValue::Value(tex("s2", 'x', "vTex0", 'x', 'y')),
+                            blend_mode: LayerBlendMode::AddNormal,
+                            is_fresnel: false
+                        },
+                        Layer {
+                            value: LayerValue::Value(Dependency::Texture(TextureDependency {
+                                name: "s7".into(),
+                                channel: Some('x'),
+                                texcoords: vec![
+                                    TexCoord {
+                                        name: "vTex0".into(),
+                                        channel: Some('x'),
+                                        params: Some(TexCoordParams::Scale(BufferDependency {
+                                            name: "U_Mate".into(),
+                                            field: "gWrkFl4".into(),
+                                            index: Some(1),
+                                            channel: Some('x')
+                                        })),
+                                    },
+                                    TexCoord {
+                                        name: "vTex0".into(),
+                                        channel: Some('y'),
+                                        params: Some(TexCoordParams::Scale(BufferDependency {
+                                            name: "U_Mate".into(),
+                                            field: "gWrkFl4".into(),
+                                            index: Some(1),
+                                            channel: Some('y')
+                                        })),
+                                    },
+                                ],
+                            })),
+                            ratio: LayerValue::Layers(Vec::new()),
+                            blend_mode: LayerBlendMode::UnkNormal,
+                            is_fresnel: false
+                        },
+                    ]),
+                    ratio: LayerValue::Value(Dependency::Texture(TextureDependency {
+                        name: "s2".into(),
+                        channel: Some('x'),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "vTex0".into(),
+                                channel: Some('x'),
+                                params: Some(TexCoordParams::Scale(BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(1),
+                                    channel: Some('z')
+                                })),
+                            },
+                            TexCoord {
+                                name: "vTex0".into(),
+                                channel: Some('y'),
+                                params: Some(TexCoordParams::Scale(BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(1),
+                                    channel: Some('w')
+                                })),
+                            },
+                        ],
+                    })),
+                    blend_mode: LayerBlendMode::Mix,
+                    is_fresnel: false
+                },
+                Layer {
+                    value: LayerValue::Value(Dependency::Texture(TextureDependency {
+                        name: "s6".into(),
+                        channel: Some('x'),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "vTex0".into(),
+                                channel: Some('x'),
+                                params: Some(TexCoordParams::Scale(BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(2),
+                                    channel: Some('x')
+                                })),
+                            },
+                            TexCoord {
+                                name: "vTex0".into(),
+                                channel: Some('y'),
+                                params: Some(TexCoordParams::Scale(BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(2),
+                                    channel: Some('y')
+                                })),
+                            },
+                        ],
+                    })),
+                    ratio: LayerValue::Value(Dependency::Texture(TextureDependency {
+                        name: "s4".into(),
+                        channel: Some('x'),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "vTex0".into(),
+                                channel: Some('x'),
+                                params: Some(TexCoordParams::Scale(BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(2),
+                                    channel: Some('z')
+                                })),
+                            },
+                            TexCoord {
+                                name: "vTex0".into(),
+                                channel: Some('y'),
+                                params: Some(TexCoordParams::Scale(BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(2),
+                                    channel: Some('w')
+                                })),
+                            },
+                        ],
+                    })),
+                    blend_mode: LayerBlendMode::AddNormal,
+                    is_fresnel: false
+                },
+                Layer {
+                    value: LayerValue::Value(Dependency::Texture(TextureDependency {
+                        name: "s6".into(),
+                        channel: Some('x'),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "vTex0".into(),
+                                channel: Some('x'),
+                                params: Some(TexCoordParams::Scale(BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(1),
+                                    channel: Some('x')
+                                })),
+                            },
+                            TexCoord {
+                                name: "vTex0".into(),
+                                channel: Some('y'),
+                                params: Some(TexCoordParams::Scale(BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(1),
+                                    channel: Some('y')
+                                })),
+                            },
+                        ],
+                    })),
+                    ratio: LayerValue::Value(Dependency::Texture(TextureDependency {
+                        name: "s4".into(),
+                        channel: Some('x'),
+                        texcoords: vec![
+                            TexCoord {
+                                name: "vTex0".into(),
+                                channel: Some('x'),
+                                params: Some(TexCoordParams::Scale(BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(0),
+                                    channel: Some('z')
+                                })),
+                            },
+                            TexCoord {
+                                name: "vTex0".into(),
+                                channel: Some('y'),
+                                params: Some(TexCoordParams::Scale(BufferDependency {
+                                    name: "U_Mate".into(),
+                                    field: "gWrkFl4".into(),
+                                    index: Some(0),
+                                    channel: Some('w')
+                                })),
+                            },
+                        ],
+                    })),
+                    blend_mode: LayerBlendMode::AddNormal,
+                    is_fresnel: false
+                },
             ],
             shader.output_dependencies[&SmolStr::from("o2.x")].layers
         );
@@ -2077,7 +2391,7 @@ mod tests {
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(0), 'x')),
                             ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false,
                         },
                     ]),
@@ -2153,7 +2467,7 @@ mod tests {
                 Layer {
                     value: LayerValue::Value(attr("in_attr5", 'y')),
                     ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::MixRatio,
+                    blend_mode: LayerBlendMode::Mul,
                     is_fresnel: false,
                 },
             ],
@@ -2181,7 +2495,7 @@ mod tests {
                         Layer {
                             value: LayerValue::Value(buf("U_LGT", "gLgtPreDir", Some(0), 'w')),
                             ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false,
                         },
                         Layer {
@@ -2245,7 +2559,7 @@ mod tests {
                                                 'x'
                                             )),
                                             ratio: LayerValue::Value(constant(1.0)),
-                                            blend_mode: LayerBlendMode::MixRatio,
+                                            blend_mode: LayerBlendMode::Mul,
                                             is_fresnel: false,
                                         },
                                     ]),
@@ -2268,21 +2582,21 @@ mod tests {
                                     value: LayerValue::Layers(vec![Layer {
                                         value: LayerValue::Layers(vec![]),
                                         ratio: LayerValue::Value(constant(1.0)),
-                                        blend_mode: LayerBlendMode::MixRatio,
+                                        blend_mode: LayerBlendMode::Mul,
                                         is_fresnel: false,
                                     }]),
                                     ratio: LayerValue::Value(constant(1.0)),
-                                    blend_mode: LayerBlendMode::MixRatio,
+                                    blend_mode: LayerBlendMode::Mul,
                                     is_fresnel: false,
                                 },
                             ]),
                             ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false,
                         }
                     ]),
                     ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::MixRatio,
+                    blend_mode: LayerBlendMode::Mul,
                     is_fresnel: false,
                 },
                 Layer {
@@ -2412,7 +2726,7 @@ mod tests {
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'x')),
                             ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false,
                         },
                         Layer {
@@ -2424,7 +2738,7 @@ mod tests {
                                 'y'
                             )),
                             ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'y')),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false,
                         },
                     ]),
@@ -2696,7 +3010,7 @@ mod tests {
                     Layer {
                         value: LayerValue::Value(attr("vColor", 'x')),
                         ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::MixRatio,
+                        blend_mode: LayerBlendMode::Mul,
                         is_fresnel: false,
                     },
                 ],
@@ -2722,7 +3036,7 @@ mod tests {
                     Layer {
                         value: LayerValue::Value(attr("vColor", 'y')),
                         ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::MixRatio,
+                        blend_mode: LayerBlendMode::Mul,
                         is_fresnel: false,
                     },
                 ],
@@ -2748,7 +3062,7 @@ mod tests {
                     Layer {
                         value: LayerValue::Value(attr("vColor", 'z')),
                         ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::MixRatio,
+                        blend_mode: LayerBlendMode::Mul,
                         is_fresnel: false,
                     },
                 ],
@@ -2776,7 +3090,7 @@ mod tests {
                 Layer {
                     value: LayerValue::Value(buf("U_Mate", "gMatAmb", None, 'x')),
                     ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::MixRatio,
+                    blend_mode: LayerBlendMode::Mul,
                     is_fresnel: false,
                 },
                 Layer {
@@ -2784,7 +3098,7 @@ mod tests {
                         Layer {
                             value: LayerValue::Value(buf("U_Static", "gLgtPreCol", Some(1), 'x')),
                             ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false,
                         },
                         Layer {
@@ -2796,7 +3110,7 @@ mod tests {
                                     'x'
                                 )),
                                 ratio: LayerValue::Value(constant(1.0)),
-                                blend_mode: LayerBlendMode::MixRatio,
+                                blend_mode: LayerBlendMode::Mul,
                                 is_fresnel: false,
                             }]),
                             ratio: LayerValue::Value(tex("texShadow", 'x', "in_attr6", 'w', 'w')),
@@ -2841,7 +3155,7 @@ mod tests {
                                                 "U_Mate", "gMatAmb", None, 'x'
                                             )),
                                             ratio: LayerValue::Value(constant(1.0)),
-                                            blend_mode: LayerBlendMode::MixRatio,
+                                            blend_mode: LayerBlendMode::Mul,
                                             is_fresnel: false,
                                         },
                                     ]),
@@ -2884,7 +3198,7 @@ mod tests {
                                 Layer {
                                     value: LayerValue::Value(attr("in_attr5", 'x')),
                                     ratio: LayerValue::Value(constant(1.0)),
-                                    blend_mode: LayerBlendMode::MixRatio,
+                                    blend_mode: LayerBlendMode::Mul,
                                     is_fresnel: false,
                                 },
                             ]),
@@ -2900,7 +3214,7 @@ mod tests {
                         },
                     ]),
                     ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::MixRatio,
+                    blend_mode: LayerBlendMode::Mul,
                     is_fresnel: false,
                 },
                 Layer {
@@ -2914,7 +3228,7 @@ mod tests {
                         Layer {
                             value: LayerValue::Value(buf("U_Mate", "gMatAmb", None, 'w')),
                             ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::MixRatio,
+                            blend_mode: LayerBlendMode::Mul,
                             is_fresnel: false,
                         },
                         Layer {

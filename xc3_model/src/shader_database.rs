@@ -190,12 +190,12 @@ pub enum LayerBlendMode {
     /// `mix(a, b, ratio)`
     Mix,
     /// `mix(a, a * b, ratio)`
-    MixRatio,
+    Mul,
     /// `a + b * ratio`
     Add,
-    // TODO: add mul blend mode
     /// Normal blend mode similar to "Reoriented Normal Mapping" (RNM).
     AddNormal,
+    UnkNormal,
     /// `mix(a, overlay(a, b), ratio)`.
     Overlay,
     /// `pow(a, b)`
