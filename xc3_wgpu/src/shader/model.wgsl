@@ -329,15 +329,12 @@ fn apply_normal_map(normal_map: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f
 }
 
 // Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00028, createNormalMapTex_B5XY.
-fn create_normal_map(col: vec2<f32>) -> vec3<f32> {
+fn create_normal_map(nx: f32, ny: f32) -> vec3<f32> {
     // Remap the tangent space normal map to the correct range.
     // The additional offset determines the "neutral" normal map value.
-    let x = 2.0 * col.x - 1.0 - (1.0 / 256.0);
-    let y = 2.0 * col.y - 1.0 - (1.0 / 256.0);
-
-    let z = normal_z(x, y);
-
-    return vec3(x, y, z);
+    let x = 2.0 * nx - 1.0 - (1.0 / 256.0);
+    let y = 2.0 * ny - 1.0 - (1.0 / 256.0);
+    return vec3(x, y, normal_z(x, y));
 }
 
 fn normal_z(x: f32, y: f32) -> f32 {
@@ -498,18 +495,14 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     // This avoids needing to define N before layering normal maps.
     var n_dot_v = 1.0;
 
-    var normal = vertex_normal;
-    var ao = g_normal.z;
-
+    // ASSIGN_NORMAL_GENERATED
+    
     // Not all materials and shaders use normal mapping.
+    var normal = vertex_normal;
     if assignments[2].has_channels.x != 0u || assignments[2].has_channels.y != 0u {
-        // TODO: Does the w value matter?
-        var normal_map = g_normal;
-        // ASSIGN_NORMAL_GENERATED
-
-        normal = apply_normal_map(normal_map.xyz, tangent, bitangent, vertex_normal);
-        ao = normal_map.z;
+        normal = apply_normal_map(vec3(g_normal.xy, normal_z(g_normal.x, g_normal.y)), tangent, bitangent, vertex_normal);
     }
+    let ao = g_normal.z;
 
     // Normals are in view space, so the view vector is simple.
     let view = vec3(0.0, 0.0, 1.0);
