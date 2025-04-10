@@ -57,28 +57,39 @@ impl Nodes {
                         i
                     }
                     LayerAssignmentValue::Layers(layers) => {
-                        // TODO: always blend with previous node?
-                        let mut i = self.nodes.len().saturating_sub(1);
+                        if layers.is_empty() {
+                            // Avoid empty layers that cause problems with code gen.
+                            let value_index = self.insert_value(ValueAssignment::Value(0.0.into()));
+                            let node = NodeValue::Value(value_index);
 
-                        for layer in layers {
-                            // Insert values that this value depends on first.
-                            let b_node_index = self.insert_layer_value(&layer.value);
-                            let ratio_node_index = self.insert_layer_value(&layer.weight);
-
-                            let node = NodeValue::Layer {
-                                a_node_index: i,
-                                b_node_index,
-                                ratio_node_index,
-                                blend_mode: layer.blend_mode,
-                                is_fresnel: layer.is_fresnel,
-                            };
-
-                            i = self.nodes.len();
+                            let i = self.nodes.len();
                             self.value_to_node_index.insert(layer_value.clone(), i);
                             self.nodes.push(node);
-                        }
+                            i
+                        } else {
+                            // TODO: always blend with previous node?
+                            let mut i = self.nodes.len().saturating_sub(1);
 
-                        i
+                            for layer in layers {
+                                // Insert values that this value depends on first.
+                                let b_node_index = self.insert_layer_value(&layer.value);
+                                let ratio_node_index = self.insert_layer_value(&layer.weight);
+
+                                let node = NodeValue::Layer {
+                                    a_node_index: i,
+                                    b_node_index,
+                                    ratio_node_index,
+                                    blend_mode: layer.blend_mode,
+                                    is_fresnel: layer.is_fresnel,
+                                };
+
+                                i = self.nodes.len();
+                                self.value_to_node_index.insert(layer_value.clone(), i);
+                                self.nodes.push(node);
+                            }
+
+                            i
+                        }
                     }
                 }
             }
@@ -116,8 +127,8 @@ impl Nodes {
 
     fn write_wgsl_xy(
         wgsl: &mut String,
-        nodes1: &Self,
-        nodes2: &Self,
+        nodes_x: &Self,
+        nodes_y: &Self,
         prefix: &str,
         name_to_index: &mut IndexMap<SmolStr, usize>,
         name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
@@ -130,33 +141,33 @@ impl Nodes {
         // Blend modes that use multiple channels require special handling.
         // Interleave x and y channel assignments to enable blending both channels.
         // This assumes the database xy entries differ only in the accessed channel.
-        for (i, (value1, value2)) in nodes1.nodes.iter().zip(&nodes1.nodes).enumerate() {
-            match (value1, value2) {
+        for (i, (value_x, value_y)) in nodes_x.nodes.iter().zip(&nodes_y.nodes).enumerate() {
+            match (value_x, value_y) {
                 (
                     NodeValue::Layer {
-                        a_node_index: a1,
-                        b_node_index: b1,
-                        ratio_node_index: r1,
+                        a_node_index: ax,
+                        b_node_index: bx,
+                        ratio_node_index: rx,
                         blend_mode: LayerBlendMode::AddNormal,
-                        is_fresnel: f1,
+                        is_fresnel: fx,
                     },
                     NodeValue::Layer {
-                        a_node_index: a2,
-                        b_node_index: b2,
-                        ratio_node_index: r2,
+                        a_node_index: ay,
+                        b_node_index: by,
+                        ratio_node_index: ry,
                         blend_mode: LayerBlendMode::AddNormal,
-                        is_fresnel: f2,
+                        is_fresnel: fy,
                     },
                 ) => {
-                    // TODO: check that ratios  and fresnel match.
-                    let r = if *f1 {
-                        format!("fresnel_ratio({prefix_x}{r1}, n_dot_v)")
+                    // TODO: check that ratios and fresnel match.
+                    let r = if *fx {
+                        format!("fresnel_ratio({prefix_x}{rx}, n_dot_v)")
                     } else {
-                        format!("{prefix_x}{r1}")
+                        format!("{prefix_x}{rx}")
                     };
 
-                    let a_nrm = format!("vec3({prefix_x}{a1}, {prefix_y}{a2}, normal_z({prefix_x}{a1}, {prefix_y}{a2}))");
-                    let b_nrm = format!("create_normal_map(vec2({prefix_x}{b1}, {prefix_y}{b2}))");
+                    let a_nrm = format!("vec3({prefix_x}{ax}, {prefix_y}{ay}, normal_z({prefix_x}{ax}, {prefix_y}{ay}))");
+                    let b_nrm = format!("create_normal_map(vec2({prefix_x}{bx}, {prefix_y}{by}))");
                     writeln!(
                         wgsl,
                         "let {prefix}_xy{i} = add_normal_maps({a_nrm}, {b_nrm}, {r});",
@@ -171,9 +182,9 @@ impl Nodes {
                 }
                 _ => {
                     let value1_wgsl =
-                        nodes1.node_wgsl(value1, &prefix_x, name_to_index, name_to_uv_wgsl);
+                        nodes_x.node_wgsl(value_x, &prefix_x, name_to_index, name_to_uv_wgsl);
                     let value2_wgsl =
-                        nodes2.node_wgsl(value2, &prefix_y, name_to_index, name_to_uv_wgsl);
+                        nodes_y.node_wgsl(value_y, &prefix_y, name_to_index, name_to_uv_wgsl);
 
                     // TODO: How to handle missing values?
                     let v1 = value1_wgsl.unwrap_or("0.0".to_string());
@@ -231,7 +242,11 @@ impl Nodes {
                     LayerBlendMode::Mix => format!("mix({a}, {b}, {ratio})"),
                     LayerBlendMode::Mul => format!("mix({a}, {a} * {b}, {ratio})"),
                     LayerBlendMode::Add => format!("{a} + {b} * {ratio}"),
-                    LayerBlendMode::AddNormal => todo!(), // TODO: this should never happen?
+                    LayerBlendMode::AddNormal => {
+                        // TODO: this should never happen?
+                        error!("Unexpected blend mode {blend_mode:?}");
+                        "0.0".to_string()
+                    }
                     LayerBlendMode::Overlay2 => {
                         format!("mix({a}, overlay_blend({a}, {b}), {ratio})")
                     }

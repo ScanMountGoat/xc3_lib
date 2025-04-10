@@ -889,7 +889,7 @@ fn output_channel_assignment(
     output_index: usize,
     channel_index: usize,
 ) -> LayerAssignmentValue {
-    let layers = texture_layers(shader, parameters, output_index, channel_index);
+    let layers = layer_assignments(shader, parameters, output_index, channel_index);
     if layers.is_empty() {
         LayerAssignmentValue::Value(channel_assignment(
             shader,
@@ -902,7 +902,7 @@ fn output_channel_assignment(
     }
 }
 
-fn texture_layers(
+fn layer_assignments(
     shader: &ShaderProgram,
     parameters: &MaterialParameters,
     output_index: usize,
