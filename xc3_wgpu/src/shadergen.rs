@@ -154,9 +154,9 @@ impl Nodes {
                     NodeValue::Layer {
                         a_node_index: ay,
                         b_node_index: by,
-                        ratio_node_index: ry,
+                        ratio_node_index: _ry,
                         blend_mode: LayerBlendMode::AddNormal,
-                        is_fresnel: fy,
+                        is_fresnel: _fy,
                     },
                 ) => {
                     // TODO: check that ratios and fresnel match.
@@ -167,7 +167,7 @@ impl Nodes {
                     };
 
                     let a_nrm = format!("vec3({prefix_x}{ax}, {prefix_y}{ay}, normal_z({prefix_x}{ax}, {prefix_y}{ay}))");
-                    let b_nrm = format!("create_normal_map(vec2({prefix_x}{bx}, {prefix_y}{by}))");
+                    let b_nrm = format!("create_normal_map({prefix_x}{bx}, {prefix_y}{by})");
                     writeln!(
                         wgsl,
                         "let {prefix}_xy{i} = add_normal_maps({a_nrm}, {b_nrm}, {r});",
@@ -195,11 +195,8 @@ impl Nodes {
 
                     // TODO: Handle value ranges and channels with add normal itself?
                     if i == 0 {
-                        writeln!(
-                            wgsl,
-                            "let {prefix}_xy{i} = create_normal_map(vec2({v1}, {v2}));"
-                        )
-                        .unwrap();
+                        writeln!(wgsl, "let {prefix}_xy{i} = create_normal_map({v1}, {v2});")
+                            .unwrap();
                         writeln!(wgsl, "let {prefix_x}{i} = {prefix}_xy{i}.x;").unwrap();
                         writeln!(wgsl, "let {prefix_y}{i} = {prefix}_xy{i}.y;").unwrap();
                     } else {
@@ -272,7 +269,7 @@ pub fn create_model_shader(key: &PipelineKey) -> String {
     for ((from, var), to) in [
         ("// ASSIGN_COLOR_GENERATED", "g_color"),
         ("// ASSIGN_ETC_GENERATED", "g_etc_buffer"),
-        ("// ASSIGN_NORMAL_GENERATED", "normal_map"),
+        ("// ASSIGN_NORMAL_GENERATED", "g_normal"),
         ("// ASSIGN_G_VELOCITY_GENERATED", "g_velocity"),
         ("// ASSIGN_G_DEPTH_GENERATED", "g_depth"),
         ("// ASSIGN_G_LGT_COLOR_GENERATED", "g_lgt_color"),
