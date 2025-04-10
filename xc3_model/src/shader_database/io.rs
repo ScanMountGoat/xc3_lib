@@ -442,7 +442,7 @@ impl ShaderDatabaseIndexed {
                     )),
                     LayerValue::Layers(layers) => LayerValueIndexed::Layers(
                         layers
-                            .into_iter()
+                            .iter()
                             .map(|l| {
                                 self.add_output_layer_indexed(
                                     l,

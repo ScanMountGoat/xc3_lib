@@ -501,7 +501,7 @@ fn assignment_image_index(
             }))
         }
         ValueAssignment::Attribute { .. } => None,
-        ValueAssignment::Value(v) => Some(ImageIndex::Value((*v).into())),
+        ValueAssignment::Value(v) => Some(ImageIndex::Value(*v)),
     }
 }
 
