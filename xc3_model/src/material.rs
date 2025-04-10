@@ -91,6 +91,22 @@ pub struct MaterialParameters {
     /// [xc3_lib::mxmd::ParamType::WorkColor]
     pub work_color: Option<Vec<[f32; 4]>>,
 
+    /// [xc3_lib::mxmd::ParamType::AlphaInfo]
+    pub alpha_info: Option<Vec<[f32; 4]>>,
+
+    /// [xc3_lib::mxmd::legacy::ParamType::MaterialAmbient]
+    pub material_ambient: Option<Vec<[f32; 4]>>,
+
+    /// [xc3_lib::mxmd::legacy::ParamType::MaterialSpecular]
+    pub material_specular: Option<Vec<[f32; 4]>>,
+
+    /// [xc3_lib::mxmd::legacy::ParamType::DtWork]
+    pub dt_work: Option<Vec<[f32; 4]>>,
+
+    /// [xc3_lib::mxmd::legacy::ParamType::MdlParam]
+    pub mdl_param: Option<Vec<[f32; 4]>>,
+
+    // TODO: Add missing xcx de parameters.
     /// Skin color param for some Xenoblade X DE models like L.
     pub ava_skin: Option<[f32; 4]>,
 }
@@ -105,7 +121,12 @@ impl MaterialParameters {
             ("U_Mate", "gWrkFl4") => self.work_float4.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gWrkCol") => self.work_color.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gTexMat") => self.tex_matrix.as_ref()?.get(index)?.get(c),
+            ("U_Mate", "gAlInf") => self.alpha_info.as_ref()?.get(index)?.get(c),
             // Xenoblade X DE
+            ("U_Mate", "gMatAmb") => self.material_ambient.as_ref()?.get(index)?.get(c),
+            ("U_Mate", "gMatSpec") => self.material_specular.as_ref()?.get(index)?.get(c),
+            ("U_Mate", "gDTWrk") => self.dt_work.as_ref()?.get(index)?.get(c),
+            ("U_Mate", "gMdlParm") => self.mdl_param.as_ref()?.get(index)?.get(c),
             ("U_CHR", "gAvaSkin") => self.ava_skin.as_ref()?.get(c),
             _ => None,
         };
@@ -544,10 +565,7 @@ fn assign_parameters(
 
     let mut parameters = MaterialParameters {
         material_color: material.color,
-        tex_matrix: None,
-        work_float4: None,
-        work_color: None,
-        ava_skin: None,
+        ..Default::default()
     };
 
     if let Some(technique) = get_technique(material, &materials.techniques) {
@@ -563,11 +581,10 @@ fn assign_parameters(
                 xc3_lib::mxmd::ParamType::WorkColor => {
                     parameters.work_color = Some(read_param(param, &work_values));
                 }
-                // TODO: Find the corresponding uniform name.
                 xc3_lib::mxmd::ParamType::Unk4 => (),
-                // TODO: index and count is always 0?
-                // TODO: Do these take values from the work values?
-                xc3_lib::mxmd::ParamType::AlphaInfo => (),
+                xc3_lib::mxmd::ParamType::AlphaInfo => {
+                    parameters.alpha_info = Some(read_param(param, &work_values));
+                }
                 xc3_lib::mxmd::ParamType::MaterialColor => (),
                 xc3_lib::mxmd::ParamType::Unk7 => (),
                 xc3_lib::mxmd::ParamType::ToonHeadMatrix => (),
@@ -628,21 +645,73 @@ fn read_param<const N: usize>(
         .unwrap_or_default()
 }
 
+fn read_param_legacy<const N: usize>(
+    param: &xc3_lib::mxmd::legacy::MaterialParameter,
+    work_values: &[f32],
+) -> Vec<[f32; N]> {
+    // Assume any parameter can be an array, so read a vec.
+    work_values
+        .get(param.work_value_index as usize..)
+        .map(|values| {
+            values
+                .chunks(N)
+                .map(|v| {
+                    // TODO: Just keep indices to reference values instead?
+                    // TODO: The param count field doesn't work here for Pyra ho_BL_TS2?
+                    let mut output = [0.0; N];
+                    for (o, v) in output.iter_mut().zip(v) {
+                        *o = *v;
+                    }
+                    output
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn assign_parameters_legacy(
     materials: &xc3_lib::mxmd::legacy::Materials,
     material: &xc3_lib::mxmd::legacy::Material,
-    _work_values: &[f32],
+    work_values: &[f32],
 ) -> Option<MaterialParameters> {
-    let parameters = MaterialParameters {
+    let mut parameters = MaterialParameters {
         material_color: material.color,
-        tex_matrix: None,
-        work_float4: None,
-        work_color: None,
         ava_skin: materials.unks1_2_3.map(|v| [v[0], v[1], v[2], v[3]]),
+        ..Default::default()
     };
 
-    if let Some(_technique) = get_technique_legacy(material, &materials.techniques) {
-        // TODO: parameters
+    if let Some(technique) = get_technique_legacy(material, &materials.techniques) {
+        for param in &technique.parameters {
+            match param.param_type {
+                xc3_lib::mxmd::legacy::ParamType::MaterialAmbient => {
+                    parameters.material_ambient = Some(read_param_legacy(param, work_values));
+                }
+                xc3_lib::mxmd::legacy::ParamType::MaterialSpecular => {
+                    parameters.material_specular = Some(read_param_legacy(param, work_values));
+                }
+                xc3_lib::mxmd::legacy::ParamType::DpRat => {}
+                xc3_lib::mxmd::legacy::ParamType::TexMatrix => {
+                    parameters.tex_matrix = Some(read_param_legacy(param, work_values));
+                }
+                xc3_lib::mxmd::legacy::ParamType::WorkFloat4 => {
+                    parameters.work_float4 = Some(read_param_legacy(param, work_values));
+                }
+                xc3_lib::mxmd::legacy::ParamType::WorkColor => {
+                    parameters.work_color = Some(read_param_legacy(param, work_values));
+                }
+                xc3_lib::mxmd::legacy::ParamType::ProjectionTexMatrix => {}
+                xc3_lib::mxmd::legacy::ParamType::AlphaInfo => {
+                    parameters.alpha_info = Some(read_param_legacy(param, work_values));
+                }
+                xc3_lib::mxmd::legacy::ParamType::MaterialColor => {}
+                xc3_lib::mxmd::legacy::ParamType::DtWork => {
+                    parameters.dt_work = Some(read_param_legacy(param, work_values));
+                }
+                xc3_lib::mxmd::legacy::ParamType::MdlParam => {
+                    parameters.mdl_param = Some(read_param_legacy(param, work_values));
+                }
+            }
+        }
     }
 
     Some(parameters)
