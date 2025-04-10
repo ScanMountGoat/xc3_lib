@@ -112,10 +112,9 @@ impl Nodes {
         wgsl: &mut String,
         node_prefix: &str,
         name_to_index: &mut IndexMap<SmolStr, usize>,
-        name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
     ) {
         for (i, value) in self.nodes.iter().enumerate() {
-            let value_wgsl = self.node_wgsl(value, node_prefix, name_to_index, name_to_uv_wgsl);
+            let value_wgsl = self.node_wgsl(value, node_prefix, name_to_index);
             writeln!(
                 wgsl,
                 "let {node_prefix}{i} = {};",
@@ -125,99 +124,11 @@ impl Nodes {
         }
     }
 
-    fn write_wgsl_xy(
-        wgsl: &mut String,
-        nodes_x: &Self,
-        nodes_y: &Self,
-        prefix: &str,
-        name_to_index: &mut IndexMap<SmolStr, usize>,
-        name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
-    ) -> Option<(String, String)> {
-        let prefix_x = format!("{prefix}_x");
-        let prefix_y = format!("{prefix}_y");
-
-        let mut final_xy = None;
-
-        // Blend modes that use multiple channels require special handling.
-        // Interleave x and y channel assignments to enable blending both channels.
-        // This assumes the database xy entries differ only in the accessed channel.
-        for (i, (value_x, value_y)) in nodes_x.nodes.iter().zip(&nodes_y.nodes).enumerate() {
-            match (value_x, value_y) {
-                (
-                    NodeValue::Layer {
-                        a_node_index: ax,
-                        b_node_index: bx,
-                        ratio_node_index: rx,
-                        blend_mode: LayerBlendMode::AddNormal,
-                        is_fresnel: fx,
-                    },
-                    NodeValue::Layer {
-                        a_node_index: ay,
-                        b_node_index: by,
-                        ratio_node_index: _ry,
-                        blend_mode: LayerBlendMode::AddNormal,
-                        is_fresnel: _fy,
-                    },
-                ) => {
-                    // TODO: check that ratios and fresnel match.
-                    let r = if *fx {
-                        format!("fresnel_ratio({prefix_x}{rx}, n_dot_v)")
-                    } else {
-                        format!("{prefix_x}{rx}")
-                    };
-
-                    let a_nrm = format!("vec3({prefix_x}{ax}, {prefix_y}{ay}, normal_z({prefix_x}{ax}, {prefix_y}{ay}))");
-                    let b_nrm = format!("create_normal_map({prefix_x}{bx}, {prefix_y}{by})");
-                    writeln!(
-                        wgsl,
-                        "let {prefix}_xy{i} = add_normal_maps({a_nrm}, {b_nrm}, {r});",
-                    )
-                    .unwrap();
-
-                    let x_value = format!("{prefix}_xy{i}.x");
-                    let y_value = format!("{prefix}_xy{i}.y");
-                    writeln!(wgsl, "let {prefix_x}{i} = {x_value};",).unwrap();
-                    writeln!(wgsl, "let {prefix_y}{i} = {y_value};",).unwrap();
-                    final_xy = Some((x_value, y_value));
-                }
-                _ => {
-                    let value1_wgsl =
-                        nodes_x.node_wgsl(value_x, &prefix_x, name_to_index, name_to_uv_wgsl);
-                    let value2_wgsl =
-                        nodes_y.node_wgsl(value_y, &prefix_y, name_to_index, name_to_uv_wgsl);
-
-                    // TODO: How to handle missing values?
-                    let v1 = value1_wgsl.unwrap_or("0.0".to_string());
-                    let v2 = value2_wgsl.unwrap_or("0.0".to_string());
-
-                    let x_value = format!("{prefix_x}{i}");
-                    let y_value = format!("{prefix_y}{i}");
-
-                    // TODO: Handle value ranges and channels with add normal itself?
-                    if i == 0 {
-                        writeln!(wgsl, "let {prefix}_xy{i} = create_normal_map({v1}, {v2});")
-                            .unwrap();
-                        writeln!(wgsl, "let {prefix_x}{i} = {prefix}_xy{i}.x;").unwrap();
-                        writeln!(wgsl, "let {prefix_y}{i} = {prefix}_xy{i}.y;").unwrap();
-                    } else {
-                        writeln!(wgsl, "let {prefix_x}{i} = {v1};").unwrap();
-                        writeln!(wgsl, "let {prefix_y}{i} = {v2};").unwrap();
-                    }
-
-                    final_xy = Some((x_value, y_value));
-                }
-            }
-        }
-
-        final_xy
-    }
-
     fn node_wgsl(
         &self,
         value: &NodeValue,
         node_prefix: &str,
         name_to_index: &mut IndexMap<SmolStr, usize>,
-        name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
     ) -> Option<String> {
         match value {
             NodeValue::Layer {
@@ -256,11 +167,92 @@ impl Nodes {
                 };
                 Some(result)
             }
-            NodeValue::Value(i) => {
-                channel_assignment_wgsl(name_to_index, name_to_uv_wgsl, Some(&self.values[*i]))
+            NodeValue::Value(i) => channel_assignment_wgsl(name_to_index, Some(&self.values[*i])),
+        }
+    }
+}
+
+fn write_wgsl_xy(
+    wgsl: &mut String,
+    nodes_x: &Nodes,
+    nodes_y: &Nodes,
+    prefix: &str,
+    name_to_index: &mut IndexMap<SmolStr, usize>,
+) -> Option<(String, String)> {
+    let prefix_x = format!("{prefix}_x");
+    let prefix_y = format!("{prefix}_y");
+
+    let mut final_xy = None;
+
+    // Blend modes that use multiple channels require special handling.
+    // Interleave x and y channel assignments to enable blending both channels.
+    // This assumes the database xy entries differ only in the accessed channel.
+    for (i, (value_x, value_y)) in nodes_x.nodes.iter().zip(&nodes_y.nodes).enumerate() {
+        match (value_x, value_y) {
+            (
+                NodeValue::Layer {
+                    a_node_index: ax,
+                    b_node_index: bx,
+                    ratio_node_index: rx,
+                    blend_mode: LayerBlendMode::AddNormal,
+                    is_fresnel: fx,
+                },
+                NodeValue::Layer {
+                    a_node_index: ay,
+                    b_node_index: by,
+                    ratio_node_index: _ry,
+                    blend_mode: LayerBlendMode::AddNormal,
+                    is_fresnel: _fy,
+                },
+            ) => {
+                // TODO: check that ratios and fresnel match.
+                let r = if *fx {
+                    format!("fresnel_ratio({prefix_x}{rx}, n_dot_v)")
+                } else {
+                    format!("{prefix_x}{rx}")
+                };
+
+                let a_nrm = format!("vec3({prefix_x}{ax}, {prefix_y}{ay}, normal_z({prefix_x}{ax}, {prefix_y}{ay}))");
+                let b_nrm = format!("create_normal_map({prefix_x}{bx}, {prefix_y}{by})");
+                writeln!(
+                    wgsl,
+                    "let {prefix}_xy{i} = add_normal_maps({a_nrm}, {b_nrm}, {r});",
+                )
+                .unwrap();
+
+                let x_value = format!("{prefix}_xy{i}.x");
+                let y_value = format!("{prefix}_xy{i}.y");
+                writeln!(wgsl, "let {prefix_x}{i} = {x_value};",).unwrap();
+                writeln!(wgsl, "let {prefix_y}{i} = {y_value};",).unwrap();
+                final_xy = Some((x_value, y_value));
+            }
+            _ => {
+                let value1_wgsl = nodes_x.node_wgsl(value_x, &prefix_x, name_to_index);
+                let value2_wgsl = nodes_y.node_wgsl(value_y, &prefix_y, name_to_index);
+
+                // TODO: How to handle missing values?
+                let v1 = value1_wgsl.unwrap_or("0.0".to_string());
+                let v2 = value2_wgsl.unwrap_or("0.0".to_string());
+
+                let x_value = format!("{prefix_x}{i}");
+                let y_value = format!("{prefix_y}{i}");
+
+                // TODO: Handle value ranges and channels with add normal itself?
+                if i == 0 {
+                    writeln!(wgsl, "let {prefix}_xy{i} = create_normal_map({v1}, {v2});").unwrap();
+                    writeln!(wgsl, "let {prefix_x}{i} = {prefix}_xy{i}.x;").unwrap();
+                    writeln!(wgsl, "let {prefix_y}{i} = {prefix}_xy{i}.y;").unwrap();
+                } else {
+                    writeln!(wgsl, "let {prefix_x}{i} = {v1};").unwrap();
+                    writeln!(wgsl, "let {prefix_y}{i} = {v2};").unwrap();
+                }
+
+                final_xy = Some((x_value, y_value));
             }
         }
     }
+
+    final_xy
 }
 
 pub fn create_model_shader(key: &PipelineKey) -> String {
@@ -281,8 +273,6 @@ pub fn create_model_shader(key: &PipelineKey) -> String {
         source = source.replace(from, &to.replace(OUT_VAR, var));
     }
 
-    source = source.replace("// UVS_GENERATED", &key.uvs_wgsl.join("\n"));
-
     source = source.replace("// ALPHA_TEST_DISCARD_GENERATED", &key.alpha_test_wgsl);
 
     source
@@ -292,24 +282,17 @@ fn generate_uv_wgsl(
     texture: &TextureAssignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
-    // TODO: Select sampler for alpha testing.
-    let mut wgsl = String::new();
-
-    let i = name_to_index.entry_index(texture.name.clone());
-
     let parallax = texture
         .parallax
         .as_ref()
         .and_then(|p| parallax_wgsl(name_to_index, p));
 
     let uv = transformed_uv_wgsl(texture);
-    writeln!(&mut wgsl, "uv{i} = {uv};").unwrap();
 
-    if let Some(parallax) = parallax {
-        writeln!(&mut wgsl, "uv{i} += {parallax};").unwrap();
+    match parallax {
+        Some(parallax) => format!("{uv} + {parallax}"),
+        None => uv,
     }
-
-    wgsl
 }
 
 fn transformed_uv_wgsl(texture: &TextureAssignment) -> String {
@@ -343,8 +326,9 @@ pub fn generate_alpha_test_wgsl(
     if i < 10 {
         let c = ['x', 'y', 'z', 'w'][alpha_test.channel_index];
 
+        // TODO: Detect the UV attribute to use with alpha testing.
         formatdoc! {"
-            if textureSample(s{i}, alpha_test_sampler, uv{i}).{c} <= per_material.alpha_test_ref {{
+            if textureSample(s{i}, alpha_test_sampler, tex0).{c} <= per_material.alpha_test_ref {{
                 discard;
             }}
         "}
@@ -357,7 +341,6 @@ pub fn generate_alpha_test_wgsl(
 pub fn generate_layering_wgsl(
     assignment: &OutputAssignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
 ) -> String {
     let mut wgsl = String::new();
 
@@ -370,7 +353,7 @@ pub fn generate_layering_wgsl(
     let w_index = insert_assignment(&mut nodes, &assignment.w);
 
     let node_prefix = format!("{OUT_VAR}_n");
-    nodes.write_wgsl(&mut wgsl, &node_prefix, name_to_index, name_to_uv_wgsl);
+    nodes.write_wgsl(&mut wgsl, &node_prefix, name_to_index);
 
     // Write any final assignments.
     if let Some(x) = x_index {
@@ -400,7 +383,6 @@ fn insert_assignment(nodes: &mut Nodes, value: &LayerAssignmentValue) -> Option<
 pub fn generate_normal_layering_wgsl(
     assignment: &OutputAssignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
 ) -> String {
     let mut wgsl = String::new();
 
@@ -412,14 +394,7 @@ pub fn generate_normal_layering_wgsl(
     let mut nodes_y = Nodes::default();
     insert_assignment(&mut nodes_y, &assignment.y);
 
-    let xy_values = Nodes::write_wgsl_xy(
-        &mut wgsl,
-        &nodes_x,
-        &nodes_y,
-        &node_prefix,
-        name_to_index,
-        name_to_uv_wgsl,
-    );
+    let xy_values = write_wgsl_xy(&mut wgsl, &nodes_x, &nodes_y, &node_prefix, name_to_index);
 
     // TODO: Share this cache with all outputs?
     let mut nodes = Nodes::default();
@@ -427,7 +402,7 @@ pub fn generate_normal_layering_wgsl(
     let z_index = insert_assignment(&mut nodes, &assignment.z);
     let w_index = insert_assignment(&mut nodes, &assignment.w);
 
-    nodes.write_wgsl(&mut wgsl, &node_prefix, name_to_index, name_to_uv_wgsl);
+    nodes.write_wgsl(&mut wgsl, &node_prefix, name_to_index);
 
     // Write any final assignments.
     if let Some((x_value, y_value)) = xy_values {
@@ -446,7 +421,6 @@ pub fn generate_normal_layering_wgsl(
 
 fn channel_assignment_wgsl(
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    name_to_uv_wgsl: &mut IndexMap<SmolStr, String>,
     value: Option<&ValueAssignment>,
 ) -> Option<String> {
     match value? {
@@ -455,9 +429,10 @@ fn channel_assignment_wgsl(
 
             if i < 10 {
                 let uvs = generate_uv_wgsl(t, name_to_index);
-                name_to_uv_wgsl.insert(t.name.clone(), uvs);
-
-                Some(format!("s{i}_color.{}", t.channels))
+                Some(format!(
+                    "textureSample(s{i}, s{i}_sampler, {uvs}).{}",
+                    t.channels
+                ))
             } else {
                 error!("Sampler index {i} exceeds supported max of 10");
                 None
@@ -483,54 +458,11 @@ fn parallax_wgsl(
     name_to_index: &mut IndexMap<SmolStr, usize>,
     parallax: &TexCoordParallax,
 ) -> Option<String> {
-    let mask_a = channel_assignment_wgsl_parallax(name_to_index, Some(&parallax.mask_a))?;
-    let mask_b = channel_assignment_wgsl_parallax(name_to_index, Some(&parallax.mask_b))?;
+    let mask_a = channel_assignment_wgsl(name_to_index, Some(&parallax.mask_a))?;
+    let mask_b = channel_assignment_wgsl(name_to_index, Some(&parallax.mask_b))?;
     let ratio = format!("{:?}", parallax.ratio);
 
     Some(format!("uv_parallax(in, {mask_a}, {mask_b}, {ratio})"))
-}
-
-fn channel_assignment_wgsl_parallax(
-    name_to_index: &mut IndexMap<SmolStr, usize>,
-    value: Option<&ValueAssignment>,
-) -> Option<String> {
-    match value? {
-        ValueAssignment::Texture(t) => {
-            let i = name_to_index.entry_index(t.name.clone());
-
-            // Parallax masks affect UVs, which may themselves depend on textures.
-            // Assume the masks themselves have no parallax to avoid recursion.
-            // TODO: Assume textures are accessed once and adjust the order of assignment instead?X
-            if t.parallax.is_some() {
-                error!("Unexpected recursion when processing texture coordinate parallax");
-            }
-
-            if i < 10 {
-                let uvs = transformed_uv_wgsl(t);
-
-                Some(format!(
-                    "textureSample(s{i}, s{i}_sampler, {uvs}).{}",
-                    t.channels
-                ))
-            } else {
-                error!("Sampler index {i} exceeds supported max of 10");
-                None
-            }
-        }
-        ValueAssignment::Attribute {
-            name,
-            channel_index,
-        } => {
-            // TODO: Support attributes other than vertex color.
-            // TODO: log errors
-            let name = match name.as_str() {
-                "vColor" => Some("in.vertex_color"),
-                _ => None,
-            }?;
-            Some(format!("{name}.{}", ['x', 'y', 'z', 'w'][*channel_index]))
-        }
-        ValueAssignment::Value(f) => Some(format!("{f:?}")),
-    }
 }
 
 // TODO: create tests for sample shader from each game.

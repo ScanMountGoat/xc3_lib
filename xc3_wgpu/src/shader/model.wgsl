@@ -445,36 +445,18 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let tex7 = in.tex67.zw;
     let tex8 = in.tex8.xy;
 
-    var uv0 = tex0;
-    var uv1 = tex0;
-    var uv2 = tex0;
-    var uv3 = tex0;
-    var uv4 = tex0;
-    var uv5 = tex0;
-    var uv6 = tex0;
-    var uv7 = tex0;
-    var uv8 = tex0;
-    var uv9 = tex0;
-
-    // TODO: Combine this with texture sampling code gen.
-    // UVS_GENERATED
-    // TODO: s0_0, s0_1 if used with different uvs?
-
-    // Assume one access per texture and compute values ahead of time.
-    // TODO: Move sampling to code gen since this isn't true in all cases.
-    let s0_color = textureSample(s0, s0_sampler, uv0);
-    let s1_color = textureSample(s1, s1_sampler, uv1);
-    let s2_color = textureSample(s2, s2_sampler, uv2);
-    let s3_color = textureSample(s3, s3_sampler, uv3);
-    let s4_color = textureSample(s4, s4_sampler, uv4);
-    let s5_color = textureSample(s5, s5_sampler, uv5);
-    let s6_color = textureSample(s6, s6_sampler, uv6);
-    let s7_color = textureSample(s7, s7_sampler, uv7);
-    let s8_color = textureSample(s8, s8_sampler, uv8);
-    let s9_color = textureSample(s9, s9_sampler, uv9);
-
-    // Required for reachability analysis to include this sampler.
-    let _unused = textureSample(s0, alpha_test_sampler, uv0);
+    // Required for reachability analysis to include these resources.
+    var _unused = textureSample(s0, s0_sampler, vec2(0.0));
+    _unused = textureSample(s1, s1_sampler, vec2(0.0));
+    _unused = textureSample(s2, s2_sampler, vec2(0.0));
+    _unused = textureSample(s3, s3_sampler, vec2(0.0));
+    _unused = textureSample(s4, s4_sampler, vec2(0.0));
+    _unused = textureSample(s5, s5_sampler, vec2(0.0));
+    _unused = textureSample(s6, s6_sampler, vec2(0.0));
+    _unused = textureSample(s7, s7_sampler, vec2(0.0));
+    _unused = textureSample(s8, s8_sampler, vec2(0.0));
+    _unused = textureSample(s9, s9_sampler, vec2(0.0));
+    _unused = textureSample(s0, alpha_test_sampler, vec2(0.0));
 
     // ALPHA_TEST_DISCARD_GENERATED
 
