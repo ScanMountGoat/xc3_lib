@@ -66,17 +66,15 @@ pub fn create_material(
         name_to_index.entry_index(format!("s{}", a.texture_index).into());
     }
 
-    let mut name_to_uv_wgsl = IndexMap::new();
-
     let output_layers_wgsl: Vec<_> = material_assignments
         .assignments
         .iter()
         .enumerate()
         .map(|(i, a)| {
             if i == 2 {
-                generate_normal_layering_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl)
+                generate_normal_layering_wgsl(a, &mut name_to_index)
             } else {
-                generate_layering_wgsl(a, &mut name_to_index, &mut name_to_uv_wgsl)
+                generate_layering_wgsl(a, &mut name_to_index)
             }
         })
         .collect();
@@ -87,9 +85,6 @@ pub fn create_material(
         .as_ref()
         .map(|a| generate_alpha_test_wgsl(a, &mut name_to_index))
         .unwrap_or_default();
-
-    let mut uvs_wgsl: Vec<_> = name_to_uv_wgsl.values().cloned().collect();
-    uvs_wgsl.sort();
 
     // TODO: Some materials need more than 10 textures.
     let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
@@ -202,7 +197,6 @@ pub fn create_material(
         is_instanced_static,
         output_layers_wgsl,
         alpha_test_wgsl,
-        uvs_wgsl,
     };
     pipelines.insert(pipeline_key.clone());
 
