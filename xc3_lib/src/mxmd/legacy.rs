@@ -726,7 +726,7 @@ pub struct Technique {
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk2: Vec<[u16; 4]>,
+    pub parameters: Vec<MaterialParameter>,
 
     // offset1, offset2, count1, count2
     #[br(temp, restore_position)]
@@ -754,6 +754,43 @@ pub struct Technique {
 
     // TODO: padding?
     pub padding: [u32; 5],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct MaterialParameter {
+    pub param_type: ParamType,
+    pub work_value_index: u16, // added to work value start index?
+    pub unk: u16,
+    pub count: u16, // actual number of bytes depends on type?
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u16))]
+pub enum ParamType {
+    /// `gMatAmb` uniform in the [Spch].
+    MaterialAmbient = 0,
+    /// `gMatSpec` uniform in the [Spch].
+    MaterialSpecular = 1,
+    /// `gDpRat` uniform in the [Spch].
+    DpRat = 3,
+    /// `gTexMat` uniform in the [Spch].
+    TexMatrix = 4,
+    /// `gWrkFl4` uniform in the [Spch].
+    WorkFloat4 = 5,
+    /// `gWrkCol` uniform in the [Spch].
+    WorkColor = 6,
+    /// `gProjTexMat` uniform in the [Spch].
+    ProjectionTexMatrix = 7,
+    /// `gAlInf` uniform in the [Spch].
+    AlphaInfo = 14,
+    /// `gMatCol` uniform in the [Spch].
+    MaterialColor = 15,
+    /// `gDTWrk` uniform in the [Spch].
+    DtWork = 17,
+    /// `gMdlParm` uniform in the [Spch].
+    MdlParam = 19,
 }
 
 #[binread]
@@ -983,7 +1020,7 @@ pub struct Shader {
     pub unks: [u32; 2],
 }
 
-xc3_write_binwrite_impl!(TextureUsage, UnkPassType);
+xc3_write_binwrite_impl!(TextureUsage, UnkPassType, ParamType);
 
 fn unk_float_count(skins: &[SkinningIndices]) -> usize {
     skins
@@ -1164,7 +1201,7 @@ impl Xc3WriteOffsets for TechniqueOffsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk7
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk2
+        self.parameters
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         Ok(())
     }
