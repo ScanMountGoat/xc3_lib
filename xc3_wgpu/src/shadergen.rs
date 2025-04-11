@@ -51,10 +51,7 @@ impl Nodes {
                         let value_index = self.insert_value(v);
                         let node = NodeValue::Value(value_index);
 
-                        let i = self.nodes.len();
-                        self.value_to_node_index.insert(layer_value.clone(), i);
-                        self.nodes.push(node);
-                        i
+                        self.insert_node_value(layer_value.clone(), node)
                     }
                     LayerAssignmentValue::Layers(layers) => {
                         if layers.is_empty() {
@@ -62,10 +59,7 @@ impl Nodes {
                             let value_index = self.insert_value(ValueAssignment::Value(0.0.into()));
                             let node = NodeValue::Value(value_index);
 
-                            let i = self.nodes.len();
-                            self.value_to_node_index.insert(layer_value.clone(), i);
-                            self.nodes.push(node);
-                            i
+                            self.insert_node_value(layer_value.clone(), node)
                         } else {
                             // TODO: always blend with previous node?
                             let mut i = self.nodes.len().saturating_sub(1);
@@ -83,9 +77,7 @@ impl Nodes {
                                     is_fresnel: layer.is_fresnel,
                                 };
 
-                                i = self.nodes.len();
-                                self.value_to_node_index.insert(layer_value.clone(), i);
-                                self.nodes.push(node);
+                                i = self.insert_node_value(layer_value.clone(), node);
                             }
 
                             i
@@ -94,6 +86,13 @@ impl Nodes {
                 }
             }
         }
+    }
+
+    fn insert_node_value(&mut self, layer_value: LayerAssignmentValue, node: NodeValue) -> usize {
+        let i = self.nodes.len();
+        self.value_to_node_index.insert(layer_value, i);
+        self.nodes.push(node);
+        i
     }
 
     fn insert_value(&mut self, value: ValueAssignment) -> usize {
@@ -151,7 +150,7 @@ impl Nodes {
                     LayerBlendMode::Mul => format!("mix({a}, {a} * {b}, {ratio})"),
                     LayerBlendMode::Add => format!("{a} + {b} * {ratio}"),
                     LayerBlendMode::AddNormal => {
-                        // TODO: this should never happen?
+                        // TODO: only normals xy should use this blend mode?
                         error!("Unexpected blend mode {blend_mode:?}");
                         "0.0".to_string()
                     }
@@ -167,7 +166,7 @@ impl Nodes {
                 };
                 Some(result)
             }
-            NodeValue::Value(i) => channel_assignment_wgsl(name_to_index, Some(&self.values[*i])),
+            NodeValue::Value(i) => channel_assignment_wgsl(name_to_index, &self.values[*i]),
         }
     }
 }
@@ -303,9 +302,16 @@ fn transformed_uv_wgsl(texture: &TextureAssignment) -> String {
         .unwrap_or_default();
 
     if let Some((u, v)) = texture.texcoord_transforms {
-        let u = format!("vec4({}, {}, {}, {})", u[0], u[1], u[2], u[3]);
-        let v = format!("vec4({}, {}, {}, {})", v[0], v[1], v[2], v[3]);
-        format!("transform_uv(tex{index}, {u}, {v})")
+        // Generate simpler code for identity transforms or simple scaling.
+        match (u.map(Into::into), v.map(Into::into)) {
+            ([1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]) => format!("tex{index}"),
+            ([u, 0.0, 0.0, 0.0], [0.0, v, 0.0, 0.0]) => format!("tex{index} * vec2({u}, {v})"),
+            _ => {
+                let u = format!("vec4({}, {}, {}, {})", u[0], u[1], u[2], u[3]);
+                let v = format!("vec4({}, {}, {}, {})", v[0], v[1], v[2], v[3]);
+                format!("transform_uv(tex{index}, {u}, {v})")
+            }
+        }
     } else {
         format!("tex{index}")
     }
@@ -396,13 +402,11 @@ pub fn generate_normal_layering_wgsl(
 
     let xy_values = write_wgsl_xy(&mut wgsl, &nodes_x, &nodes_y, &node_prefix, name_to_index);
 
-    // TODO: Share this cache with all outputs?
-    let mut nodes = Nodes::default();
+    let mut nodes_zw = Nodes::default();
+    let z_index = insert_assignment(&mut nodes_zw, &assignment.z);
+    let w_index = insert_assignment(&mut nodes_zw, &assignment.w);
 
-    let z_index = insert_assignment(&mut nodes, &assignment.z);
-    let w_index = insert_assignment(&mut nodes, &assignment.w);
-
-    nodes.write_wgsl(&mut wgsl, &node_prefix, name_to_index);
+    nodes_zw.write_wgsl(&mut wgsl, &node_prefix, name_to_index);
 
     // Write any final assignments.
     if let Some((x_value, y_value)) = xy_values {
@@ -421,9 +425,9 @@ pub fn generate_normal_layering_wgsl(
 
 fn channel_assignment_wgsl(
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    value: Option<&ValueAssignment>,
+    value: &ValueAssignment,
 ) -> Option<String> {
-    match value? {
+    match value {
         ValueAssignment::Texture(t) => {
             let i = name_to_index.entry_index(t.name.clone());
 
@@ -443,12 +447,14 @@ fn channel_assignment_wgsl(
             channel_index,
         } => {
             // TODO: Support attributes other than vertex color.
-            // TODO: log errors
-            let name = match name.as_str() {
-                "vColor" => Some("in.vertex_color"),
-                _ => None,
-            }?;
-            Some(format!("{name}.{}", ["x", "y", "z", "w"][*channel_index]))
+            let c = ["x", "y", "z", "w"][*channel_index];
+            match name.as_str() {
+                "vColor" => Some(format!("in.vertex_color.{c}")),
+                _ => {
+                    error!("Unsupported attribute {name}.{c}");
+                    None
+                }
+            }
         }
         ValueAssignment::Value(f) => Some(format!("{f:?}")),
     }
@@ -458,11 +464,9 @@ fn parallax_wgsl(
     name_to_index: &mut IndexMap<SmolStr, usize>,
     parallax: &TexCoordParallax,
 ) -> Option<String> {
-    let mask_a = channel_assignment_wgsl(name_to_index, Some(&parallax.mask_a))?;
-    let mask_b = channel_assignment_wgsl(name_to_index, Some(&parallax.mask_b))?;
+    let mask_a = channel_assignment_wgsl(name_to_index, &parallax.mask_a)?;
+    let mask_b = channel_assignment_wgsl(name_to_index, &parallax.mask_b)?;
     let ratio = format!("{:?}", parallax.ratio);
 
     Some(format!("uv_parallax(in, {mask_a}, {mask_b}, {ratio})"))
 }
-
-// TODO: create tests for sample shader from each game.
