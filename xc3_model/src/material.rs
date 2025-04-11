@@ -74,6 +74,7 @@ pub struct TextureAlphaTest {
     pub channel_index: usize,
 }
 
+// TODO: Is this even worth caching if it's only ever accessed by names?
 /// Values assigned to known shader uniforms or `None` if not present.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone, Default)]
@@ -93,6 +94,12 @@ pub struct MaterialParameters {
 
     /// [xc3_lib::mxmd::ParamType::AlphaInfo]
     pub alpha_info: Option<Vec<[f32; 4]>>,
+
+    /// [xc3_lib::mxmd::ParamType::DpRat]
+    pub dp_rat: Option<Vec<[f32; 4]>>,
+
+    /// [xc3_lib::mxmd::ParamType::DpRat]
+    pub projection_tex_matrix: Option<Vec<[f32; 4]>>,
 
     /// [xc3_lib::mxmd::legacy::ParamType::MaterialAmbient]
     pub material_ambient: Option<Vec<[f32; 4]>>,
@@ -122,6 +129,8 @@ impl MaterialParameters {
             ("U_Mate", "gWrkCol") => self.work_color.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gTexMat") => self.tex_matrix.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gAlInf") => self.alpha_info.as_ref()?.get(index)?.get(c),
+            ("U_Mate", "gDpRat") => self.dp_rat.as_ref()?.get(index)?.get(c),
+            ("U_Mate", "gProjTexMat") => self.projection_tex_matrix.as_ref()?.get(index)?.get(c),
             // Xenoblade X DE
             ("U_Mate", "gMatAmb") => self.material_ambient.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gMatSpec") => self.material_specular.as_ref()?.get(index)?.get(c),
@@ -571,7 +580,9 @@ fn assign_parameters(
     if let Some(technique) = get_technique(material, &materials.techniques) {
         for param in &technique.parameters {
             match param.param_type {
-                xc3_lib::mxmd::ParamType::Unk0 => (),
+                xc3_lib::mxmd::ParamType::DpRat => {
+                    parameters.dp_rat = Some(read_param(param, &work_values));
+                }
                 xc3_lib::mxmd::ParamType::TexMatrix => {
                     parameters.tex_matrix = Some(read_param(param, &work_values));
                 }
@@ -581,7 +592,9 @@ fn assign_parameters(
                 xc3_lib::mxmd::ParamType::WorkColor => {
                     parameters.work_color = Some(read_param(param, &work_values));
                 }
-                xc3_lib::mxmd::ParamType::Unk4 => (),
+                xc3_lib::mxmd::ParamType::ProjectionTexMatrix => {
+                    parameters.projection_tex_matrix = Some(read_param(param, &work_values));
+                }
                 xc3_lib::mxmd::ParamType::AlphaInfo => {
                     parameters.alpha_info = Some(read_param(param, &work_values));
                 }
@@ -689,7 +702,9 @@ fn assign_parameters_legacy(
                 xc3_lib::mxmd::legacy::ParamType::MaterialSpecular => {
                     parameters.material_specular = Some(read_param_legacy(param, work_values));
                 }
-                xc3_lib::mxmd::legacy::ParamType::DpRat => {}
+                xc3_lib::mxmd::legacy::ParamType::DpRat => {
+                    parameters.dp_rat = Some(read_param_legacy(param, work_values));
+                }
                 xc3_lib::mxmd::legacy::ParamType::TexMatrix => {
                     parameters.tex_matrix = Some(read_param_legacy(param, work_values));
                 }
@@ -699,7 +714,9 @@ fn assign_parameters_legacy(
                 xc3_lib::mxmd::legacy::ParamType::WorkColor => {
                     parameters.work_color = Some(read_param_legacy(param, work_values));
                 }
-                xc3_lib::mxmd::legacy::ParamType::ProjectionTexMatrix => {}
+                xc3_lib::mxmd::legacy::ParamType::ProjectionTexMatrix => {
+                    parameters.projection_tex_matrix = Some(read_param_legacy(param, work_values));
+                }
                 xc3_lib::mxmd::legacy::ParamType::AlphaInfo => {
                     parameters.alpha_info = Some(read_param_legacy(param, work_values));
                 }

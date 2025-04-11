@@ -337,7 +337,8 @@ pub struct MaterialParameter {
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u16))]
 pub enum ParamType {
-    Unk0 = 0,
+    /// `gDpRat` uniform in the [Spch].
+    DpRat = 0,
     /// `gTexMat` uniform in the [Spch] and
     /// `ml::DrMdoSetup::unimate_texMatrix` in the Xenoblade 2 binary.
     TexMatrix = 1,
@@ -347,7 +348,8 @@ pub enum ParamType {
     /// `gWrkCol` uniform in the [Spch] and
     /// `ml::DrMdoSetup::unimate_workColor` in the Xenoblade 2 binary.
     WorkColor = 3,
-    Unk4 = 4,
+    /// `gProjTexMat` uniform in the [Spch].
+    ProjectionTexMatrix = 4,
     /// `gAlInf` uniform in the [Spch] and
     /// `ml::DrMdoSetup::unimate_alphaInfo` in the Xenoblade 2 binary.
     AlphaInfo = 5,
