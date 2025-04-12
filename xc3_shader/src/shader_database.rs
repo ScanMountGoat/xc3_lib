@@ -332,6 +332,7 @@ fn find_normal_layers(
     let node = assign_x(&frag.nodes, &last_node.input)?;
 
     // setMrtNormal in pcmdo shaders.
+    // TODO: Create a query for this?
     let view_normal = fma_half_half(&frag.nodes, node)?;
     let view_normal = assign_x_recursive(&frag.nodes, view_normal);
     let view_normal = normalize(&frag.nodes, view_normal)?;
@@ -339,8 +340,8 @@ fn find_normal_layers(
     // TODO: front facing in calcNormalZAbs in pcmdo?
 
     // nomWork input for getCalcNormalMap in pcmdo shaders.
-    let nom_work = calc_normal_map(frag, &view_normal.input)?;
-    let nom_work = node_expr(&frag.nodes, nom_work[0])?;
+    let nom_work = calc_normal_map(&frag.nodes, view_normal)?;
+    let nom_work = assign_x_recursive(&frag.nodes, nom_work[0]);
 
     let mut layers = find_layers(nom_work, frag, frag_attributes);
 
@@ -835,13 +836,69 @@ fn component_max_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> 
     result.get("value").copied()
 }
 
-fn calc_normal_map<'a>(frag: &'a Graph, view_normal: &'a Expr) -> Option<[&'a Expr; 3]> {
-    // getCalcNormalMap in pcmdo shaders.
-    // result = normalize(nomWork).x, normalize(tangent).x
-    // result = fma(normalize(nomWork).y, normalize(bitangent).x, result)
-    // result = fma(normalize(nomWork).z, normalize(normal).x, result)
-    let (nrm, _tangent_normal_bitangent) = dot3_a_b(&frag.nodes, view_normal)?;
-    Some(nrm)
+static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
+    // getCalcNormalMap in pcmdo shaders for normal.x.
+    // result = nomWork.x * normalize(tangent).x
+    // result = fma(nomWork.y, normalize(bitangent).x, result)
+    // result = fma(nomWork.z, normalize(normal).x, result)
+    let query = indoc! {"
+        void main() {
+            inverse_length_tangent = inversesqrt(tangent_length);
+            tangent_x = tangent.x;
+            normalize_tangent_x = tangent_x * inverse_length_tangent;
+            result = result_x * normalize_tangent_x;
+
+            inverse_length_bitangent = inversesqrt(bitangent_length);
+            bitangent_x = bitangent.x;
+            normalize_bitangent_x = bitangent_x * inverse_length_bitangent;
+            result = fma(result_y, normalize_bitangent_x, result);
+
+            inverse_length_normal = inversesqrt(normal_length);
+            normal_x = normal.x;
+            normalize_normal_x = normal_x * inverse_length_normal;
+            result = fma(result_z, normalize_normal_x, result);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
+    // getCalcNormalMap in pcmdo shaders for normal.y.
+    // result = nomWork.x * normalize(tangent).y
+    // result = fma(nomWork.y, normalize(bitangent).y, result)
+    // result = fma(nomWork.z, normalize(normal).y, result)
+    let query = indoc! {"
+        void main() {
+            inverse_length_tangent = inversesqrt(tangent_length);
+            tangent_y = tangent.y;
+            normalize_tangent_y = tangent_y * inverse_length_tangent;
+            result_x = result_x;
+            result = result_x * normalize_tangent_y;
+
+            inverse_length_bitangent = inversesqrt(bitangent_length);
+            bitangent_y = bitangent.y;
+            normalize_bitangent_y = bitangent_y * inverse_length_bitangent;
+            result_y = result_y;
+            result = fma(result_y, normalize_bitangent_y, result);
+
+            inverse_length_normal = inversesqrt(normal_length);
+            normal_y = normal.y;
+            normalize_normal_y = normal_y * inverse_length_normal;
+            result_z = result_z;
+            result = fma(result_z, normalize_normal_y, result);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn calc_normal_map<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Expr; 3]> {
+    let result = query_nodes(expr, nodes, &CALC_NORMAL_MAP_X.nodes)
+        .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_Y.nodes))?;
+    Some([
+        result.get("result_x")?,
+        result.get("result_y")?,
+        result.get("result_z")?,
+    ])
 }
 
 static GEOMETRIC_SPECULAR_AA: LazyLock<Graph> = LazyLock::new(|| {

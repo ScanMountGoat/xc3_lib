@@ -290,6 +290,22 @@ impl Expr {
         add_exprs(&mut exprs, self);
         exprs
     }
+
+    pub fn channel(&self) -> Option<char> {
+        match self {
+            Expr::Node { channel, .. } => *channel,
+            Expr::Float(_) => None,
+            Expr::Int(_) => None,
+            Expr::Uint(_) => None,
+            Expr::Bool(_) => None,
+            Expr::Parameter { channel, .. } => *channel,
+            Expr::Global { channel, .. } => *channel,
+            Expr::Unary(_, _) => None,
+            Expr::Binary(_, _, _) => None,
+            Expr::Ternary(_, _, _) => None,
+            Expr::Func { channel, .. } => *channel,
+        }
+    }
 }
 
 fn add_exprs<'a>(exprs: &mut Vec<&'a Expr>, input: &'a Expr) {

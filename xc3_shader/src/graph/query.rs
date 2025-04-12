@@ -164,12 +164,16 @@ fn check_exprs<'a>(
                 channel: c2,
             },
         ) => c1 == c2 && check(&query_nodes[*n1].input, &input_nodes[*n2].input),
-        (Expr::Global { name, channel: _ }, i) => {
+        (Expr::Global { name, channel }, i) => {
             // TODO: What happens if the var is already in the map?
-            // TODO: Also track channels?
+            // TODO: Special case to check name if query and input are both Expr::Global?
             vars.insert(name.clone(), i);
-            // TODO: Does this need to check that name usage is consistent for query and input?
-            true
+
+            // Treat unspecified channels as allowing all channels.
+            match channel {
+                Some(c) => i.channel() == Some(*c),
+                None => true,
+            }
         }
         (Expr::Unary(UnaryOp::Negate, a1), Expr::Binary(BinaryOp::Sub, a2, b2)) => {
             // 0.0 - x == -x
@@ -271,21 +275,20 @@ pub fn fma_half_half<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> 
     node_expr(nodes, result.get("x")?)
 }
 
-pub fn normalize<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Node> {
-    let (x, length) = match &expr {
-        Expr::Binary(BinaryOp::Mul, a, b) => match (a.deref(), b.deref()) {
-            (Expr::Node { node_index: a, .. }, Expr::Node { node_index: b, .. }) => {
-                Some((nodes.get(*a)?, nodes.get(*b)?))
-            }
-            _ => None,
-        },
-        _ => None,
-    }?;
-    if !matches!(&length.input, Expr::Func { name, .. } if name == "inversesqrt") {
-        return None;
-    }
+static NORMALIZE: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            result = result;
+            inv_length = inversesqrt(length);
+            result = result * inv_length;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
 
-    Some(x)
+pub fn normalize<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
+    let result = query_nodes(expr, nodes, &NORMALIZE.nodes)?;
+    result.get("result").copied()
 }
 
 #[cfg(test)]
