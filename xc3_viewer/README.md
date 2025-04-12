@@ -28,3 +28,6 @@ The graphics API can be changed using the `--backend` argument. See `xc3_viewer 
 | 5 | Depth | RG = depth, B = ???, A = ??? |
 | 6 | Emission | RGB = color, A = ??? |
 | 7 | Specular | RGB = color, A = ??? |
+
+## GPU Debugging
+Compile in debug mode to enable labels in debugging tools like [RenderDoc](https://renderdoc.org/).

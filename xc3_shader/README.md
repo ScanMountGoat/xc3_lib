@@ -1,8 +1,9 @@
 # xc3_shader
 A command line tool for extracting and analyzing shaders for Xenoblade Chronicles X, Xenoblade Chronicles 1 Definitive Edition, Xenoblade Chronicles 2, Xenoblade Chronicles 3, and Xenoblade Chronicles X Definitive Edition.
 
-The shader database contains information for each compiled shader program like which inputs assigned to each output.
-Shader analysis converts GLSL and assembly code to a directed graph similar to shader node graphs in game engines or content creation applications. This enables the detection of subgraphs for common operations like compiled functions or matrix multiplications even if variable names are different across files due to different usage of registers.
+The shader database contains a simplified graph representation defined in xc3_model for how inputs are assigned to outputs for each compiled shader program. This representation is converted into WGSL code for xc3_wgpu, material assignments for xc3_gltf, and shader nodes in xenoblade_blender.
+
+Shader analysis converts GLSL and Wii U shader assembly code to a directed graph similar to shader node graphs in game engines or content creation applications. This enables the detection of subgraphs for common operations like compiled functions or matrix multiplications while handling differences in variable names or algebraically equivalent expressions. For example, dozens of directed shader graph nodes can be converted to a single overlay blend layer for the shader database and a single call to a user defined overlay blend function in WGSL.
 
 Decompiling shaders requires compiling `Ryujinx.ShaderTools` from the [Ryujinx](https://github.com/Ryujinx/Ryujinx) emulator. Disassembling Wii U shaders requires [gfd-tool](https://github.com/decaf-emu/decaf-emu/releases).
 
