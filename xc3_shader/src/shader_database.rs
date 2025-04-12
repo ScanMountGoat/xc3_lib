@@ -306,11 +306,6 @@ fn find_color_or_param_layers(
     Some(layers)
 }
 
-fn sampler_index(sampler_name: &str) -> Option<usize> {
-    // Convert names like "s3" to index 3.
-    sampler_name.strip_prefix('s')?.parse().ok()
-}
-
 fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], &'a Expr)> {
     // calcMonochrome in pcmdo fragment shaders for XC1 and XC3.
     let (_mat_col, monochrome, monochrome_ratio) = mix_a_b_ratio(nodes, expr)?;
@@ -376,12 +371,12 @@ fn find_layers(current: &Expr, graph: &Graph, attributes: &Attributes) -> Vec<La
         .or_else(|| blend_overlay2(&graph.nodes, current))
         .or_else(|| blend_overlay_ratio(&graph.nodes, current))
         .or_else(|| blend_overlay(&graph.nodes, current))
-        .or_else(|| blend_over(&graph.nodes, current))
-        .or_else(|| blend_ratio(&graph.nodes, current))
-        .or_else(|| blend_mul(current, graph, attributes))
+        .or_else(|| blend_mix(&graph.nodes, current))
+        .or_else(|| blend_mul_ratio(&graph.nodes, current))
+        .or_else(|| blend_mul(&graph.nodes, current))
         .or_else(|| blend_add_ratio(current))
         .or_else(|| blend_sub(&graph.nodes, current))
-        .or_else(|| blend_add(current, graph, attributes))
+        .or_else(|| blend_add(&graph.nodes, current))
         .or_else(|| blend_pow(&graph.nodes, current))
         .or_else(|| blend_min(&graph.nodes, current))
         .or_else(|| blend_max(&graph.nodes, current))
@@ -467,7 +462,7 @@ static BLEND_OVER2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn blend_over<'a>(
+fn blend_mix<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
@@ -491,7 +486,7 @@ static BLEND_RATIO: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn blend_ratio<'a>(
+fn blend_mul_ratio<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
@@ -513,26 +508,13 @@ static BLEND_ADD: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = a + b; }").unwrap());
 
 fn blend_add<'a>(
+    nodes: &'a [Node],
     expr: &'a Expr,
-    graph: &'a Graph,
-    attributes: &Attributes,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
     // Some layers are simply added together like for xeno3/chr/chr/ch05042101.wimdo "hat_toon".
-    let result = query_nodes(expr, &graph.nodes, &BLEND_ADD.nodes)?;
+    let result = query_nodes(expr, nodes, &BLEND_ADD.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
-    // The ordering is ambiguous since a+b == b+a.
-    // Assume the base layer is not a global texture.
-    if let (Some(Dependency::Texture(t1)), Some(Dependency::Texture(t2))) = (
-        dependency_expr(assign_x_recursive(&graph.nodes, a), graph, attributes),
-        dependency_expr(assign_x_recursive(&graph.nodes, b), graph, attributes),
-    ) {
-        if sampler_index(&t1.name).unwrap_or(usize::MAX)
-            > sampler_index(&t2.name).unwrap_or(usize::MAX)
-        {
-            return Some((b, a, &Expr::Float(1.0), LayerBlendMode::Add));
-        }
-    }
     Some((a, b, &Expr::Float(1.0), LayerBlendMode::Add))
 }
 
@@ -561,24 +543,14 @@ static BLEND_MUL: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = a * b; }").unwrap());
 
 fn blend_mul<'a>(
+    nodes: &'a [Node],
     expr: &'a Expr,
-    graph: &'a Graph,
-    attributes: &Attributes,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
     // Some layers are simply multiplied together.
-    let result = query_nodes(expr, &graph.nodes, &BLEND_MUL.nodes)?;
+    let result = query_nodes(expr, nodes, &BLEND_MUL.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
-    // TODO: The ordering is ambiguous since a*b == b*a.
-    let a_value = dependency_expr(assign_x_recursive(&graph.nodes, a), graph, attributes);
-    let b_value = dependency_expr(assign_x_recursive(&graph.nodes, b), graph, attributes);
-    if !matches!(a_value, Some(Dependency::Texture(_)))
-        && matches!(b_value, Some(Dependency::Texture(_)))
-    {
-        Some((b, a, &Expr::Float(1.0), LayerBlendMode::Mul))
-    } else {
-        Some((a, b, &Expr::Float(1.0), LayerBlendMode::Mul))
-    }
+    Some((a, b, &Expr::Float(1.0), LayerBlendMode::Mul))
 }
 
 static BLEND_OVERLAY_XC2: LazyLock<Graph> = LazyLock::new(|| {
@@ -1499,13 +1471,13 @@ mod tests {
                 dependencies: vec![tex("s0", 'x', "in_attr2", 'x', 'y')],
                 layers: vec![
                     Layer {
-                        value: LayerValue::Value(tex("s0", 'x', "in_attr2", 'x', 'y')),
+                        value: LayerValue::Value(attr("in_attr3", 'x')),
                         ratio: LayerValue::Value(constant(1.0)),
                         blend_mode: LayerBlendMode::Mix,
                         is_fresnel: false,
                     },
                     Layer {
-                        value: LayerValue::Value(attr("in_attr3", 'x')),
+                        value: LayerValue::Value(tex("s0", 'x', "in_attr2", 'x', 'y')),
                         ratio: LayerValue::Value(constant(1.0)),
                         blend_mode: LayerBlendMode::Mul,
                         is_fresnel: false,
