@@ -86,8 +86,7 @@ pub fn create_material(
         .map(|a| generate_alpha_test_wgsl(a, &mut name_to_index))
         .unwrap_or_default();
 
-    // TODO: Some materials need more than 10 textures.
-    let mut texture_views: [Option<_>; 10] = std::array::from_fn(|_| None);
+    let mut texture_views: [Option<_>; 16] = std::array::from_fn(|_| None);
 
     for (name, i) in &name_to_index {
         if let Some(texture) = assign_texture(material, textures, monolib_shader, name) {
@@ -148,6 +147,12 @@ pub fn create_material(
             s7: texture_views[7].as_ref().unwrap_or(&default_black),
             s8: texture_views[8].as_ref().unwrap_or(&default_black),
             s9: texture_views[9].as_ref().unwrap_or(&default_black),
+            s10: texture_views[10].as_ref().unwrap_or(&default_black),
+            s11: texture_views[11].as_ref().unwrap_or(&default_black),
+            s12: texture_views[12].as_ref().unwrap_or(&default_black),
+            s13: texture_views[13].as_ref().unwrap_or(&default_black),
+            s14: texture_views[14].as_ref().unwrap_or(&default_black),
+            s15: texture_views[15].as_ref().unwrap_or(&default_black),
             s0_sampler: material_sampler(material, samplers, 0).unwrap_or(&default_sampler),
             s1_sampler: material_sampler(material, samplers, 1).unwrap_or(&default_sampler),
             s2_sampler: material_sampler(material, samplers, 2).unwrap_or(&default_sampler),
@@ -158,6 +163,13 @@ pub fn create_material(
             s7_sampler: material_sampler(material, samplers, 7).unwrap_or(&default_sampler),
             s8_sampler: material_sampler(material, samplers, 8).unwrap_or(&default_sampler),
             s9_sampler: material_sampler(material, samplers, 9).unwrap_or(&default_sampler),
+            s10_sampler: material_sampler(material, samplers, 10).unwrap_or(&default_sampler),
+            s11_sampler: material_sampler(material, samplers, 11).unwrap_or(&default_sampler),
+            s12_sampler: material_sampler(material, samplers, 12).unwrap_or(&default_sampler),
+            s13_sampler: material_sampler(material, samplers, 13).unwrap_or(&default_sampler),
+            s14_sampler: material_sampler(material, samplers, 14).unwrap_or(&default_sampler),
+            // TODO: Move alpha test to a separate pass?
+            // s15_sampler: material_sampler(material, samplers, 15).unwrap_or(&default_sampler),
             alpha_test_sampler: material
                 .alpha_test
                 .as_ref()

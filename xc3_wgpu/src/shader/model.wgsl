@@ -59,36 +59,73 @@ var s8: texture_2d<f32>;
 var s9: texture_2d<f32>;
 
 @group(2) @binding(10)
-var s0_sampler: sampler;
+var s10: texture_2d<f32>;
 
 @group(2) @binding(11)
-var s1_sampler: sampler;
+var s11: texture_2d<f32>;
 
 @group(2) @binding(12)
-var s2_sampler: sampler;
+var s12: texture_2d<f32>;
 
 @group(2) @binding(13)
-var s3_sampler: sampler;
+var s13: texture_2d<f32>;
 
 @group(2) @binding(14)
-var s4_sampler: sampler;
+var s14: texture_2d<f32>;
 
 @group(2) @binding(15)
-var s5_sampler: sampler;
+var s15: texture_2d<f32>;
 
 @group(2) @binding(16)
-var s6_sampler: sampler;
+var s0_sampler: sampler;
 
 @group(2) @binding(17)
-var s7_sampler: sampler;
+var s1_sampler: sampler;
 
 @group(2) @binding(18)
-var s8_sampler: sampler;
+var s2_sampler: sampler;
 
 @group(2) @binding(19)
-var s9_sampler: sampler;
+var s3_sampler: sampler;
 
 @group(2) @binding(20)
+var s4_sampler: sampler;
+
+@group(2) @binding(21)
+var s5_sampler: sampler;
+
+@group(2) @binding(22)
+var s6_sampler: sampler;
+
+@group(2) @binding(23)
+var s7_sampler: sampler;
+
+@group(2) @binding(24)
+var s8_sampler: sampler;
+
+@group(2) @binding(25)
+var s9_sampler: sampler;
+
+@group(2) @binding(26)
+var s10_sampler: sampler;
+
+@group(2) @binding(27)
+var s11_sampler: sampler;
+
+@group(2) @binding(28)
+var s12_sampler: sampler;
+
+@group(2) @binding(29)
+var s13_sampler: sampler;
+
+@group(2) @binding(30)
+var s14_sampler: sampler;
+
+// @group(2) @binding(31)
+// var s15_sampler: sampler;
+
+// TODO: move this to a separate pass?
+@group(2) @binding(32)
 var alpha_test_sampler: sampler;
 
 struct OutputAssignment {
@@ -115,7 +152,7 @@ struct FurShellParams {
     alpha: f32
 }
 
-@group(2) @binding(21)
+@group(2) @binding(33)
 var<uniform> per_material: PerMaterial;
 
 // PerMesh values.
@@ -319,7 +356,7 @@ fn vs_main_instanced_static(in0: VertexInput0, in1: VertexInput1, instance: Inst
     return out;
 }
 
-// Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00028, getCalcNormalMap,
+// Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00028, getCalcNormalMap.
 fn apply_normal_map(normal_map: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     // Normal mapping is a change of basis using the TBN vectors.
     let x = normal_map.x;
@@ -456,6 +493,12 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     _unused = textureSample(s7, s7_sampler, vec2(0.0));
     _unused = textureSample(s8, s8_sampler, vec2(0.0));
     _unused = textureSample(s9, s9_sampler, vec2(0.0));
+    _unused = textureSample(s10, s10_sampler, vec2(0.0));
+    _unused = textureSample(s11, s11_sampler, vec2(0.0));
+    _unused = textureSample(s12, s12_sampler, vec2(0.0));
+    _unused = textureSample(s13, s13_sampler, vec2(0.0));
+    _unused = textureSample(s14, s14_sampler, vec2(0.0));
+    _unused = textureSample(s15, s14_sampler, vec2(0.0));
     _unused = textureSample(s0, alpha_test_sampler, vec2(0.0));
 
     // ALPHA_TEST_DISCARD_GENERATED

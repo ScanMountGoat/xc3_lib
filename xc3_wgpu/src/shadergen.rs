@@ -17,6 +17,8 @@ use crate::pipeline::PipelineKey;
 
 const OUT_VAR: &str = "RESULT";
 
+const MAX_SAMPLERS: usize = 16;
+
 /// Static single assignment (SSA) representation for [LayerAssignmentValue]
 /// where each [NodeValue] represents a single assignment for that node index.
 /// This results in less generated code by reusing intermediate values.
@@ -329,7 +331,7 @@ pub fn generate_alpha_test_wgsl(
     let name: SmolStr = format!("s{}", alpha_test.texture_index).into();
     let i = name_to_index.entry_index(name.clone());
 
-    if i < 10 {
+    if i < MAX_SAMPLERS {
         let c = ['x', 'y', 'z', 'w'][alpha_test.channel_index];
 
         // TODO: Detect the UV attribute to use with alpha testing.
@@ -339,7 +341,7 @@ pub fn generate_alpha_test_wgsl(
             }}
         "}
     } else {
-        error!("Sampler index {i} exceeds supported max of 10");
+        error!("Sampler index {i} exceeds supported max of {MAX_SAMPLERS}");
         String::new()
     }
 }
@@ -431,14 +433,14 @@ fn channel_assignment_wgsl(
         ValueAssignment::Texture(t) => {
             let i = name_to_index.entry_index(t.name.clone());
 
-            if i < 10 {
+            if i < MAX_SAMPLERS {
                 let uvs = generate_uv_wgsl(t, name_to_index);
                 Some(format!(
                     "textureSample(s{i}, s{i}_sampler, {uvs}).{}",
                     t.channels
                 ))
             } else {
-                error!("Sampler index {i} exceeds supported max of 10");
+                error!("Sampler index {i} exceeds supported max of {MAX_SAMPLERS}");
                 None
             }
         }
