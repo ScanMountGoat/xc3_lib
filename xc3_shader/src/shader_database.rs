@@ -10,7 +10,7 @@ use glsl_lang::{
     visitor::{Host, Visit, Visitor},
 };
 use indexmap::IndexMap;
-use indoc::indoc;
+use indoc::{formatdoc, indoc};
 use log::error;
 use rayon::prelude::*;
 use xc3_lib::{
@@ -836,59 +836,42 @@ fn component_max_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> 
     result.get("value").copied()
 }
 
-static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
-    // getCalcNormalMap in pcmdo shaders for normal.x.
-    // result = nomWork.x * normalize(tangent).x
-    // result = fma(nomWork.y, normalize(bitangent).x, result)
-    // result = fma(nomWork.z, normalize(normal).x, result)
-    let query = indoc! {"
-        void main() {
+fn calc_normal_map_query(c: char) -> String {
+    // getCalcNormalMap in pcmdo shaders for normal.x or normal.y.
+    // result = nomWork.x * normalize(tangent).{c}
+    // result = fma(nomWork.y, normalize(bitangent).{c}, result)
+    // result = fma(nomWork.z, normalize(normal).{c}, result)
+    formatdoc! {"
+        void main() {{
             inverse_length_tangent = inversesqrt(tangent_length);
-            tangent_x = tangent.x;
-            normalize_tangent_x = tangent_x * inverse_length_tangent;
-            result = result_x * normalize_tangent_x;
+            tangent = tangent.{c};
+            normalize_tangent = tangent * inverse_length_tangent;
+            result_x = result_x;
+            result = result_x * normalize_tangent;
 
             inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent_x = bitangent.x;
-            normalize_bitangent_x = bitangent_x * inverse_length_bitangent;
-            result = fma(result_y, normalize_bitangent_x, result);
+            bitangent = bitangent.{c};
+            normalize_bitangent = bitangent * inverse_length_bitangent;
+            result_y = result_y;
+            result = fma(result_y, normalize_bitangent, result);
 
             inverse_length_normal = inversesqrt(normal_length);
-            normal_x = normal.x;
-            normalize_normal_x = normal_x * inverse_length_normal;
-            result = fma(result_z, normalize_normal_x, result);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
+            normal = normal.{c};
+            normalize_normal = normal * inverse_length_normal;
+            result_z = result_z;
+            result = fma(result_z, normalize_normal, result);
+        }}
+    "}
+}
+
+static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
+    let query = calc_normal_map_query('x');
+    Graph::parse_glsl(&query).unwrap()
 });
 
 static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
-    // getCalcNormalMap in pcmdo shaders for normal.y.
-    // result = nomWork.x * normalize(tangent).y
-    // result = fma(nomWork.y, normalize(bitangent).y, result)
-    // result = fma(nomWork.z, normalize(normal).y, result)
-    let query = indoc! {"
-        void main() {
-            inverse_length_tangent = inversesqrt(tangent_length);
-            tangent_y = tangent.y;
-            normalize_tangent_y = tangent_y * inverse_length_tangent;
-            result_x = result_x;
-            result = result_x * normalize_tangent_y;
-
-            inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent_y = bitangent.y;
-            normalize_bitangent_y = bitangent_y * inverse_length_bitangent;
-            result_y = result_y;
-            result = fma(result_y, normalize_bitangent_y, result);
-
-            inverse_length_normal = inversesqrt(normal_length);
-            normal_y = normal.y;
-            normalize_normal_y = normal_y * inverse_length_normal;
-            result_z = result_z;
-            result = fma(result_z, normalize_normal_y, result);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
+    let query = calc_normal_map_query('y');
+    Graph::parse_glsl(&query).unwrap()
 });
 
 fn calc_normal_map<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Expr; 3]> {
