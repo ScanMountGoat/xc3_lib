@@ -10,14 +10,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -34,16 +34,16 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -58,16 +58,16 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -82,16 +82,16 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -106,16 +106,16 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -130,16 +130,16 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -154,9 +154,9 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr2",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -171,9 +171,9 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr2",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -192,16 +192,16 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr6",
+                                        name: "nWgtIdx",
                                         channel: Some(
-                                            'w',
+                                            'x',
                                         ),
                                         params: None,
                                     },
                                     TexCoord {
-                                        name: "in_attr6",
+                                        name: "nWgtIdx",
                                         channel: Some(
-                                            'w',
+                                            'x',
                                         ),
                                         params: None,
                                     },
@@ -270,16 +270,16 @@ ShaderProgram {
                                                         ),
                                                         texcoords: [
                                                             TexCoord {
-                                                                name: "in_attr6",
+                                                                name: "nWgtIdx",
                                                                 channel: Some(
-                                                                    'w',
+                                                                    'x',
                                                                 ),
                                                                 params: None,
                                                             },
                                                             TexCoord {
-                                                                name: "in_attr6",
+                                                                name: "nWgtIdx",
                                                                 channel: Some(
-                                                                    'w',
+                                                                    'x',
                                                                 ),
                                                                 params: None,
                                                             },
@@ -308,16 +308,16 @@ ShaderProgram {
                                                                     ),
                                                                     texcoords: [
                                                                         TexCoord {
-                                                                            name: "in_attr6",
+                                                                            name: "nWgtIdx",
                                                                             channel: Some(
-                                                                                'w',
+                                                                                'x',
                                                                             ),
                                                                             params: None,
                                                                         },
                                                                         TexCoord {
-                                                                            name: "in_attr6",
+                                                                            name: "nWgtIdx",
                                                                             channel: Some(
-                                                                                'w',
+                                                                                'x',
                                                                             ),
                                                                             params: None,
                                                                         },
@@ -343,16 +343,16 @@ ShaderProgram {
                                                                     ),
                                                                     texcoords: [
                                                                         TexCoord {
-                                                                            name: "in_attr6",
+                                                                            name: "nWgtIdx",
                                                                             channel: Some(
-                                                                                'w',
+                                                                                'x',
                                                                             ),
                                                                             params: None,
                                                                         },
                                                                         TexCoord {
-                                                                            name: "in_attr6",
+                                                                            name: "nWgtIdx",
                                                                             channel: Some(
-                                                                                'w',
+                                                                                'x',
                                                                             ),
                                                                             params: None,
                                                                         },
@@ -473,7 +473,7 @@ ShaderProgram {
                                             value: Value(
                                                 Attribute(
                                                     AttributeDependency {
-                                                        name: "in_attr2",
+                                                        name: "nWgtIdx",
                                                         channel: Some(
                                                             'x',
                                                         ),
@@ -537,7 +537,7 @@ ShaderProgram {
                     value: Value(
                         Attribute(
                             AttributeDependency {
-                                name: "in_attr5",
+                                name: "nWgtIdx",
                                 channel: Some(
                                     'w',
                                 ),
@@ -550,7 +550,7 @@ ShaderProgram {
                                 value: Value(
                                     Attribute(
                                         AttributeDependency {
-                                            name: "in_attr5",
+                                            name: "nWgtIdx",
                                             channel: Some(
                                                 'x',
                                             ),
@@ -575,16 +575,16 @@ ShaderProgram {
                                             ),
                                             texcoords: [
                                                 TexCoord {
-                                                    name: "in_attr6",
+                                                    name: "nWgtIdx",
                                                     channel: Some(
-                                                        'w',
+                                                        'x',
                                                     ),
                                                     params: None,
                                                 },
                                                 TexCoord {
-                                                    name: "in_attr6",
+                                                    name: "nWgtIdx",
                                                     channel: Some(
-                                                        'w',
+                                                        'x',
                                                     ),
                                                     params: None,
                                                 },
@@ -661,16 +661,16 @@ ShaderProgram {
                                                                                 ),
                                                                                 texcoords: [
                                                                                     TexCoord {
-                                                                                        name: "in_attr6",
+                                                                                        name: "nWgtIdx",
                                                                                         channel: Some(
-                                                                                            'w',
+                                                                                            'x',
                                                                                         ),
                                                                                         params: None,
                                                                                     },
                                                                                     TexCoord {
-                                                                                        name: "in_attr6",
+                                                                                        name: "nWgtIdx",
                                                                                         channel: Some(
-                                                                                            'w',
+                                                                                            'x',
                                                                                         ),
                                                                                         params: None,
                                                                                     },
@@ -699,16 +699,16 @@ ShaderProgram {
                                                                                             ),
                                                                                             texcoords: [
                                                                                                 TexCoord {
-                                                                                                    name: "in_attr6",
+                                                                                                    name: "nWgtIdx",
                                                                                                     channel: Some(
-                                                                                                        'w',
+                                                                                                        'x',
                                                                                                     ),
                                                                                                     params: None,
                                                                                                 },
                                                                                                 TexCoord {
-                                                                                                    name: "in_attr6",
+                                                                                                    name: "nWgtIdx",
                                                                                                     channel: Some(
-                                                                                                        'w',
+                                                                                                        'x',
                                                                                                     ),
                                                                                                     params: None,
                                                                                                 },
@@ -734,16 +734,16 @@ ShaderProgram {
                                                                                             ),
                                                                                             texcoords: [
                                                                                                 TexCoord {
-                                                                                                    name: "in_attr6",
+                                                                                                    name: "nWgtIdx",
                                                                                                     channel: Some(
-                                                                                                        'w',
+                                                                                                        'x',
                                                                                                     ),
                                                                                                     params: None,
                                                                                                 },
                                                                                                 TexCoord {
-                                                                                                    name: "in_attr6",
+                                                                                                    name: "nWgtIdx",
                                                                                                     channel: Some(
-                                                                                                        'w',
+                                                                                                        'x',
                                                                                                     ),
                                                                                                     params: None,
                                                                                                 },
@@ -864,7 +864,7 @@ ShaderProgram {
                                                                     value: Value(
                                                                         Attribute(
                                                                             AttributeDependency {
-                                                                                name: "in_attr2",
+                                                                                name: "nWgtIdx",
                                                                                 channel: Some(
                                                                                     'x',
                                                                                 ),
@@ -946,14 +946,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -970,16 +970,16 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -994,16 +994,16 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -1018,16 +1018,16 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -1042,16 +1042,16 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -1066,16 +1066,16 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -1090,9 +1090,9 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr2",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -1107,9 +1107,9 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr2",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -1128,16 +1128,16 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr6",
+                                        name: "nWgtIdx",
                                         channel: Some(
-                                            'w',
+                                            'x',
                                         ),
                                         params: None,
                                     },
                                     TexCoord {
-                                        name: "in_attr6",
+                                        name: "nWgtIdx",
                                         channel: Some(
-                                            'w',
+                                            'x',
                                         ),
                                         params: None,
                                     },
@@ -1206,16 +1206,16 @@ ShaderProgram {
                                                         ),
                                                         texcoords: [
                                                             TexCoord {
-                                                                name: "in_attr6",
+                                                                name: "nWgtIdx",
                                                                 channel: Some(
-                                                                    'w',
+                                                                    'x',
                                                                 ),
                                                                 params: None,
                                                             },
                                                             TexCoord {
-                                                                name: "in_attr6",
+                                                                name: "nWgtIdx",
                                                                 channel: Some(
-                                                                    'w',
+                                                                    'x',
                                                                 ),
                                                                 params: None,
                                                             },
@@ -1244,16 +1244,16 @@ ShaderProgram {
                                                                     ),
                                                                     texcoords: [
                                                                         TexCoord {
-                                                                            name: "in_attr6",
+                                                                            name: "nWgtIdx",
                                                                             channel: Some(
-                                                                                'w',
+                                                                                'x',
                                                                             ),
                                                                             params: None,
                                                                         },
                                                                         TexCoord {
-                                                                            name: "in_attr6",
+                                                                            name: "nWgtIdx",
                                                                             channel: Some(
-                                                                                'w',
+                                                                                'x',
                                                                             ),
                                                                             params: None,
                                                                         },
@@ -1279,16 +1279,16 @@ ShaderProgram {
                                                                     ),
                                                                     texcoords: [
                                                                         TexCoord {
-                                                                            name: "in_attr6",
+                                                                            name: "nWgtIdx",
                                                                             channel: Some(
-                                                                                'w',
+                                                                                'x',
                                                                             ),
                                                                             params: None,
                                                                         },
                                                                         TexCoord {
-                                                                            name: "in_attr6",
+                                                                            name: "nWgtIdx",
                                                                             channel: Some(
-                                                                                'w',
+                                                                                'x',
                                                                             ),
                                                                             params: None,
                                                                         },
@@ -1409,7 +1409,7 @@ ShaderProgram {
                                             value: Value(
                                                 Attribute(
                                                     AttributeDependency {
-                                                        name: "in_attr2",
+                                                        name: "nWgtIdx",
                                                         channel: Some(
                                                             'y',
                                                         ),
@@ -1473,7 +1473,7 @@ ShaderProgram {
                     value: Value(
                         Attribute(
                             AttributeDependency {
-                                name: "in_attr5",
+                                name: "nWgtIdx",
                                 channel: Some(
                                     'w',
                                 ),
@@ -1486,7 +1486,7 @@ ShaderProgram {
                                 value: Value(
                                     Attribute(
                                         AttributeDependency {
-                                            name: "in_attr5",
+                                            name: "nWgtIdx",
                                             channel: Some(
                                                 'y',
                                             ),
@@ -1511,16 +1511,16 @@ ShaderProgram {
                                             ),
                                             texcoords: [
                                                 TexCoord {
-                                                    name: "in_attr6",
+                                                    name: "nWgtIdx",
                                                     channel: Some(
-                                                        'w',
+                                                        'x',
                                                     ),
                                                     params: None,
                                                 },
                                                 TexCoord {
-                                                    name: "in_attr6",
+                                                    name: "nWgtIdx",
                                                     channel: Some(
-                                                        'w',
+                                                        'x',
                                                     ),
                                                     params: None,
                                                 },
@@ -1597,16 +1597,16 @@ ShaderProgram {
                                                                                 ),
                                                                                 texcoords: [
                                                                                     TexCoord {
-                                                                                        name: "in_attr6",
+                                                                                        name: "nWgtIdx",
                                                                                         channel: Some(
-                                                                                            'w',
+                                                                                            'x',
                                                                                         ),
                                                                                         params: None,
                                                                                     },
                                                                                     TexCoord {
-                                                                                        name: "in_attr6",
+                                                                                        name: "nWgtIdx",
                                                                                         channel: Some(
-                                                                                            'w',
+                                                                                            'x',
                                                                                         ),
                                                                                         params: None,
                                                                                     },
@@ -1635,16 +1635,16 @@ ShaderProgram {
                                                                                             ),
                                                                                             texcoords: [
                                                                                                 TexCoord {
-                                                                                                    name: "in_attr6",
+                                                                                                    name: "nWgtIdx",
                                                                                                     channel: Some(
-                                                                                                        'w',
+                                                                                                        'x',
                                                                                                     ),
                                                                                                     params: None,
                                                                                                 },
                                                                                                 TexCoord {
-                                                                                                    name: "in_attr6",
+                                                                                                    name: "nWgtIdx",
                                                                                                     channel: Some(
-                                                                                                        'w',
+                                                                                                        'x',
                                                                                                     ),
                                                                                                     params: None,
                                                                                                 },
@@ -1670,16 +1670,16 @@ ShaderProgram {
                                                                                             ),
                                                                                             texcoords: [
                                                                                                 TexCoord {
-                                                                                                    name: "in_attr6",
+                                                                                                    name: "nWgtIdx",
                                                                                                     channel: Some(
-                                                                                                        'w',
+                                                                                                        'x',
                                                                                                     ),
                                                                                                     params: None,
                                                                                                 },
                                                                                                 TexCoord {
-                                                                                                    name: "in_attr6",
+                                                                                                    name: "nWgtIdx",
                                                                                                     channel: Some(
-                                                                                                        'w',
+                                                                                                        'x',
                                                                                                     ),
                                                                                                     params: None,
                                                                                                 },
@@ -1800,7 +1800,7 @@ ShaderProgram {
                                                                     value: Value(
                                                                         Attribute(
                                                                             AttributeDependency {
-                                                                                name: "in_attr2",
+                                                                                name: "nWgtIdx",
                                                                                 channel: Some(
                                                                                     'y',
                                                                                 ),
@@ -1882,14 +1882,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -1906,16 +1906,16 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -1930,16 +1930,16 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -1954,16 +1954,16 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -1978,16 +1978,16 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -2002,16 +2002,16 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -2026,9 +2026,9 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr2",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -2043,9 +2043,9 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr2",
+                                name: "nWgtIdx",
                                 channel: Some(
-                                    'w',
+                                    'x',
                                 ),
                                 params: None,
                             },
@@ -2064,16 +2064,16 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr6",
+                                        name: "nWgtIdx",
                                         channel: Some(
-                                            'w',
+                                            'x',
                                         ),
                                         params: None,
                                     },
                                     TexCoord {
-                                        name: "in_attr6",
+                                        name: "nWgtIdx",
                                         channel: Some(
-                                            'w',
+                                            'x',
                                         ),
                                         params: None,
                                     },
@@ -2142,16 +2142,16 @@ ShaderProgram {
                                                         ),
                                                         texcoords: [
                                                             TexCoord {
-                                                                name: "in_attr6",
+                                                                name: "nWgtIdx",
                                                                 channel: Some(
-                                                                    'w',
+                                                                    'x',
                                                                 ),
                                                                 params: None,
                                                             },
                                                             TexCoord {
-                                                                name: "in_attr6",
+                                                                name: "nWgtIdx",
                                                                 channel: Some(
-                                                                    'w',
+                                                                    'x',
                                                                 ),
                                                                 params: None,
                                                             },
@@ -2180,16 +2180,16 @@ ShaderProgram {
                                                                     ),
                                                                     texcoords: [
                                                                         TexCoord {
-                                                                            name: "in_attr6",
+                                                                            name: "nWgtIdx",
                                                                             channel: Some(
-                                                                                'w',
+                                                                                'x',
                                                                             ),
                                                                             params: None,
                                                                         },
                                                                         TexCoord {
-                                                                            name: "in_attr6",
+                                                                            name: "nWgtIdx",
                                                                             channel: Some(
-                                                                                'w',
+                                                                                'x',
                                                                             ),
                                                                             params: None,
                                                                         },
@@ -2215,16 +2215,16 @@ ShaderProgram {
                                                                     ),
                                                                     texcoords: [
                                                                         TexCoord {
-                                                                            name: "in_attr6",
+                                                                            name: "nWgtIdx",
                                                                             channel: Some(
-                                                                                'w',
+                                                                                'x',
                                                                             ),
                                                                             params: None,
                                                                         },
                                                                         TexCoord {
-                                                                            name: "in_attr6",
+                                                                            name: "nWgtIdx",
                                                                             channel: Some(
-                                                                                'w',
+                                                                                'x',
                                                                             ),
                                                                             params: None,
                                                                         },
@@ -2345,7 +2345,7 @@ ShaderProgram {
                                             value: Value(
                                                 Attribute(
                                                     AttributeDependency {
-                                                        name: "in_attr2",
+                                                        name: "nWgtIdx",
                                                         channel: Some(
                                                             'z',
                                                         ),
@@ -2409,7 +2409,7 @@ ShaderProgram {
                     value: Value(
                         Attribute(
                             AttributeDependency {
-                                name: "in_attr5",
+                                name: "nWgtIdx",
                                 channel: Some(
                                     'w',
                                 ),
@@ -2422,7 +2422,7 @@ ShaderProgram {
                                 value: Value(
                                     Attribute(
                                         AttributeDependency {
-                                            name: "in_attr5",
+                                            name: "nWgtIdx",
                                             channel: Some(
                                                 'z',
                                             ),
@@ -2447,16 +2447,16 @@ ShaderProgram {
                                             ),
                                             texcoords: [
                                                 TexCoord {
-                                                    name: "in_attr6",
+                                                    name: "nWgtIdx",
                                                     channel: Some(
-                                                        'w',
+                                                        'x',
                                                     ),
                                                     params: None,
                                                 },
                                                 TexCoord {
-                                                    name: "in_attr6",
+                                                    name: "nWgtIdx",
                                                     channel: Some(
-                                                        'w',
+                                                        'x',
                                                     ),
                                                     params: None,
                                                 },
@@ -2533,16 +2533,16 @@ ShaderProgram {
                                                                                 ),
                                                                                 texcoords: [
                                                                                     TexCoord {
-                                                                                        name: "in_attr6",
+                                                                                        name: "nWgtIdx",
                                                                                         channel: Some(
-                                                                                            'w',
+                                                                                            'x',
                                                                                         ),
                                                                                         params: None,
                                                                                     },
                                                                                     TexCoord {
-                                                                                        name: "in_attr6",
+                                                                                        name: "nWgtIdx",
                                                                                         channel: Some(
-                                                                                            'w',
+                                                                                            'x',
                                                                                         ),
                                                                                         params: None,
                                                                                     },
@@ -2571,16 +2571,16 @@ ShaderProgram {
                                                                                             ),
                                                                                             texcoords: [
                                                                                                 TexCoord {
-                                                                                                    name: "in_attr6",
+                                                                                                    name: "nWgtIdx",
                                                                                                     channel: Some(
-                                                                                                        'w',
+                                                                                                        'x',
                                                                                                     ),
                                                                                                     params: None,
                                                                                                 },
                                                                                                 TexCoord {
-                                                                                                    name: "in_attr6",
+                                                                                                    name: "nWgtIdx",
                                                                                                     channel: Some(
-                                                                                                        'w',
+                                                                                                        'x',
                                                                                                     ),
                                                                                                     params: None,
                                                                                                 },
@@ -2606,16 +2606,16 @@ ShaderProgram {
                                                                                             ),
                                                                                             texcoords: [
                                                                                                 TexCoord {
-                                                                                                    name: "in_attr6",
+                                                                                                    name: "nWgtIdx",
                                                                                                     channel: Some(
-                                                                                                        'w',
+                                                                                                        'x',
                                                                                                     ),
                                                                                                     params: None,
                                                                                                 },
                                                                                                 TexCoord {
-                                                                                                    name: "in_attr6",
+                                                                                                    name: "nWgtIdx",
                                                                                                     channel: Some(
-                                                                                                        'w',
+                                                                                                        'x',
                                                                                                     ),
                                                                                                     params: None,
                                                                                                 },
@@ -2736,7 +2736,7 @@ ShaderProgram {
                                                                     value: Value(
                                                                         Attribute(
                                                                             AttributeDependency {
-                                                                                name: "in_attr2",
+                                                                                name: "nWgtIdx",
                                                                                 channel: Some(
                                                                                     'z',
                                                                                 ),
@@ -2818,18 +2818,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -2846,18 +2872,44 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr3",
+                                        name: "vTex0",
                                         channel: Some(
-                                            'z',
+                                            'x',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'x',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                     TexCoord {
-                                        name: "in_attr3",
+                                        name: "vTex0",
                                         channel: Some(
-                                            'w',
+                                            'y',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'y',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                 ],
                             },
@@ -2926,18 +2978,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -2954,18 +3032,44 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr3",
+                                        name: "vTex0",
                                         channel: Some(
-                                            'z',
+                                            'x',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'x',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                     TexCoord {
-                                        name: "in_attr3",
+                                        name: "vTex0",
                                         channel: Some(
-                                            'w',
+                                            'y',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'y',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                 ],
                             },

@@ -10,18 +10,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'w',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -34,18 +60,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'w',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -58,14 +110,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -82,14 +134,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -106,18 +158,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -130,18 +208,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -154,14 +258,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -178,14 +282,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -202,14 +306,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -226,14 +330,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -250,18 +354,108 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Matrix(
+                                        [
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    0,
+                                                ),
+                                                channel: Some(
+                                                    'x',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    0,
+                                                ),
+                                                channel: Some(
+                                                    'y',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    0,
+                                                ),
+                                                channel: Some(
+                                                    'z',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    0,
+                                                ),
+                                                channel: Some(
+                                                    'w',
+                                                ),
+                                            },
+                                        ],
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "vTex0",
                                 channel: Some(
-                                    'y',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Matrix(
+                                        [
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    1,
+                                                ),
+                                                channel: Some(
+                                                    'x',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    1,
+                                                ),
+                                                channel: Some(
+                                                    'y',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    1,
+                                                ),
+                                                channel: Some(
+                                                    'z',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    1,
+                                                ),
+                                                channel: Some(
+                                                    'w',
+                                                ),
+                                            },
+                                        ],
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -274,18 +468,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -298,18 +518,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -322,18 +568,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -350,14 +622,14 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr4",
+                                        name: "vTex0",
                                         channel: Some(
                                             'x',
                                         ),
                                         params: None,
                                     },
                                     TexCoord {
-                                        name: "in_attr4",
+                                        name: "vTex0",
                                         channel: Some(
                                             'y',
                                         ),
@@ -417,18 +689,44 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr5",
+                                        name: "vTex0",
                                         channel: Some(
-                                            'z',
+                                            'x',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'x',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                     TexCoord {
-                                        name: "in_attr5",
+                                        name: "vTex0",
                                         channel: Some(
-                                            'w',
+                                            'y',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'y',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                 ],
                             },
@@ -446,14 +744,14 @@ ShaderProgram {
                                             ),
                                             texcoords: [
                                                 TexCoord {
-                                                    name: "in_attr4",
+                                                    name: "vTex0",
                                                     channel: Some(
                                                         'x',
                                                     ),
                                                     params: None,
                                                 },
                                                 TexCoord {
-                                                    name: "in_attr4",
+                                                    name: "vTex0",
                                                     channel: Some(
                                                         'y',
                                                     ),
@@ -504,18 +802,108 @@ ShaderProgram {
                                             ),
                                             texcoords: [
                                                 TexCoord {
-                                                    name: "in_attr6",
+                                                    name: "vTex0",
                                                     channel: Some(
                                                         'x',
                                                     ),
-                                                    params: None,
+                                                    params: Some(
+                                                        Matrix(
+                                                            [
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        0,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'x',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        0,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'y',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        0,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'z',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        0,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'w',
+                                                                    ),
+                                                                },
+                                                            ],
+                                                        ),
+                                                    ),
                                                 },
                                                 TexCoord {
-                                                    name: "in_attr6",
+                                                    name: "vTex0",
                                                     channel: Some(
-                                                        'y',
+                                                        'x',
                                                     ),
-                                                    params: None,
+                                                    params: Some(
+                                                        Matrix(
+                                                            [
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        1,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'x',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        1,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'y',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        1,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'z',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        1,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'w',
+                                                                    ),
+                                                                },
+                                                            ],
+                                                        ),
+                                                    ),
                                                 },
                                             ],
                                         },
@@ -555,18 +943,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'w',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -579,18 +993,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'w',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -603,14 +1043,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -627,14 +1067,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -651,18 +1091,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -675,18 +1141,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -699,14 +1191,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -723,14 +1215,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -747,14 +1239,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -771,14 +1263,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -795,18 +1287,108 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Matrix(
+                                        [
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    0,
+                                                ),
+                                                channel: Some(
+                                                    'x',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    0,
+                                                ),
+                                                channel: Some(
+                                                    'y',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    0,
+                                                ),
+                                                channel: Some(
+                                                    'z',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    0,
+                                                ),
+                                                channel: Some(
+                                                    'w',
+                                                ),
+                                            },
+                                        ],
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "vTex0",
                                 channel: Some(
-                                    'y',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Matrix(
+                                        [
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    1,
+                                                ),
+                                                channel: Some(
+                                                    'x',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    1,
+                                                ),
+                                                channel: Some(
+                                                    'y',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    1,
+                                                ),
+                                                channel: Some(
+                                                    'z',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    1,
+                                                ),
+                                                channel: Some(
+                                                    'w',
+                                                ),
+                                            },
+                                        ],
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -819,18 +1401,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -843,18 +1451,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -867,18 +1501,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -895,14 +1555,14 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr4",
+                                        name: "vTex0",
                                         channel: Some(
                                             'x',
                                         ),
                                         params: None,
                                     },
                                     TexCoord {
-                                        name: "in_attr4",
+                                        name: "vTex0",
                                         channel: Some(
                                             'y',
                                         ),
@@ -962,18 +1622,44 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr5",
+                                        name: "vTex0",
                                         channel: Some(
-                                            'z',
+                                            'x',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'x',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                     TexCoord {
-                                        name: "in_attr5",
+                                        name: "vTex0",
                                         channel: Some(
-                                            'w',
+                                            'y',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'y',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                 ],
                             },
@@ -991,14 +1677,14 @@ ShaderProgram {
                                             ),
                                             texcoords: [
                                                 TexCoord {
-                                                    name: "in_attr4",
+                                                    name: "vTex0",
                                                     channel: Some(
                                                         'x',
                                                     ),
                                                     params: None,
                                                 },
                                                 TexCoord {
-                                                    name: "in_attr4",
+                                                    name: "vTex0",
                                                     channel: Some(
                                                         'y',
                                                     ),
@@ -1049,18 +1735,108 @@ ShaderProgram {
                                             ),
                                             texcoords: [
                                                 TexCoord {
-                                                    name: "in_attr6",
+                                                    name: "vTex0",
                                                     channel: Some(
                                                         'x',
                                                     ),
-                                                    params: None,
+                                                    params: Some(
+                                                        Matrix(
+                                                            [
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        0,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'x',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        0,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'y',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        0,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'z',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        0,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'w',
+                                                                    ),
+                                                                },
+                                                            ],
+                                                        ),
+                                                    ),
                                                 },
                                                 TexCoord {
-                                                    name: "in_attr6",
+                                                    name: "vTex0",
                                                     channel: Some(
-                                                        'y',
+                                                        'x',
                                                     ),
-                                                    params: None,
+                                                    params: Some(
+                                                        Matrix(
+                                                            [
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        1,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'x',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        1,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'y',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        1,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'z',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        1,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'w',
+                                                                    ),
+                                                                },
+                                                            ],
+                                                        ),
+                                                    ),
                                                 },
                                             ],
                                         },
@@ -1100,18 +1876,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'w',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -1124,18 +1926,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'w',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -1148,14 +1976,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -1172,14 +2000,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -1196,18 +2024,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -1220,18 +2074,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -1244,14 +2124,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -1268,14 +2148,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -1292,14 +2172,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -1316,14 +2196,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -1340,18 +2220,108 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr6",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Matrix(
+                                        [
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    0,
+                                                ),
+                                                channel: Some(
+                                                    'x',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    0,
+                                                ),
+                                                channel: Some(
+                                                    'y',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    0,
+                                                ),
+                                                channel: Some(
+                                                    'z',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    0,
+                                                ),
+                                                channel: Some(
+                                                    'w',
+                                                ),
+                                            },
+                                        ],
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr6",
+                                name: "vTex0",
                                 channel: Some(
-                                    'y',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Matrix(
+                                        [
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    1,
+                                                ),
+                                                channel: Some(
+                                                    'x',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    1,
+                                                ),
+                                                channel: Some(
+                                                    'y',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    1,
+                                                ),
+                                                channel: Some(
+                                                    'z',
+                                                ),
+                                            },
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gTexMat",
+                                                index: Some(
+                                                    1,
+                                                ),
+                                                channel: Some(
+                                                    'w',
+                                                ),
+                                            },
+                                        ],
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -1364,18 +2334,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -1388,18 +2384,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -1412,18 +2434,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -1440,14 +2488,14 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr4",
+                                        name: "vTex0",
                                         channel: Some(
                                             'x',
                                         ),
                                         params: None,
                                     },
                                     TexCoord {
-                                        name: "in_attr4",
+                                        name: "vTex0",
                                         channel: Some(
                                             'y',
                                         ),
@@ -1507,18 +2555,44 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr5",
+                                        name: "vTex0",
                                         channel: Some(
-                                            'z',
+                                            'x',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'x',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                     TexCoord {
-                                        name: "in_attr5",
+                                        name: "vTex0",
                                         channel: Some(
-                                            'w',
+                                            'y',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'y',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                 ],
                             },
@@ -1536,14 +2610,14 @@ ShaderProgram {
                                             ),
                                             texcoords: [
                                                 TexCoord {
-                                                    name: "in_attr4",
+                                                    name: "vTex0",
                                                     channel: Some(
                                                         'x',
                                                     ),
                                                     params: None,
                                                 },
                                                 TexCoord {
-                                                    name: "in_attr4",
+                                                    name: "vTex0",
                                                     channel: Some(
                                                         'y',
                                                     ),
@@ -1594,18 +2668,108 @@ ShaderProgram {
                                             ),
                                             texcoords: [
                                                 TexCoord {
-                                                    name: "in_attr6",
+                                                    name: "vTex0",
                                                     channel: Some(
                                                         'x',
                                                     ),
-                                                    params: None,
+                                                    params: Some(
+                                                        Matrix(
+                                                            [
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        0,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'x',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        0,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'y',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        0,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'z',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        0,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'w',
+                                                                    ),
+                                                                },
+                                                            ],
+                                                        ),
+                                                    ),
                                                 },
                                                 TexCoord {
-                                                    name: "in_attr6",
+                                                    name: "vTex0",
                                                     channel: Some(
-                                                        'y',
+                                                        'x',
                                                     ),
-                                                    params: None,
+                                                    params: Some(
+                                                        Matrix(
+                                                            [
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        1,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'x',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        1,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'y',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        1,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'z',
+                                                                    ),
+                                                                },
+                                                                BufferDependency {
+                                                                    name: "U_Mate",
+                                                                    field: "gTexMat",
+                                                                    index: Some(
+                                                                        1,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'w',
+                                                                    ),
+                                                                },
+                                                            ],
+                                                        ),
+                                                    ),
                                                 },
                                             ],
                                         },
@@ -1712,18 +2876,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'w',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -1736,18 +2926,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'w',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -1760,14 +2976,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -1784,14 +3000,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -1808,18 +3024,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -1832,18 +3074,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -1860,14 +3128,14 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr4",
+                                        name: "vTex0",
                                         channel: Some(
                                             'x',
                                         ),
                                         params: None,
                                     },
                                     TexCoord {
-                                        name: "in_attr4",
+                                        name: "vTex0",
                                         channel: Some(
                                             'y',
                                         ),
@@ -1895,18 +3163,44 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr4",
+                                        name: "vTex0",
                                         channel: Some(
-                                            'z',
+                                            'x',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'z',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                     TexCoord {
-                                        name: "in_attr4",
+                                        name: "vTex0",
                                         channel: Some(
-                                            'w',
+                                            'y',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'w',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                 ],
                             },
@@ -1939,18 +3233,44 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr5",
+                                        name: "vTex0",
                                         channel: Some(
                                             'x',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        1,
+                                                    ),
+                                                    channel: Some(
+                                                        'x',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                     TexCoord {
-                                        name: "in_attr5",
+                                        name: "vTex0",
                                         channel: Some(
                                             'y',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        1,
+                                                    ),
+                                                    channel: Some(
+                                                        'y',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                 ],
                             },
@@ -1985,18 +3305,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'w',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -2009,18 +3355,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'w',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -2033,14 +3405,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -2057,14 +3429,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -2081,18 +3453,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -2105,18 +3503,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -2133,14 +3557,14 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr4",
+                                        name: "vTex0",
                                         channel: Some(
                                             'x',
                                         ),
                                         params: None,
                                     },
                                     TexCoord {
-                                        name: "in_attr4",
+                                        name: "vTex0",
                                         channel: Some(
                                             'y',
                                         ),
@@ -2168,18 +3592,44 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr4",
+                                        name: "vTex0",
                                         channel: Some(
-                                            'z',
+                                            'x',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'z',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                     TexCoord {
-                                        name: "in_attr4",
+                                        name: "vTex0",
                                         channel: Some(
-                                            'w',
+                                            'y',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'w',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                 ],
                             },
@@ -2212,18 +3662,44 @@ ShaderProgram {
                                 ),
                                 texcoords: [
                                     TexCoord {
-                                        name: "in_attr5",
+                                        name: "vTex0",
                                         channel: Some(
                                             'x',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        1,
+                                                    ),
+                                                    channel: Some(
+                                                        'x',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                     TexCoord {
-                                        name: "in_attr5",
+                                        name: "vTex0",
                                         channel: Some(
                                             'y',
                                         ),
-                                        params: None,
+                                        params: Some(
+                                            Scale(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        1,
+                                                    ),
+                                                    channel: Some(
+                                                        'y',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     },
                                 ],
                             },
@@ -2258,14 +3734,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -2287,18 +3763,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'w',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -2311,18 +3813,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'z',
+                                    'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
-                                    'w',
+                                    'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'w',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -2335,14 +3863,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -2359,14 +3887,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr4",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -2383,18 +3911,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -2407,18 +3961,44 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                             TexCoord {
-                                name: "in_attr5",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
-                                params: None,
+                                params: Some(
+                                    Scale(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                1,
+                                            ),
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                        },
+                                    ),
+                                ),
                             },
                         ],
                     },
@@ -2438,7 +4018,7 @@ ShaderProgram {
             dependencies: [
                 Attribute(
                     AttributeDependency {
-                        name: "in_attr7",
+                        name: "vColor",
                         channel: Some(
                             'x',
                         ),

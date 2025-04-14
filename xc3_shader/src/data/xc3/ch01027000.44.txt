@@ -132,7 +132,7 @@ ShaderProgram {
             dependencies: [
                 Attribute(
                     AttributeDependency {
-                        name: "in_attr1",
+                        name: "vColor",
                         channel: Some(
                             'x',
                         ),

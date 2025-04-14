@@ -10,7 +10,7 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
@@ -66,7 +66,7 @@ ShaderProgram {
                                 ),
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -137,7 +137,7 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
@@ -193,7 +193,7 @@ ShaderProgram {
                                 ),
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -264,7 +264,7 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
@@ -320,7 +320,7 @@ ShaderProgram {
                                 ),
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -393,7 +393,7 @@ ShaderProgram {
             dependencies: [
                 Attribute(
                     AttributeDependency {
-                        name: "in_attr4",
+                        name: "vColor",
                         channel: Some(
                             'z',
                         ),
@@ -473,7 +473,7 @@ ShaderProgram {
             dependencies: [
                 Attribute(
                     AttributeDependency {
-                        name: "in_attr4",
+                        name: "vColor",
                         channel: Some(
                             'x',
                         ),
@@ -492,14 +492,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -516,7 +516,7 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
@@ -572,7 +572,7 @@ ShaderProgram {
                                 ),
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -638,7 +638,7 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
@@ -694,7 +694,7 @@ ShaderProgram {
                                 ),
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -760,7 +760,7 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
@@ -816,7 +816,7 @@ ShaderProgram {
                                 ),
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -887,14 +887,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -911,7 +911,7 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
@@ -967,7 +967,7 @@ ShaderProgram {
                                 ),
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -1033,7 +1033,7 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
@@ -1089,7 +1089,7 @@ ShaderProgram {
                                 ),
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -1155,7 +1155,7 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
@@ -1211,7 +1211,7 @@ ShaderProgram {
                                 ),
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -1282,14 +1282,14 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
                                 params: None,
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -1306,7 +1306,7 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
@@ -1362,7 +1362,7 @@ ShaderProgram {
                                 ),
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -1428,7 +1428,7 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
@@ -1484,7 +1484,7 @@ ShaderProgram {
                                 ),
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
@@ -1550,7 +1550,7 @@ ShaderProgram {
                         ),
                         texcoords: [
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'x',
                                 ),
@@ -1606,7 +1606,7 @@ ShaderProgram {
                                 ),
                             },
                             TexCoord {
-                                name: "in_attr3",
+                                name: "vTex0",
                                 channel: Some(
                                     'y',
                                 ),
