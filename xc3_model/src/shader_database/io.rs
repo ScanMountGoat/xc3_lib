@@ -139,6 +139,7 @@ pub enum LayerBlendModeIndexed {
     Power = 6,
     Min = 7,
     Max = 8,
+    Clamp = 9,
 }
 
 impl From<LayerBlendMode> for LayerBlendModeIndexed {
@@ -153,6 +154,7 @@ impl From<LayerBlendMode> for LayerBlendModeIndexed {
             LayerBlendMode::Power => Self::Power,
             LayerBlendMode::Min => Self::Min,
             LayerBlendMode::Max => Self::Max,
+            LayerBlendMode::Clamp => Self::Clamp,
         }
     }
 }
@@ -169,6 +171,7 @@ impl From<LayerBlendModeIndexed> for LayerBlendMode {
             LayerBlendModeIndexed::Power => Self::Power,
             LayerBlendModeIndexed::Min => Self::Min,
             LayerBlendModeIndexed::Max => Self::Max,
+            LayerBlendModeIndexed::Clamp => Self::Clamp,
         }
     }
 }

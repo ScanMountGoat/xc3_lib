@@ -184,6 +184,7 @@ pub struct AttributeDependency {
     pub channel: Option<char>,
 }
 
+// TODO: rename to operation with a, b, c?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum LayerBlendMode {
@@ -195,7 +196,8 @@ pub enum LayerBlendMode {
     Add,
     /// Normal blend mode similar to "Reoriented Normal Mapping" (RNM).
     AddNormal,
-    UnkNormal,
+    /// `mix(a, overlay(a, b), ratio)`.
+    Overlay2,
     /// `mix(a, overlay(a, b), ratio)`.
     Overlay,
     /// `pow(a, b)`
@@ -204,6 +206,8 @@ pub enum LayerBlendMode {
     Min,
     /// `max(a, b)`
     Max,
+    /// `clamp(a, b, ratio)`
+    Clamp,
 }
 
 impl Default for LayerBlendMode {

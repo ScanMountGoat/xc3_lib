@@ -287,6 +287,7 @@ fn find_color_or_param_layers(
 
     // This isn't always present for all materials in all games.
     // Xenoblade 1 DE and Xenoblade 3 both seem to do this for non map materials.
+    // TODO: Include calc_monochrome in layers?
     if let Some((mat_cols, _monochrome_ratio)) = calc_monochrome(&frag.nodes, current) {
         let mat_col = match last_node.output.channel {
             Some('x') => &mat_cols[0],
@@ -379,6 +380,7 @@ fn find_layers(current: &Expr, graph: &Graph, attributes: &Attributes) -> Vec<La
         .or_else(|| blend_sub(&graph.nodes, current))
         .or_else(|| blend_add(&graph.nodes, current))
         .or_else(|| blend_pow(&graph.nodes, current))
+        .or_else(|| blend_clamp(&graph.nodes, current))
         .or_else(|| blend_min(&graph.nodes, current))
         .or_else(|| blend_max(&graph.nodes, current))
     {
@@ -519,13 +521,16 @@ fn blend_add<'a>(
     Some((a, b, &Expr::Float(1.0), LayerBlendMode::Add))
 }
 
-static BLEND_SUB: LazyLock<Graph> = LazyLock::new(|| {
+static BLEND_SUB: LazyLock<Graph> =
+    LazyLock::new(|| Graph::parse_glsl("void main() { result = a - b; }").unwrap());
+
+static BLEND_SUB2: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            neg_b = 0.0 - b;
-            result = a + neg_b;
-        }
-    "};
+            void main() {
+                neg_b = 0.0 - b;
+                result = a + neg_b;
+            }
+        "};
     Graph::parse_glsl(query).unwrap()
 });
 
@@ -534,7 +539,8 @@ fn blend_sub<'a>(
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
     // Some layers are simply subtracted like for xeno3/chr/chr/ch44000210.wimdo "ch45133501_body".
-    let result = query_nodes(expr, nodes, &BLEND_SUB.nodes)?;
+    let result = query_nodes(expr, nodes, &BLEND_SUB.nodes)
+        .or_else(|| query_nodes(expr, nodes, &BLEND_SUB2.nodes))?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     Some((a, b, &Expr::Float(-1.0), LayerBlendMode::Add))
@@ -697,6 +703,22 @@ fn blend_min<'a>(
     let b = result.get("b")?;
     // TODO: blend mode for min/max
     Some((a, b, &Expr::Float(1.0), LayerBlendMode::Min))
+}
+
+static BLEND_CLAMP: LazyLock<Graph> =
+    LazyLock::new(|| Graph::parse_glsl("void main() { result = clamp(a, b, c); }").unwrap());
+
+fn blend_clamp<'a>(
+    nodes: &'a [Node],
+    expr: &'a Expr,
+) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+    // TODO: also detect min -> max and max -> min.
+    // TODO: convert to max and min?
+    let result = query_nodes(expr, nodes, &BLEND_CLAMP.nodes)?;
+    let a = result.get("a")?;
+    let b = result.get("b")?;
+    let c = result.get("c")?;
+    Some((a, b, c, LayerBlendMode::Clamp))
 }
 
 fn dependency_expr(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
