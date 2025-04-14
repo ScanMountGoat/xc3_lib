@@ -22,7 +22,7 @@
 //! | --- | --- |
 //! | Xenoblade 1 DE | `monolib/shader/*.{witex,witx}` |
 //! | Xenoblade 2 | `monolib/shader/*.{witex,witx}` |
-//! | Xenoblade 3 | `chr/tex/nx/{h,m}/*.wismt`, `monolib/shader/*.{witex,witx}` |
+//! | Xenoblade 3 | `chr/tex/nx/{h,m}/*.wismt`, `monolib/shader/*.{witex,witx}`, `monolib/shader/ft/*.wilut` |
 use std::{borrow::Cow, io::SeekFrom};
 
 use binrw::{binrw, BinRead, BinWrite};

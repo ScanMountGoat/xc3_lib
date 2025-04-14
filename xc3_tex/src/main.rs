@@ -40,7 +40,7 @@ struct Cli {
 
 #[derive(Parser)]
 struct ConvertArgs {
-    /// The input dds, witex, witx, wimdo, wismt, camdo, catex, or calut file.
+    /// The input dds, witex, witx, wilut, wimdo, wismt, camdo, catex, or calut file.
     /// Most uncompressed image formats like png, tiff, or jpeg are also supported.
     // TODO: how to make this required?
     input: String,
@@ -243,7 +243,7 @@ fn main() -> anyhow::Result<()> {
                             .save(&output)
                             .with_context(|| format!("failed to save DDS to {output:?}"))?;
                     }
-                    "witex" | "witx" => {
+                    "witex" | "witx" | "wilut" => {
                         input_file
                             .to_mibl(format, quality, mipmaps)?
                             .save(&output)?;
@@ -269,7 +269,7 @@ fn main() -> anyhow::Result<()> {
 
 fn load_input_file(input: &Path) -> anyhow::Result<File> {
     match input.extension().unwrap().to_str().unwrap() {
-        "witex" | "witx" => Mibl::from_file(input)
+        "witex" | "witx" | "wilut" => Mibl::from_file(input)
             .with_context(|| format!("{input:?} is not a valid .witex file"))
             .map(File::Mibl),
         "dds" => Dds::from_file(input)
