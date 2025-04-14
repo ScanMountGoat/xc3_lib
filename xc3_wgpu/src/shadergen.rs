@@ -17,7 +17,8 @@ use crate::pipeline::PipelineKey;
 
 const OUT_VAR: &str = "RESULT";
 
-const MAX_SAMPLERS: usize = 16;
+// TODO: This needs to be 16 to support all in game shaders.
+const MAX_SAMPLERS: usize = 15;
 
 /// Static single assignment (SSA) representation for [LayerAssignmentValue]
 /// where each [NodeValue] represents a single assignment for that node index.
@@ -165,6 +166,7 @@ impl Nodes {
                     LayerBlendMode::Power => format!("mix({a}, pow({a}, {b}), {ratio})"),
                     LayerBlendMode::Min => format!("mix({a}, min({a}, {b}), {ratio})"),
                     LayerBlendMode::Max => format!("mix({a}, max({a}, {b}), {ratio})"),
+                    LayerBlendMode::Clamp => format!("clamp({a}, {b}, {ratio})"),
                 };
                 Some(result)
             }
