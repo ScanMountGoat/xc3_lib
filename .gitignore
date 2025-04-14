@@ -18,7 +18,7 @@ Cargo.lock
 *.png
 *.bin
 *.glsl
-*.txt
+/*.txt
 *.gltf
 *.glb
 *.json

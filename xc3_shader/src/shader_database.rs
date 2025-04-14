@@ -1249,56 +1249,12 @@ mod tests {
     use super::*;
 
     use indoc::indoc;
-    use pretty_assertions::assert_eq;
-    use smol_str::SmolStr;
-    use xc3_model::shader_database::{
-        AttributeDependency, BufferDependency, LayerBlendMode, TexCoord, TexCoordParams,
-        TextureDependency,
-    };
+    use pretty_assertions::{assert_eq, assert_str_eq};
 
-    fn tex(
-        name: &str,
-        channel: char,
-        tex_coord_name: &str,
-        tex_coord_u: char,
-        tex_coord_v: char,
-    ) -> Dependency {
-        Dependency::Texture(TextureDependency {
-            name: name.into(),
-            channel: Some(channel),
-            texcoords: vec![
-                TexCoord {
-                    name: tex_coord_name.into(),
-                    channel: Some(tex_coord_u),
-                    params: None,
-                },
-                TexCoord {
-                    name: tex_coord_name.into(),
-                    channel: Some(tex_coord_v),
-                    params: None,
-                },
-            ],
-        })
-    }
-
-    fn buf(name: &str, field: &str, index: Option<usize>, channel: char) -> Dependency {
-        Dependency::Buffer(BufferDependency {
-            name: name.into(),
-            field: field.into(),
-            index,
-            channel: Some(channel),
-        })
-    }
-
-    fn attr(name: &str, channel: char) -> Dependency {
-        Dependency::Attribute(AttributeDependency {
-            name: name.into(),
-            channel: Some(channel),
-        })
-    }
-
-    fn constant(f: f32) -> Dependency {
-        Dependency::Constant(f.into())
+    macro_rules! assert_debug_eq {
+        ($path:expr, $shader:expr) => {
+            assert_str_eq!(include_str!($path), format!("{:#?}", $shader))
+        };
     }
 
     #[test]
@@ -1338,221 +1294,33 @@ mod tests {
     }
 
     #[test]
-    fn shader_from_vertex_fragment_pyra_body() {
+    fn shader_from_glsl_pyra_body() {
         // Test shaders from Pyra's metallic chest material.
-        // xeno2/model/bl/bl000101, "ho_BL_TS2", shd0022.vert
+        // xeno2/model/bl/bl000101, "ho_BL_TS2", shd0022
         let glsl = include_str!("data/xc2/bl000101.22.vert");
         let vertex = TranslationUnit::parse(glsl).unwrap();
 
-        // xeno2/model/bl/bl000101, "ho_BL_TS2", shd0022.frag
         let glsl = include_str!("data/xc2/bl000101.22.frag");
         let fragment = TranslationUnit::parse(glsl).unwrap();
 
         let shader = shader_from_glsl(Some(&vertex), &fragment);
-
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s0", 'x', "vTex0", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Value(tex("s1", 'x', "vTex0", 'x', 'y')),
-                    ratio: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(tex("s2", 'x', "vTex0", 'x', 'y')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mix,
-                            is_fresnel: false
-                        },
-                        Layer {
-                            value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(0), 'z')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false
-                        },
-                    ]),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Value(attr("vColor", 'x')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mul,
-                    is_fresnel: false,
-                },
-            ],
-            shader.output_dependencies[&SmolStr::from("o0.x")].layers
-        );
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![tex("s4", 'y', "vTex0", 'x', 'y')],
-                layers: Vec::new()
-            },
-            shader.output_dependencies[&SmolStr::from("o1.x")]
-        );
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![buf("U_Mate", "gWrkFl4", Some(2), 'x')],
-                layers: Vec::new()
-            },
-            shader.output_dependencies[&SmolStr::from("o1.y")]
-        );
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![buf("U_Mate", "gWrkFl4", Some(1), 'y')],
-                layers: Vec::new()
-            },
-            shader.output_dependencies[&SmolStr::from("o1.z")]
-        );
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![constant(0.07098039)],
-                layers: Vec::new()
-            },
-            shader.output_dependencies[&SmolStr::from("o1.w")]
-        );
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![Dependency::Texture(TextureDependency {
-                    name: "s5".into(),
-                    channel: Some('x'),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "vTex0".into(),
-                            channel: Some('x'),
-                            params: Some(TexCoordParams::Scale(BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('x'),
-                            }))
-                        },
-                        TexCoord {
-                            name: "vTex0".into(),
-                            channel: Some('y'),
-                            params: Some(TexCoordParams::Scale(BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('y'),
-                            }))
-                        },
-                    ],
-                })],
-                layers: Vec::new()
-            },
-            shader.output_dependencies[&SmolStr::from("o5.x")]
-        );
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![Dependency::Texture(TextureDependency {
-                    name: "s5".into(),
-                    channel: Some('y'),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "vTex0".into(),
-                            channel: Some('x'),
-                            params: Some(TexCoordParams::Scale(BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('x'),
-                            }))
-                        },
-                        TexCoord {
-                            name: "vTex0".into(),
-                            channel: Some('y'),
-                            params: Some(TexCoordParams::Scale(BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('y'),
-                            }))
-                        },
-                    ],
-                })],
-                layers: Vec::new()
-            },
-            shader.output_dependencies[&SmolStr::from("o5.y")]
-        );
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![Dependency::Texture(TextureDependency {
-                    name: "s5".into(),
-                    channel: Some('z'),
-                    texcoords: vec![
-                        TexCoord {
-                            name: "vTex0".into(),
-                            channel: Some('x'),
-                            params: Some(TexCoordParams::Scale(BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('x'),
-                            }))
-                        },
-                        TexCoord {
-                            name: "vTex0".into(),
-                            channel: Some('y'),
-                            params: Some(TexCoordParams::Scale(BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('y'),
-                            }))
-                        },
-                    ],
-                })],
-                layers: Vec::new()
-            },
-            shader.output_dependencies[&SmolStr::from("o5.z")]
-        );
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![constant(0.0)],
-                layers: Vec::new()
-            },
-            shader.output_dependencies[&SmolStr::from("o5.w")]
-        );
+        assert_debug_eq!("data/xc2/bl000101.22.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_pyra_hair() {
-        // xeno2/model/bl/bl000101, "_ho_hair_new", shd0008.vert
+    fn shader_from_glsl_pyra_hair() {
+        // xeno2/model/bl/bl000101, "_ho_hair_new", shd0008
         let glsl = include_str!("data/xc2/bl000101.8.frag");
         let fragment = TranslationUnit::parse(glsl).unwrap();
 
-        let shader = shader_from_glsl(None, &fragment);
-
         // Check that the color texture is multiplied by vertex color.
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![tex("s0", 'x', "in_attr2", 'x', 'y')],
-                layers: vec![
-                    Layer {
-                        value: LayerValue::Value(attr("in_attr3", 'x')),
-                        ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::Mix,
-                        is_fresnel: false,
-                    },
-                    Layer {
-                        value: LayerValue::Value(tex("s0", 'x', "in_attr2", 'x', 'y')),
-                        ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::Mul,
-                        is_fresnel: false,
-                    },
-                ],
-            },
-            shader.output_dependencies[&SmolStr::from("o0.x")]
-        );
+        let shader = shader_from_glsl(None, &fragment);
+        assert_debug_eq!("data/xc2/bl000101.8.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_mio_skirt() {
-        // xeno3/chr/ch/ch11021013, "body_skert2", shd0028.frag
+    fn shader_from_glsl_mio_skirt() {
+        // xeno3/chr/ch/ch11021013, "body_skert2", shd0028
         let glsl = include_str!("data/xc3/ch11021013.28.frag");
 
         // The pcmdo calcGeometricSpecularAA function compiles to the expression
@@ -1561,532 +1329,77 @@ mod tests {
         // This also avoids considering normal maps as a dependency.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s0", 'x', "in_attr3", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(tex("gTResidentTex04", 'x', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(tex("s1", 'z', "in_attr3", 'x', 'y')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mix,
-                            is_fresnel: false
-                        },
-                        Layer {
-                            value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'x')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false
-                        },
-                        Layer {
-                            value: LayerValue::Value(tex(
-                                "gTResidentTex05",
-                                'x',
-                                "in_attr4",
-                                'z',
-                                'w'
-                            )),
-                            ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'y')),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false
-                        },
-                    ]),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                }
-            ],
-            shader.output_dependencies[&SmolStr::from("o0.x")].layers
-        );
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s0", 'y', "in_attr3", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(tex("gTResidentTex04", 'y', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(tex("s1", 'z', "in_attr3", 'x', 'y')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mix,
-                            is_fresnel: false
-                        },
-                        Layer {
-                            value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'x')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false
-                        },
-                        Layer {
-                            value: LayerValue::Value(tex(
-                                "gTResidentTex05",
-                                'x',
-                                "in_attr4",
-                                'z',
-                                'w'
-                            )),
-                            ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'y')),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false
-                        },
-                    ]),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                }
-            ],
-            shader.output_dependencies[&SmolStr::from("o0.y")].layers
-        );
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s0", 'z', "in_attr3", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(tex("gTResidentTex04", 'z', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(tex("s1", 'z', "in_attr3", 'x', 'y')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mix,
-                            is_fresnel: false
-                        },
-                        Layer {
-                            value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'x')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false
-                        },
-                        Layer {
-                            value: LayerValue::Value(tex(
-                                "gTResidentTex05",
-                                'x',
-                                "in_attr4",
-                                'z',
-                                'w'
-                            )),
-                            ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'y')),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false
-                        },
-                    ]),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                }
-            ],
-            shader.output_dependencies[&SmolStr::from("o0.z")].layers
-        );
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s2", 'x', "in_attr3", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(tex("gTResidentTex09", 'x', "in_attr3", 'z', 'w')),
-                    ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'z')),
-                    blend_mode: LayerBlendMode::AddNormal,
-                    is_fresnel: false
-                }
-            ],
-            shader.output_dependencies[&SmolStr::from("o2.x")].layers
-        );
-
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![buf("U_Mate", "gWrkFl4", Some(2), 'y')],
-                layers: Vec::new()
-            },
-            shader.output_dependencies[&SmolStr::from("o1.y")]
-        );
+        assert_debug_eq!("data/xc3/ch11021013.28.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_mio_metal() {
-        // xeno3/chr/ch/ch11021013, "tlent_mio_metal1", shd0031.frag
+    fn shader_from_glsl_mio_metal() {
+        // xeno3/chr/ch/ch11021013, "tlent_mio_metal1", shd0031
         let glsl = include_str!("data/xc3/ch11021013.31.frag");
 
         // Test multiple calls to getPixelCalcAddNormal.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s0", 'x', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(buf("U_Mate", "gWrkCol", Some(1), 'x')),
-                    ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'z')),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: true
-                },
-                Layer {
-                    value: LayerValue::Value(tex("gTResidentTex04", 'x', "in_attr5", 'z', 'w')),
-                    ratio: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(tex("s1", 'x', "in_attr4", 'x', 'y')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mix,
-                            is_fresnel: false
-                        },
-                        Layer {
-                            value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'w')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false
-                        },
-                        Layer {
-                            value: LayerValue::Value(tex(
-                                "gTResidentTex05",
-                                'x',
-                                "in_attr6",
-                                'x',
-                                'y'
-                            )),
-                            ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(2), 'x')),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false
-                        },
-                    ]),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                }
-            ],
-            shader.output_dependencies[&SmolStr::from("o0.x")].layers
-        );
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![buf("U_Mate", "gWrkFl4", Some(3), 'y')],
-                layers: Vec::new()
-            },
-            shader.output_dependencies[&SmolStr::from("o1.y")]
-        );
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![
-                    tex("gTResidentTex09", 'x', "in_attr4", 'z', 'w'),
-                    tex("gTResidentTex09", 'y', "in_attr4", 'z', 'w'),
-                    tex("s2", 'x', "in_attr4", 'x', 'y'),
-                    tex("s2", 'y', "in_attr4", 'x', 'y'),
-                    tex("s3", 'x', "in_attr5", 'x', 'y'),
-                    tex("s3", 'y', "in_attr5", 'x', 'y'),
-                ],
-                layers: vec![
-                    Layer {
-                        value: LayerValue::Value(tex("s2", 'x', "in_attr4", 'x', 'y')),
-                        ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::Mix,
-                        is_fresnel: false
-                    },
-                    Layer {
-                        value: LayerValue::Value(tex("gTResidentTex09", 'x', "in_attr4", 'z', 'w')),
-                        ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(2), 'y')),
-                        blend_mode: LayerBlendMode::AddNormal,
-                        is_fresnel: false
-                    },
-                    Layer {
-                        value: LayerValue::Value(tex("s3", 'x', "in_attr5", 'x', 'y')),
-                        ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(2), 'z')),
-                        blend_mode: LayerBlendMode::AddNormal,
-                        is_fresnel: false
-                    },
-                ],
-            },
-            shader.output_dependencies[&SmolStr::from("o2.x")]
-        );
+        assert_debug_eq!("data/xc3/ch11021013.31.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_mio_legs() {
-        // xeno3/chr/ch/ch11021013, "body_stking1", shd0016.frag
+    fn shader_from_glsl_mio_legs() {
+        // xeno3/chr/ch/ch11021013, "body_stking1", shd0016
         let glsl = include_str!("data/xc3/ch11021013.16.frag");
 
         // Test that color layers use the appropriate fresnel blending mode.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s0", 'x', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(buf("U_Mate", "gWrkCol", Some(1), 'x')),
-                    ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(0), 'z')),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: true
-                },
-                Layer {
-                    value: LayerValue::Value(tex("gTResidentTex04", 'x', "in_attr4", 'z', 'w')),
-                    ratio: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(tex("s1", 'x', "in_attr4", 'x', 'y')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mix,
-                            is_fresnel: false
-                        },
-                        Layer {
-                            value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(0), 'w')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false
-                        },
-                        Layer {
-                            value: LayerValue::Value(tex(
-                                "gTResidentTex05",
-                                'x',
-                                "in_attr5",
-                                'x',
-                                'y'
-                            )),
-                            ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'x')),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false
-                        },
-                    ]),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                }
-            ],
-            shader.output_dependencies[&SmolStr::from("o0.x")].layers
-        );
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![buf("U_Mate", "gWrkFl4", Some(1), 'w')],
-                layers: Vec::new()
-            },
-            shader.output_dependencies[&SmolStr::from("o1.y")]
-        );
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![tex("s2", 'x', "in_attr4", 'x', 'y')],
-                layers: Vec::new()
-            },
-            shader.output_dependencies[&SmolStr::from("o2.x")]
-        );
+        assert_debug_eq!("data/xc3/ch11021013.16.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_mio_eyes() {
-        // xeno3/chr/ch/ch01021011, "eye4", shd0063.frag
+    fn shader_from_glsl_mio_eyes() {
+        // xeno3/chr/ch/ch01021011, "eye4", shd0063
         let glsl = include_str!("data/xc3/ch01021011.63.frag");
 
         // Detect parallax mapping for texture coordinates.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert_eq!(
-            Dependency::Texture(TextureDependency {
-                name: "s0".into(),
-                channel: Some('x'),
-                texcoords: vec![
-                    TexCoord {
-                        name: "in_attr3".into(),
-                        channel: Some('x'),
-                        params: Some(TexCoordParams::Parallax {
-                            mask_a: buf("U_Mate", "gWrkFl4", Some(0), 'x'),
-                            mask_b: tex("s2", 'z', "in_attr3", 'x', 'y'),
-                            ratio: BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('z'),
-                            },
-                        }),
-                    },
-                    TexCoord {
-                        name: "in_attr3".into(),
-                        channel: Some('y'),
-                        params: Some(TexCoordParams::Parallax {
-                            mask_a: buf("U_Mate", "gWrkFl4", Some(0), 'x'),
-                            mask_b: tex("s2", 'z', "in_attr3", 'x', 'y'),
-                            ratio: BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('z'),
-                            },
-                        }),
-                    },
-                ],
-            }),
-            shader.output_dependencies[&SmolStr::from("o0.x")].dependencies[0]
-        );
+        assert_debug_eq!("data/xc3/ch01021011.63.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_mio_ribbon() {
-        // xeno3/chr/ch/ch01027000, "phong4", shd0044.frag
+    fn shader_from_glsl_mio_ribbon() {
+        // xeno3/chr/ch/ch01027000, "phong4", shd0044
         let glsl = include_str!("data/xc3/ch01027000.44.frag");
 
         // Detect handling of gMatCol.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![buf("U_Mate", "gMatCol", None, 'x')],
-                layers: Vec::new()
-            },
-            shader.output_dependencies[&SmolStr::from("o0.x")]
-        );
+        assert_debug_eq!("data/xc3/ch01027000.44.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_wild_ride_body() {
-        // xeno3/chr/ch/ch02010110, "body_m", shd0028.frag
+    fn shader_from_glsl_wild_ride_body() {
+        // xeno3/chr/ch/ch02010110, "body_m", shd0028
         let glsl = include_str!("data/xc3/ch02010110.28.frag");
 
         // Some shaders use a simple mix() for normal blending.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert!(shader.output_dependencies[&SmolStr::from("o0.x")]
-            .layers
-            .is_empty());
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![tex("s8", 'x', "in_attr3", 'x', 'y')],
-                layers: Vec::new()
-            },
-            shader.output_dependencies[&SmolStr::from("o1.y")]
-        );
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s6", 'x', "in_attr3", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(tex("s7", 'x', "in_attr3", 'z', 'w')),
-                    ratio: LayerValue::Value(tex("s1", 'x', "in_attr3", 'x', 'y')),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                }
-            ],
-            shader.output_dependencies[&SmolStr::from("o2.x")].layers
-        );
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s6", 'y', "in_attr3", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(tex("s7", 'y', "in_attr3", 'z', 'w')),
-                    ratio: LayerValue::Value(tex("s1", 'x', "in_attr3", 'x', 'y')),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                }
-            ],
-            shader.output_dependencies[&SmolStr::from("o2.y")].layers
-        );
+        assert_debug_eq!("data/xc3/ch02010110.28.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_sena_body() {
-        // xeno3/chr/ch/ch11061013, "bodydenim_toon", shd0009.frag
+    fn shader_from_glsl_sena_body() {
+        // xeno3/chr/ch/ch11061013, "bodydenim_toon", shd0009
         let glsl = include_str!("data/xc3/ch11061013.9.frag");
 
         // Some shaders use multiple color blending modes.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s0", 'x', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(tex("gTResidentTex03", 'x', "in_attr4", 'x', 'x')),
-                    ratio: LayerValue::Value(tex("s1", 'x', "in_attr4", 'x', 'y')),
-                    blend_mode: LayerBlendMode::Add,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(tex("gTResidentTex04", 'x', "in_attr5", 'x', 'y')),
-                    ratio: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(tex("s1", 'y', "in_attr4", 'x', 'y')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mix,
-                            is_fresnel: false
-                        },
-                        Layer {
-                            value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'z')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false
-                        },
-                        Layer {
-                            value: LayerValue::Value(tex(
-                                "gTResidentTex05",
-                                'x',
-                                "in_attr5",
-                                'z',
-                                'w'
-                            )),
-                            ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'w')),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false
-                        },
-                    ]),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                },
-            ],
-            shader.output_dependencies[&SmolStr::from("o0.x")].layers
-        );
-
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![tex("s3", 'x', "in_attr4", 'x', 'y')],
-                layers: Vec::new()
-            },
-            shader.output_dependencies[&SmolStr::from("o1.y")]
-        );
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s2", 'x', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(tex("gTResidentTex09", 'x', "in_attr4", 'z', 'w')),
-                    ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(2), 'x')),
-                    blend_mode: LayerBlendMode::AddNormal,
-                    is_fresnel: false
-                }
-            ],
-            shader.output_dependencies[&SmolStr::from("o2.x")].layers
-        );
+        assert_debug_eq!("data/xc3/ch11061013.9.txt", shader);
     }
 
     #[test]
-    fn shader_from_vertex_fragment_platform() {
+    fn shader_from_glsl_platform() {
         // xeno1/model/obj/oj110006, "ma14toride03", shd0003
         let vert_glsl = include_str!("data/xc1/oj110006.3.vert");
         let frag_glsl = include_str!("data/xc1/oj110006.3.frag");
@@ -2095,310 +1408,23 @@ mod tests {
         let vertex = TranslationUnit::parse(vert_glsl).unwrap();
         let fragment = TranslationUnit::parse(frag_glsl).unwrap();
         let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s5", 'x', "vTex0", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s6".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "vTex0".into(),
-                                channel: Some('x'),
-                                params: Some(TexCoordParams::Scale(BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(0),
-                                    channel: Some('z')
-                                })),
-                            },
-                            TexCoord {
-                                name: "vTex0".into(),
-                                channel: Some('y'),
-                                params: Some(TexCoordParams::Scale(BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(0),
-                                    channel: Some('w')
-                                })),
-                            },
-                        ],
-                    })),
-                    ratio: LayerValue::Value(tex("s2", 'x', "vTex0", 'x', 'y')),
-                    blend_mode: LayerBlendMode::AddNormal,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(tex("s5", 'x', "vTex0", 'x', 'y')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mix,
-                            is_fresnel: false
-                        },
-                        Layer {
-                            value: LayerValue::Value(Dependency::Texture(TextureDependency {
-                                name: "s6".into(),
-                                channel: Some('x'),
-                                texcoords: vec![
-                                    TexCoord {
-                                        name: "vTex0".into(),
-                                        channel: Some('x'),
-                                        params: Some(TexCoordParams::Scale(BufferDependency {
-                                            name: "U_Mate".into(),
-                                            field: "gWrkFl4".into(),
-                                            index: Some(0),
-                                            channel: Some('z')
-                                        })),
-                                    },
-                                    TexCoord {
-                                        name: "vTex0".into(),
-                                        channel: Some('y'),
-                                        params: Some(TexCoordParams::Scale(BufferDependency {
-                                            name: "U_Mate".into(),
-                                            field: "gWrkFl4".into(),
-                                            index: Some(0),
-                                            channel: Some('w')
-                                        })),
-                                    },
-                                ],
-                            })),
-                            ratio: LayerValue::Value(tex("s2", 'x', "vTex0", 'x', 'y')),
-                            blend_mode: LayerBlendMode::AddNormal,
-                            is_fresnel: false
-                        },
-                        Layer {
-                            value: LayerValue::Value(Dependency::Texture(TextureDependency {
-                                name: "s7".into(),
-                                channel: Some('x'),
-                                texcoords: vec![
-                                    TexCoord {
-                                        name: "vTex0".into(),
-                                        channel: Some('x'),
-                                        params: Some(TexCoordParams::Scale(BufferDependency {
-                                            name: "U_Mate".into(),
-                                            field: "gWrkFl4".into(),
-                                            index: Some(1),
-                                            channel: Some('x')
-                                        })),
-                                    },
-                                    TexCoord {
-                                        name: "vTex0".into(),
-                                        channel: Some('y'),
-                                        params: Some(TexCoordParams::Scale(BufferDependency {
-                                            name: "U_Mate".into(),
-                                            field: "gWrkFl4".into(),
-                                            index: Some(1),
-                                            channel: Some('y')
-                                        })),
-                                    },
-                                ],
-                            })),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Overlay2,
-                            is_fresnel: false
-                        },
-                    ]),
-                    ratio: LayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s2".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "vTex0".into(),
-                                channel: Some('x'),
-                                params: Some(TexCoordParams::Scale(BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(1),
-                                    channel: Some('z')
-                                })),
-                            },
-                            TexCoord {
-                                name: "vTex0".into(),
-                                channel: Some('y'),
-                                params: Some(TexCoordParams::Scale(BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(1),
-                                    channel: Some('w')
-                                })),
-                            },
-                        ],
-                    })),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s6".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "vTex0".into(),
-                                channel: Some('x'),
-                                params: Some(TexCoordParams::Scale(BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(2),
-                                    channel: Some('x')
-                                })),
-                            },
-                            TexCoord {
-                                name: "vTex0".into(),
-                                channel: Some('y'),
-                                params: Some(TexCoordParams::Scale(BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(2),
-                                    channel: Some('y')
-                                })),
-                            },
-                        ],
-                    })),
-                    ratio: LayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s4".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "vTex0".into(),
-                                channel: Some('x'),
-                                params: Some(TexCoordParams::Scale(BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(2),
-                                    channel: Some('z')
-                                })),
-                            },
-                            TexCoord {
-                                name: "vTex0".into(),
-                                channel: Some('y'),
-                                params: Some(TexCoordParams::Scale(BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(2),
-                                    channel: Some('w')
-                                })),
-                            },
-                        ],
-                    })),
-                    blend_mode: LayerBlendMode::AddNormal,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s6".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "vTex0".into(),
-                                channel: Some('x'),
-                                params: Some(TexCoordParams::Scale(BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(1),
-                                    channel: Some('x')
-                                })),
-                            },
-                            TexCoord {
-                                name: "vTex0".into(),
-                                channel: Some('y'),
-                                params: Some(TexCoordParams::Scale(BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(1),
-                                    channel: Some('y')
-                                })),
-                            },
-                        ],
-                    })),
-                    ratio: LayerValue::Value(Dependency::Texture(TextureDependency {
-                        name: "s4".into(),
-                        channel: Some('x'),
-                        texcoords: vec![
-                            TexCoord {
-                                name: "vTex0".into(),
-                                channel: Some('x'),
-                                params: Some(TexCoordParams::Scale(BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(0),
-                                    channel: Some('z')
-                                })),
-                            },
-                            TexCoord {
-                                name: "vTex0".into(),
-                                channel: Some('y'),
-                                params: Some(TexCoordParams::Scale(BufferDependency {
-                                    name: "U_Mate".into(),
-                                    field: "gWrkFl4".into(),
-                                    index: Some(0),
-                                    channel: Some('w')
-                                })),
-                            },
-                        ],
-                    })),
-                    blend_mode: LayerBlendMode::AddNormal,
-                    is_fresnel: false
-                },
-            ],
-            shader.output_dependencies[&SmolStr::from("o2.x")].layers
-        );
+        assert_debug_eq!("data/xc3/oj110006.3.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_haze_body() {
-        // xeno2/model/np/np001101, "body", shd0013.frag
+    fn shader_from_glsl_haze_body() {
+        // xeno2/model/np/np001101, "body", shd0013
         let glsl = include_str!("data/xc2/np001101.13.frag");
 
         // Test multiple normal layers with texture masks.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![
-                    tex("s2", 'x', "in_attr4", 'x', 'y'),
-                    tex("s2", 'y', "in_attr4", 'x', 'y'),
-                    tex("s3", 'x', "in_attr4", 'z', 'w'),
-                    tex("s3", 'y', "in_attr4", 'z', 'w'),
-                    tex("s4", 'x', "in_attr4", 'x', 'y'),
-                    tex("s5", 'x', "in_attr5", 'x', 'y'),
-                    tex("s5", 'y', "in_attr5", 'x', 'y'),
-                    tex("s6", 'x', "in_attr4", 'x', 'y'),
-                ],
-                layers: vec![
-                    Layer {
-                        value: LayerValue::Value(tex("s2", 'x', "in_attr4", 'x', 'y')),
-                        ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::Mix,
-                        is_fresnel: false,
-                    },
-                    Layer {
-                        value: LayerValue::Value(tex("s3", 'x', "in_attr4", 'z', 'w')),
-                        ratio: LayerValue::Value(tex("s4", 'x', "in_attr4", 'x', 'y')),
-                        blend_mode: LayerBlendMode::AddNormal,
-                        is_fresnel: false,
-                    },
-                    Layer {
-                        value: LayerValue::Value(tex("s5", 'x', "in_attr5", 'x', 'y')),
-                        ratio: LayerValue::Value(tex("s6", 'x', "in_attr4", 'x', 'y')),
-                        blend_mode: LayerBlendMode::AddNormal,
-                        is_fresnel: false,
-                    },
-                ],
-            },
-            shader.output_dependencies[&SmolStr::from("o2.x")]
-        );
+        assert_debug_eq!("data/xc2/np001101.13.txt", shader);
     }
 
     #[test]
-    fn shader_from_vertex_fragment_pneuma_chest() {
-        // xeno2/model/bl/bl000301, "tights_TS", shd0021.frag
+    fn shader_from_glsl_pneuma_chest() {
+        // xeno2/model/bl/bl000301, "tights_TS", shd0021
         let vert_glsl = include_str!("data/xc2/bl000301.21.vert");
         let frag_glsl = include_str!("data/xc2/bl000301.21.frag");
 
@@ -2406,308 +1432,55 @@ mod tests {
         let vertex = TranslationUnit::parse(vert_glsl).unwrap();
         let fragment = TranslationUnit::parse(frag_glsl).unwrap();
         let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s0", 'x', "vTex0", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(tex("s1", 'x', "vTex0", 'x', 'y')),
-                    ratio: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(tex("s2", 'x', "vTex0", 'x', 'y')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mix,
-                            is_fresnel: false,
-                        },
-                        Layer {
-                            value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(0), 'x')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false,
-                        },
-                    ]),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false
-                },
-                Layer {
-                    value: LayerValue::Value(tex("s3", 'x', "vTex1", 'x', 'y')),
-                    ratio: LayerValue::Value(tex("s4", 'x', "vTex1", 'x', 'y')),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Value(buf("U_Mate", "gWrkCol", None, 'x')),
-                    ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(0), 'y')),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: true,
-                },
-            ],
-            shader.output_dependencies[&SmolStr::from("o0.x")].layers
-        );
+        assert_debug_eq!("data/xc2/bl000301.21.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_tirkin_weapon() {
-        // xeno2/model/we/we010402, "body_MT", shd0000.frag
+    fn shader_from_glsl_tirkin_weapon() {
+        // xeno2/model/we/we010402, "body_MT", shd0000
         let glsl = include_str!("data/xc2/we010402.0.frag");
 
         // Test detecting layers for metalness.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s2", 'y', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Value(tex("s4", 'y', "in_attr4", 'z', 'w')),
-                    ratio: LayerValue::Value(tex("s5", 'x', "in_attr4", 'x', 'y')),
-                    blend_mode: LayerBlendMode::Overlay,
-                    is_fresnel: false,
-                },
-            ],
-            shader.output_dependencies[&SmolStr::from("o1.x")].layers
-        );
+        assert_debug_eq!("data/xc2/we010402.0.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_behemoth_fins() {
-        // xeno2/model/en/en020601, "hire_a", shd0000.frag
+    fn shader_from_glsl_behemoth_fins() {
+        // xeno2/model/en/en020601, "hire_a", shd0000
         let glsl = include_str!("data/xc2/en020601.0.frag");
 
         // Test detecting layers for ambient occlusion.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s2", 'z', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(0), 'z')),
-                    ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'z')),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Value(attr("in_attr5", 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mul,
-                    is_fresnel: false,
-                },
-            ],
-            shader.output_dependencies[&SmolStr::from("o2.z")].layers
-        );
+        assert_debug_eq!("data/xc2/en020601.0.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_gramps_fur() {
-        // xeno2/model/np/np000101, "_body_far_Fur", shd0009.frag
+    fn shader_from_glsl_gramps_fur() {
+        // xeno2/model/np/np000101, "_body_far_Fur", shd0009
         let glsl = include_str!("data/xc2/np000101.9.frag");
 
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("texAO", 'z', "in_attr6", 'w', 'w')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(buf("U_LGT", "gLgtPreDir", Some(0), 'w')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false,
-                        },
-                        Layer {
-                            value: LayerValue::Value(constant(1.0)),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Min,
-                            is_fresnel: false,
-                        },
-                        Layer {
-                            value: LayerValue::Layers(vec![
-                                Layer {
-                                    value: LayerValue::Value(tex(
-                                        "texLgt", 'x', "in_attr6", 'w', 'w'
-                                    )),
-                                    ratio: LayerValue::Value(constant(1.0)),
-                                    blend_mode: LayerBlendMode::Mix,
-                                    is_fresnel: false,
-                                },
-                                Layer {
-                                    value: LayerValue::Layers(vec![
-                                        Layer {
-                                            value: LayerValue::Value(tex(
-                                                "texShadow",
-                                                'z',
-                                                "in_attr6",
-                                                'w',
-                                                'w'
-                                            )),
-                                            ratio: LayerValue::Value(constant(1.0)),
-                                            blend_mode: LayerBlendMode::Mix,
-                                            is_fresnel: false,
-                                        },
-                                        Layer {
-                                            value: LayerValue::Value(tex(
-                                                "texShadow",
-                                                'z',
-                                                "in_attr6",
-                                                'w',
-                                                'w',
-                                            )),
-                                            ratio: LayerValue::Layers(Vec::new()),
-                                            blend_mode: LayerBlendMode::Add,
-                                            is_fresnel: false,
-                                        },
-                                        Layer {
-                                            value: LayerValue::Value(buf(
-                                                "U_Toon2",
-                                                "gToonParam",
-                                                Some(0),
-                                                'y'
-                                            )),
-                                            ratio: LayerValue::Value(constant(1.0)),
-                                            blend_mode: LayerBlendMode::Add,
-                                            is_fresnel: false,
-                                        },
-                                        Layer {
-                                            value: LayerValue::Value(buf(
-                                                "U_LGT",
-                                                "gLgtPreCol",
-                                                Some(0),
-                                                'x'
-                                            )),
-                                            ratio: LayerValue::Value(constant(1.0)),
-                                            blend_mode: LayerBlendMode::Mul,
-                                            is_fresnel: false,
-                                        },
-                                    ]),
-                                    ratio: LayerValue::Value(buf(
-                                        "U_Toon2",
-                                        "gToonParam",
-                                        Some(0),
-                                        'z'
-                                    )),
-                                    blend_mode: LayerBlendMode::Add,
-                                    is_fresnel: false,
-                                },
-                                Layer {
-                                    value: LayerValue::Value(attr("in_attr2", 'x')),
-                                    ratio: LayerValue::Value(constant(1.0)),
-                                    blend_mode: LayerBlendMode::Add,
-                                    is_fresnel: false,
-                                },
-                                Layer {
-                                    value: LayerValue::Layers(vec![Layer {
-                                        value: LayerValue::Layers(vec![]),
-                                        ratio: LayerValue::Value(constant(1.0)),
-                                        blend_mode: LayerBlendMode::Mul,
-                                        is_fresnel: false,
-                                    }]),
-                                    ratio: LayerValue::Value(constant(1.0)),
-                                    blend_mode: LayerBlendMode::Mul,
-                                    is_fresnel: false,
-                                },
-                            ]),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false,
-                        }
-                    ]),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mul,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Value(attr("in_attr5", 'w')),
-                    ratio: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(attr("in_attr5", 'x')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mix,
-                            is_fresnel: false,
-                        },
-                        Layer {
-                            value: LayerValue::Value(tex("texAO", 'z', "in_attr6", 'w', 'w')),
-                            ratio: LayerValue::Layers(Vec::new()),
-                            blend_mode: LayerBlendMode::Add,
-                            is_fresnel: false,
-                        },
-                    ]),
-                    blend_mode: LayerBlendMode::Add,
-                    is_fresnel: false,
-                },
-            ],
-            shader.output_dependencies[&SmolStr::from("o0.x")].layers
-        );
+        assert_debug_eq!("data/xc2/np000101.9.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_lysaat_eyes() {
-        // xeno2/model/en/en030601, "phong3", shd0009.frag
+    fn shader_from_glsl_lysaat_eyes() {
+        // xeno2/model/en/en030601, "phong3", shd0009
         let glsl = include_str!("data/xc2/en030601.2.frag");
 
         // Detect parallax mapping for texture coordinates.
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert_eq!(
-            vec![Dependency::Texture(TextureDependency {
-                name: "s0".into(),
-                channel: Some('x'),
-                texcoords: vec![
-                    TexCoord {
-                        name: "in_attr4".into(),
-                        channel: Some('x'),
-                        params: Some(TexCoordParams::Parallax {
-                            mask_a: tex("s1", 'x', "in_attr4", 'x', 'y'),
-                            mask_b: buf("U_Mate", "gWrkFl4", Some(0), 'y'),
-                            ratio: BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('w'),
-                            },
-                        }),
-                    },
-                    TexCoord {
-                        name: "in_attr4".into(),
-                        channel: Some('y'),
-                        params: Some(TexCoordParams::Parallax {
-                            mask_a: tex("s1", 'x', "in_attr4", 'x', 'y'),
-                            mask_b: buf("U_Mate", "gWrkFl4", Some(0), 'y'),
-                            ratio: BufferDependency {
-                                name: "U_Mate".into(),
-                                field: "gWrkFl4".into(),
-                                index: Some(0),
-                                channel: Some('w'),
-                            },
-                        }),
-                    },
-                ],
-            })],
-            shader.output_dependencies[&SmolStr::from("o0.x")].dependencies
-        );
+        assert_debug_eq!("data/xc2/en030601.2.txt", shader);
     }
 
     #[test]
-    fn shader_from_vertex_fragment_noah_body_outline() {
-        // xeno3/chr/ch/ch01011013, "body_outline", shd0000.frag
+    fn shader_from_glsl_noah_body_outline() {
+        // xeno3/chr/ch/ch01011013, "body_outline", shd0000
         let vert_glsl = include_str!("data/xc3/ch01011013.0.vert");
         let frag_glsl = include_str!("data/xc3/ch01011013.0.frag");
 
@@ -2715,88 +1488,24 @@ mod tests {
         let vertex = TranslationUnit::parse(vert_glsl).unwrap();
         let fragment = TranslationUnit::parse(frag_glsl).unwrap();
         let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_eq!(
-            Some(buf("U_Mate", "gWrkFl4", Some(0), 'z')),
-            shader.outline_width
-        );
+        assert_debug_eq!("data/xc3/ch01011013.0.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_panacea_body() {
-        // xeno3/chr/ch/ch44000210, "ch45133501_body", shd0029.frag
+    fn shader_from_glsl_panacea_body() {
+        // xeno3/chr/ch/ch44000210, "ch45133501_body", shd0029
         let glsl = include_str!("data/xc3/ch44000210.29.frag");
 
         // Check for correct color layers
         let fragment = TranslationUnit::parse(glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("s0", 'x', "in_attr4", 'x', 'y')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Value(buf("U_Mate", "gWrkCol", Some(1), 'x')),
-                    ratio: LayerValue::Value(constant(-1.0)),
-                    blend_mode: LayerBlendMode::Add,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Value(tex("gTResidentTex11", 'x', "in_attr4", 'x', 'x')),
-                    ratio: LayerValue::Value(tex("s1", 'x', "in_attr4", 'x', 'y')),
-                    blend_mode: LayerBlendMode::Add,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Value(tex("gTResidentTex04", 'x', "in_attr4", 'z', 'w')),
-                    ratio: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(tex("s1", 'y', "in_attr4", 'x', 'y')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mix,
-                            is_fresnel: false,
-                        },
-                        Layer {
-                            value: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'x')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false,
-                        },
-                        Layer {
-                            value: LayerValue::Value(tex(
-                                "gTResidentTex05",
-                                'x',
-                                "in_attr5",
-                                'x',
-                                'y'
-                            )),
-                            ratio: LayerValue::Value(buf("U_Mate", "gWrkFl4", Some(1), 'y')),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false,
-                        },
-                    ]),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false,
-                }
-            ],
-            shader.output_dependencies[&SmolStr::from("o0.x")].layers
-        );
+        assert_debug_eq!("data/xc3/ch44000210.29.txt", shader);
     }
 
     #[test]
     fn shader_from_latte_asm_elma_leg() {
-        // xenox/chr_pc/pc221115.camdo, "leg_mat", shd0000.frag
+        // xenox/chr_pc/pc221115.camdo, "leg_mat", shd0000
         let asm = include_str!("data/xcx/pc221115.0.frag.txt");
-
-        let tex = |n: &str, c| {
-            Dependency::Texture(TextureDependency {
-                name: n.into(),
-                channel: Some(c),
-                texcoords: Vec::new(),
-            })
-        };
 
         // TODO: Make this easier to test by taking metadata directly?
         let fragment_shader = xc3_lib::mths::FragmentShader {
@@ -2867,158 +1576,12 @@ mod tests {
             ],
         };
         let shader = shader_from_latte_asm("", asm, &fragment_shader);
-        assert_eq!(
-            ShaderProgram {
-                output_dependencies: [
-                    (
-                        "o0.x".into(),
-                        OutputDependencies {
-                            dependencies: vec![
-                                tex("s2", 'x'),
-                                tex("s2", 'y'),
-                                tex("s1", 'y'),
-                                tex("gIBL", 'x'),
-                            ],
-                            layers: Vec::new()
-                        },
-                    ),
-                    (
-                        "o0.y".into(),
-                        OutputDependencies {
-                            dependencies: vec![
-                                tex("s2", 'x'),
-                                tex("s2", 'y'),
-                                tex("s1", 'y'),
-                                tex("gIBL", 'y'),
-                            ],
-                            layers: Vec::new()
-                        },
-                    ),
-                    (
-                        "o0.z".into(),
-                        OutputDependencies {
-                            dependencies: vec![
-                                tex("s2", 'x'),
-                                tex("s2", 'y'),
-                                tex("s1", 'y'),
-                                tex("gIBL", 'z'),
-                            ],
-                            layers: Vec::new()
-                        },
-                    ),
-                    (
-                        "o0.w".into(),
-                        OutputDependencies {
-                            dependencies: vec![tex("s2", 'x'), tex("s2", 'y'), tex("gIBL", 'w')],
-                            layers: Vec::new()
-                        },
-                    ),
-                    (
-                        "o1.x".into(),
-                        OutputDependencies {
-                            dependencies: vec![
-                                tex("s2", 'x'),
-                                tex("s2", 'y'),
-                                tex("s1", 'x'),
-                                tex("s0", 'x'),
-                                tex("texRef", 'x'),
-                            ],
-                            layers: Vec::new()
-                        },
-                    ),
-                    (
-                        "o1.y".into(),
-                        OutputDependencies {
-                            dependencies: vec![
-                                tex("s2", 'x'),
-                                tex("s2", 'y'),
-                                tex("s1", 'x'),
-                                tex("s0", 'y'),
-                                tex("texRef", 'y'),
-                            ],
-                            layers: Vec::new()
-                        },
-                    ),
-                    (
-                        "o1.z".into(),
-                        OutputDependencies {
-                            dependencies: vec![
-                                tex("s2", 'x'),
-                                tex("s2", 'y'),
-                                tex("s1", 'x'),
-                                tex("s0", 'z'),
-                                tex("texRef", 'z'),
-                            ],
-                            layers: Vec::new()
-                        },
-                    ),
-                    (
-                        "o1.w".into(),
-                        OutputDependencies {
-                            dependencies: vec![constant(0.0)],
-                            layers: Vec::new()
-                        },
-                    ),
-                    (
-                        "o2.x".into(),
-                        OutputDependencies {
-                            dependencies: vec![tex("s2", 'x'), tex("s2", 'y')],
-                            layers: Vec::new()
-                        },
-                    ),
-                    (
-                        "o2.y".into(),
-                        OutputDependencies {
-                            dependencies: vec![tex("s2", 'x'), tex("s2", 'y')],
-                            layers: Vec::new()
-                        },
-                    ),
-                    (
-                        "o3.x".into(),
-                        OutputDependencies {
-                            dependencies: vec![tex("s3", 'x')],
-                            layers: Vec::new()
-                        },
-                    ),
-                    (
-                        "o3.y".into(),
-                        OutputDependencies {
-                            dependencies: vec![tex("s3", 'y')],
-                            layers: Vec::new()
-                        },
-                    ),
-                    (
-                        "o3.z".into(),
-                        OutputDependencies {
-                            dependencies: vec![tex("s3", 'z')],
-                            layers: Vec::new()
-                        },
-                    ),
-                    (
-                        "o3.w".into(),
-                        OutputDependencies {
-                            dependencies: vec![buf("KC0", "", Some(1), 'x')],
-                            layers: Vec::new()
-                        },
-                    ),
-                    (
-                        "o4.w".into(),
-                        OutputDependencies {
-                            dependencies: vec![tex("s1", 'z')],
-                            layers: Vec::new()
-                        },
-                    )
-                ]
-                .into(),
-                outline_width: None
-            },
-            shader
-        );
+        assert_debug_eq!("data/xcx/pc221115.0.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_l_face() {
-        // xenoxde/chr/fc/fc181020, "facemat", shd0008.frag
+    fn shader_from_glsl_l_face() {
+        // xenoxde/chr/fc/fc181020, "facemat", shd0008
         let vert_glsl = include_str!("data/xcxde/fc181020.8.vert");
         let frag_glsl = include_str!("data/xcxde/fc181020.8.frag");
 
@@ -3026,289 +1589,17 @@ mod tests {
         let vertex = TranslationUnit::parse(vert_glsl).unwrap();
         let fragment = TranslationUnit::parse(frag_glsl).unwrap();
         let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![tex("s0", 'x', "vTex0", 'x', 'y')],
-                layers: vec![
-                    Layer {
-                        value: LayerValue::Value(tex("s0", 'x', "vTex0", 'x', 'y')),
-                        ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::Mix,
-                        is_fresnel: false,
-                    },
-                    Layer {
-                        value: LayerValue::Value(buf("U_CHR", "gAvaSkin", None, 'x')),
-                        ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::Overlay,
-                        is_fresnel: false,
-                    },
-                    Layer {
-                        value: LayerValue::Value(attr("vColor", 'x')),
-                        ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::Mul,
-                        is_fresnel: false,
-                    },
-                ],
-            },
-            shader.output_dependencies[&SmolStr::from("o1.x")]
-        );
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![tex("s0", 'y', "vTex0", 'x', 'y')],
-                layers: vec![
-                    Layer {
-                        value: LayerValue::Value(tex("s0", 'y', "vTex0", 'x', 'y')),
-                        ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::Mix,
-                        is_fresnel: false,
-                    },
-                    Layer {
-                        value: LayerValue::Value(buf("U_CHR", "gAvaSkin", None, 'y')),
-                        ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::Overlay,
-                        is_fresnel: false,
-                    },
-                    Layer {
-                        value: LayerValue::Value(attr("vColor", 'y')),
-                        ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::Mul,
-                        is_fresnel: false,
-                    },
-                ],
-            },
-            shader.output_dependencies[&SmolStr::from("o1.y")]
-        );
-        assert_eq!(
-            OutputDependencies {
-                dependencies: vec![tex("s0", 'z', "vTex0", 'x', 'y')],
-                layers: vec![
-                    Layer {
-                        value: LayerValue::Value(tex("s0", 'z', "vTex0", 'x', 'y')),
-                        ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::Mix,
-                        is_fresnel: false,
-                    },
-                    Layer {
-                        value: LayerValue::Value(buf("U_CHR", "gAvaSkin", None, 'z')),
-                        ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::Overlay,
-                        is_fresnel: false,
-                    },
-                    Layer {
-                        value: LayerValue::Value(attr("vColor", 'z')),
-                        ratio: LayerValue::Value(constant(1.0)),
-                        blend_mode: LayerBlendMode::Mul,
-                        is_fresnel: false,
-                    },
-                ],
-            },
-            shader.output_dependencies[&SmolStr::from("o1.z")]
-        );
+        assert_debug_eq!("data/xcxde/fc181020.8.txt", shader);
     }
 
     #[test]
-    fn shader_from_fragment_elma_eye() {
-        // xenoxde/chr/fc/fc281010, "eye_re", shd0002.frag
+    fn shader_from_glsl_elma_eye() {
+        // xenoxde/chr/fc/fc281010, "eye_re", shd0002
         let frag_glsl = include_str!("data/xcxde/fc281010.2.frag");
 
         // Check reflection layers for the iris.
         let fragment = TranslationUnit::parse(frag_glsl).unwrap();
         let shader = shader_from_glsl(None, &fragment);
-        assert_eq!(
-            vec![
-                Layer {
-                    value: LayerValue::Value(tex("gIBL", 'x', "in_attr0", 'x', 'x')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Value(buf("U_Mate", "gMatAmb", None, 'x')),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mul,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(buf("U_Static", "gLgtPreCol", Some(1), 'x')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false,
-                        },
-                        Layer {
-                            value: LayerValue::Layers(vec![Layer {
-                                value: LayerValue::Value(buf(
-                                    "U_Static",
-                                    "gLgtPreCol",
-                                    Some(0),
-                                    'x'
-                                )),
-                                ratio: LayerValue::Value(constant(1.0)),
-                                blend_mode: LayerBlendMode::Mul,
-                                is_fresnel: false,
-                            }]),
-                            ratio: LayerValue::Value(tex("texShadow", 'x', "in_attr6", 'w', 'w')),
-                            blend_mode: LayerBlendMode::Add,
-                            is_fresnel: false,
-                        },
-                    ]),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Add,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(constant(0.0)),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mix,
-                            is_fresnel: false,
-                        },
-                        Layer {
-                            value: LayerValue::Layers(vec![
-                                Layer {
-                                    value: LayerValue::Value(tex(
-                                        "texLgt", 'x', "in_attr6", 'w', 'w'
-                                    )),
-                                    ratio: LayerValue::Value(constant(1.0)),
-                                    blend_mode: LayerBlendMode::Mix,
-                                    is_fresnel: false,
-                                },
-                                Layer {
-                                    value: LayerValue::Layers(vec![
-                                        Layer {
-                                            value: LayerValue::Value(tex(
-                                                "gIBL", 'x', "in_attr0", 'x', 'x'
-                                            )),
-                                            ratio: LayerValue::Value(constant(1.0)),
-                                            blend_mode: LayerBlendMode::Mix,
-                                            is_fresnel: false,
-                                        },
-                                        Layer {
-                                            value: LayerValue::Value(buf(
-                                                "U_Mate", "gMatAmb", None, 'x'
-                                            )),
-                                            ratio: LayerValue::Value(constant(1.0)),
-                                            blend_mode: LayerBlendMode::Mul,
-                                            is_fresnel: false,
-                                        },
-                                    ]),
-                                    ratio: LayerValue::Layers(Vec::new()),
-                                    blend_mode: LayerBlendMode::Add,
-                                    is_fresnel: false,
-                                },
-                                Layer {
-                                    value: LayerValue::Value(constant(10.0)),
-                                    ratio: LayerValue::Value(constant(1.0)),
-                                    blend_mode: LayerBlendMode::Min,
-                                    is_fresnel: false,
-                                },
-                            ]),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Max,
-                            is_fresnel: false,
-                        },
-                    ]),
-                    ratio: LayerValue::Value(constant(2.0)),
-                    blend_mode: LayerBlendMode::Add,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(constant(0.0)),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mix,
-                            is_fresnel: false,
-                        },
-                        Layer {
-                            value: LayerValue::Layers(vec![
-                                Layer {
-                                    value: LayerValue::Value(tex("s0", 'x', "in_attr3", 'y', 'y')),
-                                    ratio: LayerValue::Value(constant(1.0)),
-                                    blend_mode: LayerBlendMode::Mix,
-                                    is_fresnel: false,
-                                },
-                                Layer {
-                                    value: LayerValue::Value(attr("in_attr5", 'x')),
-                                    ratio: LayerValue::Value(constant(1.0)),
-                                    blend_mode: LayerBlendMode::Mul,
-                                    is_fresnel: false,
-                                },
-                            ]),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Max,
-                            is_fresnel: false,
-                        },
-                        Layer {
-                            value: LayerValue::Value(buf("U_Static", "gCDep", None, 'w')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Power,
-                            is_fresnel: false,
-                        },
-                    ]),
-                    ratio: LayerValue::Value(constant(1.0)),
-                    blend_mode: LayerBlendMode::Mul,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Layers(vec![
-                        Layer {
-                            value: LayerValue::Value(tex("gIBL", 'w', "in_attr0", 'x', 'x')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mix,
-                            is_fresnel: false,
-                        },
-                        Layer {
-                            value: LayerValue::Value(buf("U_Mate", "gMatAmb", None, 'w')),
-                            ratio: LayerValue::Value(constant(1.0)),
-                            blend_mode: LayerBlendMode::Mul,
-                            is_fresnel: false,
-                        },
-                        Layer {
-                            value: LayerValue::Layers(vec![
-                                Layer {
-                                    value: LayerValue::Value(constant(100.0)),
-                                    ratio: LayerValue::Value(constant(1.0)),
-                                    blend_mode: LayerBlendMode::Mix,
-                                    is_fresnel: false,
-                                },
-                                Layer {
-                                    value: LayerValue::Value(buf(
-                                        "U_Static",
-                                        "gLgtPreSpe",
-                                        Some(0),
-                                        'x'
-                                    )),
-                                    ratio: LayerValue::Value(constant(1.0)),
-                                    blend_mode: LayerBlendMode::Min,
-                                    is_fresnel: false,
-                                },
-                                Layer {
-                                    value: LayerValue::Value(constant(0.4)),
-                                    ratio: LayerValue::Value(constant(1.0)),
-                                    blend_mode: LayerBlendMode::Max,
-                                    is_fresnel: false,
-                                },
-                            ]),
-                            ratio: LayerValue::Value(tex("s1", 'y', "in_attr0", 'x', 'x')),
-                            blend_mode: LayerBlendMode::Add,
-                            is_fresnel: false,
-                        },
-                    ]),
-                    ratio: LayerValue::Value(buf("U_Mate", "gMatSpec", None, 'x')),
-                    blend_mode: LayerBlendMode::Add,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: LayerValue::Value(attr("in_attr7", 'x')),
-                    ratio: LayerValue::Value(attr("in_attr7", 'w')),
-                    blend_mode: LayerBlendMode::Mix,
-                    is_fresnel: false,
-                },
-            ],
-            shader.output_dependencies[&SmolStr::from("o0.x")].layers
-        );
+        assert_debug_eq!("data/xcxde/fc281010.2.txt", shader);
     }
 }

@@ -1,0 +1,83 @@
+ShaderProgram {
+    output_dependencies: {
+        "o0.w": OutputDependencies {
+            dependencies: [
+                Constant(
+                    0.0,
+                ),
+            ],
+            layers: [],
+        },
+        "o1.x": OutputDependencies {
+            dependencies: [
+                Constant(
+                    0.0,
+                ),
+            ],
+            layers: [],
+        },
+        "o1.z": OutputDependencies {
+            dependencies: [
+                Buffer(
+                    BufferDependency {
+                        name: "U_Mate",
+                        field: "gWrkFl4",
+                        index: Some(
+                            0,
+                        ),
+                        channel: Some(
+                            'x',
+                        ),
+                    },
+                ),
+            ],
+            layers: [],
+        },
+        "o1.w": OutputDependencies {
+            dependencies: [
+                Constant(
+                    0.039607845,
+                ),
+            ],
+            layers: [],
+        },
+        "o2.z": OutputDependencies {
+            dependencies: [
+                Constant(
+                    1.0,
+                ),
+            ],
+            layers: [],
+        },
+        "o3.z": OutputDependencies {
+            dependencies: [
+                Constant(
+                    0.0,
+                ),
+            ],
+            layers: [],
+        },
+        "o4.w": OutputDependencies {
+            dependencies: [
+                Constant(
+                    0.5,
+                ),
+            ],
+            layers: [],
+        },
+    },
+    outline_width: Some(
+        Buffer(
+            BufferDependency {
+                name: "U_Mate",
+                field: "gWrkFl4",
+                index: Some(
+                    0,
+                ),
+                channel: Some(
+                    'z',
+                ),
+            },
+        ),
+    ),
+}

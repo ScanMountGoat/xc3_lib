@@ -1,0 +1,2250 @@
+ShaderProgram {
+    output_dependencies: {
+        "o0.x": OutputDependencies {
+            dependencies: [
+                Texture(
+                    TextureDependency {
+                        name: "s0",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+            ],
+            layers: [],
+        },
+        "o0.y": OutputDependencies {
+            dependencies: [
+                Texture(
+                    TextureDependency {
+                        name: "s0",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+            ],
+            layers: [],
+        },
+        "o0.z": OutputDependencies {
+            dependencies: [
+                Texture(
+                    TextureDependency {
+                        name: "s0",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+            ],
+            layers: [],
+        },
+        "o0.w": OutputDependencies {
+            dependencies: [
+                Constant(
+                    0.0,
+                ),
+            ],
+            layers: [],
+        },
+        "o1.x": OutputDependencies {
+            dependencies: [
+                Texture(
+                    TextureDependency {
+                        name: "s10",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+            ],
+            layers: [],
+        },
+        "o1.y": OutputDependencies {
+            dependencies: [
+                Texture(
+                    TextureDependency {
+                        name: "s8",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+            ],
+            layers: [],
+        },
+        "o1.z": OutputDependencies {
+            dependencies: [
+                Buffer(
+                    BufferDependency {
+                        name: "U_Mate",
+                        field: "gWrkFl4",
+                        index: Some(
+                            1,
+                        ),
+                        channel: Some(
+                            'y',
+                        ),
+                    },
+                ),
+            ],
+            layers: [],
+        },
+        "o1.w": OutputDependencies {
+            dependencies: [
+                Constant(
+                    0.008235293,
+                ),
+            ],
+            layers: [],
+        },
+        "o2.x": OutputDependencies {
+            dependencies: [
+                Texture(
+                    TextureDependency {
+                        name: "s6",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s6",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s7",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'z',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'w',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s7",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'z',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'w',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s1",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+            ],
+            layers: [
+                Layer {
+                    value: Value(
+                        Texture(
+                            TextureDependency {
+                                name: "s6",
+                                channel: Some(
+                                    'x',
+                                ),
+                                texcoords: [
+                                    TexCoord {
+                                        name: "in_attr3",
+                                        channel: Some(
+                                            'x',
+                                        ),
+                                        params: None,
+                                    },
+                                    TexCoord {
+                                        name: "in_attr3",
+                                        channel: Some(
+                                            'y',
+                                        ),
+                                        params: None,
+                                    },
+                                ],
+                            },
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
+                Layer {
+                    value: Value(
+                        Texture(
+                            TextureDependency {
+                                name: "s7",
+                                channel: Some(
+                                    'x',
+                                ),
+                                texcoords: [
+                                    TexCoord {
+                                        name: "in_attr3",
+                                        channel: Some(
+                                            'z',
+                                        ),
+                                        params: None,
+                                    },
+                                    TexCoord {
+                                        name: "in_attr3",
+                                        channel: Some(
+                                            'w',
+                                        ),
+                                        params: None,
+                                    },
+                                ],
+                            },
+                        ),
+                    ),
+                    ratio: Value(
+                        Texture(
+                            TextureDependency {
+                                name: "s1",
+                                channel: Some(
+                                    'x',
+                                ),
+                                texcoords: [
+                                    TexCoord {
+                                        name: "in_attr3",
+                                        channel: Some(
+                                            'x',
+                                        ),
+                                        params: None,
+                                    },
+                                    TexCoord {
+                                        name: "in_attr3",
+                                        channel: Some(
+                                            'y',
+                                        ),
+                                        params: None,
+                                    },
+                                ],
+                            },
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
+            ],
+        },
+        "o2.y": OutputDependencies {
+            dependencies: [
+                Texture(
+                    TextureDependency {
+                        name: "s6",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s6",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s7",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'z',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'w',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s7",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'z',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'w',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s1",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+            ],
+            layers: [
+                Layer {
+                    value: Value(
+                        Texture(
+                            TextureDependency {
+                                name: "s6",
+                                channel: Some(
+                                    'y',
+                                ),
+                                texcoords: [
+                                    TexCoord {
+                                        name: "in_attr3",
+                                        channel: Some(
+                                            'x',
+                                        ),
+                                        params: None,
+                                    },
+                                    TexCoord {
+                                        name: "in_attr3",
+                                        channel: Some(
+                                            'y',
+                                        ),
+                                        params: None,
+                                    },
+                                ],
+                            },
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
+                Layer {
+                    value: Value(
+                        Texture(
+                            TextureDependency {
+                                name: "s7",
+                                channel: Some(
+                                    'y',
+                                ),
+                                texcoords: [
+                                    TexCoord {
+                                        name: "in_attr3",
+                                        channel: Some(
+                                            'z',
+                                        ),
+                                        params: None,
+                                    },
+                                    TexCoord {
+                                        name: "in_attr3",
+                                        channel: Some(
+                                            'w',
+                                        ),
+                                        params: None,
+                                    },
+                                ],
+                            },
+                        ),
+                    ),
+                    ratio: Value(
+                        Texture(
+                            TextureDependency {
+                                name: "s1",
+                                channel: Some(
+                                    'x',
+                                ),
+                                texcoords: [
+                                    TexCoord {
+                                        name: "in_attr3",
+                                        channel: Some(
+                                            'x',
+                                        ),
+                                        params: None,
+                                    },
+                                    TexCoord {
+                                        name: "in_attr3",
+                                        channel: Some(
+                                            'y',
+                                        ),
+                                        params: None,
+                                    },
+                                ],
+                            },
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
+            ],
+        },
+        "o2.z": OutputDependencies {
+            dependencies: [
+                Texture(
+                    TextureDependency {
+                        name: "s9",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+            ],
+            layers: [],
+        },
+        "o2.w": OutputDependencies {
+            dependencies: [
+                Texture(
+                    TextureDependency {
+                        name: "s6",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s6",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s7",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'z',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'w',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s7",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'z',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'w',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s1",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+            ],
+            layers: [],
+        },
+        "o3.z": OutputDependencies {
+            dependencies: [
+                Constant(
+                    0.0,
+                ),
+            ],
+            layers: [],
+        },
+        "o4.w": OutputDependencies {
+            dependencies: [
+                Constant(
+                    0.5,
+                ),
+            ],
+            layers: [],
+        },
+        "o5.x": OutputDependencies {
+            dependencies: [
+                Texture(
+                    TextureDependency {
+                        name: "s6",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s6",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s7",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'z',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'w',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s7",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'z',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'w',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s1",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s2",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s2",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s2",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s1",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s1",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s1",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s3",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s3",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s3",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s4",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s4",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s4",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s5",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s5",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s5",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+            ],
+            layers: [],
+        },
+        "o5.y": OutputDependencies {
+            dependencies: [
+                Texture(
+                    TextureDependency {
+                        name: "s6",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s6",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s7",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'z',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'w',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s7",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'z',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'w',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s1",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s2",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s2",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s2",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s1",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s1",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s1",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s3",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s3",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s3",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s4",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s4",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s4",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s5",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s5",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s5",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+            ],
+            layers: [],
+        },
+        "o5.z": OutputDependencies {
+            dependencies: [
+                Texture(
+                    TextureDependency {
+                        name: "s6",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s6",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s7",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'z',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'w',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s7",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'z',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'w',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s1",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'y',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s2",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s2",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s2",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s1",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s1",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s1",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s3",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s3",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s3",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s4",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s4",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s4",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s5",
+                        channel: Some(
+                            'x',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s5",
+                        channel: Some(
+                            'y',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+                Texture(
+                    TextureDependency {
+                        name: "s5",
+                        channel: Some(
+                            'z',
+                        ),
+                        texcoords: [
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                            TexCoord {
+                                name: "in_attr3",
+                                channel: Some(
+                                    'x',
+                                ),
+                                params: None,
+                            },
+                        ],
+                    },
+                ),
+            ],
+            layers: [],
+        },
+        "o5.w": OutputDependencies {
+            dependencies: [
+                Constant(
+                    1.0,
+                ),
+            ],
+            layers: [],
+        },
+    },
+    outline_width: None,
+}
