@@ -9,6 +9,7 @@ use glsl_lang::{
     transpiler::glsl::{show_expr, show_type_specifier, FormattingState},
     visitor::{Host, Visit, Visitor},
 };
+use log::error;
 
 use super::*;
 
@@ -383,10 +384,27 @@ fn input_expr_inner(
                         todo!()
                     }
                 }
+                ExprData::Bracket(e2, specifier2) => {
+                    if let ExprData::Dot(e, field) = &e2.content {
+                        if let ExprData::Variable(id) = &e.content {
+                            // TODO: Add proper support for multiple brackets in the graph itself?
+                            // buffer.field[index2][index]
+                            let mut index2 = String::new();
+                            show_expr(&mut index2, specifier2, &mut FormattingState::default())
+                                .unwrap();
+
+                            (id.content.to_string(), Some(format!("{field}[{index2}]")))
+                        } else {
+                            todo!()
+                        }
+                    } else {
+                        todo!()
+                    }
+                }
                 _ => {
-                    // TODO: Better support for nested brackets like "U_BILL.data[int(temp_4)][temp_5];"
                     let mut text = String::new();
                     show_expr(&mut text, e, &mut FormattingState::default()).unwrap();
+                    error!("Unsupported bracket expr {text:?}");
                     (text, None)
                 }
             };
@@ -918,6 +936,84 @@ mod tests {
                             node_index: 0,
                             channel: Some('w'),
                         },
+                    },
+                ],
+            },
+            Graph::from_glsl(&tu)
+        );
+    }
+
+    #[test]
+    fn graph_from_glsl_parameters() {
+        let glsl = indoc! {"
+            void main() {
+                f0 = U_BILL.data[int(temp_4)][temp_5];
+                f1 = U_POST.data[int(temp_206)];
+                f2 = U_Mate.gMatCol.x;
+                f3 = U_Mate.gWrkCol[1].w;
+            }
+        "};
+        let tu = TranslationUnit::parse(glsl).unwrap();
+        assert_eq!(
+            Graph {
+                nodes: vec![
+                    Node {
+                        output: Output {
+                            name: "f0".to_string(),
+                            channel: None,
+                        },
+                        input: Expr::Parameter {
+                            name: "U_BILL".to_string(),
+                            field: Some("data[int(temp_4)]".to_string()),
+                            index: Some(Box::new(Expr::Global {
+                                name: "temp_5".to_string(),
+                                channel: None
+                            })),
+                            channel: None
+                        }
+                    },
+                    Node {
+                        output: Output {
+                            name: "f1".to_string(),
+                            channel: None,
+                        },
+                        input: Expr::Parameter {
+                            name: "U_POST".to_string(),
+                            field: Some("data".to_string()),
+                            index: Some(Box::new(Expr::Func {
+                                name: "int".to_string(),
+                                args: vec![Expr::Global {
+                                    name: "temp_206".to_string(),
+                                    channel: None
+                                }],
+                                channel: None
+                            })),
+                            channel: None
+                        }
+                    },
+                    Node {
+                        output: Output {
+                            name: "f2".to_string(),
+                            channel: None,
+                        },
+                        input: Expr::Parameter {
+                            name: "U_Mate".to_string(),
+                            field: Some("gMatCol".to_string()),
+                            index: None,
+                            channel: Some('x')
+                        }
+                    },
+                    Node {
+                        output: Output {
+                            name: "f3".to_string(),
+                            channel: None,
+                        },
+                        input: Expr::Parameter {
+                            name: "U_Mate".to_string(),
+                            field: Some("gWrkCol".to_string()),
+                            index: Some(Box::new(Expr::Int(1))),
+                            channel: Some('w')
+                        }
                     },
                 ],
             },
