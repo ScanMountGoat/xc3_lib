@@ -1,8 +1,7 @@
 use std::{collections::BTreeMap, io::Cursor, path::Path};
 
-use crate::IndexMapExt;
 use binrw::{binrw, BinRead, BinReaderExt, BinResult, BinWrite, BinWriterExt, NullString};
-use indexmap::IndexMap;
+use indexmap::IndexSet;
 use smol_str::ToSmolStr;
 use varint_rs::{VarintReader, VarintWriter};
 
@@ -44,10 +43,18 @@ pub struct ShaderDatabaseIndexed {
     #[bw(write_with = write_count)]
     layer_values: Vec<LayerValueIndexed>,
 
-    // Storing multiple string tables enables 8-bit instead of 16-bit indices.
+    // Storing multiple string lists enables 8-bit instead of 16-bit indices.
     #[br(parse_with = parse_count)]
     #[bw(write_with = write_count)]
-    strings: Vec<NullString>,
+    attribute_names: Vec<NullString>,
+
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
+    buffer_names: Vec<NullString>,
+
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
+    buffer_field_names: Vec<NullString>,
 
     #[br(parse_with = parse_count)]
     #[bw(write_with = write_count)]
@@ -302,9 +309,9 @@ impl ShaderDatabaseIndexed {
     }
 
     pub fn from_programs(programs: BTreeMap<ProgramHash, ShaderProgram>) -> Self {
-        let mut dependency_to_index = IndexMap::new();
-        let mut buffer_dependency_to_index = IndexMap::new();
-        let mut layer_value_to_index = IndexMap::new();
+        let mut dependency_to_index = IndexSet::new();
+        let mut buffer_dependency_to_index = IndexSet::new();
+        let mut layer_value_to_index = IndexSet::new();
 
         let mut database = Self::default();
 
@@ -323,9 +330,9 @@ impl ShaderDatabaseIndexed {
     }
 
     pub fn merge(&self, other: &Self) -> Self {
-        let mut dependency_to_index = IndexMap::new();
-        let mut buffer_dependency_to_index = IndexMap::new();
-        let mut layer_value_to_index = IndexMap::new();
+        let mut dependency_to_index = IndexSet::new();
+        let mut buffer_dependency_to_index = IndexSet::new();
+        let mut layer_value_to_index = IndexSet::new();
 
         let mut merged = Self::default();
 
@@ -358,16 +365,16 @@ impl ShaderDatabaseIndexed {
     fn program_indexed(
         &mut self,
         p: ShaderProgram,
-        dependency_to_index: &mut IndexMap<Dependency, usize>,
-        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
-        layer_value_to_index: &mut IndexMap<LayerValue, usize>,
+        dependency_to_index: &mut IndexSet<Dependency>,
+        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
+        layer_value_to_index: &mut IndexSet<LayerValue>,
     ) -> ShaderProgramIndexed {
         ShaderProgramIndexed {
             output_dependencies: p
                 .output_dependencies
                 .into_iter()
                 .map(|(output, dependencies)| {
-                    let output_index = self.add_output(&output);
+                    let output_index = add_string(&mut self.outputs, &output);
                     (
                         output_index,
                         OutputDependenciesIndexed {
@@ -398,16 +405,19 @@ impl ShaderDatabaseIndexed {
                     )
                 })
                 .collect(),
-            outline_width: OptVarInt(p.outline_width.map(|d| dependency_to_index.entry_index(d))),
+            outline_width: OptVarInt(p.outline_width.map(|d| {
+                self.add_dependency(d, dependency_to_index, buffer_dependency_to_index)
+                    .0
+            })),
         }
     }
 
     fn add_output_layer_indexed(
         &mut self,
         l: &Layer,
-        dependency_to_index: &mut IndexMap<Dependency, usize>,
-        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
-        layer_value_to_index: &mut IndexMap<LayerValue, usize>,
+        dependency_to_index: &mut IndexSet<Dependency>,
+        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
+        layer_value_to_index: &mut IndexSet<LayerValue>,
     ) -> LayerIndexed {
         LayerIndexed {
             value: self.add_layer_value(
@@ -429,13 +439,13 @@ impl ShaderDatabaseIndexed {
 
     fn add_layer_value(
         &mut self,
-        dependency_to_index: &mut IndexMap<Dependency, usize>,
-        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
-        layer_value_to_index: &mut IndexMap<LayerValue, usize>,
+        dependency_to_index: &mut IndexSet<Dependency>,
+        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
+        layer_value_to_index: &mut IndexSet<LayerValue>,
         value: &LayerValue,
     ) -> VarInt {
-        let index = match layer_value_to_index.get(value) {
-            Some(index) => *index,
+        let index = match layer_value_to_index.get_index_of(value) {
+            Some(index) => index,
             None => {
                 let v = match &value {
                     LayerValue::Value(d) => LayerValueIndexed::Value(self.add_dependency(
@@ -461,7 +471,7 @@ impl ShaderDatabaseIndexed {
                 let index = self.layer_values.len();
 
                 self.layer_values.push(v);
-                layer_value_to_index.insert(value.clone(), index);
+                layer_value_to_index.insert(value.clone());
 
                 index
             }
@@ -473,11 +483,11 @@ impl ShaderDatabaseIndexed {
     fn add_dependency(
         &mut self,
         d: Dependency,
-        dependency_to_index: &mut IndexMap<Dependency, usize>,
-        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
+        dependency_to_index: &mut IndexSet<Dependency>,
+        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
     ) -> VarInt {
-        let index = match dependency_to_index.get(&d) {
-            Some(index) => *index,
+        let index = match dependency_to_index.get_index_of(&d) {
+            Some(index) => index,
             None => {
                 let dependency = self.dependency_indexed(
                     d.clone(),
@@ -488,7 +498,7 @@ impl ShaderDatabaseIndexed {
                 let index = self.dependencies.len();
 
                 self.dependencies.push(dependency);
-                dependency_to_index.insert(d, index);
+                dependency_to_index.insert(d);
 
                 index
             }
@@ -500,35 +510,23 @@ impl ShaderDatabaseIndexed {
     fn add_buffer_dependency(
         &mut self,
         b: BufferDependency,
-        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
+        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
     ) -> VarInt {
-        let index = match buffer_dependency_to_index.get(&b) {
-            Some(index) => *index,
+        let index = match buffer_dependency_to_index.get_index_of(&b) {
+            Some(index) => index,
             None => {
                 let dependency = self.buffer_dependency_indexed(b.clone());
 
                 let index = self.buffer_dependencies.len();
 
                 self.buffer_dependencies.push(dependency);
-                buffer_dependency_to_index.insert(b, index);
+                buffer_dependency_to_index.insert(b);
 
                 index
             }
         };
 
         VarInt(index)
-    }
-
-    fn add_output(&mut self, output: &str) -> VarInt {
-        add_string(&mut self.outputs, output)
-    }
-
-    fn add_string(&mut self, str: &str) -> VarInt {
-        add_string(&mut self.strings, str)
-    }
-
-    fn add_texture(&mut self, texture: &str) -> VarInt {
-        add_string(&mut self.texture_names, texture)
     }
 
     fn program_from_indexed(&self, p: &ShaderProgramIndexed) -> ShaderProgram {
@@ -583,37 +581,28 @@ impl ShaderDatabaseIndexed {
     }
 
     fn dependency_from_indexed(&self, d: VarInt) -> Dependency {
-        match self.dependencies[d.0].clone() {
-            DependencyIndexed::Constant(f) => Dependency::Constant(f.into()),
-            DependencyIndexed::Buffer(b) => Dependency::Buffer(buffer_dependency(
-                self.buffer_dependencies[b.0].clone(),
-                &self.strings,
-            )),
+        match &self.dependencies[d.0] {
+            DependencyIndexed::Constant(f) => Dependency::Constant((*f).into()),
+            DependencyIndexed::Buffer(b) => {
+                Dependency::Buffer(self.buffer_dependency_from_indexed(*b))
+            }
             DependencyIndexed::Texture(t) => Dependency::Texture(TextureDependency {
                 name: self.texture_names[t.name.0].to_smolstr(),
                 channel: t.channel.into(),
                 texcoords: t
                     .texcoords
-                    .into_iter()
+                    .iter()
                     .map(|coord| TexCoord {
-                        name: self.strings[coord.name.0].to_smolstr(),
+                        name: self.attribute_names[coord.name.0].to_smolstr(),
                         channel: coord.channel.into(),
                         params: match coord.params {
                             TexCoordParamsIndexed::None => None,
-                            TexCoordParamsIndexed::Scale(s) => {
-                                Some(TexCoordParams::Scale(buffer_dependency(
-                                    self.buffer_dependencies[s.0].clone(),
-                                    &self.strings,
-                                )))
-                            }
-                            TexCoordParamsIndexed::Matrix(m) => {
-                                Some(TexCoordParams::Matrix(m.map(|s| {
-                                    buffer_dependency(
-                                        self.buffer_dependencies[s.0].clone(),
-                                        &self.strings,
-                                    )
-                                })))
-                            }
+                            TexCoordParamsIndexed::Scale(s) => Some(TexCoordParams::Scale(
+                                self.buffer_dependency_from_indexed(s),
+                            )),
+                            TexCoordParamsIndexed::Matrix(m) => Some(TexCoordParams::Matrix(
+                                m.map(|s| self.buffer_dependency_from_indexed(s)),
+                            )),
                             TexCoordParamsIndexed::Parallax {
                                 mask_a,
                                 mask_b,
@@ -621,17 +610,14 @@ impl ShaderDatabaseIndexed {
                             } => Some(TexCoordParams::Parallax {
                                 mask_a: self.dependency_from_indexed(mask_a),
                                 mask_b: self.dependency_from_indexed(mask_b),
-                                ratio: buffer_dependency(
-                                    self.buffer_dependencies[ratio.0].clone(),
-                                    &self.strings,
-                                ),
+                                ratio: self.buffer_dependency_from_indexed(ratio),
                             }),
                         },
                     })
                     .collect(),
             }),
             DependencyIndexed::Attribute(a) => Dependency::Attribute(AttributeDependency {
-                name: self.strings[a.name.0].to_smolstr(),
+                name: self.attribute_names[a.name.0].to_smolstr(),
                 channel: a.channel.into(),
             }),
         }
@@ -640,8 +626,8 @@ impl ShaderDatabaseIndexed {
     fn dependency_indexed(
         &mut self,
         d: Dependency,
-        dependency_to_index: &mut IndexMap<Dependency, usize>,
-        buffer_dependency_to_index: &mut IndexMap<BufferDependency, usize>,
+        dependency_to_index: &mut IndexSet<Dependency>,
+        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
     ) -> DependencyIndexed {
         match d {
             Dependency::Constant(c) => DependencyIndexed::Constant(c.0),
@@ -649,13 +635,13 @@ impl ShaderDatabaseIndexed {
                 DependencyIndexed::Buffer(self.add_buffer_dependency(b, buffer_dependency_to_index))
             }
             Dependency::Texture(t) => DependencyIndexed::Texture(TextureDependencyIndexed {
-                name: self.add_texture(&t.name),
+                name: add_string(&mut self.texture_names, &t.name),
                 channel: t.channel.into(),
                 texcoords: t
                     .texcoords
                     .into_iter()
                     .map(|t| TexCoordIndexed {
-                        name: self.add_string(&t.name),
+                        name: add_string(&mut self.attribute_names, &t.name),
                         channel: t.channel.into(),
                         params: t
                             .params
@@ -692,16 +678,26 @@ impl ShaderDatabaseIndexed {
                     .collect(),
             }),
             Dependency::Attribute(a) => DependencyIndexed::Attribute(AttributeDependencyIndexed {
-                name: self.add_string(&a.name),
+                name: add_string(&mut self.attribute_names, &a.name),
                 channel: a.channel.into(),
             }),
         }
     }
 
+    fn buffer_dependency_from_indexed(&self, b: VarInt) -> BufferDependency {
+        let b = &self.buffer_dependencies[b.0];
+        BufferDependency {
+            name: self.buffer_names[b.name.0].to_smolstr(),
+            field: self.buffer_field_names[b.field.0].to_smolstr(),
+            index: b.index.0,
+            channel: b.channel.into(),
+        }
+    }
+
     fn buffer_dependency_indexed(&mut self, b: BufferDependency) -> BufferDependencyIndexed {
         BufferDependencyIndexed {
-            name: self.add_string(&b.name),
-            field: self.add_string(&b.field),
+            name: add_string(&mut self.buffer_names, &b.name),
+            field: add_string(&mut self.buffer_field_names, &b.field),
             index: OptVarInt(b.index),
             channel: b.channel.into(),
         }
@@ -719,15 +715,6 @@ fn add_string(strings: &mut Vec<NullString>, str: &str) -> VarInt {
                 index
             }),
     )
-}
-
-fn buffer_dependency(b: BufferDependencyIndexed, strings: &[NullString]) -> BufferDependency {
-    BufferDependency {
-        name: strings[b.name.0].to_smolstr(),
-        field: strings[b.field.0].to_smolstr(),
-        index: b.index.0,
-        channel: b.channel.into(),
-    }
 }
 
 // Variable length ints are slightly slower to parse but take up much less space.
