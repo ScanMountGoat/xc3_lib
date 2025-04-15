@@ -311,6 +311,19 @@ ShaderProgram {
             ],
             layers: [],
         },
+        "o2.z": OutputDependencies {
+            dependencies: [
+                Attribute(
+                    AttributeDependency {
+                        name: "vColor",
+                        channel: Some(
+                            'y',
+                        ),
+                    },
+                ),
+            ],
+            layers: [],
+        },
         "o3.z": OutputDependencies {
             dependencies: [
                 Constant(

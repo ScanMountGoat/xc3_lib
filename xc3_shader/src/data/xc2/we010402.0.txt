@@ -371,82 +371,8 @@ ShaderProgram {
                         ],
                     },
                 ),
-                Texture(
-                    TextureDependency {
-                        name: "s1",
-                        channel: Some(
-                            'y',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
             ],
-            layers: [
-                Layer {
-                    value: Value(
-                        Constant(
-                            -1.0,
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                texcoords: [
-                                    TexCoord {
-                                        name: "vTex0",
-                                        channel: Some(
-                                            'x',
-                                        ),
-                                        params: None,
-                                    },
-                                    TexCoord {
-                                        name: "vTex0",
-                                        channel: Some(
-                                            'y',
-                                        ),
-                                        params: None,
-                                    },
-                                ],
-                            },
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            2.0,
-                        ),
-                    ),
-                    blend_mode: Add,
-                    is_fresnel: false,
-                },
-            ],
+            layers: [],
         },
         "o2.y": OutputDependencies {
             dependencies: [
@@ -454,30 +380,6 @@ ShaderProgram {
                     TextureDependency {
                         name: "s1",
                         channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "s1",
-                        channel: Some(
                             'y',
                         ),
                         texcoords: [
@@ -499,57 +401,7 @@ ShaderProgram {
                     },
                 ),
             ],
-            layers: [
-                Layer {
-                    value: Value(
-                        Constant(
-                            -1.0,
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s1",
-                                channel: Some(
-                                    'y',
-                                ),
-                                texcoords: [
-                                    TexCoord {
-                                        name: "vTex0",
-                                        channel: Some(
-                                            'x',
-                                        ),
-                                        params: None,
-                                    },
-                                    TexCoord {
-                                        name: "vTex0",
-                                        channel: Some(
-                                            'y',
-                                        ),
-                                        params: None,
-                                    },
-                                ],
-                            },
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            2.0,
-                        ),
-                    ),
-                    blend_mode: Add,
-                    is_fresnel: false,
-                },
-            ],
+            layers: [],
         },
         "o2.z": OutputDependencies {
             dependencies: [

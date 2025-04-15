@@ -366,56 +366,66 @@ fn find_normal_layers(
 fn find_layers(current: &Expr, graph: &Graph, attributes: &Attributes) -> Vec<Layer> {
     let mut layers = Vec::new();
 
-    let mut current = current;
-
-    // Detect the layers and blend mode from most to least specific.
-    while let Some((layer_a, layer_b, ratio, blend_mode)) = blend_add_normal(&graph.nodes, current)
-        .or_else(|| blend_overlay2(&graph.nodes, current))
-        .or_else(|| blend_overlay_ratio(&graph.nodes, current))
-        .or_else(|| blend_overlay(&graph.nodes, current))
-        .or_else(|| blend_mix(&graph.nodes, current))
-        .or_else(|| blend_mul_ratio(&graph.nodes, current))
-        .or_else(|| blend_mul(&graph.nodes, current))
-        .or_else(|| blend_add_ratio(current))
-        .or_else(|| blend_sub(&graph.nodes, current))
-        .or_else(|| blend_add(&graph.nodes, current))
-        .or_else(|| blend_pow(&graph.nodes, current))
-        .or_else(|| blend_clamp(&graph.nodes, current))
-        .or_else(|| blend_min(&graph.nodes, current))
-        .or_else(|| blend_max(&graph.nodes, current))
-    {
-        let (fresnel_ratio, ratio) = ratio_value(ratio, graph, attributes);
-
-        let value = layer_value_or_layers(graph, attributes, layer_b);
-
-        layers.push(Layer {
-            value,
-            ratio,
-            blend_mode,
-            is_fresnel: fresnel_ratio,
-        });
-
-        current = assign_x_recursive(&graph.nodes, layer_a);
-
-        // TODO: Is there a better way to avoid detecting this as a layer?
-        if let Some(new_current) = normal_map_fma(&graph.nodes, current) {
-            current = new_current;
-        }
-    }
-
-    // Detect the base layer.
+    // Detect a single layer.
     if let Some(value) = extract_layer_value(current, graph, attributes) {
-        layers.push(Layer {
+        vec![Layer {
             value: LayerValue::Value(value),
             ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
             blend_mode: LayerBlendMode::Mix,
             is_fresnel: false,
-        });
-    }
+        }]
+    } else {
+        // Detect the layers and blend mode from most to least specific.
+        let mut current = current;
+        while let Some((layer_a, layer_b, ratio, blend_mode)) =
+            blend_add_normal(&graph.nodes, current)
+                .or_else(|| blend_overlay2(&graph.nodes, current))
+                .or_else(|| blend_overlay_ratio(&graph.nodes, current))
+                .or_else(|| blend_overlay(&graph.nodes, current))
+                .or_else(|| blend_mix(&graph.nodes, current))
+                .or_else(|| blend_mul_ratio(&graph.nodes, current))
+                .or_else(|| blend_mul(&graph.nodes, current))
+                .or_else(|| blend_add_ratio(current))
+                .or_else(|| blend_sub(&graph.nodes, current))
+                .or_else(|| blend_add(&graph.nodes, current))
+                .or_else(|| blend_pow(&graph.nodes, current))
+                .or_else(|| blend_clamp(&graph.nodes, current))
+                .or_else(|| blend_min(&graph.nodes, current))
+                .or_else(|| blend_max(&graph.nodes, current))
+        {
+            let (fresnel_ratio, ratio) = ratio_value(ratio, graph, attributes);
 
-    // We start from the output, so these are in reverse order.
-    layers.reverse();
-    layers
+            let value = layer_value_or_layers(graph, attributes, layer_b);
+
+            layers.push(Layer {
+                value,
+                ratio,
+                blend_mode,
+                is_fresnel: fresnel_ratio,
+            });
+
+            current = assign_x_recursive(&graph.nodes, layer_a);
+
+            // TODO: Is there a better way to avoid detecting this as a layer?
+            if let Some(new_current) = normal_map_fma(&graph.nodes, current) {
+                current = new_current;
+            }
+        }
+
+        // Detect the base layer.
+        if let Some(value) = extract_layer_value(current, graph, attributes) {
+            layers.push(Layer {
+                value: LayerValue::Value(value),
+                ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                blend_mode: LayerBlendMode::Mix,
+                is_fresnel: false,
+            });
+        }
+
+        // We start from the output, so these are in reverse order.
+        layers.reverse();
+        layers
+    }
 }
 
 fn layer_value_or_layers(graph: &Graph, attributes: &Attributes, e: &Expr) -> LayerValue {
@@ -836,7 +846,7 @@ static NORMAL_MAP_FMA: LazyLock<Graph> = LazyLock::new(|| {
         void main() {
             result = result;
             result = result.x;
-            result = fma(result, 2.0, temp);
+            result = fma(result, 2.0, neg_one);
         }
     "};
     Graph::parse_glsl(query).unwrap()
@@ -847,7 +857,24 @@ fn normal_map_fma<'a>(nodes: &'a [Node], nom_work: &'a Expr) -> Option<&'a Expr>
     // This could be fma(x, 2.0, -1.0) or fma(x, 2.0, -1.0039216)
     // This will only work for base layers.
     let result = query_nodes(nom_work, nodes, &NORMAL_MAP_FMA.nodes)?;
-    result.get("result").copied()
+    let neg_one = result.get("neg_one")?;
+    match neg_one {
+        Expr::Float(f) => {
+            if f.round() == -1.0 {
+                result.get("result").copied()
+            } else {
+                None
+            }
+        }
+        Expr::Unary(UnaryOp::Negate, f) => {
+            if matches!(**f, Expr::Float(f) if f.round() == 1.0) {
+                result.get("result").copied()
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
 }
 
 static COMPONENT_MAX_XYZ: LazyLock<Graph> = LazyLock::new(|| {
