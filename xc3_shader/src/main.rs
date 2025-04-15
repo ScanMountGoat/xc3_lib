@@ -1,10 +1,14 @@
 use clap::{Parser, Subcommand};
 
+use glsl_lang::ast::TranslationUnit;
+use glsl_lang::parse::DefaultParse;
 use xc3_model::shader_database::ShaderDatabase;
 use xc3_shader::dependencies::latte_dependencies;
 use xc3_shader::extract::{extract_and_decompile_shaders, extract_and_disassemble_shaders};
 use xc3_shader::graph::Graph;
-use xc3_shader::shader_database::{create_shader_database, create_shader_database_legacy};
+use xc3_shader::shader_database::{
+    create_shader_database, create_shader_database_legacy, shader_from_glsl,
+};
 
 use xc3_shader::graph::glsl::glsl_dependencies;
 
@@ -83,6 +87,13 @@ enum Commands {
         /// The output GLSL file.
         output: String,
     },
+    /// Find output dependencies for the given GLSL shader program.
+    OutputDependenciesGlsl {
+        /// The input fragment GLSL file.
+        frag: String,
+        /// The output text file.
+        output: String,
+    },
 }
 
 fn main() {
@@ -149,7 +160,12 @@ fn main() {
             let graph = Graph::from_latte_asm(&asm);
             std::fs::write(output, graph.to_glsl()).unwrap();
         }
+        Commands::OutputDependenciesGlsl { frag, output } => {
+            let frag_glsl = std::fs::read_to_string(frag).unwrap();
+            let fragment = TranslationUnit::parse(&frag_glsl).unwrap();
+            let shader = shader_from_glsl(None, &fragment);
+            std::fs::write(output, format!("{shader:#?}")).unwrap();
+        }
     }
-
     println!("Finished in {:?}", start.elapsed());
 }

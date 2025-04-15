@@ -38,7 +38,10 @@ use crate::{
     },
 };
 
-fn shader_from_glsl(vertex: Option<&TranslationUnit>, fragment: &TranslationUnit) -> ShaderProgram {
+pub fn shader_from_glsl(
+    vertex: Option<&TranslationUnit>,
+    fragment: &TranslationUnit,
+) -> ShaderProgram {
     let frag = Graph::from_glsl(fragment);
     let frag_attributes = find_attribute_locations(fragment);
 

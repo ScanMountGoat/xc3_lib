@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Added
 * Added support for reading and writing `.wilut` files to to xc3_tex.
+* Added `output-dependencies-glsl` command to xc3_shader for testing shader database output for a single shader program.
+
+### Changed
+* Adjusted shader database to define output layers recursively to more accurately represent in game shaders.
+* Improved accuracy, code size, and generation time for xc3_wgpu shader generation.
 
 ## 0.19.0 - 2025-04-03
 ### Added
