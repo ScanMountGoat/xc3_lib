@@ -1,7 +1,6 @@
 use std::{collections::BTreeMap, io::Cursor, path::Path};
 
 use binrw::{binrw, BinRead, BinReaderExt, BinResult, BinWrite, BinWriterExt, NullString};
-use indexmap::IndexSet;
 use smol_str::ToSmolStr;
 use varint_rs::{VarintReader, VarintWriter};
 
@@ -9,6 +8,9 @@ use super::{
     AttributeDependency, BufferDependency, Dependency, Layer, LayerBlendMode, LayerValue,
     OutputDependencies, ProgramHash, ShaderProgram, TexCoord, TexCoordParams, TextureDependency,
 };
+
+// Faster than the default hash implementation.
+type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
 
 // Create a separate optimized representation for on disk.
 #[binrw]
@@ -313,10 +315,10 @@ impl ShaderDatabaseIndexed {
     }
 
     pub fn from_programs(programs: BTreeMap<ProgramHash, ShaderProgram>) -> Self {
-        let mut dependency_to_index = IndexSet::new();
-        let mut buffer_dependency_to_index = IndexSet::new();
-        let mut layer_value_to_index = IndexSet::new();
-        let mut tex_coord_to_index = IndexSet::new();
+        let mut dependency_to_index = IndexSet::default();
+        let mut buffer_dependency_to_index = IndexSet::default();
+        let mut layer_value_to_index = IndexSet::default();
+        let mut tex_coord_to_index = IndexSet::default();
 
         let mut database = Self::default();
 
@@ -337,10 +339,10 @@ impl ShaderDatabaseIndexed {
 
     pub fn merge(&self, other: &Self) -> Self {
         // TODO: reuse existing indices when merging?
-        let mut dependency_to_index = IndexSet::new();
-        let mut buffer_dependency_to_index = IndexSet::new();
-        let mut layer_value_to_index = IndexSet::new();
-        let mut tex_coord_to_index = IndexSet::new();
+        let mut dependency_to_index = IndexSet::default();
+        let mut buffer_dependency_to_index = IndexSet::default();
+        let mut layer_value_to_index = IndexSet::default();
+        let mut tex_coord_to_index = IndexSet::default();
 
         let mut merged = Self::default();
 
