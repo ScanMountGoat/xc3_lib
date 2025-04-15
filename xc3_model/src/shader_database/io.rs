@@ -43,6 +43,10 @@ pub struct ShaderDatabaseIndexed {
     #[bw(write_with = write_count)]
     layer_values: Vec<LayerValueIndexed>,
 
+    #[br(parse_with = parse_count)]
+    #[bw(write_with = write_count)]
+    tex_coords: Vec<TexCoordIndexed>,
+
     // Storing multiple string lists enables 8-bit instead of 16-bit indices.
     #[br(parse_with = parse_count)]
     #[bw(write_with = write_count)]
@@ -253,7 +257,7 @@ struct TextureDependencyIndexed {
 
     #[br(parse_with = parse_count)]
     #[bw(write_with = write_count)]
-    texcoords: Vec<TexCoordIndexed>,
+    texcoords: Vec<VarInt>,
 }
 
 #[binrw]
@@ -312,6 +316,7 @@ impl ShaderDatabaseIndexed {
         let mut dependency_to_index = IndexSet::new();
         let mut buffer_dependency_to_index = IndexSet::new();
         let mut layer_value_to_index = IndexSet::new();
+        let mut tex_coord_to_index = IndexSet::new();
 
         let mut database = Self::default();
 
@@ -322,6 +327,7 @@ impl ShaderDatabaseIndexed {
                 &mut dependency_to_index,
                 &mut buffer_dependency_to_index,
                 &mut layer_value_to_index,
+                &mut tex_coord_to_index,
             );
             database.programs.insert(hash.0, program);
         }
@@ -330,9 +336,11 @@ impl ShaderDatabaseIndexed {
     }
 
     pub fn merge(&self, other: &Self) -> Self {
+        // TODO: reuse existing indices when merging?
         let mut dependency_to_index = IndexSet::new();
         let mut buffer_dependency_to_index = IndexSet::new();
         let mut layer_value_to_index = IndexSet::new();
+        let mut tex_coord_to_index = IndexSet::new();
 
         let mut merged = Self::default();
 
@@ -344,6 +352,7 @@ impl ShaderDatabaseIndexed {
                 &mut dependency_to_index,
                 &mut buffer_dependency_to_index,
                 &mut layer_value_to_index,
+                &mut tex_coord_to_index,
             );
             merged.programs.insert(*hash, indexed);
         }
@@ -355,6 +364,7 @@ impl ShaderDatabaseIndexed {
                 &mut dependency_to_index,
                 &mut buffer_dependency_to_index,
                 &mut layer_value_to_index,
+                &mut tex_coord_to_index,
             );
             merged.programs.insert(*hash, indexed);
         }
@@ -368,6 +378,7 @@ impl ShaderDatabaseIndexed {
         dependency_to_index: &mut IndexSet<Dependency>,
         buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
         layer_value_to_index: &mut IndexSet<LayerValue>,
+        tex_coord_to_index: &mut IndexSet<TexCoord>,
     ) -> ShaderProgramIndexed {
         ShaderProgramIndexed {
             output_dependencies: p
@@ -386,6 +397,7 @@ impl ShaderDatabaseIndexed {
                                         d,
                                         dependency_to_index,
                                         buffer_dependency_to_index,
+                                        tex_coord_to_index,
                                     )
                                 })
                                 .collect(),
@@ -398,6 +410,7 @@ impl ShaderDatabaseIndexed {
                                         dependency_to_index,
                                         buffer_dependency_to_index,
                                         layer_value_to_index,
+                                        tex_coord_to_index,
                                     )
                                 })
                                 .collect(),
@@ -406,8 +419,13 @@ impl ShaderDatabaseIndexed {
                 })
                 .collect(),
             outline_width: OptVarInt(p.outline_width.map(|d| {
-                self.add_dependency(d, dependency_to_index, buffer_dependency_to_index)
-                    .0
+                self.add_dependency(
+                    d,
+                    dependency_to_index,
+                    buffer_dependency_to_index,
+                    tex_coord_to_index,
+                )
+                .0
             })),
         }
     }
@@ -418,18 +436,21 @@ impl ShaderDatabaseIndexed {
         dependency_to_index: &mut IndexSet<Dependency>,
         buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
         layer_value_to_index: &mut IndexSet<LayerValue>,
+        tex_coord_to_index: &mut IndexSet<TexCoord>,
     ) -> LayerIndexed {
         LayerIndexed {
             value: self.add_layer_value(
                 dependency_to_index,
                 buffer_dependency_to_index,
                 layer_value_to_index,
+                tex_coord_to_index,
                 &l.value,
             ),
             ratio: self.add_layer_value(
                 dependency_to_index,
                 buffer_dependency_to_index,
                 layer_value_to_index,
+                tex_coord_to_index,
                 &l.ratio,
             ),
             blend_mode: l.blend_mode.into(),
@@ -442,6 +463,7 @@ impl ShaderDatabaseIndexed {
         dependency_to_index: &mut IndexSet<Dependency>,
         buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
         layer_value_to_index: &mut IndexSet<LayerValue>,
+        tex_coord_to_index: &mut IndexSet<TexCoord>,
         value: &LayerValue,
     ) -> VarInt {
         let index = match layer_value_to_index.get_index_of(value) {
@@ -452,6 +474,7 @@ impl ShaderDatabaseIndexed {
                         d.clone(),
                         dependency_to_index,
                         buffer_dependency_to_index,
+                        tex_coord_to_index,
                     )),
                     LayerValue::Layers(layers) => LayerValueIndexed::Layers(
                         layers
@@ -462,6 +485,7 @@ impl ShaderDatabaseIndexed {
                                     dependency_to_index,
                                     buffer_dependency_to_index,
                                     layer_value_to_index,
+                                    tex_coord_to_index,
                                 )
                             })
                             .collect(),
@@ -485,6 +509,7 @@ impl ShaderDatabaseIndexed {
         d: Dependency,
         dependency_to_index: &mut IndexSet<Dependency>,
         buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
+        tex_coord_to_index: &mut IndexSet<TexCoord>,
     ) -> VarInt {
         let index = match dependency_to_index.get_index_of(&d) {
             Some(index) => index,
@@ -493,6 +518,7 @@ impl ShaderDatabaseIndexed {
                     d.clone(),
                     dependency_to_index,
                     buffer_dependency_to_index,
+                    tex_coord_to_index,
                 );
 
                 let index = self.dependencies.len();
@@ -592,28 +618,7 @@ impl ShaderDatabaseIndexed {
                 texcoords: t
                     .texcoords
                     .iter()
-                    .map(|coord| TexCoord {
-                        name: self.attribute_names[coord.name.0].to_smolstr(),
-                        channel: coord.channel.into(),
-                        params: match coord.params {
-                            TexCoordParamsIndexed::None => None,
-                            TexCoordParamsIndexed::Scale(s) => Some(TexCoordParams::Scale(
-                                self.buffer_dependency_from_indexed(s),
-                            )),
-                            TexCoordParamsIndexed::Matrix(m) => Some(TexCoordParams::Matrix(
-                                m.map(|s| self.buffer_dependency_from_indexed(s)),
-                            )),
-                            TexCoordParamsIndexed::Parallax {
-                                mask_a,
-                                mask_b,
-                                ratio,
-                            } => Some(TexCoordParams::Parallax {
-                                mask_a: self.dependency_from_indexed(mask_a),
-                                mask_b: self.dependency_from_indexed(mask_b),
-                                ratio: self.buffer_dependency_from_indexed(ratio),
-                            }),
-                        },
-                    })
+                    .map(|coord| self.tex_coord_from_indexed(*coord))
                     .collect(),
             }),
             DependencyIndexed::Attribute(a) => Dependency::Attribute(AttributeDependency {
@@ -628,6 +633,7 @@ impl ShaderDatabaseIndexed {
         d: Dependency,
         dependency_to_index: &mut IndexSet<Dependency>,
         buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
+        tex_coord_to_index: &mut IndexSet<TexCoord>,
     ) -> DependencyIndexed {
         match d {
             Dependency::Constant(c) => DependencyIndexed::Constant(c.0),
@@ -640,40 +646,13 @@ impl ShaderDatabaseIndexed {
                 texcoords: t
                     .texcoords
                     .into_iter()
-                    .map(|t| TexCoordIndexed {
-                        name: add_string(&mut self.attribute_names, &t.name),
-                        channel: t.channel.into(),
-                        params: t
-                            .params
-                            .map(|params| match params {
-                                TexCoordParams::Scale(s) => TexCoordParamsIndexed::Scale(
-                                    self.add_buffer_dependency(s, buffer_dependency_to_index),
-                                ),
-                                TexCoordParams::Matrix(m) => {
-                                    TexCoordParamsIndexed::Matrix(m.map(|s| {
-                                        self.add_buffer_dependency(s, buffer_dependency_to_index)
-                                    }))
-                                }
-                                TexCoordParams::Parallax {
-                                    mask_a,
-                                    mask_b,
-                                    ratio,
-                                } => TexCoordParamsIndexed::Parallax {
-                                    mask_a: self.add_dependency(
-                                        mask_a,
-                                        dependency_to_index,
-                                        buffer_dependency_to_index,
-                                    ),
-                                    mask_b: self.add_dependency(
-                                        mask_b,
-                                        dependency_to_index,
-                                        buffer_dependency_to_index,
-                                    ),
-                                    ratio: self
-                                        .add_buffer_dependency(ratio, buffer_dependency_to_index),
-                                },
-                            })
-                            .unwrap_or(TexCoordParamsIndexed::None),
+                    .map(|t| {
+                        self.add_tex_coord(
+                            t,
+                            dependency_to_index,
+                            buffer_dependency_to_index,
+                            tex_coord_to_index,
+                        )
                     })
                     .collect(),
             }),
@@ -681,6 +660,104 @@ impl ShaderDatabaseIndexed {
                 name: add_string(&mut self.attribute_names, &a.name),
                 channel: a.channel.into(),
             }),
+        }
+    }
+
+    fn add_tex_coord(
+        &mut self,
+        t: TexCoord,
+        dependency_to_index: &mut IndexSet<Dependency>,
+        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
+        tex_coord_to_index: &mut IndexSet<TexCoord>,
+    ) -> VarInt {
+        let index = match tex_coord_to_index.get_index_of(&t) {
+            Some(index) => index,
+            None => {
+                let tex_coord = self.tex_coord_indexed(
+                    t.clone(),
+                    dependency_to_index,
+                    buffer_dependency_to_index,
+                    tex_coord_to_index,
+                );
+
+                let index = self.tex_coords.len();
+
+                self.tex_coords.push(tex_coord);
+                tex_coord_to_index.insert(t);
+
+                index
+            }
+        };
+
+        VarInt(index)
+    }
+
+    fn tex_coord_from_indexed(&self, tex_coord: VarInt) -> TexCoord {
+        let coord = &self.tex_coords[tex_coord.0];
+        TexCoord {
+            name: self.attribute_names[coord.name.0].to_smolstr(),
+            channel: coord.channel.into(),
+            params: match coord.params {
+                TexCoordParamsIndexed::None => None,
+                TexCoordParamsIndexed::Scale(s) => Some(TexCoordParams::Scale(
+                    self.buffer_dependency_from_indexed(s),
+                )),
+                TexCoordParamsIndexed::Matrix(m) => Some(TexCoordParams::Matrix(
+                    m.map(|s| self.buffer_dependency_from_indexed(s)),
+                )),
+                TexCoordParamsIndexed::Parallax {
+                    mask_a,
+                    mask_b,
+                    ratio,
+                } => Some(TexCoordParams::Parallax {
+                    mask_a: self.dependency_from_indexed(mask_a),
+                    mask_b: self.dependency_from_indexed(mask_b),
+                    ratio: self.buffer_dependency_from_indexed(ratio),
+                }),
+            },
+        }
+    }
+
+    fn tex_coord_indexed(
+        &mut self,
+        t: TexCoord,
+        dependency_to_index: &mut IndexSet<Dependency>,
+        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
+        tex_coord_to_index: &mut IndexSet<TexCoord>,
+    ) -> TexCoordIndexed {
+        TexCoordIndexed {
+            name: add_string(&mut self.attribute_names, &t.name),
+            channel: t.channel.into(),
+            params: t
+                .params
+                .map(|params| match params {
+                    TexCoordParams::Scale(s) => TexCoordParamsIndexed::Scale(
+                        self.add_buffer_dependency(s, buffer_dependency_to_index),
+                    ),
+                    TexCoordParams::Matrix(m) => TexCoordParamsIndexed::Matrix(
+                        m.map(|s| self.add_buffer_dependency(s, buffer_dependency_to_index)),
+                    ),
+                    TexCoordParams::Parallax {
+                        mask_a,
+                        mask_b,
+                        ratio,
+                    } => TexCoordParamsIndexed::Parallax {
+                        mask_a: self.add_dependency(
+                            mask_a,
+                            dependency_to_index,
+                            buffer_dependency_to_index,
+                            tex_coord_to_index,
+                        ),
+                        mask_b: self.add_dependency(
+                            mask_b,
+                            dependency_to_index,
+                            buffer_dependency_to_index,
+                            tex_coord_to_index,
+                        ),
+                        ratio: self.add_buffer_dependency(ratio, buffer_dependency_to_index),
+                    },
+                })
+                .unwrap_or(TexCoordParamsIndexed::None),
         }
     }
 
