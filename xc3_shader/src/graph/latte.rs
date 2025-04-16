@@ -1,7 +1,128 @@
-use pest::{iterators::Pair, Parser};
+use from_pest::FromPest;
+use pest::{
+    iterators::{Pair, Pairs},
+    Parser, Span,
+};
+use pest_ast::FromPest;
 use pest_derive::Parser;
 
 use super::*;
+
+// Grammar adapted from the cpp-peglib grammer used for decaf-emu:
+// https://github.com/decaf-emu/decaf-emu/blob/master/tools/latte-assembler/resources/grammar.txt
+#[derive(Parser)]
+#[grammar = "graph/latte.pest"]
+struct LatteParser;
+
+fn parse_int(span: Span) -> usize {
+    span.as_str().parse().unwrap()
+}
+
+fn span_to_string(span: Span) -> String {
+    span.as_str().to_string()
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::program))]
+struct Program {
+    instructions: Vec<Instruction>,
+    end_of_program: EndOfProgram,
+    eoi: EOI,
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::instruction))]
+enum Instruction {
+    CfInst(CfInst),
+    CfExpInst(CfExpInst),
+    TexClause(TexClause),
+    AluClause(AluClause),
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::cf_inst))]
+struct CfInst {
+    inst_count: InstCount,
+    cf_opcode: CfOpcode,
+    cf_inst_properties: CfInstProperties,
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::cf_opcode))]
+struct CfOpcode;
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::cf_inst_properties))]
+struct CfInstProperties;
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::cf_exp_inst))]
+struct CfExpInst {
+    inst_count: InstCount,
+    exp_opcode: ExpOpcode,
+    // exp_target: ExpTarget,
+    exp_src: ExpSrc,
+    cf_inst_properties: CfInstProperties,
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::exp_opcode))]
+struct ExpOpcode;
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::exp_src))]
+struct ExpSrc;
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::tex_clause))]
+struct TexClause {
+    inst_count: InstCount,
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_clause))]
+struct AluClause {
+    inst_count: InstCount,
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::inst_count))]
+struct InstCount {
+    #[pest_ast(outer(with(parse_int)))]
+    value: usize,
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::tex_dst))]
+struct TexDst {
+    gpr: Gpr,
+    tex_rel: Option<TexRel>,
+    four_comp_swizzle: FourCompSwizzle,
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::tex_rel))]
+struct TexRel;
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::four_comp_swizzle))]
+struct FourCompSwizzle(#[pest_ast(outer(with(span_to_string)))] String);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::gpr))]
+struct Gpr(Number);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::number))]
+struct Number(#[pest_ast(outer(with(parse_int)))] usize);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::end_of_program))]
+struct EndOfProgram;
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::EOI))]
+struct EOI;
 
 #[derive(Default)]
 struct Nodes {
@@ -32,13 +153,12 @@ impl Graph {
             return Graph::default();
         }
 
-        let program = LatteParser::parse(Rule::program, &asm)
-            .unwrap()
-            .next()
-            .unwrap();
+        let mut program = LatteParser::parse(Rule::program, &asm).unwrap();
+        // TODO: use strongly typed API for parsing entire program.
 
         let mut nodes = Nodes::default();
 
+        let program = program.next().unwrap();
         for pair in program.into_inner() {
             if pair.as_rule() == Rule::instruction {
                 let inst = pair.into_inner().next().unwrap();
@@ -715,14 +835,12 @@ fn tex_inst_node(tex_instruction: Pair<Rule>, nodes: &Nodes) -> Option<Vec<Node>
 }
 
 fn texture_inst_dest(dest: Pair<Rule>) -> Option<(String, String)> {
-    // TODO: Handle other cases from grammar.
-    let mut inner = dest.into_inner();
-    let gpr = inner.next()?.as_str();
-    if inner.peek().map(|p| p.as_rule()) == Some(Rule::tex_rel) {
-        inner.next().unwrap();
-    }
-    let channels = four_comp_swizzle(inner);
-    Some((gpr.to_string(), channels.to_string()))
+    TexDst::from_pest(&mut Pairs::single(dest)).ok().map(|dst| {
+        (
+            format!("R{}", dst.gpr.0 .0),
+            dst.four_comp_swizzle.0.trim_start_matches('.').to_string(),
+        )
+    })
 }
 
 fn texture_inst_src(dest: Pair<Rule>, nodes: &Nodes) -> Option<Expr> {
@@ -745,12 +863,6 @@ fn texture_inst_src(dest: Pair<Rule>, nodes: &Nodes) -> Option<Expr> {
         channel: None,
     })
 }
-
-// Grammar adapted from the cpp-peglib grammer used for decaf-emu:
-// https://github.com/decaf-emu/decaf-emu/blob/master/tools/latte-assembler/resources/grammar.txt
-#[derive(Parser)]
-#[grammar = "graph/latte.pest"]
-struct LatteParser;
 
 #[cfg(test)]
 mod tests {
