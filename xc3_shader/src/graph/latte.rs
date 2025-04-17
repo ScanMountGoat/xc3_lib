@@ -202,7 +202,7 @@ struct TexProperties;
 struct AluClause {
     inst_count: InstCount,
     alu_clause_inst_type: AluClauseInstType,
-    // alu_clause_properties: AluClauseProperties,
+    alu_clause_properties: AluClauseProperties,
     groups: Vec<AluGroup>,
 }
 
@@ -229,7 +229,7 @@ impl<'pest> FromPest<'pest> for AluClauseProperty {
         pest: &mut Pairs<'pest, Self::Rule>,
     ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
         // TODO: error type?
-        let next = pest.peek().ok_or(ConversionError::NoMatch)?;
+        let next = pest.next().ok_or(ConversionError::NoMatch)?;
         match next.as_rule() {
             Rule::addr
             | Rule::cnt
@@ -430,7 +430,7 @@ impl<'pest> FromPest<'pest> for LiteralInner {
         pest: &mut Pairs<'pest, Self::Rule>,
     ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
         let p1 = pest.next().unwrap();
-        let p2 = pest.peek();
+        let p2 = pest.next();
 
         match (p1.as_rule(), p2.as_ref().map(|p| p.as_rule())) {
             (Rule::hex_number, None) => Ok(Self::Hex(p1.as_str().to_string())),
@@ -504,7 +504,34 @@ struct AluOpCode3(#[pest_ast(outer(with(span_to_string)))] String);
 
 #[derive(Debug, FromPest)]
 #[pest_ast(rule(Rule::alu_properties))]
-struct AluProperties;
+struct AluProperties(Vec<AluProperty>);
+
+#[derive(Debug)]
+enum AluProperty {
+    Unk(Rule),
+}
+
+// TODO: Is there a way to derive this?
+impl<'pest> FromPest<'pest> for AluProperty {
+    type Rule = Rule;
+
+    type FatalError = Void;
+
+    fn from_pest(
+        pest: &mut Pairs<'pest, Self::Rule>,
+    ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
+        // TODO: error type?
+        let next = pest.next().ok_or(ConversionError::NoMatch)?;
+        match next.as_rule() {
+            Rule::bank_swizzle
+            | Rule::update_exec_mask
+            | Rule::update_pred
+            | Rule::pred_sel
+            | Rule::clamp => Ok(Self::Unk(next.as_rule())),
+            _ => Err(ConversionError::NoMatch),
+        }
+    }
+}
 
 #[derive(Debug, FromPest)]
 #[pest_ast(rule(Rule::inst_count))]
@@ -701,7 +728,6 @@ fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Nodes) {
 
         let scalars: Vec<_> = inner
             .map(|alu_scalar| {
-                dbg!(&alu_scalar);
                 let scalar = AluScalar::from_pest(&mut Pairs::single(alu_scalar.clone())).unwrap();
                 match scalar {
                     AluScalar::Scalar0(s) => {
@@ -1016,13 +1042,13 @@ fn alu_src_expr(source: AluSrc, nodes: &Nodes) -> Expr {
         AluSrcValueInner::ConstantCache0(c0) => Expr::Parameter {
             name: "KC0".to_string(),
             field: None,
-            index: Some(Box::new(Expr::Uint(c0.0 .0 as u32))),
+            index: Some(Box::new(Expr::Int(c0.0 .0 as i32))),
             channel,
         },
         AluSrcValueInner::ConstantCache1(c1) => Expr::Parameter {
             name: "KC1".to_string(),
             field: None,
-            index: Some(Box::new(Expr::Uint(c1.0 .0 as u32))),
+            index: Some(Box::new(Expr::Int(c1.0 .0 as i32))),
             channel,
         },
         AluSrcValueInner::ConstantFile(constant_file) => todo!(),
