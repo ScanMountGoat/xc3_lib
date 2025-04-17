@@ -1,4 +1,4 @@
-use from_pest::FromPest;
+use from_pest::{ConversionError, FromPest, Void};
 use pest::{
     iterators::{Pair, Pairs},
     Parser, Span,
@@ -15,13 +15,14 @@ use super::*;
 struct LatteParser;
 
 fn parse_int(span: Span) -> usize {
-    span.as_str().parse().unwrap()
+    span.as_str().trim().parse().unwrap()
 }
 
 fn span_to_string(span: Span) -> String {
     span.as_str().to_string()
 }
 
+// TODO: simplify field names
 #[derive(Debug, FromPest)]
 #[pest_ast(rule(Rule::program))]
 struct Program {
@@ -53,25 +54,94 @@ struct CfOpcode;
 
 #[derive(Debug, FromPest)]
 #[pest_ast(rule(Rule::cf_inst_properties))]
-struct CfInstProperties;
+struct CfInstProperties(Vec<CfInstProperty>);
+
+#[derive(Debug)]
+enum CfInstProperty {
+    Burstcnt(Burstcnt),
+    Unk(Rule),
+}
+
+// TODO: Is there a way to derive this?
+impl<'pest> FromPest<'pest> for CfInstProperty {
+    type Rule = Rule;
+
+    type FatalError = Void;
+
+    fn from_pest(
+        pest: &mut Pairs<'pest, Self::Rule>,
+    ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
+        // TODO: error type?
+        let next = pest.peek().ok_or(ConversionError::NoMatch)?;
+        match next.as_rule() {
+            Rule::burstcnt => Burstcnt::from_pest(pest).map(Self::Burstcnt),
+            _ => Ok(Self::Unk(next.as_rule())),
+        }
+    }
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::burstcnt))]
+struct Burstcnt(Number);
 
 #[derive(Debug, FromPest)]
 #[pest_ast(rule(Rule::cf_exp_inst))]
 struct CfExpInst {
     inst_count: InstCount,
     exp_opcode: ExpOpcode,
-    // exp_target: ExpTarget,
+    exp_target: ExpTarget,
     exp_src: ExpSrc,
     cf_inst_properties: CfInstProperties,
 }
 
 #[derive(Debug, FromPest)]
 #[pest_ast(rule(Rule::exp_opcode))]
-struct ExpOpcode;
+struct ExpOpcode(#[pest_ast(outer(with(span_to_string)))] String);
+
+#[derive(Debug)]
+enum ExpTarget {
+    ExpPixTarget(ExpPixTarget),
+    ExpPosTarget(ExpPosTarget),
+    ExpParamTarget(ExpParamTarget),
+}
+
+// TODO: Is there a way to derive this?
+impl<'pest> FromPest<'pest> for ExpTarget {
+    type Rule = Rule;
+
+    type FatalError = Void;
+
+    fn from_pest(
+        pest: &mut Pairs<'pest, Self::Rule>,
+    ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
+        let next = pest.peek().unwrap();
+        match next.as_rule() {
+            Rule::exp_pix_target => ExpPixTarget::from_pest(pest).map(Self::ExpPixTarget),
+            Rule::exp_pos_target => ExpPosTarget::from_pest(pest).map(Self::ExpPosTarget),
+            Rule::exp_param_target => ExpParamTarget::from_pest(pest).map(Self::ExpParamTarget),
+            _ => todo!(),
+        }
+    }
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::exp_pix_target))]
+struct ExpPixTarget(Number);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::exp_pos_target))]
+struct ExpPosTarget(Number);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::exp_param_target))]
+struct ExpParamTarget(Number);
 
 #[derive(Debug, FromPest)]
 #[pest_ast(rule(Rule::exp_src))]
-struct ExpSrc;
+struct ExpSrc {
+    gpr: Gpr, // TODO: Gpr or GprRel
+    four_comp_swizzle: FourCompSwizzle,
+}
 
 #[derive(Debug, FromPest)]
 #[pest_ast(rule(Rule::tex_clause))]
@@ -80,17 +150,28 @@ struct TexClause {
 }
 
 #[derive(Debug, FromPest)]
-#[pest_ast(rule(Rule::alu_clause))]
-struct AluClause {
+#[pest_ast(rule(Rule::tex_inst))]
+struct TexInst {
     inst_count: InstCount,
+    tex_opcode: TexOpcode,
+    tex_dst: TexDst,
+    tex_src: TexSrc,
+    tex_resource_id: TexResourceId,
+    tex_sampler_id: TexSamplerId,
+    tex_properties: TexProperties,
 }
 
 #[derive(Debug, FromPest)]
-#[pest_ast(rule(Rule::inst_count))]
-struct InstCount {
-    #[pest_ast(outer(with(parse_int)))]
-    value: usize,
-}
+#[pest_ast(rule(Rule::tex_opcode))]
+struct TexOpcode(#[pest_ast(outer(with(span_to_string)))] String);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::tex_resource_id))]
+struct TexResourceId(#[pest_ast(outer(with(span_to_string)))] String);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::tex_sampler_id))]
+struct TexSamplerId(#[pest_ast(outer(with(span_to_string)))] String);
 
 #[derive(Debug, FromPest)]
 #[pest_ast(rule(Rule::tex_dst))]
@@ -101,12 +182,341 @@ struct TexDst {
 }
 
 #[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::tex_src))]
+struct TexSrc {
+    gpr: Gpr,
+    tex_rel: Option<TexRel>,
+    four_comp_swizzle: FourCompSwizzle,
+}
+
+#[derive(Debug, FromPest)]
 #[pest_ast(rule(Rule::tex_rel))]
 struct TexRel;
 
 #[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::tex_properties))]
+struct TexProperties;
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_clause))]
+struct AluClause {
+    inst_count: InstCount,
+    alu_clause_inst_type: AluClauseInstType,
+    // alu_clause_properties: AluClauseProperties,
+    groups: Vec<AluGroup>,
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_clause_inst_type))]
+struct AluClauseInstType;
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_clause_properties))]
+struct AluClauseProperties(Vec<AluClauseProperty>);
+
+#[derive(Debug)]
+enum AluClauseProperty {
+    Unk(Rule),
+}
+
+// TODO: Is there a way to derive this?
+impl<'pest> FromPest<'pest> for AluClauseProperty {
+    type Rule = Rule;
+
+    type FatalError = Void;
+
+    fn from_pest(
+        pest: &mut Pairs<'pest, Self::Rule>,
+    ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
+        // TODO: error type?
+        let next = pest.peek().ok_or(ConversionError::NoMatch)?;
+        match next.as_rule() {
+            Rule::addr
+            | Rule::cnt
+            | Rule::kcache0
+            | Rule::kcache1
+            | Rule::uses_waterfall
+            | Rule::whole_quad_mode
+            | Rule::no_barrier => Ok(Self::Unk(next.as_rule())),
+            _ => Err(ConversionError::NoMatch),
+        }
+    }
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_group))]
+struct AluGroup {
+    inst_count: InstCount,
+    scalars: Vec<AluScalar>,
+}
+
+#[derive(Debug)]
+enum AluScalar {
+    Scalar0(AluScalar0),
+    Scalar1(AluScalar1),
+    Scalar2(AluScalar2),
+    Scalar3(AluScalar3),
+}
+
+// TODO: Is there a way to derive this?
+impl<'pest> FromPest<'pest> for AluScalar {
+    type Rule = Rule;
+
+    type FatalError = Void;
+
+    fn from_pest(
+        pest: &mut Pairs<'pest, Self::Rule>,
+    ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
+        let next = pest.peek().unwrap();
+        match next.as_rule() {
+            Rule::alu_scalar0 => AluScalar0::from_pest(pest).map(Self::Scalar0),
+            Rule::alu_scalar1 => AluScalar1::from_pest(pest).map(Self::Scalar1),
+            Rule::alu_scalar2 => AluScalar2::from_pest(pest).map(Self::Scalar2),
+            Rule::alu_scalar3 => AluScalar3::from_pest(pest).map(Self::Scalar3),
+            _ => todo!(),
+        }
+    }
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_scalar0))]
+struct AluScalar0 {
+    alu_unit: AluUnit,
+    opcode: AluOpCode0,
+    modifier: Option<AluOutputModifier>,
+    dst: AluDst,
+    properties: AluProperties,
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_scalar1))]
+struct AluScalar1 {
+    alu_unit: AluUnit,
+    opcode: AluOpCode1,
+    modifier: Option<AluOutputModifier>,
+    dst: AluDst,
+    src1: AluSrc,
+    properties: AluProperties,
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_scalar2))]
+struct AluScalar2 {
+    alu_unit: AluUnit,
+    opcode: AluOpCode2,
+    modifier: Option<AluOutputModifier>,
+    dst: AluDst,
+    src1: AluSrc,
+    src2: AluSrc,
+    properties: AluProperties,
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_scalar3))]
+struct AluScalar3 {
+    alu_unit: AluUnit,
+    opcode: AluOpCode3,
+    dst: AluDst,
+    src1: AluSrc,
+    src2: AluSrc,
+    src3: AluSrc,
+    properties: AluProperties,
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::write_mask))]
+struct WriteMask(#[pest_ast(outer(with(span_to_string)))] String);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_dst))]
+struct AluDst(AluDstInner);
+
+#[derive(Debug)]
+enum AluDstInner {
+    Value {
+        gpr: Gpr,
+        alu_rel: Option<AluRel>,
+        one_comp_swizzle: Option<OneCompSwizzle>,
+    },
+    WriteMask(WriteMask),
+}
+
+// TODO: Is there a way to derive this?
+impl<'pest> FromPest<'pest> for AluDstInner {
+    type Rule = Rule;
+
+    type FatalError = Void;
+
+    fn from_pest(
+        pest: &mut Pairs<'pest, Self::Rule>,
+    ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
+        let next = pest.peek().unwrap();
+        match next.as_rule() {
+            Rule::write_mask => WriteMask::from_pest(pest).map(Self::WriteMask),
+            Rule::gpr => Ok(Self::Value {
+                gpr: Gpr::from_pest(pest)?,
+                alu_rel: AluRel::from_pest(pest).ok(),
+                one_comp_swizzle: OneCompSwizzle::from_pest(pest).ok(),
+            }),
+            _ => todo!(),
+        }
+    }
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_src))]
+struct AluSrc {
+    negate: Option<Negate>,
+    src_value: AluSrcValue, // TODO: abs or src value
+    alu_rel: Option<AluRel>,
+    one_comp_swizzle: Option<OneCompSwizzle>,
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_src_value))]
+struct AluSrcValue(AluSrcValueInner);
+
+#[derive(Debug)]
+enum AluSrcValueInner {
+    Gpr(Gpr),
+    ConstantCache0(ConstantCache0),
+    ConstantCache1(ConstantCache1),
+    ConstantFile(ConstantFile),
+    Literal(Literal),
+    PreviousScalar(PreviousScalar),
+    PreviousVector(PreviousVector),
+}
+
+// TODO: Is there a way to derive this?
+impl<'pest> FromPest<'pest> for AluSrcValueInner {
+    type Rule = Rule;
+
+    type FatalError = Void;
+
+    fn from_pest(
+        pest: &mut Pairs<'pest, Self::Rule>,
+    ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
+        let next = pest.peek().unwrap();
+        match next.as_rule() {
+            Rule::gpr => Gpr::from_pest(pest).map(Self::Gpr),
+            Rule::constant_cache0 => ConstantCache0::from_pest(pest).map(Self::ConstantCache0),
+            Rule::constant_cache1 => ConstantCache1::from_pest(pest).map(Self::ConstantCache1),
+            Rule::constant_file => ConstantFile::from_pest(pest).map(Self::ConstantFile),
+            Rule::literal => Literal::from_pest(pest).map(Self::Literal),
+            Rule::previous_scalar => PreviousScalar::from_pest(pest).map(Self::PreviousScalar),
+            Rule::previous_vector => PreviousVector::from_pest(pest).map(Self::PreviousVector),
+            _ => todo!(),
+        }
+    }
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::literal))]
+struct Literal(LiteralInner);
+
+#[derive(Debug)]
+enum LiteralInner {
+    Hex(String),
+    Float(String),
+}
+
+// TODO: Is there a way to derive this?
+impl<'pest> FromPest<'pest> for LiteralInner {
+    type Rule = Rule;
+
+    type FatalError = Void;
+
+    fn from_pest(
+        pest: &mut Pairs<'pest, Self::Rule>,
+    ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
+        let p1 = pest.next().unwrap();
+        let p2 = pest.peek();
+
+        match (p1.as_rule(), p2.as_ref().map(|p| p.as_rule())) {
+            (Rule::hex_number, None) => Ok(Self::Hex(p1.as_str().to_string())),
+            (Rule::float, None) => Ok(Self::Float(p1.as_str().to_string())),
+            (Rule::hex_number, Some(Rule::float)) => {
+                Ok(Self::Float(p2.unwrap().as_str().to_string()))
+            }
+            _ => todo!(),
+        }
+    }
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::constant_cache0))]
+struct ConstantCache0(Number);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::constant_cache1))]
+struct ConstantCache1(Number);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::constant_file))]
+struct ConstantFile(Number);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::previous_scalar))]
+struct PreviousScalar(Number);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::previous_vector))]
+struct PreviousVector(Number);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_abs_src_value))]
+struct AluAbsSrcValue {
+    value: AluSrcValue,
+    one_comp_swizzle: Option<OneCompSwizzle>,
+}
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_rel))]
+struct AluRel;
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_unit))]
+struct AluUnit(#[pest_ast(outer(with(span_to_string)))] String);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::negate))]
+struct Negate;
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_output_modifier))]
+struct AluOutputModifier(#[pest_ast(outer(with(span_to_string)))] String);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_opcode0))]
+struct AluOpCode0(#[pest_ast(outer(with(span_to_string)))] String);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_opcode1))]
+struct AluOpCode1(#[pest_ast(outer(with(span_to_string)))] String);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_opcode2))]
+struct AluOpCode2(#[pest_ast(outer(with(span_to_string)))] String);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_opcode3))]
+struct AluOpCode3(#[pest_ast(outer(with(span_to_string)))] String);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::alu_properties))]
+struct AluProperties;
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::inst_count))]
+struct InstCount(Number);
+
+#[derive(Debug, FromPest)]
 #[pest_ast(rule(Rule::four_comp_swizzle))]
 struct FourCompSwizzle(#[pest_ast(outer(with(span_to_string)))] String);
+
+#[derive(Debug, FromPest)]
+#[pest_ast(rule(Rule::one_comp_swizzle))]
+struct OneCompSwizzle(#[pest_ast(outer(with(span_to_string)))] String);
 
 #[derive(Debug, FromPest)]
 #[pest_ast(rule(Rule::gpr))]
@@ -123,6 +533,36 @@ struct EndOfProgram;
 #[derive(Debug, FromPest)]
 #[pest_ast(rule(Rule::EOI))]
 struct EOI;
+
+impl std::fmt::Display for Gpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "R{}", self.0 .0)
+    }
+}
+
+impl std::fmt::Display for PreviousVector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PV{}", self.0 .0)
+    }
+}
+
+impl std::fmt::Display for PreviousScalar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PS{}", self.0 .0)
+    }
+}
+
+impl FourCompSwizzle {
+    fn channels(&self) -> &str {
+        self.0.trim_start_matches('.')
+    }
+}
+
+impl OneCompSwizzle {
+    fn channels(&self) -> &str {
+        self.0.trim_start_matches('.')
+    }
+}
 
 #[derive(Default)]
 struct Nodes {
@@ -182,24 +622,32 @@ impl Graph {
 }
 
 fn add_exp_inst(inst: Pair<Rule>, nodes: &mut Nodes) {
-    let mut inner = inst.into_inner();
-    let inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
-    let _op_code = inner.next().unwrap().as_str();
+    let exp = CfExpInst::from_pest(&mut Pairs::single(inst.clone())).unwrap();
 
-    let target = inner.next().unwrap();
-    let (target_name, target_index) = exp_target(target);
+    let inst_count = exp.inst_count.0 .0;
 
-    let source = inner.next().unwrap();
-    let (source_name, source_index, channels) = exp_src(source).unwrap();
+    let (target_name, target_index) = match exp.exp_target {
+        ExpTarget::ExpPixTarget(t) => ("PIX", t.0 .0),
+        ExpTarget::ExpPosTarget(t) => ("POS", t.0 .0),
+        ExpTarget::ExpParamTarget(t) => ("PARAM", t.0 .0),
+    };
 
-    let mut burst_count = 0;
-    for property in inner {
-        for inner in property.into_inner() {
-            if inner.as_rule() == Rule::burstcnt {
-                burst_count = inner.into_inner().next().unwrap().as_str().parse().unwrap();
+    let source_name = "R";
+    let source_index = exp.exp_src.gpr.0 .0;
+    let channels = exp.exp_src.four_comp_swizzle.channels();
+
+    let burst_count = exp
+        .cf_inst_properties
+        .0
+        .iter()
+        .find_map(|p| {
+            if let CfInstProperty::Burstcnt(burstcnt) = p {
+                Some(burstcnt.0 .0)
+            } else {
+                None
             }
-        }
-    }
+        })
+        .unwrap_or_default();
 
     // BURSTCNT assigns consecutive input and output registers.
     for i in 0..=burst_count {
@@ -234,44 +682,12 @@ fn add_tex_clause(inst: Pair<Rule>, nodes: &mut Nodes) {
     }
 }
 
-struct AluScalar {
+struct AluScalarData {
     alu_unit: char,
     op_code: String,
     output_modifier: Option<String>,
     output: Output,
     sources: Vec<Expr>,
-}
-
-impl AluScalar {
-    fn from_pair(pair: Pair<Rule>, nodes: &Nodes, inst_count: usize, source_count: usize) -> Self {
-        let mut inner = pair.into_inner();
-        let alu_unit = inner.next().unwrap().as_str().chars().next().unwrap(); // xyzwt
-        let op_code = inner.next().unwrap().as_str().to_string();
-
-        // Optional modifier like /2 or *2
-        let output_modifier = inner.peek().and_then(|p| {
-            // Only advance the iterator if it's the expected type.
-            if p.as_rule() == Rule::alu_output_modifier {
-                Some(inner.next().unwrap().as_str().to_string())
-            } else {
-                None
-            }
-        });
-
-        let output = alu_dst_output(inner.next().unwrap(), inst_count, alu_unit);
-        let sources = inner
-            .take(source_count)
-            .map(|p| alu_src_expr(p, nodes))
-            .collect();
-
-        Self {
-            alu_unit,
-            op_code,
-            output_modifier,
-            output,
-            sources,
-        }
-    }
 }
 
 fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Nodes) {
@@ -284,12 +700,55 @@ fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Nodes) {
         let inst_count: usize = inner.next().unwrap().as_str().trim().parse().unwrap();
 
         let scalars: Vec<_> = inner
-            .map(|alu_scalar| match alu_scalar.as_rule() {
-                Rule::alu_scalar0 => AluScalar::from_pair(alu_scalar, nodes, inst_count, 0),
-                Rule::alu_scalar1 => AluScalar::from_pair(alu_scalar, nodes, inst_count, 1),
-                Rule::alu_scalar2 => AluScalar::from_pair(alu_scalar, nodes, inst_count, 2),
-                Rule::alu_scalar3 => AluScalar::from_pair(alu_scalar, nodes, inst_count, 3),
-                _ => unreachable!(),
+            .map(|alu_scalar| {
+                dbg!(&alu_scalar);
+                let scalar = AluScalar::from_pest(&mut Pairs::single(alu_scalar.clone())).unwrap();
+                match scalar {
+                    AluScalar::Scalar0(s) => {
+                        let alu_unit = s.alu_unit.0.chars().next().unwrap();
+                        AluScalarData {
+                            alu_unit,
+                            op_code: s.opcode.0,
+                            output_modifier: s.modifier.map(|m| m.0),
+                            output: alu_dst_output(s.dst, inst_count, alu_unit),
+                            sources: Vec::new(),
+                        }
+                    }
+                    AluScalar::Scalar1(s) => {
+                        let alu_unit = s.alu_unit.0.chars().next().unwrap();
+                        AluScalarData {
+                            alu_unit,
+                            op_code: s.opcode.0,
+                            output_modifier: s.modifier.map(|m| m.0),
+                            output: alu_dst_output(s.dst, inst_count, alu_unit),
+                            sources: vec![alu_src_expr(s.src1, nodes)],
+                        }
+                    }
+                    AluScalar::Scalar2(s) => {
+                        let alu_unit = s.alu_unit.0.chars().next().unwrap();
+                        AluScalarData {
+                            alu_unit,
+                            op_code: s.opcode.0,
+                            output_modifier: s.modifier.map(|m| m.0),
+                            output: alu_dst_output(s.dst, inst_count, alu_unit),
+                            sources: vec![alu_src_expr(s.src1, nodes), alu_src_expr(s.src2, nodes)],
+                        }
+                    }
+                    AluScalar::Scalar3(s) => {
+                        let alu_unit = s.alu_unit.0.chars().next().unwrap();
+                        AluScalarData {
+                            alu_unit,
+                            op_code: s.opcode.0,
+                            output_modifier: None,
+                            output: alu_dst_output(s.dst, inst_count, alu_unit),
+                            sources: vec![
+                                alu_src_expr(s.src1, nodes),
+                                alu_src_expr(s.src2, nodes),
+                                alu_src_expr(s.src3, nodes),
+                            ],
+                        }
+                    }
+                }
             })
             .collect();
 
@@ -316,7 +775,7 @@ fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Nodes) {
 }
 
 fn dot_product_node_index(
-    scalars: &[AluScalar],
+    scalars: &[AluScalarData],
     inst_count: usize,
     nodes: &mut Nodes,
 ) -> Option<usize> {
@@ -360,7 +819,7 @@ fn dot_product_node_index(
     }
 }
 
-fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
+fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
     let output = scalar.output.clone();
     let node_index = match scalar.op_code.as_str() {
         // scalar1
@@ -461,7 +920,7 @@ fn add_scalar(scalar: AluScalar, nodes: &mut Nodes, inst_count: usize) {
 fn add_func(
     func: &str,
     arg_count: usize,
-    scalar: &AluScalar,
+    scalar: &AluScalarData,
     output: Output,
     inst_count: usize,
     nodes: &mut Nodes,
@@ -477,163 +936,105 @@ fn add_func(
     nodes.add_node(node, Some(scalar.alu_unit), inst_count)
 }
 
-fn alu_dst_output(pair: Pair<Rule>, inst_count: usize, alu_unit: char) -> Output {
-    let mut inner = pair.into_inner();
-    if inner.peek().map(|p| p.as_rule()) == Some(Rule::write_mask) {
-        // ____ mask for xyzw writes to a previous vector "PV".
-        // ____ mask for t writes to a previous scalar "PS".
-        match alu_unit {
-            'x' => Output {
-                name: format!("PV{inst_count}"),
-                channel: Some('x'),
-            },
-            'y' => Output {
-                name: format!("PV{inst_count}"),
-                channel: Some('y'),
-            },
-            'z' => Output {
-                name: format!("PV{inst_count}"),
-                channel: Some('z'),
-            },
-            'w' => Output {
-                name: format!("PV{inst_count}"),
-                channel: Some('w'),
-            },
-            't' => Output {
-                name: format!("PS{inst_count}"),
-                channel: None,
-            },
-            _ => unreachable!(),
+fn alu_dst_output(dst: AluDst, inst_count: usize, alu_unit: char) -> Output {
+    match dst.0 {
+        AluDstInner::Value {
+            gpr,
+            alu_rel,
+            one_comp_swizzle,
+        } => {
+            let channel = one_comp_swizzle.and_then(|s| s.channels().chars().next());
+            Output {
+                name: gpr.to_string(),
+                channel,
+            }
         }
-    } else {
-        let gpr = inner.next().unwrap().as_str();
-        if inner.peek().map(|p| p.as_rule()) == Some(Rule::tex_rel) {
-            inner.next().unwrap();
-        }
-        let channel = one_comp_swizzle(inner);
-        Output {
-            name: gpr.to_string(),
-            channel,
+        AluDstInner::WriteMask(write_mask) => {
+            // ____ mask for xyzw writes to a previous vector "PV".
+            // ____ mask for t writes to a previous scalar "PS".
+            match alu_unit {
+                'x' => Output {
+                    name: format!("PV{inst_count}"),
+                    channel: Some('x'),
+                },
+                'y' => Output {
+                    name: format!("PV{inst_count}"),
+                    channel: Some('y'),
+                },
+                'z' => Output {
+                    name: format!("PV{inst_count}"),
+                    channel: Some('z'),
+                },
+                'w' => Output {
+                    name: format!("PV{inst_count}"),
+                    channel: Some('w'),
+                },
+                't' => Output {
+                    name: format!("PS{inst_count}"),
+                    channel: None,
+                },
+                _ => unreachable!(),
+            }
         }
     }
 }
 
 fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Node {
     let channel = output.channel;
-    match modifier {
-        "/2" => Node {
-            output,
-            input: Expr::Binary(
-                BinaryOp::Div,
-                Box::new(Expr::Node {
-                    node_index,
-                    channel,
-                }),
-                Box::new(Expr::Float(2.0)),
-            ),
-        },
-        "/4" => Node {
-            output,
-            input: Expr::Binary(
-                BinaryOp::Div,
-                Box::new(Expr::Node {
-                    node_index,
-                    channel,
-                }),
-                Box::new(Expr::Float(4.0)),
-            ),
-        },
-        "*2" => Node {
-            output,
-            input: Expr::Binary(
-                BinaryOp::Mul,
-                Box::new(Expr::Node {
-                    node_index,
-                    channel,
-                }),
-                Box::new(Expr::Float(2.0)),
-            ),
-        },
-        "*4" => Node {
-            output,
-            input: Expr::Binary(
-                BinaryOp::Mul,
-                Box::new(Expr::Node {
-                    node_index,
-                    channel,
-                }),
-                Box::new(Expr::Float(4.0)),
-            ),
-        },
+
+    let (op, f) = match modifier {
+        "/2" => (BinaryOp::Div, 2.0),
+        "/4" => (BinaryOp::Div, 4.0),
+        "*2" => (BinaryOp::Mul, 2.0),
+        "*4" => (BinaryOp::Mul, 4.0),
         _ => panic!("unexpected modifier: {modifier}"),
+    };
+
+    Node {
+        output,
+        input: Expr::Binary(
+            op,
+            Box::new(Expr::Node {
+                node_index,
+                channel,
+            }),
+            Box::new(Expr::Float(f)),
+        ),
     }
 }
 
-fn alu_src_expr(source: Pair<Rule>, nodes: &Nodes) -> Expr {
-    let mut inner = source.into_inner();
-    let negate = inner
-        .peek()
-        .map(|p| {
-            // Only advance the iterator if it's the expected type.
-            if p.as_rule() == Rule::negate {
-                inner.next().unwrap();
-                true
-            } else {
-                false
-            }
-        })
-        .unwrap_or_default();
+fn alu_src_expr(source: AluSrc, nodes: &Nodes) -> Expr {
+    let negate = source.negate.is_some();
 
-    let value = inner.next().unwrap();
-    let alu_src_value = value.into_inner().next().unwrap();
+    let channel = source
+        .one_comp_swizzle
+        .and_then(|s| s.channels().chars().next());
 
-    if inner.peek().map(|p| p.as_rule()) == Some(Rule::alu_rel) {
-        inner.next().unwrap();
-    }
-
-    let channel = one_comp_swizzle(inner);
-
-    let expr = match alu_src_value.as_rule() {
-        Rule::literal => {
-            let mut inner = alu_src_value.into_inner();
-            let a = inner.next().unwrap();
-            let b = inner.next();
-            let value = match (a.as_rule(), b.as_ref().map(|b| b.as_rule())) {
-                (Rule::hex_number, None) => a.as_str().parse().unwrap(),
-                (Rule::float, None) => a.as_str().trim_end_matches('f').parse().unwrap(),
-                (Rule::hex_number, Some(Rule::float)) => {
-                    // Extract the non hex portion from a float literal.
-                    b.unwrap().as_str().parse().unwrap()
-                }
-                _ => unreachable!(),
-            };
-            Expr::Float(value)
-        }
-        Rule::constant_cache0 => {
-            let mut inner = alu_src_value.into_inner();
-            let number = inner.next().unwrap().as_str().parse().unwrap();
-            Expr::Parameter {
-                name: "KC0".to_string(),
-                field: None,
-                index: Some(Box::new(Expr::Int(number))),
-                channel,
+    // Find a previous assignment that modifies the desired channel for variables.
+    let expr = match source.src_value.0 {
+        AluSrcValueInner::Gpr(gpr) => previous_assignment(&gpr.to_string(), channel, nodes),
+        AluSrcValueInner::ConstantCache0(c0) => Expr::Parameter {
+            name: "KC0".to_string(),
+            field: None,
+            index: Some(Box::new(Expr::Uint(c0.0 .0 as u32))),
+            channel,
+        },
+        AluSrcValueInner::ConstantCache1(c1) => Expr::Parameter {
+            name: "KC1".to_string(),
+            field: None,
+            index: Some(Box::new(Expr::Uint(c1.0 .0 as u32))),
+            channel,
+        },
+        AluSrcValueInner::ConstantFile(constant_file) => todo!(),
+        AluSrcValueInner::Literal(literal) => {
+            // TODO: how to handle hex literals?
+            match literal.0 {
+                LiteralInner::Hex(hex) => todo!(),
+                LiteralInner::Float(f) => Expr::Float(f.trim_end_matches('f').parse().unwrap()),
             }
         }
-        Rule::constant_cache1 => {
-            let mut inner = alu_src_value.into_inner();
-            let number = inner.next().unwrap().as_str().parse().unwrap();
-            Expr::Parameter {
-                name: "KC1".to_string(),
-                field: None,
-                index: Some(Box::new(Expr::Int(number))),
-                channel,
-            }
-        }
-        _ => {
-            // Find a previous assignment that modifies the desired channel.
-            let name = alu_src_value.as_str();
-            previous_assignment(name, channel, nodes)
-        }
+        AluSrcValueInner::PreviousScalar(s) => previous_assignment(&s.to_string(), channel, nodes),
+        AluSrcValueInner::PreviousVector(v) => previous_assignment(&v.to_string(), channel, nodes),
     };
 
     if negate {
@@ -701,91 +1102,21 @@ fn previous_assignment(value: &str, channel: Option<char>, nodes: &Nodes) -> Exp
     }
 }
 
-fn one_comp_swizzle(mut inner: pest::iterators::Pairs<Rule>) -> Option<char> {
-    inner.peek().and_then(|p| {
-        // Only advance the iterator if it's the expected type.
-        if matches!(p.as_rule(), Rule::one_comp_swizzle) {
-            Some(
-                inner
-                    .next()
-                    .unwrap()
-                    .as_str()
-                    .trim_start_matches('.')
-                    .chars()
-                    .next()
-                    .unwrap(),
-            )
-        } else {
-            None
-        }
-    })
-}
-
-fn four_comp_swizzle(mut inner: pest::iterators::Pairs<Rule>) -> &str {
-    inner
-        .peek()
-        .and_then(|p| {
-            // Only advance the iterator if it's the expected type.
-            if matches!(p.as_rule(), Rule::four_comp_swizzle) {
-                Some(inner.next().unwrap().as_str().trim_start_matches('.'))
-            } else {
-                None
-            }
-        })
-        .unwrap_or_default()
-}
-
-fn exp_src(source: Pair<Rule>) -> Option<(&'static str, usize, &str)> {
-    let mut inner = source.into_inner();
-    let name_pair = inner.next()?;
-    let name = match name_pair.as_rule() {
-        Rule::gpr => "R",
-        Rule::gpr_rel => todo!(),
-        _ => unreachable!(),
-    };
-    let index = name_pair.into_inner().next()?.as_str().parse().unwrap();
-    let channels = four_comp_swizzle(inner);
-
-    Some((name, index, channels))
-}
-
-fn exp_target(target: Pair<Rule>) -> (&'static str, usize) {
-    let target_name = match target.as_rule() {
-        Rule::exp_pix_target => "PIX",
-        Rule::exp_pos_target => "POS",
-
-        Rule::exp_param_target => "PARAM",
-        _ => unreachable!(),
-    };
-    let target_index: usize = target
-        .into_inner()
-        .next()
-        .unwrap()
-        .as_str()
-        .parse()
-        .unwrap();
-    (target_name, target_index)
-}
-
 fn tex_inst_node(tex_instruction: Pair<Rule>, nodes: &Nodes) -> Option<Vec<Node>> {
-    let mut inner = tex_instruction.into_inner();
-    // TODO: why does this have trailing white space?
-    let _inst_count = inner.next()?.as_str();
+    let tex = TexInst::from_pest(&mut Pairs::single(tex_instruction)).ok()?;
 
-    // TODO: Check that this is SAMPLE?
-    let _op_code = inner.next()?.as_str();
+    // TODO: Check that op code is SAMPLE?
 
     // TODO: Get the input names and channels.
     // TODO: register or mask?
-    let dest = inner.next()?;
-    let (output_name, output_channels) = texture_inst_dest(dest)?;
+    let output_name = tex.tex_dst.gpr.to_string();
+    let output_channels = tex.tex_dst.four_comp_swizzle.channels();
 
-    let src = inner.next()?;
-    let texcoords = texture_inst_src(src, nodes)?;
+    let texcoords = tex_src_coords(tex.tex_src, nodes)?;
 
-    let texture = inner.next()?.as_str();
-    let _sampler = inner.next()?.as_str();
-    // TODO: always ignore properties?
+    // TODO: make these rules not atomic and format similar to gpr?
+    let texture = tex.tex_resource_id.0;
+    let _sampler = tex.tex_sampler_id.0;
 
     let texture_name = Expr::Global {
         name: texture.to_string(),
@@ -834,31 +1165,19 @@ fn tex_inst_node(tex_instruction: Pair<Rule>, nodes: &Nodes) -> Option<Vec<Node>
     }
 }
 
-fn texture_inst_dest(dest: Pair<Rule>) -> Option<(String, String)> {
-    TexDst::from_pest(&mut Pairs::single(dest)).ok().map(|dst| {
-        (
-            format!("R{}", dst.gpr.0 .0),
-            dst.four_comp_swizzle.0.trim_start_matches('.').to_string(),
-        )
-    })
-}
-
-fn texture_inst_src(dest: Pair<Rule>, nodes: &Nodes) -> Option<Expr> {
+fn tex_src_coords(src: TexSrc, nodes: &Nodes) -> Option<Expr> {
     // TODO: Handle other cases from grammar.
-    let mut inner = dest.into_inner();
-    let gpr = inner.next()?.as_str();
-    if inner.peek().map(|p| p.as_rule()) == Some(Rule::tex_rel) {
-        inner.next().unwrap();
-    }
+    let gpr = src.gpr.to_string();
+
     // TODO: Handle write masks.
-    let mut channels = four_comp_swizzle(inner).chars();
+    let mut channels = src.four_comp_swizzle.channels().chars();
 
     // TODO: Also handle cube maps.
     Some(Expr::Func {
         name: "vec2".to_string(),
         args: vec![
-            previous_assignment(gpr, channels.next(), nodes),
-            previous_assignment(gpr, channels.next(), nodes),
+            previous_assignment(&gpr, channels.next(), nodes),
+            previous_assignment(&gpr, channels.next(), nodes),
         ],
         channel: None,
     })
