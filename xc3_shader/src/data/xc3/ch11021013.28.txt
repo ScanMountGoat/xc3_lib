@@ -1,368 +1,6 @@
 ShaderProgram {
     output_dependencies: {
         "o0.x": OutputDependencies {
-            dependencies: [
-                Texture(
-                    TextureDependency {
-                        name: "s1",
-                        channel: Some(
-                            'z',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex05",
-                        channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Matrix(
-                                        [
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    0,
-                                                ),
-                                                channel: Some(
-                                                    'x',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    0,
-                                                ),
-                                                channel: Some(
-                                                    'y',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    0,
-                                                ),
-                                                channel: Some(
-                                                    'z',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    0,
-                                                ),
-                                                channel: Some(
-                                                    'w',
-                                                ),
-                                            },
-                                        ],
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Matrix(
-                                        [
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    1,
-                                                ),
-                                                channel: Some(
-                                                    'x',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    1,
-                                                ),
-                                                channel: Some(
-                                                    'y',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    1,
-                                                ),
-                                                channel: Some(
-                                                    'z',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    1,
-                                                ),
-                                                channel: Some(
-                                                    'w',
-                                                ),
-                                            },
-                                        ],
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "s0",
-                        channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "s0",
-                        channel: Some(
-                            'y',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "s0",
-                        channel: Some(
-                            'z',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex04",
-                        channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'x',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'y',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex04",
-                        channel: Some(
-                            'y',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'x',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'y',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex04",
-                        channel: Some(
-                            'z',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'x',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'y',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-            ],
             layers: [
                 Layer {
                     value: Value(
@@ -654,368 +292,6 @@ ShaderProgram {
             ],
         },
         "o0.y": OutputDependencies {
-            dependencies: [
-                Texture(
-                    TextureDependency {
-                        name: "s1",
-                        channel: Some(
-                            'z',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex05",
-                        channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Matrix(
-                                        [
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    0,
-                                                ),
-                                                channel: Some(
-                                                    'x',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    0,
-                                                ),
-                                                channel: Some(
-                                                    'y',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    0,
-                                                ),
-                                                channel: Some(
-                                                    'z',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    0,
-                                                ),
-                                                channel: Some(
-                                                    'w',
-                                                ),
-                                            },
-                                        ],
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Matrix(
-                                        [
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    1,
-                                                ),
-                                                channel: Some(
-                                                    'x',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    1,
-                                                ),
-                                                channel: Some(
-                                                    'y',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    1,
-                                                ),
-                                                channel: Some(
-                                                    'z',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    1,
-                                                ),
-                                                channel: Some(
-                                                    'w',
-                                                ),
-                                            },
-                                        ],
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "s0",
-                        channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "s0",
-                        channel: Some(
-                            'y',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "s0",
-                        channel: Some(
-                            'z',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex04",
-                        channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'x',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'y',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex04",
-                        channel: Some(
-                            'y',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'x',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'y',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex04",
-                        channel: Some(
-                            'z',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'x',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'y',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-            ],
             layers: [
                 Layer {
                     value: Value(
@@ -1307,368 +583,6 @@ ShaderProgram {
             ],
         },
         "o0.z": OutputDependencies {
-            dependencies: [
-                Texture(
-                    TextureDependency {
-                        name: "s1",
-                        channel: Some(
-                            'z',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex05",
-                        channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Matrix(
-                                        [
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    0,
-                                                ),
-                                                channel: Some(
-                                                    'x',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    0,
-                                                ),
-                                                channel: Some(
-                                                    'y',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    0,
-                                                ),
-                                                channel: Some(
-                                                    'z',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    0,
-                                                ),
-                                                channel: Some(
-                                                    'w',
-                                                ),
-                                            },
-                                        ],
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Matrix(
-                                        [
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    1,
-                                                ),
-                                                channel: Some(
-                                                    'x',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    1,
-                                                ),
-                                                channel: Some(
-                                                    'y',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    1,
-                                                ),
-                                                channel: Some(
-                                                    'z',
-                                                ),
-                                            },
-                                            BufferDependency {
-                                                name: "U_Mate",
-                                                field: "gTexMat",
-                                                index: Some(
-                                                    1,
-                                                ),
-                                                channel: Some(
-                                                    'w',
-                                                ),
-                                            },
-                                        ],
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "s0",
-                        channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "s0",
-                        channel: Some(
-                            'y',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "s0",
-                        channel: Some(
-                            'z',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex04",
-                        channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'x',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'y',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex04",
-                        channel: Some(
-                            'y',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'x',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'y',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex04",
-                        channel: Some(
-                            'z',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'x',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex1",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'y',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-            ],
             layers: [
                 Layer {
                     value: Value(
@@ -1959,224 +873,106 @@ ShaderProgram {
                 },
             ],
         },
-        "o0.w": OutputDependencies {
-            dependencies: [
-                Constant(
-                    0.003921569,
-                ),
-            ],
-            layers: [],
-        },
         "o1.x": OutputDependencies {
-            dependencies: [
-                Buffer(
-                    BufferDependency {
-                        name: "U_Mate",
-                        field: "gWrkFl4",
-                        index: Some(
-                            2,
+            layers: [
+                Layer {
+                    value: Value(
+                        Buffer(
+                            BufferDependency {
+                                name: "U_Mate",
+                                field: "gWrkFl4",
+                                index: Some(
+                                    2,
+                                ),
+                                channel: Some(
+                                    'z',
+                                ),
+                            },
                         ),
-                        channel: Some(
-                            'z',
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
                         ),
-                    },
-                ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
             ],
-            layers: [],
         },
         "o1.y": OutputDependencies {
-            dependencies: [
-                Buffer(
-                    BufferDependency {
-                        name: "U_Mate",
-                        field: "gWrkFl4",
-                        index: Some(
-                            2,
+            layers: [
+                Layer {
+                    value: Value(
+                        Buffer(
+                            BufferDependency {
+                                name: "U_Mate",
+                                field: "gWrkFl4",
+                                index: Some(
+                                    2,
+                                ),
+                                channel: Some(
+                                    'y',
+                                ),
+                            },
                         ),
-                        channel: Some(
-                            'y',
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
                         ),
-                    },
-                ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
             ],
-            layers: [],
         },
         "o1.z": OutputDependencies {
-            dependencies: [
-                Buffer(
-                    BufferDependency {
-                        name: "U_Mate",
-                        field: "gWrkFl4",
-                        index: Some(
-                            1,
+            layers: [
+                Layer {
+                    value: Value(
+                        Buffer(
+                            BufferDependency {
+                                name: "U_Mate",
+                                field: "gWrkFl4",
+                                index: Some(
+                                    1,
+                                ),
+                                channel: Some(
+                                    'w',
+                                ),
+                            },
                         ),
-                        channel: Some(
-                            'w',
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
                         ),
-                    },
-                ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
             ],
-            layers: [],
         },
         "o1.w": OutputDependencies {
-            dependencies: [
-                Constant(
-                    0.008235293,
-                ),
+            layers: [
+                Layer {
+                    value: Value(
+                        Constant(
+                            0.008235293,
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
             ],
-            layers: [],
         },
         "o2.x": OutputDependencies {
-            dependencies: [
-                Texture(
-                    TextureDependency {
-                        name: "s2",
-                        channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "s2",
-                        channel: Some(
-                            'y',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex09",
-                        channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'z',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'w',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex09",
-                        channel: Some(
-                            'y',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'z',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'w',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-            ],
             layers: [
                 Layer {
                     value: Value(
@@ -2286,156 +1082,6 @@ ShaderProgram {
             ],
         },
         "o2.y": OutputDependencies {
-            dependencies: [
-                Texture(
-                    TextureDependency {
-                        name: "s2",
-                        channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "s2",
-                        channel: Some(
-                            'y',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex09",
-                        channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'z',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'w',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex09",
-                        channel: Some(
-                            'y',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'z',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'w',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-            ],
             layers: [
                 Layer {
                     value: Value(
@@ -2545,103 +1191,158 @@ ShaderProgram {
             ],
         },
         "o2.z": OutputDependencies {
-            dependencies: [
-                Texture(
-                    TextureDependency {
-                        name: "s1",
-                        channel: Some(
-                            'y',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
+            layers: [
+                Layer {
+                    value: Value(
+                        Texture(
+                            TextureDependency {
+                                name: "s1",
                                 channel: Some(
                                     'y',
                                 ),
-                                params: None,
+                                texcoords: [
+                                    TexCoord {
+                                        name: "vTex0",
+                                        channel: Some(
+                                            'x',
+                                        ),
+                                        params: None,
+                                    },
+                                    TexCoord {
+                                        name: "vTex0",
+                                        channel: Some(
+                                            'y',
+                                        ),
+                                        params: None,
+                                    },
+                                ],
                             },
-                        ],
-                    },
-                ),
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
             ],
-            layers: [],
         },
         "o2.w": OutputDependencies {
-            dependencies: [
-                Texture(
-                    TextureDependency {
-                        name: "s2",
-                        channel: Some(
-                            'x',
+            layers: [
+                Layer {
+                    value: Value(
+                        Constant(
+                            0.5,
                         ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "s2",
-                        channel: Some(
-                            'y',
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
                         ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
+                Layer {
+                    value: Layers(
+                        [
+                            Layer {
+                                value: Value(
+                                    Texture(
+                                        TextureDependency {
+                                            name: "s2",
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                            texcoords: [
+                                                TexCoord {
+                                                    name: "vTex0",
+                                                    channel: Some(
+                                                        'x',
+                                                    ),
+                                                    params: None,
+                                                },
+                                                TexCoord {
+                                                    name: "vTex0",
+                                                    channel: Some(
+                                                        'y',
+                                                    ),
+                                                    params: None,
+                                                },
+                                            ],
+                                        },
+                                    ),
                                 ),
-                                params: None,
+                                ratio: Value(
+                                    Constant(
+                                        1.0,
+                                    ),
+                                ),
+                                blend_mode: Mix,
+                                is_fresnel: false,
                             },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
+                            Layer {
+                                value: Value(
+                                    Texture(
+                                        TextureDependency {
+                                            name: "gTResidentTex09",
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                            texcoords: [
+                                                TexCoord {
+                                                    name: "vTex0",
+                                                    channel: Some(
+                                                        'x',
+                                                    ),
+                                                    params: Some(
+                                                        Scale(
+                                                            BufferDependency {
+                                                                name: "U_Mate",
+                                                                field: "gWrkFl4",
+                                                                index: Some(
+                                                                    0,
+                                                                ),
+                                                                channel: Some(
+                                                                    'z',
+                                                                ),
+                                                            },
+                                                        ),
+                                                    ),
+                                                },
+                                                TexCoord {
+                                                    name: "vTex0",
+                                                    channel: Some(
+                                                        'y',
+                                                    ),
+                                                    params: Some(
+                                                        Scale(
+                                                            BufferDependency {
+                                                                name: "U_Mate",
+                                                                field: "gWrkFl4",
+                                                                index: Some(
+                                                                    0,
+                                                                ),
+                                                                channel: Some(
+                                                                    'w',
+                                                                ),
+                                                            },
+                                                        ),
+                                                    ),
+                                                },
+                                            ],
+                                        },
+                                    ),
                                 ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex09",
-                        channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Scale(
+                                ratio: Value(
+                                    Buffer(
                                         BufferDependency {
                                             name: "U_Mate",
                                             field: "gWrkFl4",
                                             index: Some(
-                                                0,
+                                                1,
                                             ),
                                             channel: Some(
                                                 'z',
@@ -2649,103 +1350,269 @@ ShaderProgram {
                                         },
                                     ),
                                 ),
+                                blend_mode: AddNormal,
+                                is_fresnel: false,
                             },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
-                                            channel: Some(
-                                                'w',
-                                            ),
-                                        },
-                                    ),
-                                ),
-                            },
-                        ],
-                    },
-                ),
-                Texture(
-                    TextureDependency {
-                        name: "gTResidentTex09",
-                        channel: Some(
-                            'y',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
-                                            ),
+                            Layer {
+                                value: Value(
+                                    Attribute(
+                                        AttributeDependency {
+                                            name: "nWgtIdx",
                                             channel: Some(
                                                 'z',
                                             ),
                                         },
                                     ),
                                 ),
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
+                                ratio: Value(
+                                    Constant(
+                                        1.0,
+                                    ),
                                 ),
-                                params: Some(
-                                    Scale(
-                                        BufferDependency {
-                                            name: "U_Mate",
-                                            field: "gWrkFl4",
-                                            index: Some(
-                                                0,
+                                blend_mode: Mul,
+                                is_fresnel: false,
+                            },
+                            Layer {
+                                value: Layers(
+                                    [
+                                        Layer {
+                                            value: Value(
+                                                Constant(
+                                                    0.0,
+                                                ),
                                             ),
+                                            ratio: Value(
+                                                Constant(
+                                                    1.0,
+                                                ),
+                                            ),
+                                            blend_mode: Mix,
+                                            is_fresnel: false,
+                                        },
+                                        Layer {
+                                            value: Layers(
+                                                [],
+                                            ),
+                                            ratio: Value(
+                                                Constant(
+                                                    1.0,
+                                                ),
+                                            ),
+                                            blend_mode: Max,
+                                            is_fresnel: false,
+                                        },
+                                        Layer {
+                                            value: Layers(
+                                                [],
+                                            ),
+                                            ratio: Value(
+                                                Buffer(
+                                                    BufferDependency {
+                                                        name: "U_Mate",
+                                                        field: "gWrkFl4",
+                                                        index: Some(
+                                                            1,
+                                                        ),
+                                                        channel: Some(
+                                                            'z',
+                                                        ),
+                                                    },
+                                                ),
+                                            ),
+                                            blend_mode: Mul,
+                                            is_fresnel: false,
+                                        },
+                                        Layer {
+                                            value: Layers(
+                                                [],
+                                            ),
+                                            ratio: Value(
+                                                Constant(
+                                                    1.0,
+                                                ),
+                                            ),
+                                            blend_mode: Mul,
+                                            is_fresnel: false,
+                                        },
+                                    ],
+                                ),
+                                ratio: Value(
+                                    Attribute(
+                                        AttributeDependency {
+                                            name: "nWgtIdx",
                                             channel: Some(
-                                                'w',
+                                                'z',
                                             ),
                                         },
                                     ),
                                 ),
+                                blend_mode: Add,
+                                is_fresnel: false,
+                            },
+                            Layer {
+                                value: Layers(
+                                    [
+                                        Layer {
+                                            value: Value(
+                                                Constant(
+                                                    -1.0039216,
+                                                ),
+                                            ),
+                                            ratio: Value(
+                                                Constant(
+                                                    1.0,
+                                                ),
+                                            ),
+                                            blend_mode: Mix,
+                                            is_fresnel: false,
+                                        },
+                                        Layer {
+                                            value: Value(
+                                                Texture(
+                                                    TextureDependency {
+                                                        name: "s2",
+                                                        channel: Some(
+                                                            'y',
+                                                        ),
+                                                        texcoords: [
+                                                            TexCoord {
+                                                                name: "vTex0",
+                                                                channel: Some(
+                                                                    'x',
+                                                                ),
+                                                                params: None,
+                                                            },
+                                                            TexCoord {
+                                                                name: "vTex0",
+                                                                channel: Some(
+                                                                    'y',
+                                                                ),
+                                                                params: None,
+                                                            },
+                                                        ],
+                                                    },
+                                                ),
+                                            ),
+                                            ratio: Value(
+                                                Constant(
+                                                    2.0,
+                                                ),
+                                            ),
+                                            blend_mode: Add,
+                                            is_fresnel: false,
+                                        },
+                                        Layer {
+                                            value: Layers(
+                                                [],
+                                            ),
+                                            ratio: Value(
+                                                Buffer(
+                                                    BufferDependency {
+                                                        name: "U_Mate",
+                                                        field: "gWrkFl4",
+                                                        index: Some(
+                                                            1,
+                                                        ),
+                                                        channel: Some(
+                                                            'z',
+                                                        ),
+                                                    },
+                                                ),
+                                            ),
+                                            blend_mode: Mul,
+                                            is_fresnel: false,
+                                        },
+                                        Layer {
+                                            value: Layers(
+                                                [],
+                                            ),
+                                            ratio: Value(
+                                                Constant(
+                                                    1.0,
+                                                ),
+                                            ),
+                                            blend_mode: Mul,
+                                            is_fresnel: false,
+                                        },
+                                    ],
+                                ),
+                                ratio: Value(
+                                    Attribute(
+                                        AttributeDependency {
+                                            name: "nWgtIdx",
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
+                                ),
+                                blend_mode: Add,
+                                is_fresnel: false,
+                            },
+                            Layer {
+                                value: Layers(
+                                    [],
+                                ),
+                                ratio: Value(
+                                    Constant(
+                                        1.0,
+                                    ),
+                                ),
+                                blend_mode: Mul,
+                                is_fresnel: false,
                             },
                         ],
-                    },
-                ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1000.0,
+                        ),
+                    ),
+                    blend_mode: Add,
+                    is_fresnel: false,
+                },
             ],
-            layers: [],
         },
         "o3.z": OutputDependencies {
-            dependencies: [
-                Constant(
-                    0.0,
-                ),
+            layers: [
+                Layer {
+                    value: Value(
+                        Constant(
+                            0.0,
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
             ],
-            layers: [],
         },
         "o4.w": OutputDependencies {
-            dependencies: [
-                Attribute(
-                    AttributeDependency {
-                        name: "vColor",
-                        channel: Some(
-                            'x',
+            layers: [
+                Layer {
+                    value: Value(
+                        Attribute(
+                            AttributeDependency {
+                                name: "vColor",
+                                channel: Some(
+                                    'x',
+                                ),
+                            },
                         ),
-                    },
-                ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
             ],
-            layers: [],
         },
     },
     outline_width: None,

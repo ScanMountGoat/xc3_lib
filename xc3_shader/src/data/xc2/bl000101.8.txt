@@ -1,32 +1,6 @@
 ShaderProgram {
     output_dependencies: {
         "o0.x": OutputDependencies {
-            dependencies: [
-                Texture(
-                    TextureDependency {
-                        name: "s0",
-                        channel: Some(
-                            'x',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-            ],
             layers: [
                 Layer {
                     value: Value(
@@ -85,32 +59,6 @@ ShaderProgram {
             ],
         },
         "o0.y": OutputDependencies {
-            dependencies: [
-                Texture(
-                    TextureDependency {
-                        name: "s0",
-                        channel: Some(
-                            'y',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-            ],
             layers: [
                 Layer {
                     value: Value(
@@ -169,32 +117,6 @@ ShaderProgram {
             ],
         },
         "o0.z": OutputDependencies {
-            dependencies: [
-                Texture(
-                    TextureDependency {
-                        name: "s0",
-                        channel: Some(
-                            'z',
-                        ),
-                        texcoords: [
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                params: None,
-                            },
-                            TexCoord {
-                                name: "vTex0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                params: None,
-                            },
-                        ],
-                    },
-                ),
-            ],
             layers: [
                 Layer {
                     value: Value(
@@ -253,92 +175,139 @@ ShaderProgram {
             ],
         },
         "o1.x": OutputDependencies {
-            dependencies: [
-                Buffer(
-                    BufferDependency {
-                        name: "U_Mate",
-                        field: "gWrkFl4",
-                        index: Some(
-                            1,
+            layers: [
+                Layer {
+                    value: Value(
+                        Buffer(
+                            BufferDependency {
+                                name: "U_Mate",
+                                field: "gWrkFl4",
+                                index: Some(
+                                    1,
+                                ),
+                                channel: Some(
+                                    'x',
+                                ),
+                            },
                         ),
-                        channel: Some(
-                            'x',
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
                         ),
-                    },
-                ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
             ],
-            layers: [],
         },
         "o1.y": OutputDependencies {
-            dependencies: [
-                Buffer(
-                    BufferDependency {
-                        name: "U_Mate",
-                        field: "gWrkFl4",
-                        index: Some(
-                            0,
+            layers: [
+                Layer {
+                    value: Value(
+                        Buffer(
+                            BufferDependency {
+                                name: "U_Mate",
+                                field: "gWrkFl4",
+                                index: Some(
+                                    0,
+                                ),
+                                channel: Some(
+                                    'w',
+                                ),
+                            },
                         ),
-                        channel: Some(
-                            'w',
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
                         ),
-                    },
-                ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
             ],
-            layers: [],
         },
         "o1.z": OutputDependencies {
-            dependencies: [
-                Buffer(
-                    BufferDependency {
-                        name: "U_Mate",
-                        field: "gWrkFl4",
-                        index: Some(
-                            0,
+            layers: [
+                Layer {
+                    value: Value(
+                        Buffer(
+                            BufferDependency {
+                                name: "U_Mate",
+                                field: "gWrkFl4",
+                                index: Some(
+                                    0,
+                                ),
+                                channel: Some(
+                                    'x',
+                                ),
+                            },
                         ),
-                        channel: Some(
-                            'x',
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
                         ),
-                    },
-                ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
             ],
-            layers: [],
         },
         "o1.w": OutputDependencies {
-            dependencies: [
-                Constant(
-                    0.25921568,
-                ),
-            ],
-            layers: [],
-        },
-        "o2.z": OutputDependencies {
-            dependencies: [
-                Attribute(
-                    AttributeDependency {
-                        name: "vColor",
-                        channel: Some(
-                            'y',
+            layers: [
+                Layer {
+                    value: Value(
+                        Constant(
+                            0.25921568,
                         ),
-                    },
-                ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
             ],
-            layers: [],
         },
         "o3.z": OutputDependencies {
-            dependencies: [
-                Constant(
-                    0.0,
-                ),
+            layers: [
+                Layer {
+                    value: Value(
+                        Constant(
+                            0.0,
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
             ],
-            layers: [],
         },
         "o4.w": OutputDependencies {
-            dependencies: [
-                Constant(
-                    0.0,
-                ),
+            layers: [
+                Layer {
+                    value: Value(
+                        Constant(
+                            0.0,
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
             ],
-            layers: [],
         },
     },
     outline_width: None,

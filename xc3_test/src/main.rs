@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     io::Cursor,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -1419,67 +1418,9 @@ fn check_shader_dependencies(root: &ModelRoot, path: &Path) {
     for m in &root.models.materials {
         if let Some(shader) = &m.shader {
             for (k, v) in &shader.output_dependencies {
-                let mut layer_dependencies = HashSet::new();
-                for l in &v.layers {
-                    add_dependencies(&mut layer_dependencies, l);
+                if v.layers.is_empty() {
+                    println!("Empty layers for {:?}, {k:?}, {path:?}", &m.name);
                 }
-
-                let mut missing = HashSet::new();
-                for d in &v.dependencies {
-                    if !layer_dependencies.contains(d) {
-                        missing.insert(d.clone());
-                    }
-                }
-                if !missing.is_empty() && v.layers.len() > 1 {
-                    let strings: Vec<_> = missing
-                        .into_iter()
-                        .map(|d| match d {
-                            xc3_model::shader_database::Dependency::Constant(f) => f.to_string(),
-                            xc3_model::shader_database::Dependency::Buffer(b) => format!(
-                                "{}.{}{}{}",
-                                &b.name,
-                                &b.field,
-                                &b.index.map(|i| format!("[{i}]")).unwrap_or_default(),
-                                b.channel.map(|c| format!(".{c}")).unwrap_or_default()
-                            ),
-                            xc3_model::shader_database::Dependency::Texture(t) => format!(
-                                "{}{}",
-                                &t.name,
-                                t.channel.map(|c| format!(".{c}")).unwrap_or_default()
-                            ),
-                            xc3_model::shader_database::Dependency::Attribute(a) => format!(
-                                "{}{}",
-                                &a.name,
-                                a.channel.map(|c| format!(".{c}")).unwrap_or_default()
-                            ),
-                        })
-                        .collect();
-                    println!("{k}: {strings:?}, {:?}, {path:?}", &m.name);
-                }
-            }
-        }
-    }
-}
-
-fn add_dependencies(
-    dependencies: &mut HashSet<xc3_model::shader_database::Dependency>,
-    l: &xc3_model::shader_database::Layer,
-) {
-    add_value_dependencies(dependencies, &l.ratio);
-    add_value_dependencies(dependencies, &l.value);
-}
-
-fn add_value_dependencies(
-    dependencies: &mut HashSet<xc3_model::shader_database::Dependency>,
-    r: &xc3_model::shader_database::LayerValue,
-) {
-    match r {
-        xc3_model::shader_database::LayerValue::Value(d) => {
-            dependencies.insert(d.clone());
-        }
-        xc3_model::shader_database::LayerValue::Layers(layers) => {
-            for l in layers {
-                add_dependencies(dependencies, l);
             }
         }
     }

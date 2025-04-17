@@ -63,30 +63,15 @@ pub fn shader_from_glsl(
             let mut dependencies =
                 input_dependencies(&frag, &frag_attributes, &assignments, &dependent_lines);
 
-            let mut layers = Vec::new();
-
             // Xenoblade X DE uses different outputs than other games.
             // Detect color or params to handle different outputs and channels.
-            if i == 0 || i == 1 {
-                layers = find_color_or_param_layers(&frag, &frag_attributes, &dependent_lines)
-                    .unwrap_or_default();
-            } else if i == 2 {
-                if c == 'x' || c == 'y' {
-                    // The normals use XY for output index 2 for all games.
-                    layers = find_normal_layers(&frag, &frag_attributes, &dependent_lines)
-                        .unwrap_or_default();
-                } else if c == 'z' {
-                    layers = find_color_or_param_layers(&frag, &frag_attributes, &dependent_lines)
-                        .unwrap_or_default();
-                }
-            }
-
-            if let [layer0] = &layers[..] {
-                if let LayerValue::Value(v) = &layer0.value {
-                    dependencies = vec![v.clone()];
-                    layers = Vec::new();
-                }
-            }
+            let mut layers = if i == 2 && (c == 'x' || c == 'y') {
+                // The normals use XY for output index 2 for all games.
+                find_normal_layers(&frag, &frag_attributes, &dependent_lines).unwrap_or_default()
+            } else {
+                find_color_or_param_layers(&frag, &frag_attributes, &dependent_lines)
+                    .unwrap_or_default()
+            };
 
             if let (Some(vert), Some(vert_attributes)) = (&vert, &vert_attributes) {
                 apply_attributes(
@@ -101,13 +86,7 @@ pub fn shader_from_glsl(
             if !dependencies.is_empty() {
                 // Simplify the output name to save space.
                 let output_name = format!("o{i}.{c}");
-                output_dependencies.insert(
-                    output_name.into(),
-                    OutputDependencies {
-                        dependencies,
-                        layers,
-                    },
-                );
+                output_dependencies.insert(output_name.into(), OutputDependencies { layers });
             }
         }
     }
@@ -245,14 +224,11 @@ fn shader_from_latte_asm(
                 let output_name = format!("o{i}.{c}");
                 (
                     output_name.into(),
-                    OutputDependencies {
-                        dependencies,
-                        layers: Vec::new(),
-                    },
+                    OutputDependencies { layers: Vec::new() },
                 )
             })
         })
-        .filter(|(_, dependencies)| !dependencies.dependencies.is_empty())
+        .filter(|(_, dependencies)| !dependencies.layers.is_empty())
         .collect();
 
     ShaderProgram {
@@ -423,6 +399,8 @@ fn find_layers(current: &Expr, graph: &Graph, attributes: &Attributes) -> Vec<La
                 blend_mode: LayerBlendMode::Mix,
                 is_fresnel: false,
             });
+        } else {
+            // TODO: This case shouldn't happen
         }
 
         // We start from the output, so these are in reverse order.
@@ -683,11 +661,24 @@ static BLEND_POW: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
+static BLEND_POW2: LazyLock<Graph> = LazyLock::new(|| {
+    // Equivalent to pow(a, b)
+    let query = indoc! {"
+        void main() {
+            a = log2(a);
+            a = a * b;
+            a = exp2(a);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
 fn blend_pow<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
-    let result = query_nodes(expr, nodes, &BLEND_POW.nodes)?;
+    let result = query_nodes(expr, nodes, &BLEND_POW.nodes)
+        .or_else(|| query_nodes(expr, nodes, &BLEND_POW2.nodes))?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     Some((a, b, &Expr::Float(1.0), LayerBlendMode::Power))

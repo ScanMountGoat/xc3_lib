@@ -977,12 +977,7 @@ fn output_channel_assignment(
 ) -> LayerAssignmentValue {
     let layers = layer_assignments(shader, parameters, output_index, channel_index);
     if layers.is_empty() {
-        LayerAssignmentValue::Value(channel_assignment(
-            shader,
-            parameters,
-            output_index,
-            channel_index,
-        ))
+        LayerAssignmentValue::Value(None)
     } else {
         LayerAssignmentValue::Layers(layers)
     }
@@ -1043,85 +1038,6 @@ fn layer_channel_assignment_value(
     value
 }
 
-fn channel_assignment(
-    shader: &ShaderProgram,
-    parameters: &MaterialParameters,
-    output_index: usize,
-    channel_index: usize,
-) -> Option<ValueAssignment> {
-    let channel = ['x', 'y', 'z', 'w'][channel_index];
-    let output = format!("o{output_index}.{channel}");
-
-    let original_dependencies = shader.output_dependencies.get(&SmolStr::from(output))?;
-    let mut dependencies = original_dependencies.clone();
-
-    if !dependencies.layers.is_empty() {
-        // Match the correct layer order if present.
-        dependencies.dependencies.sort_by_cached_key(|d| {
-            dependencies
-                .layers
-                .iter()
-                .position(|l| layer_dependency(l) == Some(d))
-                .unwrap_or(usize::MAX)
-        });
-    } else if output_index == 0 {
-        // Color maps typically assign s0 using RGB or a single channel.
-        dependencies
-            .dependencies
-            .sort_by_cached_key(|d| sampler_index(d).unwrap_or(usize::MAX));
-    } else if output_index == 2 && matches!(channel, 'x' | 'y') {
-        // Normal maps are usually just XY BC5 textures.
-        // Sort so that these textures are accessed first.
-        dependencies.dependencies.sort_by_cached_key(|d| {
-            let count = original_dependencies
-                .dependencies
-                .iter()
-                .filter(|d2| sampler_name(d2) == sampler_name(d))
-                .count();
-            count != 2
-        });
-    } else {
-        // Color maps typically assign s0 using RGB or a single channel.
-        // Ignore single channel masks if an RGB input is present.
-        // Ignore XY BC5 normal maps by placing them at the end.
-        dependencies.dependencies.sort_by_cached_key(|d| {
-            let count = original_dependencies
-                .dependencies
-                .iter()
-                .filter(|d2| sampler_name(d2) == sampler_name(d))
-                .count();
-            (
-                match count {
-                    3 => 0,
-                    1 => 1,
-                    2 => u8::MAX,
-                    _ => 2,
-                },
-                sampler_index(d).unwrap_or(usize::MAX),
-            )
-        });
-    }
-
-    let dependency = if output_index != 1 {
-        // Some textures like color or normal maps may use multiple input channels.
-        // First check if the current channel is used.
-        dependencies
-            .dependencies
-            .iter()
-            .find(|d| {
-                channels(d)
-                    .map(|channels| channels.contains(channel))
-                    .unwrap_or_default()
-            })
-            .or_else(|| dependencies.dependencies.first())
-    } else {
-        dependencies.dependencies.first()
-    }?;
-
-    // If a parameter or attribute is assigned, it will likely be the only dependency.
-    ValueAssignment::from_dependency(dependency, parameters, channel)
-}
-
 fn texture_assignment(
     texture: &TextureDependency,
     parameters: &MaterialParameters,
@@ -1154,38 +1070,6 @@ fn texture_assignment(
             }
             _ => None,
         },
-    }
-}
-
-// TODO: make these methods.
-fn channels(d: &Dependency) -> Option<SmolStr> {
-    match d {
-        Dependency::Constant(_) => None,
-        Dependency::Buffer(b) => Some(b.channel.map(|c| c.to_smolstr()).unwrap_or_default()),
-        Dependency::Texture(t) => Some(t.channel.map(|c| c.to_smolstr()).unwrap_or_default()),
-        Dependency::Attribute(a) => Some(a.channel.map(|c| c.to_smolstr()).unwrap_or_default()),
-    }
-}
-
-fn sampler_index(d: &Dependency) -> Option<usize> {
-    // Convert names like "s3" to index 3.
-    // Material textures always use this naming convention in the shader.
-    sampler_name(d).and_then(|n| n.strip_prefix('s')?.parse().ok())
-}
-
-fn sampler_name(d: &Dependency) -> Option<&SmolStr> {
-    // Convert names like "s3" to index 3.
-    // Material textures always use this naming convention in the shader.
-    match d {
-        Dependency::Texture(t) => Some(&t.name),
-        _ => None,
-    }
-}
-
-fn layer_dependency(l: &Layer) -> Option<&Dependency> {
-    match &l.value {
-        LayerValue::Value(d) => Some(d),
-        LayerValue::Layers(layers) => layer_dependency(layers.first()?),
     }
 }
 

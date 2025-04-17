@@ -112,10 +112,6 @@ struct ShaderProgramIndexed {
 struct OutputDependenciesIndexed {
     #[br(parse_with = parse_count)]
     #[bw(write_with = write_count)]
-    dependencies: Vec<VarInt>,
-
-    #[br(parse_with = parse_count)]
-    #[bw(write_with = write_count)]
     layers: Vec<LayerIndexed>,
 }
 
@@ -391,18 +387,6 @@ impl ShaderDatabaseIndexed {
                     (
                         output_index,
                         OutputDependenciesIndexed {
-                            dependencies: dependencies
-                                .dependencies
-                                .into_iter()
-                                .map(|d| {
-                                    self.add_dependency(
-                                        d,
-                                        dependency_to_index,
-                                        buffer_dependency_to_index,
-                                        tex_coord_to_index,
-                                    )
-                                })
-                                .collect(),
                             layers: dependencies
                                 .layers
                                 .iter()
@@ -566,11 +550,6 @@ impl ShaderDatabaseIndexed {
                     (
                         self.outputs[output.0].to_smolstr(),
                         OutputDependencies {
-                            dependencies: output_dependencies
-                                .dependencies
-                                .iter()
-                                .map(|d| self.dependency_from_indexed(*d))
-                                .collect(),
                             layers: output_dependencies
                                 .layers
                                 .iter()
