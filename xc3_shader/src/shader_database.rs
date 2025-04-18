@@ -54,14 +54,11 @@ pub fn shader_from_glsl(
         .unwrap_or_default();
 
     let mut output_dependencies = IndexMap::new();
+    // TODO: Some shaders have more than 6 outputs?
     for i in 0..=5 {
         for c in "xyzw".chars() {
             let name = format!("out_attr{i}");
-            let assignments = frag.assignments_recursive(&name, Some(c), None);
             let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
-
-            let mut dependencies =
-                input_dependencies(&frag, &frag_attributes, &assignments, &dependent_lines);
 
             let mut layers = if i == 2 && (c == 'x' || c == 'y') {
                 // The normals use XY for output index 2 for all games.
@@ -74,16 +71,10 @@ pub fn shader_from_glsl(
             };
 
             if let (Some(vert), Some(vert_attributes)) = (&vert, &vert_attributes) {
-                apply_attributes(
-                    &mut dependencies,
-                    &mut layers,
-                    vert,
-                    vert_attributes,
-                    &frag_attributes,
-                );
+                apply_attributes(&mut layers, vert, vert_attributes, &frag_attributes);
             }
 
-            if !dependencies.is_empty() {
+            if !dependent_lines.is_empty() {
                 // Simplify the output name to save space.
                 let output_name = format!("o{i}.{c}");
                 output_dependencies.insert(output_name.into(), OutputDependencies { layers });
@@ -99,25 +90,18 @@ pub fn shader_from_glsl(
 }
 
 fn apply_attributes(
-    dependencies: &mut [Dependency],
     layers: &mut [Layer],
     vert: &Graph,
     vert_attributes: &Attributes,
     frag_attributes: &Attributes,
 ) {
-    for d in dependencies {
+    for layer in layers {
         // Add texture parameters used for the corresponding vertex output.
         // Most shaders apply UV transforms in the vertex shader.
         // This will be used later for texture layers.
-        apply_vertex_uv_params(vert, vert_attributes, frag_attributes, d);
+        apply_layer_vertex_uv_params(layer, vert, vert_attributes, frag_attributes);
 
         // Names are only present for vertex input attributes.
-        apply_attribute_names(vert, vert_attributes, frag_attributes, d);
-    }
-
-    // Process layer dependencies recursively.
-    for layer in layers {
-        apply_layer_vertex_uv_params(layer, vert, vert_attributes, frag_attributes);
         apply_layer_attribute_names(layer, vert, vert_attributes, frag_attributes);
     }
 }
