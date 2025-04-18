@@ -63,12 +63,12 @@ pub fn shader_from_glsl(
             let mut dependencies =
                 input_dependencies(&frag, &frag_attributes, &assignments, &dependent_lines);
 
-            // Xenoblade X DE uses different outputs than other games.
-            // Detect color or params to handle different outputs and channels.
             let mut layers = if i == 2 && (c == 'x' || c == 'y') {
                 // The normals use XY for output index 2 for all games.
                 find_normal_layers(&frag, &frag_attributes, &dependent_lines).unwrap_or_default()
             } else {
+                // Xenoblade X DE uses different outputs than other games.
+                // Detect color or params to handle different outputs and channels.
                 find_color_or_param_layers(&frag, &frag_attributes, &dependent_lines)
                     .unwrap_or_default()
             };
@@ -320,7 +320,8 @@ fn find_normal_layers(
     // TODO: front facing in calcNormalZAbs in pcmdo?
 
     // nomWork input for getCalcNormalMap in pcmdo shaders.
-    let nom_work = calc_normal_map(&frag.nodes, view_normal)?;
+    let nom_work = calc_normal_map(&frag.nodes, view_normal)
+        .or_else(|| calc_normal_map_w_intensity(&frag.nodes, view_normal))?;
     let nom_work = assign_x_recursive(&frag.nodes, nom_work[0]);
 
     let mut layers = find_layers(nom_work, frag, frag_attributes);
@@ -889,11 +890,9 @@ fn component_max_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> 
     result.get("value").copied()
 }
 
+// TODO: query that includes normal map intensity.
 fn calc_normal_map_query(c: char) -> String {
     // getCalcNormalMap in pcmdo shaders for normal.x or normal.y.
-    // result = nomWork.x * normalize(tangent).{c}
-    // result = fma(nomWork.y, normalize(bitangent).{c}, result)
-    // result = fma(nomWork.z, normalize(normal).{c}, result)
     formatdoc! {"
         void main() {{
             inverse_length_tangent = inversesqrt(tangent_length);
@@ -930,6 +929,59 @@ static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
 fn calc_normal_map<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Expr; 3]> {
     let result = query_nodes(expr, nodes, &CALC_NORMAL_MAP_X.nodes)
         .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_Y.nodes))?;
+    Some([
+        result.get("result_x")?,
+        result.get("result_y")?,
+        result.get("result_z")?,
+    ])
+}
+
+fn calc_normal_map_w_intensity_query(c: char) -> String {
+    // normal.x or normal.y with normal.w as normal map intensity.
+    formatdoc! {"
+        void main() {{
+            intensity = intensity;
+            intensity = log2(intensity);
+            intensity = intensity * exponent;
+            intensity = exp2(intensity);
+
+            inverse_length_tangent = inversesqrt(tangent_length);
+            tangent = tangent.{c};
+            normalize_tangent = tangent * inverse_length_tangent;
+            result_x = result_x;
+            result_x = result_x * normalize_tangent;
+            result = result_x * intensity;
+
+            inverse_length_normal = inversesqrt(normal_length);
+            normal = normal.{c};
+            normalize_normal = normal * inverse_length_normal;
+            result_z = result_z;
+            result = fma(result_z, normalize_normal, result);
+
+            inverse_length_bitangent = inversesqrt(bitangent_length);
+            bitangent = bitangent.{c};
+            normalize_bitangent = bitangent * inverse_length_bitangent;
+            result_y = result_y;
+            result_y = normalize_bitangent * result_y;
+            result = fma(intensity, result_y, result);
+        }}
+    "}
+}
+
+static CALC_NORMAL_MAP_W_INTENSITY_X: LazyLock<Graph> = LazyLock::new(|| {
+    let query = calc_normal_map_w_intensity_query('x');
+    Graph::parse_glsl(&query).unwrap()
+});
+
+static CALC_NORMAL_MAP_W_INTENSITY_Y: LazyLock<Graph> = LazyLock::new(|| {
+    let query = calc_normal_map_w_intensity_query('y');
+    Graph::parse_glsl(&query).unwrap()
+});
+
+fn calc_normal_map_w_intensity<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Expr; 3]> {
+    // TODO: return the intensity.
+    let result = query_nodes(expr, nodes, &CALC_NORMAL_MAP_W_INTENSITY_X.nodes)
+        .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_W_INTENSITY_Y.nodes))?;
     Some([
         result.get("result_x")?,
         result.get("result_y")?,
@@ -1455,6 +1507,19 @@ mod tests {
         let fragment = TranslationUnit::parse(frag_glsl).unwrap();
         let shader = shader_from_glsl(Some(&vertex), &fragment);
         assert_debug_eq!("data/xc3/oj110006.3.txt", shader);
+    }
+
+    #[test]
+    fn shader_from_glsl_xc1_normal_w_intensity() {
+        // xeno1/model/pc/pc078702, "pc070702_body", shd0001
+        let vert_glsl = include_str!("data/xc1/pc078702.1.vert");
+        let frag_glsl = include_str!("data/xc1/pc078702.1.frag");
+
+        // Test detecting xyz normal maps with vNormal.w intensity.
+        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
+        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
+        let shader = shader_from_glsl(Some(&vertex), &fragment);
+        assert_debug_eq!("data/xc1/pc078702.1.txt", shader);
     }
 
     #[test]
