@@ -10,7 +10,10 @@ use xc3_model::{
 
 use crate::{
     pipeline::{Output5Type, PipelineKey},
-    shadergen::{generate_alpha_test_wgsl, generate_layering_wgsl, generate_normal_layering_wgsl},
+    shadergen::{
+        generate_alpha_test_wgsl, generate_layering_wgsl, generate_normal_intensity_wgsl,
+        generate_normal_layering_wgsl,
+    },
     texture::create_default_black_texture,
     DeviceBufferExt, MonolibShaderTextures,
 };
@@ -84,6 +87,12 @@ pub fn create_material(
         .alpha_test
         .as_ref()
         .map(|a| generate_alpha_test_wgsl(a, &mut name_to_index))
+        .unwrap_or_default();
+
+    let normal_intensity_wgsl = material_assignments
+        .normal_intensity
+        .as_ref()
+        .map(|i| generate_normal_intensity_wgsl(i, &mut name_to_index))
         .unwrap_or_default();
 
     let mut texture_views: [Option<_>; 16] = std::array::from_fn(|_| None);
@@ -209,6 +218,7 @@ pub fn create_material(
         is_instanced_static,
         output_layers_wgsl,
         alpha_test_wgsl,
+        normal_intensity_wgsl,
     };
     pipelines.insert(pipeline_key.clone());
 

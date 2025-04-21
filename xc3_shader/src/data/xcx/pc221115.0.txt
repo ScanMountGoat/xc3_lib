@@ -1,4 +1,5 @@
 ShaderProgram {
     output_dependencies: {},
     outline_width: None,
+    normal_intensity: None,
 }

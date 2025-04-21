@@ -28,6 +28,7 @@ pub struct PipelineKey {
     pub is_instanced_static: bool,
     pub output_layers_wgsl: Vec<String>,
     pub alpha_test_wgsl: String,
+    pub normal_intensity_wgsl: String,
 }
 
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]

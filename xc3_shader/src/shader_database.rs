@@ -54,24 +54,36 @@ pub fn shader_from_glsl(
         .unwrap_or_default();
 
     let mut output_dependencies = IndexMap::new();
+    let mut normal_intensity = None;
+
     // TODO: Some shaders have more than 6 outputs?
     for i in 0..=5 {
         for c in "xyzw".chars() {
             let name = format!("out_attr{i}");
             let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
 
-            let mut layers = if i == 2 && (c == 'x' || c == 'y') {
+            let mut layers;
+            if i == 2 && (c == 'x' || c == 'y') {
                 // The normals use XY for output index 2 for all games.
-                find_normal_layers(&frag, &frag_attributes, &dependent_lines).unwrap_or_default()
+                let (new_layers, intensity) =
+                    find_normal_layers(&frag, &frag_attributes, &dependent_lines)
+                        .unwrap_or_default();
+                layers = new_layers;
+                normal_intensity = intensity;
             } else {
                 // Xenoblade X DE uses different outputs than other games.
                 // Detect color or params to handle different outputs and channels.
-                find_color_or_param_layers(&frag, &frag_attributes, &dependent_lines)
+                layers = find_color_or_param_layers(&frag, &frag_attributes, &dependent_lines)
                     .unwrap_or_default()
             };
 
             if let (Some(vert), Some(vert_attributes)) = (&vert, &vert_attributes) {
                 apply_attributes(&mut layers, vert, vert_attributes, &frag_attributes);
+
+                if let Some(i) = &mut normal_intensity {
+                    apply_layer_value_attribute_names(i, vert, vert_attributes, &frag_attributes);
+                    apply_layer_value_vertex_uv_params(i, vert, vert_attributes, &frag_attributes);
+                }
             }
 
             if !dependent_lines.is_empty() {
@@ -86,6 +98,7 @@ pub fn shader_from_glsl(
         // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
         outline_width,
+        normal_intensity,
     }
 }
 
@@ -112,18 +125,17 @@ fn apply_layer_attribute_names(
     vert_attributes: &Attributes,
     frag_attributes: &Attributes,
 ) {
-    match &mut layer.value {
-        LayerValue::Value(d) => {
-            apply_attribute_names(vert, vert_attributes, frag_attributes, d);
-        }
-        LayerValue::Layers(layers) => {
-            for l in layers {
-                apply_layer_attribute_names(l, vert, vert_attributes, frag_attributes);
-            }
-        }
-    }
+    apply_layer_value_attribute_names(&mut layer.value, vert, vert_attributes, frag_attributes);
+    apply_layer_value_attribute_names(&mut layer.ratio, vert, vert_attributes, frag_attributes);
+}
 
-    match &mut layer.ratio {
+fn apply_layer_value_attribute_names(
+    value: &mut LayerValue,
+    vert: &Graph,
+    vert_attributes: &Attributes,
+    frag_attributes: &Attributes,
+) {
+    match value {
         LayerValue::Value(d) => {
             apply_attribute_names(vert, vert_attributes, frag_attributes, d);
         }
@@ -219,6 +231,7 @@ fn shader_from_latte_asm(
         // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
         outline_width: None,
+        normal_intensity: None,
     }
 }
 
@@ -289,23 +302,36 @@ fn find_normal_layers(
     frag: &Graph,
     frag_attributes: &Attributes,
     dependent_lines: &[usize],
-) -> Option<Vec<Layer>> {
+) -> Option<(Vec<Layer>, Option<LayerValue>)> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
-    let node = assign_x(&frag.nodes, &last_node.input)?;
+    let mut view_normal = assign_x(&frag.nodes, &last_node.input)?;
+
+    // TODO: separate code path that detects without fma for xcx de
+    // TODO: xcx de is rg16 float
+    // TODO: xcx de uses vNormal.w for seams?
+    // TODO: secondary normal used for the initial ibl shading like bent normals?
 
     // setMrtNormal in pcmdo shaders.
     // TODO: Create a query for this?
-    let view_normal = fma_half_half(&frag.nodes, node)?;
-    let view_normal = assign_x_recursive(&frag.nodes, view_normal);
-    let view_normal = normalize(&frag.nodes, view_normal)?;
+    if let Some(new_view_normal) = fma_half_half(&frag.nodes, view_normal) {
+        // Do why does xcxde omit this for some models like dl019100?
+        // TODO: xenoblade x DE query is totally different?
+        view_normal = new_view_normal;
+    }
+    view_normal = assign_x_recursive(&frag.nodes, view_normal);
+    view_normal = normalize(&frag.nodes, view_normal)?;
 
     // TODO: front facing in calcNormalZAbs in pcmdo?
 
     // nomWork input for getCalcNormalMap in pcmdo shaders.
-    let nom_work = calc_normal_map(&frag.nodes, view_normal)
-        .or_else(|| calc_normal_map_w_intensity(&frag.nodes, view_normal))?;
+    // TODO: xenoblade x DE query is totally different?
+    let (nom_work, intensity) = calc_normal_map(&frag.nodes, view_normal)
+        .map(|n| (n, None))
+        .or_else(|| {
+            calc_normal_map_w_intensity(&frag.nodes, view_normal).map(|(n, i)| (n, Some(i)))
+        })?;
     let nom_work = assign_x_recursive(&frag.nodes, nom_work[0]);
 
     let mut layers = find_layers(nom_work, frag, frag_attributes);
@@ -324,7 +350,9 @@ fn find_normal_layers(
         }
     }
 
-    Some(layers)
+    let intensity = intensity.map(|i| layer_value_or_layers(frag, frag_attributes, i));
+
+    Some((layers, intensity))
 }
 
 fn find_layers(current: &Expr, graph: &Graph, attributes: &Attributes) -> Vec<Layer> {
@@ -874,7 +902,6 @@ fn component_max_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> 
     result.get("value").copied()
 }
 
-// TODO: query that includes normal map intensity.
 fn calc_normal_map_query(c: char) -> String {
     // getCalcNormalMap in pcmdo shaders for normal.x or normal.y.
     formatdoc! {"
@@ -922,11 +949,12 @@ fn calc_normal_map<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Expr; 3
 
 fn calc_normal_map_w_intensity_query(c: char) -> String {
     // normal.x or normal.y with normal.w as normal map intensity.
+    // TODO: Does intensity always use pow(intensity, 0.7)?
     formatdoc! {"
         void main() {{
             intensity = intensity;
             intensity = log2(intensity);
-            intensity = intensity * exponent;
+            intensity = intensity * 0.7;
             intensity = exp2(intensity);
 
             inverse_length_tangent = inversesqrt(tangent_length);
@@ -962,15 +990,20 @@ static CALC_NORMAL_MAP_W_INTENSITY_Y: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(&query).unwrap()
 });
 
-fn calc_normal_map_w_intensity<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Expr; 3]> {
-    // TODO: return the intensity.
+fn calc_normal_map_w_intensity<'a>(
+    nodes: &'a [Node],
+    expr: &'a Expr,
+) -> Option<([&'a Expr; 3], &'a Expr)> {
     let result = query_nodes(expr, nodes, &CALC_NORMAL_MAP_W_INTENSITY_X.nodes)
         .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_W_INTENSITY_Y.nodes))?;
-    Some([
-        result.get("result_x")?,
-        result.get("result_y")?,
-        result.get("result_z")?,
-    ])
+    Some((
+        [
+            result.get("result_x")?,
+            result.get("result_y")?,
+            result.get("result_z")?,
+        ],
+        result.get("intensity")?,
+    ))
 }
 
 static GEOMETRIC_SPECULAR_AA: LazyLock<Graph> = LazyLock::new(|| {
@@ -1049,17 +1082,27 @@ fn apply_layer_vertex_uv_params(
     vertex_attributes: &Attributes,
     fragment_attributes: &Attributes,
 ) {
-    match &mut layer.value {
-        LayerValue::Value(d) => {
-            apply_vertex_uv_params(vertex, vertex_attributes, fragment_attributes, d)
-        }
-        LayerValue::Layers(layers) => {
-            for layer in layers {
-                apply_layer_vertex_uv_params(layer, vertex, vertex_attributes, fragment_attributes);
-            }
-        }
-    }
-    match &mut layer.ratio {
+    apply_layer_value_vertex_uv_params(
+        &mut layer.value,
+        vertex,
+        vertex_attributes,
+        fragment_attributes,
+    );
+    apply_layer_value_vertex_uv_params(
+        &mut layer.ratio,
+        vertex,
+        vertex_attributes,
+        fragment_attributes,
+    );
+}
+
+fn apply_layer_value_vertex_uv_params(
+    value: &mut LayerValue,
+    vertex: &Graph,
+    vertex_attributes: &Attributes,
+    fragment_attributes: &Attributes,
+) {
+    match value {
         LayerValue::Value(d) => {
             apply_vertex_uv_params(vertex, vertex_attributes, fragment_attributes, d)
         }

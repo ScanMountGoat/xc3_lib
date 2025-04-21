@@ -201,7 +201,7 @@ struct InstanceInput {
 struct VertexOutput {
     @builtin(position) @invariant clip_position: vec4<f32>,
     @location(0) position: vec3<f32>,
-    @location(1) normal: vec3<f32>,
+    @location(1) normal: vec4<f32>,
     @location(2) tangent: vec4<f32>,
     @location(3) vertex_color: vec4<f32>,
     @location(4) tex01: vec4<f32>,
@@ -299,7 +299,7 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
 
     out.vertex_color = vertex_color;
 
-    out.normal = normal_xyz;
+    out.normal = vec4(normal_xyz, in0.normal.w);
     out.tangent = vec4(tangent_xyz, in0.tangent.w);
     return out;
 }
@@ -351,7 +351,7 @@ fn vs_main_instanced_static(in0: VertexInput0, in1: VertexInput1, instance: Inst
     out.tex67 = in1.tex67;
     out.tex8 = in1.tex8;
     out.vertex_color = in1.vertex_color;
-    out.normal = normal_xyz;
+    out.normal = vec4(normal_xyz, in0.normal.w);
     out.tangent = vec4(tangent_xyz, in0.tangent.w);
     return out;
 }
@@ -525,9 +525,14 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     // Not all materials and shaders use normal mapping.
     var normal = vertex_normal;
     if assignments[2].has_channels.x != 0u || assignments[2].has_channels.y != 0u {
-        normal = apply_normal_map(vec3(g_normal.xy, normal_z(g_normal.x, g_normal.y)), tangent, bitangent, vertex_normal);
+        var intensity = 1.0;
+        // ASSIGN_NORMAL_INTENSITY_GENERATED
+        let normal_map = vec3(g_normal.xy * pow(intensity, 0.7), normal_z(g_normal.x, g_normal.y));
+        normal = apply_normal_map(normal_map, tangent, bitangent, vertex_normal);
     }
     let ao = g_normal.z;
+
+    // TODO: front facing in calcNormalZAbs in pcmdo?
 
     // Normals are in view space, so the view vector is simple.
     let view = vec3(0.0, 0.0, 1.0);

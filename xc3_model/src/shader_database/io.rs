@@ -105,6 +105,7 @@ struct ShaderProgramIndexed {
     output_dependencies: Vec<(VarInt, OutputDependenciesIndexed)>,
 
     outline_width: OptVarInt,
+    normal_intensity: OptVarInt,
 }
 
 #[binrw]
@@ -413,6 +414,16 @@ impl ShaderDatabaseIndexed {
                 )
                 .0
             })),
+            normal_intensity: OptVarInt(p.normal_intensity.map(|i| {
+                self.add_layer_value(
+                    dependency_to_index,
+                    buffer_dependency_to_index,
+                    layer_value_to_index,
+                    tex_coord_to_index,
+                    &i,
+                )
+                .0
+            })),
         }
     }
 
@@ -563,19 +574,23 @@ impl ShaderDatabaseIndexed {
                 .outline_width
                 .0
                 .map(|i| self.dependency_from_indexed(VarInt(i))),
+            normal_intensity: p
+                .normal_intensity
+                .0
+                .map(|i| self.layer_value_from_indexed(&self.layer_values[i])),
         }
     }
 
     fn output_layer_from_indexed(&self, l: &LayerIndexed) -> Layer {
         Layer {
-            value: self.output_layer_value_from_indexed(&self.layer_values[l.value.0]),
-            ratio: self.output_layer_value_from_indexed(&self.layer_values[l.ratio.0]),
+            value: self.layer_value_from_indexed(&self.layer_values[l.value.0]),
+            ratio: self.layer_value_from_indexed(&self.layer_values[l.ratio.0]),
             blend_mode: l.blend_mode.into(),
             is_fresnel: l.is_fresnel != 0,
         }
     }
 
-    fn output_layer_value_from_indexed(&self, value: &LayerValueIndexed) -> LayerValue {
+    fn layer_value_from_indexed(&self, value: &LayerValueIndexed) -> LayerValue {
         match value {
             LayerValueIndexed::Value(d) => LayerValue::Value(self.dependency_from_indexed(*d)),
             LayerValueIndexed::Layers(layers) => LayerValue::Layers(

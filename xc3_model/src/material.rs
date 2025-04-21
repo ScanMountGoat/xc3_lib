@@ -449,6 +449,7 @@ fn get_shader_legacy<S: GetProgramHash>(
     Some(ShaderProgram {
         output_dependencies,
         outline_width: None,
+        normal_intensity: None,
     })
 }
 
@@ -741,8 +742,12 @@ fn assign_parameters_legacy(
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutputAssignments {
     pub assignments: [OutputAssignment; 6],
+
     /// The parameter multiplied by vertex alpha to determine outline width.
     pub outline_width: Option<ValueAssignment>,
+
+    /// The intensity map for normal mapping.
+    pub normal_intensity: Option<LayerAssignmentValue>,
 }
 
 impl OutputAssignments {
@@ -939,6 +944,7 @@ impl Material {
                 },
             ],
             outline_width: None,
+            normal_intensity: None,
         }
     }
 }
@@ -953,6 +959,10 @@ fn output_assignments(
             .outline_width
             .as_ref()
             .and_then(|d| ValueAssignment::from_dependency(d, parameters, 'x')),
+        normal_intensity: shader
+            .normal_intensity
+            .as_ref()
+            .map(|l| layer_channel_assignment_value(parameters, 'x', l)),
     }
 }
 

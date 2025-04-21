@@ -278,6 +278,11 @@ pub fn create_model_shader(key: &PipelineKey) -> String {
 
     source = source.replace("// ALPHA_TEST_DISCARD_GENERATED", &key.alpha_test_wgsl);
 
+    source = source.replace(
+        "// ASSIGN_NORMAL_INTENSITY_GENERATED",
+        &key.normal_intensity_wgsl.replace(OUT_VAR, "intensity"),
+    );
+
     source
 }
 
@@ -427,6 +432,25 @@ pub fn generate_normal_layering_wgsl(
     wgsl
 }
 
+pub fn generate_normal_intensity_wgsl(
+    intensity: &LayerAssignmentValue,
+    name_to_index: &mut IndexMap<SmolStr, usize>,
+) -> String {
+    let mut wgsl = String::new();
+
+    let node_prefix = format!("{OUT_VAR}_nrm_intensity");
+
+    let mut nodes = Nodes::default();
+    let index = insert_assignment(&mut nodes, intensity);
+
+    nodes.write_wgsl(&mut wgsl, &node_prefix, name_to_index);
+
+    if let Some(i) = index {
+        writeln!(&mut wgsl, "{OUT_VAR} = {node_prefix}{i};").unwrap();
+    }
+    wgsl
+}
+
 fn channel_assignment_wgsl(
     name_to_index: &mut IndexMap<SmolStr, usize>,
     value: &ValueAssignment,
@@ -454,6 +478,7 @@ fn channel_assignment_wgsl(
             let c = ["x", "y", "z", "w"][*channel_index];
             match name.as_str() {
                 "vColor" => Some(format!("in.vertex_color.{c}")),
+                "vNormal" => Some(format!("in.normal.{c}")),
                 _ => {
                     error!("Unsupported attribute {name}.{c}");
                     None

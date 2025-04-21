@@ -107,6 +107,9 @@ pub struct ShaderProgram {
 
     /// The parameter multiplied by vertex alpha to determine outline width.
     pub outline_width: Option<Dependency>,
+
+    /// The intensity map for normal mapping.
+    pub normal_intensity: Option<LayerValue>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

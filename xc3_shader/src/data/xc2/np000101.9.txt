@@ -8669,4 +8669,5 @@ ShaderProgram {
         },
     },
     outline_width: None,
+    normal_intensity: None,
 }

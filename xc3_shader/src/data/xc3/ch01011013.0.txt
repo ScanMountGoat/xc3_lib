@@ -1,5 +1,137 @@
 ShaderProgram {
     output_dependencies: {
+        "o0.x": OutputDependencies {
+            layers: [
+                Layer {
+                    value: Value(
+                        Attribute(
+                            AttributeDependency {
+                                name: "vColor",
+                                channel: Some(
+                                    'x',
+                                ),
+                            },
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
+                Layer {
+                    value: Value(
+                        Buffer(
+                            BufferDependency {
+                                name: "U_Mate",
+                                field: "gMatCol",
+                                index: None,
+                                channel: Some(
+                                    'x',
+                                ),
+                            },
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mul,
+                    is_fresnel: false,
+                },
+            ],
+        },
+        "o0.y": OutputDependencies {
+            layers: [
+                Layer {
+                    value: Value(
+                        Attribute(
+                            AttributeDependency {
+                                name: "vColor",
+                                channel: Some(
+                                    'y',
+                                ),
+                            },
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
+                Layer {
+                    value: Value(
+                        Buffer(
+                            BufferDependency {
+                                name: "U_Mate",
+                                field: "gMatCol",
+                                index: None,
+                                channel: Some(
+                                    'y',
+                                ),
+                            },
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mul,
+                    is_fresnel: false,
+                },
+            ],
+        },
+        "o0.z": OutputDependencies {
+            layers: [
+                Layer {
+                    value: Value(
+                        Attribute(
+                            AttributeDependency {
+                                name: "vColor",
+                                channel: Some(
+                                    'z',
+                                ),
+                            },
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
+                Layer {
+                    value: Value(
+                        Buffer(
+                            BufferDependency {
+                                name: "U_Mate",
+                                field: "gMatCol",
+                                index: None,
+                                channel: Some(
+                                    'z',
+                                ),
+                            },
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mul,
+                    is_fresnel: false,
+                },
+            ],
+        },
         "o0.w": OutputDependencies {
             layers: [
                 Layer {
@@ -32,6 +164,36 @@ ShaderProgram {
                         ),
                     ),
                     blend_mode: Mix,
+                    is_fresnel: false,
+                },
+            ],
+        },
+        "o1.y": OutputDependencies {
+            layers: [
+                Layer {
+                    value: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
+                Layer {
+                    value: Layers(
+                        [],
+                    ),
+                    ratio: Value(
+                        Constant(
+                            -1.0,
+                        ),
+                    ),
+                    blend_mode: Add,
                     is_fresnel: false,
                 },
             ],
@@ -81,6 +243,12 @@ ShaderProgram {
                 },
             ],
         },
+        "o2.x": OutputDependencies {
+            layers: [],
+        },
+        "o2.y": OutputDependencies {
+            layers: [],
+        },
         "o2.z": OutputDependencies {
             layers: [
                 Layer {
@@ -99,6 +267,49 @@ ShaderProgram {
                 },
             ],
         },
+        "o2.w": OutputDependencies {
+            layers: [
+                Layer {
+                    value: Value(
+                        Constant(
+                            0.5,
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
+                Layer {
+                    value: Value(
+                        Attribute(
+                            AttributeDependency {
+                                name: "nWgtIdx",
+                                channel: Some(
+                                    'z',
+                                ),
+                            },
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1000.0,
+                        ),
+                    ),
+                    blend_mode: Add,
+                    is_fresnel: false,
+                },
+            ],
+        },
+        "o3.x": OutputDependencies {
+            layers: [],
+        },
+        "o3.y": OutputDependencies {
+            layers: [],
+        },
         "o3.z": OutputDependencies {
             layers: [
                 Layer {
@@ -113,6 +324,147 @@ ShaderProgram {
                         ),
                     ),
                     blend_mode: Mix,
+                    is_fresnel: false,
+                },
+            ],
+        },
+        "o3.w": OutputDependencies {
+            layers: [
+                Layer {
+                    value: Value(
+                        Constant(
+                            0.6666667,
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mul,
+                    is_fresnel: false,
+                },
+                Layer {
+                    value: Layers(
+                        [],
+                    ),
+                    ratio: Value(
+                        Constant(
+                            0.33333334,
+                        ),
+                    ),
+                    blend_mode: Add,
+                    is_fresnel: false,
+                },
+                Layer {
+                    value: Value(
+                        Constant(
+                            0.01,
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Add,
+                    is_fresnel: false,
+                },
+            ],
+        },
+        "o4.x": OutputDependencies {
+            layers: [
+                Layer {
+                    value: Value(
+                        Attribute(
+                            AttributeDependency {
+                                name: "nWgtIdx",
+                                channel: Some(
+                                    'z',
+                                ),
+                            },
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mix,
+                    is_fresnel: false,
+                },
+                Layer {
+                    value: Value(
+                        Constant(
+                            8.0,
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mul,
+                    is_fresnel: false,
+                },
+                Layer {
+                    value: Layers(
+                        [],
+                    ),
+                    ratio: Value(
+                        Constant(
+                            -1.0,
+                        ),
+                    ),
+                    blend_mode: Add,
+                    is_fresnel: false,
+                },
+            ],
+        },
+        "o4.y": OutputDependencies {
+            layers: [
+                Layer {
+                    value: Value(
+                        Constant(
+                            0.003921569,
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mul,
+                    is_fresnel: false,
+                },
+                Layer {
+                    value: Layers(
+                        [],
+                    ),
+                    ratio: Value(
+                        Constant(
+                            -1.0,
+                        ),
+                    ),
+                    blend_mode: Add,
+                    is_fresnel: false,
+                },
+            ],
+        },
+        "o4.z": OutputDependencies {
+            layers: [
+                Layer {
+                    value: Value(
+                        Constant(
+                            0.003921569,
+                        ),
+                    ),
+                    ratio: Value(
+                        Constant(
+                            1.0,
+                        ),
+                    ),
+                    blend_mode: Mul,
                     is_fresnel: false,
                 },
             ],
@@ -150,4 +502,5 @@ ShaderProgram {
             },
         ),
     ),
+    normal_intensity: None,
 }
