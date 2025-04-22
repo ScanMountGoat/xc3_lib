@@ -1,8 +1,5 @@
 use from_pest::{ConversionError, FromPest, Void};
-use pest::{
-    iterators::{Pair, Pairs},
-    Parser, Span,
-};
+use pest::{iterators::Pairs, Parser, Span};
 use pest_ast::FromPest;
 use pest_derive::Parser;
 
@@ -22,13 +19,12 @@ fn span_to_string(span: Span) -> String {
     span.as_str().to_string()
 }
 
-// TODO: simplify field names
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::program))]
 struct Program {
     instructions: Vec<Instruction>,
     end_of_program: EndOfProgram,
-    eoi: EOI,
+    eoi: Eoi,
 }
 
 #[derive(FromPest)]
@@ -44,8 +40,8 @@ enum Instruction {
 #[pest_ast(rule(Rule::cf_inst))]
 struct CfInst {
     inst_count: InstCount,
-    cf_opcode: CfOpcode,
-    cf_inst_properties: CfInstProperties,
+    opcode: CfOpcode,
+    properties: CfInstProperties,
 }
 
 #[derive(FromPest)]
@@ -87,10 +83,10 @@ struct Burstcnt(Number);
 #[pest_ast(rule(Rule::cf_exp_inst))]
 struct CfExpInst {
     inst_count: InstCount,
-    exp_opcode: ExpOpcode,
-    exp_target: ExpTarget,
-    exp_src: ExpSrc,
-    cf_inst_properties: CfInstProperties,
+    opcode: ExpOpcode,
+    target: ExpTarget,
+    src: ExpSrc,
+    properties: CfInstProperties,
 }
 
 #[derive(FromPest)]
@@ -138,25 +134,64 @@ struct ExpParamTarget(Number);
 #[pest_ast(rule(Rule::exp_src))]
 struct ExpSrc {
     gpr: Gpr, // TODO: Gpr or GprRel
-    four_comp_swizzle: FourCompSwizzle,
+    swizzle: FourCompSwizzle,
 }
 
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_clause))]
 struct TexClause {
     inst_count: InstCount,
+    inst_type: TexClauseInstType,
+    properties: TexClauseProperties,
+    instructions: Vec<TexInst>,
+}
+
+#[derive(FromPest)]
+#[pest_ast(rule(Rule::tex_clause_inst_type))]
+struct TexClauseInstType;
+
+#[derive(FromPest)]
+#[pest_ast(rule(Rule::tex_clause_properties))]
+struct TexClauseProperties(Vec<TexClauseProperty>);
+
+enum TexClauseProperty {
+    Unk(Rule),
+}
+
+// TODO: Is there a way to derive this?
+impl<'pest> FromPest<'pest> for TexClauseProperty {
+    type Rule = Rule;
+
+    type FatalError = Void;
+
+    fn from_pest(
+        pest: &mut Pairs<'pest, Self::Rule>,
+    ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
+        // TODO: error type?
+        let next = pest.next().ok_or(ConversionError::NoMatch)?;
+        match next.as_rule() {
+            Rule::addr
+            | Rule::cnt
+            | Rule::cf_const
+            | Rule::cnd
+            | Rule::whole_quad_mode
+            | Rule::no_barrier
+            | Rule::valid_pix => Ok(Self::Unk(next.as_rule())),
+            _ => Err(ConversionError::NoMatch),
+        }
+    }
 }
 
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_inst))]
 struct TexInst {
     inst_count: InstCount,
-    tex_opcode: TexOpcode,
-    tex_dst: TexDst,
-    tex_src: TexSrc,
-    tex_resource_id: TexResourceId,
-    tex_sampler_id: TexSamplerId,
-    tex_properties: TexProperties,
+    opcode: TexOpcode,
+    dst: TexDst,
+    src: TexSrc,
+    resource_id: TexResourceId,
+    sampler_id: TexSamplerId,
+    properties: TexProperties,
 }
 
 #[derive(FromPest)]
@@ -176,7 +211,7 @@ struct TexSamplerId(#[pest_ast(outer(with(span_to_string)))] String);
 struct TexDst {
     gpr: Gpr,
     tex_rel: Option<TexRel>,
-    four_comp_swizzle: FourCompSwizzle,
+    swizzle: FourCompSwizzle,
 }
 
 #[derive(FromPest)]
@@ -184,7 +219,7 @@ struct TexDst {
 struct TexSrc {
     gpr: Gpr,
     tex_rel: Option<TexRel>,
-    four_comp_swizzle: FourCompSwizzle,
+    swizzle: FourCompSwizzle,
 }
 
 #[derive(FromPest)]
@@ -199,8 +234,8 @@ struct TexProperties;
 #[pest_ast(rule(Rule::alu_clause))]
 struct AluClause {
     inst_count: InstCount,
-    alu_clause_inst_type: AluClauseInstType,
-    alu_clause_properties: AluClauseProperties,
+    inst_type: AluClauseInstType,
+    properties: AluClauseProperties,
     groups: Vec<AluGroup>,
 }
 
@@ -331,7 +366,7 @@ enum AluDstInner {
     Value {
         gpr: Gpr,
         alu_rel: Option<AluRel>,
-        one_comp_swizzle: Option<OneCompSwizzle>,
+        swizzle: Option<OneCompSwizzle>,
     },
     WriteMask(WriteMask),
 }
@@ -351,7 +386,7 @@ impl<'pest> FromPest<'pest> for AluDstInner {
             Rule::gpr => Ok(Self::Value {
                 gpr: Gpr::from_pest(pest)?,
                 alu_rel: AluRel::from_pest(pest).ok(),
-                one_comp_swizzle: OneCompSwizzle::from_pest(pest).ok(),
+                swizzle: OneCompSwizzle::from_pest(pest).ok(),
             }),
             _ => todo!(),
         }
@@ -362,9 +397,9 @@ impl<'pest> FromPest<'pest> for AluDstInner {
 #[pest_ast(rule(Rule::alu_src))]
 struct AluSrc {
     negate: Option<Negate>,
-    src_value: AluSrcValueOrAbs,
+    value: AluSrcValueOrAbs,
     alu_rel: Option<AluRel>,
-    one_comp_swizzle: Option<OneCompSwizzle>,
+    swizzle: Option<OneCompSwizzle>,
 }
 
 enum AluSrcValueOrAbs {
@@ -483,7 +518,7 @@ struct PreviousVector(Number);
 #[pest_ast(rule(Rule::alu_abs_src_value))]
 struct AluAbsSrcValue {
     value: AluSrcValue,
-    one_comp_swizzle: Option<OneCompSwizzle>,
+    swizzle: Option<OneCompSwizzle>,
 }
 
 #[derive(FromPest)]
@@ -574,7 +609,7 @@ struct EndOfProgram;
 
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::EOI))]
-struct EOI;
+struct Eoi;
 
 impl std::fmt::Display for Gpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -609,15 +644,24 @@ impl OneCompSwizzle {
 #[derive(Default)]
 struct Nodes {
     nodes: Vec<Node>,
-    node_index_alu_unit_inst_count: Vec<(usize, Option<char>, usize)>,
+    node_info: Vec<NodeInfo>,
+}
+
+struct NodeInfo {
+    index: usize,
+    alu_unit: Option<char>,
+    inst_count: usize,
 }
 
 impl Nodes {
     fn add_node(&mut self, node: Node, alu_unit: Option<char>, inst_count: usize) -> usize {
         let index = self.nodes.len();
         self.nodes.push(node);
-        self.node_index_alu_unit_inst_count
-            .push((index, alu_unit, inst_count));
+        self.node_info.push(NodeInfo {
+            index,
+            alu_unit,
+            inst_count,
+        });
         index
     }
 }
@@ -635,27 +679,17 @@ impl Graph {
             return Graph::default();
         }
 
-        let mut program = LatteParser::parse(Rule::program, &asm).unwrap();
-        // TODO: use strongly typed API for parsing entire program.
+        let mut pairs = LatteParser::parse(Rule::program, &asm).unwrap();
+        let program = Program::from_pest(&mut pairs).unwrap();
 
         let mut nodes = Nodes::default();
 
-        let program = program.next().unwrap();
-        for pair in program.into_inner() {
-            if pair.as_rule() == Rule::instruction {
-                let inst = pair.into_inner().next().unwrap();
-                match inst.as_rule() {
-                    Rule::cf_inst => {
-                        let mut inner = inst.into_inner();
-                        let _inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
-                        let _op_code = inner.next().unwrap().as_str();
-                        for _property in inner {}
-                    }
-                    Rule::cf_exp_inst => add_exp_inst(inst, &mut nodes),
-                    Rule::tex_clause => add_tex_clause(inst, &mut nodes),
-                    Rule::alu_clause => add_alu_clause(inst, &mut nodes),
-                    _ => (),
-                }
+        for instruction in program.instructions {
+            match instruction {
+                Instruction::CfInst(_inst) => (),
+                Instruction::CfExpInst(inst) => add_exp_inst(inst, &mut nodes),
+                Instruction::TexClause(inst) => add_tex_clause(inst, &mut nodes),
+                Instruction::AluClause(inst) => add_alu_clause(inst, &mut nodes),
             }
         }
 
@@ -663,22 +697,21 @@ impl Graph {
     }
 }
 
-fn add_exp_inst(inst: Pair<Rule>, nodes: &mut Nodes) {
-    let exp = CfExpInst::from_pest(&mut Pairs::single(inst.clone())).unwrap();
+fn add_exp_inst(exp: CfExpInst, nodes: &mut Nodes) {
     let inst_count = exp.inst_count.0 .0;
 
-    let (target_name, target_index) = match exp.exp_target {
+    let (target_name, target_index) = match exp.target {
         ExpTarget::ExpPixTarget(t) => ("PIX", t.0 .0),
         ExpTarget::ExpPosTarget(t) => ("POS", t.0 .0),
         ExpTarget::ExpParamTarget(t) => ("PARAM", t.0 .0),
     };
 
     let source_name = "R";
-    let source_index = exp.exp_src.gpr.0 .0;
-    let channels = exp.exp_src.four_comp_swizzle.channels();
+    let source_index = exp.src.gpr.0 .0;
+    let channels = exp.src.swizzle.channels();
 
     let burst_count = exp
-        .cf_inst_properties
+        .properties
         .0
         .iter()
         .find_map(|p| {
@@ -710,15 +743,11 @@ fn add_exp_inst(inst: Pair<Rule>, nodes: &mut Nodes) {
     }
 }
 
-fn add_tex_clause(inst: Pair<Rule>, nodes: &mut Nodes) {
-    let mut inner = inst.into_inner();
-    let inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
-    let _inst_type = inner.next().unwrap().as_str();
-    let _properties = inner.next().unwrap().as_str();
-    for tex_instruction in inner {
+fn add_tex_clause(clause: TexClause, nodes: &mut Nodes) {
+    for tex_instruction in clause.instructions {
         let tex_nodes = tex_inst_node(tex_instruction, nodes).unwrap();
         for node in tex_nodes {
-            nodes.add_node(node, None, inst_count);
+            nodes.add_node(node, None, clause.inst_count.0 .0);
         }
     }
 }
@@ -731,9 +760,7 @@ struct AluScalarData {
     sources: Vec<Expr>,
 }
 
-fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Nodes) {
-    let clause = AluClause::from_pest(&mut Pairs::single(inst)).unwrap();
-
+fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
     for group in clause.groups {
         let inst_count = group.inst_count.0 .0;
 
@@ -977,7 +1004,7 @@ fn alu_dst_output(dst: AluDst, inst_count: usize, alu_unit: char) -> Output {
         AluDstInner::Value {
             gpr,
             alu_rel,
-            one_comp_swizzle,
+            swizzle: one_comp_swizzle,
         } => {
             let channel = one_comp_swizzle.and_then(|s| s.channels().chars().next());
             Output {
@@ -1042,17 +1069,13 @@ fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Nod
 fn alu_src_expr(source: AluSrc, nodes: &Nodes) -> Expr {
     let negate = source.negate.is_some();
 
-    let channel = source
-        .one_comp_swizzle
-        .and_then(|s| s.channels().chars().next());
+    let channel = source.swizzle.and_then(|s| s.channels().chars().next());
 
-    let expr = match source.src_value {
+    let expr = match source.value {
         AluSrcValueOrAbs::Abs(abs_value) => Expr::Func {
             name: "abs".to_string(),
             args: vec![value_expr(nodes, channel, abs_value.value)],
-            channel: abs_value
-                .one_comp_swizzle
-                .and_then(|s| s.channels().chars().next()),
+            channel: abs_value.swizzle.and_then(|s| s.channels().chars().next()),
         },
         AluSrcValueOrAbs::Value(value) => value_expr(nodes, channel, value),
     };
@@ -1102,13 +1125,13 @@ fn previous_assignment(value: &str, channel: Option<char>, nodes: &Nodes) -> Exp
         let inst_count: usize = value.split_once("PV").unwrap().1.parse().unwrap();
 
         nodes
-            .node_index_alu_unit_inst_count
+            .node_info
             .iter()
-            .find_map(|(n, alu, i)| {
-                if *i == inst_count && *alu == channel {
+            .find_map(|n| {
+                if n.inst_count == inst_count && n.alu_unit == channel {
                     Some(Expr::Node {
-                        node_index: *n,
-                        channel: nodes.nodes[*n].output.channel,
+                        node_index: n.index,
+                        channel: nodes.nodes[n.index].output.channel,
                     })
                 } else {
                     None
@@ -1122,13 +1145,13 @@ fn previous_assignment(value: &str, channel: Option<char>, nodes: &Nodes) -> Exp
         let inst_count: usize = value.split_once("PS").unwrap().1.parse().unwrap();
 
         nodes
-            .node_index_alu_unit_inst_count
+            .node_info
             .iter()
-            .find_map(|(n, alu, i)| {
-                if *i == inst_count && *alu == Some('t') {
+            .find_map(|n| {
+                if n.inst_count == inst_count && n.alu_unit == Some('t') {
                     Some(Expr::Node {
-                        node_index: *n,
-                        channel: nodes.nodes[*n].output.channel,
+                        node_index: n.index,
+                        channel: nodes.nodes[n.index].output.channel,
                     })
                 } else {
                     None
@@ -1154,21 +1177,19 @@ fn previous_assignment(value: &str, channel: Option<char>, nodes: &Nodes) -> Exp
     }
 }
 
-fn tex_inst_node(tex_instruction: Pair<Rule>, nodes: &Nodes) -> Option<Vec<Node>> {
-    let tex = TexInst::from_pest(&mut Pairs::single(tex_instruction)).ok()?;
-
+fn tex_inst_node(tex: TexInst, nodes: &Nodes) -> Option<Vec<Node>> {
     // TODO: Check that op code is SAMPLE?
 
     // TODO: Get the input names and channels.
     // TODO: register or mask?
-    let output_name = tex.tex_dst.gpr.to_string();
-    let output_channels = tex.tex_dst.four_comp_swizzle.channels();
+    let output_name = tex.dst.gpr.to_string();
+    let output_channels = tex.dst.swizzle.channels();
 
-    let texcoords = tex_src_coords(tex.tex_src, nodes)?;
+    let texcoords = tex_src_coords(tex.src, nodes)?;
 
     // TODO: make these rules not atomic and format similar to gpr?
-    let texture = tex.tex_resource_id.0;
-    let _sampler = tex.tex_sampler_id.0;
+    let texture = tex.resource_id.0;
+    let _sampler = tex.sampler_id.0;
 
     let texture_name = Expr::Global {
         name: texture.to_string(),
@@ -1222,7 +1243,7 @@ fn tex_src_coords(src: TexSrc, nodes: &Nodes) -> Option<Expr> {
     let gpr = src.gpr.to_string();
 
     // TODO: Handle write masks.
-    let mut channels = src.four_comp_swizzle.channels().chars();
+    let mut channels = src.swizzle.channels().chars();
 
     // TODO: Also handle cube maps.
     Some(Expr::Func {
