@@ -3,7 +3,7 @@ instruction = { cf_inst | cf_exp_inst | tex_clause | alu_clause }
 
 number     =  { ('0'..'9')+ }
 hex_number = @{ "0x" ~ ('0'..'9' | 'A'..'F' | 'a'..'f')+ }
-float      = @{ "-"? ~ ('0'..'9')+ ~ ("." ~ ('0'..'9')+ ~ ("e-" ~ ('0'..'9')+)?)? ~ "f"? }
+float      = @{ "-"? ~ ('0'..'9')+ ~ ("." ~ ('0'..'9')+)? ~ ("e-" ~ ('0'..'9')+)? ~ "f"? }
 
 cf_inst        = { inst_count ~ cf_opcode ~ cf_inst_properties }
 cf_exp_inst    = { inst_count ~ exp_opcode ~ ":" ~ (exp_pix_target | exp_pos_target | exp_param_target) ~ "," ~ exp_src ~ cf_inst_properties }
@@ -64,9 +64,9 @@ cf_opcode            = {
   | "END_PROGRAM"
 }
 
-tex_clause_properties = { ((addr | cnt | cf_const | cnd | whole_quad_mode | no_barrier | valid_pix))* }
-alu_clause_properties = { ((addr | cnt | kcache0 | kcache1 | uses_waterfall | whole_quad_mode | no_barrier))* }
-cf_inst_properties    = { ((addr | cnt | cf_const | pop_cnt | elem_size | burstcnt | kcache0 | kcache1 | uses_waterfall | whole_quad_mode | no_barrier | valid_pix | fail_jump_addr | pass_jump_addr))* }
+tex_clause_properties = { (addr | cnt | cf_const | cnd | whole_quad_mode | no_barrier | valid_pix)* }
+alu_clause_properties = { (addr | cnt | kcache0 | kcache1 | uses_waterfall | whole_quad_mode | no_barrier)* }
+cf_inst_properties    = { (addr | cnt | cf_const | pop_cnt | elem_size | burstcnt | kcache0 | kcache1 | uses_waterfall | whole_quad_mode | no_barrier | valid_pix | fail_jump_addr | pass_jump_addr)* }
 burstcnt              = { "BURSTCNT(" ~ number ~ ")" }
 addr                  = { "ADDR(" ~ number ~ ")" }
 cf_const              = { "CF_CONST(" ~ number ~ ")" }
@@ -320,7 +320,7 @@ alu_dst             =  { (gpr ~ alu_rel? ~ one_comp_swizzle?) | write_mask }
 alu_src             =  { negate? ~ (alu_abs_src_value | alu_src_value) ~ alu_rel? ~ one_comp_swizzle? }
 alu_abs_src_value   =  { "|" ~ alu_src_value ~ one_comp_swizzle? ~ "|" }
 alu_src_value       =  { gpr | constant_cache0 | constant_cache1 | constant_file | literal | previous_scalar | previous_vector }
-alu_properties      =  { ((bank_swizzle | update_exec_mask | update_pred | pred_sel | clamp))* }
+alu_properties      =  { (bank_swizzle | update_exec_mask | update_pred | pred_sel | clamp)* }
 update_pred         =  { "UPDATE_PRED" }
 pred_sel            =  { "PRED_SEL_OFF" | "PRED_SEL_ZERO" | "PRED_SEL_ONE" }
 clamp               =  { "CLAMP" }

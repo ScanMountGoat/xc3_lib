@@ -175,14 +175,15 @@ fn outline_width_parameter(vert: &Graph) -> Option<Dependency> {
 }
 
 fn shader_from_latte_asm(
-    _vertex: &str,
+    vertex: &str,
     fragment: &str,
     fragment_shader: &FragmentShader,
 ) -> ShaderProgram {
-    let frag = &Graph::from_latte_asm(fragment);
-    let frag_attributes = &Attributes::default();
+    let vert = Graph::from_latte_asm(vertex);
+    let vert_attributes = Attributes::default();
 
-    // TODO: Fix vertex parsing errors.
+    let frag = Graph::from_latte_asm(fragment);
+    let frag_attributes = Attributes::default();
 
     // TODO: What is the largest number of outputs?
     let mut output_dependencies = IndexMap::new();
@@ -194,7 +195,7 @@ fn shader_from_latte_asm(
             let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
 
             let mut dependencies =
-                input_dependencies(frag, frag_attributes, &assignments, &dependent_lines);
+                input_dependencies(&frag, &frag_attributes, &assignments, &dependent_lines);
 
             // TODO: Add texture parameters used for the corresponding vertex output.
 
@@ -216,7 +217,7 @@ fn shader_from_latte_asm(
             }
 
             // TODO: How much of the layer detection can be reused for Wii U?
-            let layers = dependencies
+            let mut layers = dependencies
                 .first()
                 .map(|d| {
                     vec![Layer {
@@ -227,6 +228,8 @@ fn shader_from_latte_asm(
                     }]
                 })
                 .unwrap_or_default();
+
+            apply_attributes(&mut layers, &vert, &vert_attributes, &frag_attributes);
 
             if !dependent_lines.is_empty() {
                 // Simplify the output name to save space.
@@ -1705,7 +1708,8 @@ mod tests {
     #[test]
     fn shader_from_latte_asm_elma_leg() {
         // xenox/chr_pc/pc221115.camdo, "leg_mat", shd0000
-        let asm = include_str!("data/xcx/pc221115.0.frag.txt");
+        let vert_asm = include_str!("data/xcx/pc221115.0.vert.txt");
+        let frag_asm = include_str!("data/xcx/pc221115.0.frag.txt");
 
         // TODO: Make this easier to test by taking metadata directly?
         let fragment_shader = xc3_lib::mths::FragmentShader {
@@ -1775,7 +1779,7 @@ mod tests {
                 },
             ],
         };
-        let shader = shader_from_latte_asm("", asm, &fragment_shader);
+        let shader = shader_from_latte_asm(vert_asm, frag_asm, &fragment_shader);
         assert_debug_eq!("data/xcx/pc221115.0.txt", shader);
     }
 

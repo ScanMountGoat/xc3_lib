@@ -74,7 +74,7 @@ impl<'pest> FromPest<'pest> for CfInstProperty {
         let next = pest.peek().ok_or(ConversionError::NoMatch)?;
         match next.as_rule() {
             Rule::burstcnt => Burstcnt::from_pest(pest).map(Self::Burstcnt),
-            _ => Ok(Self::Unk(next.as_rule())),
+            _ => Ok(Self::Unk(pest.next().unwrap().as_rule())),
         }
     }
 }
@@ -665,7 +665,6 @@ impl Graph {
 
 fn add_exp_inst(inst: Pair<Rule>, nodes: &mut Nodes) {
     let exp = CfExpInst::from_pest(&mut Pairs::single(inst.clone())).unwrap();
-
     let inst_count = exp.inst_count.0 .0;
 
     let (target_name, target_index) = match exp.exp_target {
@@ -1081,7 +1080,10 @@ fn value_expr(nodes: &Nodes, channel: Option<char>, value: AluSrcValue) -> Expr 
             index: Some(Box::new(Expr::Int(c1.0 .0 as i32))),
             channel,
         },
-        AluSrcValueInner::ConstantFile(constant_file) => todo!(),
+        AluSrcValueInner::ConstantFile(cf) => Expr::Global {
+            name: format!("C{}", cf.0 .0), // TODO: how to handle constant file expressions?
+            channel,
+        },
         AluSrcValueInner::Literal(literal) => {
             // TODO: how to handle hex literals?
             match literal.0 {
@@ -1244,6 +1246,18 @@ mod tests {
         // Elma's legs (visible on title screen).
         let asm = include_str!("../data/xcx/pc221115.0.frag.txt");
         let expected = include_str!("../data/xcx/pc221115.0.frag");
+
+        // TODO: Figure out the expected nodes to test previous node references.
+        // TODO: Test expected nodes on a handwritten example?
+        let graph = Graph::from_latte_asm(asm);
+        assert_eq!(expected, graph.to_glsl());
+    }
+
+    #[test]
+    fn graph_from_asm_pc221115_vert_0() {
+        // Elma's legs (visible on title screen).
+        let asm = include_str!("../data/xcx/pc221115.0.vert.txt");
+        let expected = include_str!("../data/xcx/pc221115.0.vert");
 
         // TODO: Figure out the expected nodes to test previous node references.
         // TODO: Test expected nodes on a handwritten example?
