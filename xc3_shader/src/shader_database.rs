@@ -308,16 +308,9 @@ fn find_normal_layers(
 
     let mut view_normal = assign_x(&frag.nodes, &last_node.input)?;
 
-    // TODO: separate code path that detects without fma for xcx de
-    // TODO: xcx de is rg16 float
-    // TODO: xcx de uses vNormal.w for seams?
-    // TODO: secondary normal used for the initial ibl shading like bent normals?
-
     // setMrtNormal in pcmdo shaders.
-    // TODO: Create a query for this?
+    // Xenoblade X uses RG16Float and doesn't require remapping the value range.
     if let Some(new_view_normal) = fma_half_half(&frag.nodes, view_normal) {
-        // Do why does xcxde omit this for some models like dl019100?
-        // TODO: xenoblade x DE query is totally different?
         view_normal = new_view_normal;
     }
     view_normal = assign_x_recursive(&frag.nodes, view_normal);
@@ -326,9 +319,9 @@ fn find_normal_layers(
     // TODO: front facing in calcNormalZAbs in pcmdo?
 
     // nomWork input for getCalcNormalMap in pcmdo shaders.
-    // TODO: xenoblade x DE query is totally different?
     let (nom_work, intensity) = calc_normal_map(&frag.nodes, view_normal)
         .map(|n| (n, None))
+        .or_else(|| calc_normal_map_xcx(&frag.nodes, view_normal).map(|n| (n, None)))
         .or_else(|| {
             calc_normal_map_w_intensity(&frag.nodes, view_normal).map(|(n, i)| (n, Some(i)))
         })?;
@@ -1004,6 +997,55 @@ fn calc_normal_map_w_intensity<'a>(
         ],
         result.get("intensity")?,
     ))
+}
+
+fn calc_normal_map_xcx_query(c: char) -> String {
+    // normal.x or normal.y for xcx de
+    formatdoc! {"
+        void main() {{
+            inverse_length_tangent = inversesqrt(tangent_length);
+            tangent = tangent.{c};
+            normalize_tangent = tangent * inverse_length_tangent;
+            result_x = result_x;
+            result = result_x * normalize_tangent;
+
+            inverse_length_normal = inversesqrt(normal_length);
+            normal = normal.{c};
+            normalize_normal = normal * inverse_length_normal;
+            result_z = result_z;
+            result = fma(result_z, normalize_normal, result);
+
+            inverse_length_bitangent = inversesqrt(bitangent_length);
+            bitangent = bitangent.{c};
+            normalize_bitangent = bitangent * inverse_length_bitangent;
+            result_y = result_y;
+            result = fma(result_y, normalize_bitangent, result);
+
+            inverse_length_normal = inversesqrt(normal_length);
+            result = result * inverse_length_normal;
+            result = fma(normalize_val_inf, neg_dot_val_inf_normal, result);
+        }}
+    "}
+}
+
+static CALC_NORMAL_MAP_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
+    let query = calc_normal_map_xcx_query('x');
+    Graph::parse_glsl(&query).unwrap()
+});
+
+static CALC_NORMAL_MAP_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
+    let query = calc_normal_map_xcx_query('y');
+    Graph::parse_glsl(&query).unwrap()
+});
+
+fn calc_normal_map_xcx<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Expr; 3]> {
+    let result = query_nodes(expr, nodes, &CALC_NORMAL_MAP_XCX_X.nodes)
+        .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_XCX_Y.nodes))?;
+    Some([
+        result.get("result_x")?,
+        result.get("result_y")?,
+        result.get("result_z")?,
+    ])
 }
 
 static GEOMETRIC_SPECULAR_AA: LazyLock<Graph> = LazyLock::new(|| {
@@ -1753,5 +1795,18 @@ mod tests {
         let fragment = TranslationUnit::parse(frag_glsl).unwrap();
         let shader = shader_from_glsl(Some(&vertex), &fragment);
         assert_debug_eq!("data/xcxde/fc281010.2.txt", shader);
+    }
+
+    #[test]
+    fn shader_from_glsl_elma_leg() {
+        // xenoxde/chr/pc/pc221115, "leg_mat", shd0000
+        let vert_glsl = include_str!("data/xcxde/pc221115.0.vert");
+        let frag_glsl = include_str!("data/xcxde/pc221115.0.frag");
+
+        // Check Xenoblade X specific normals and layering.
+        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
+        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
+        let shader = shader_from_glsl(Some(&vertex), &fragment);
+        assert_debug_eq!("data/xcxde/pc221115.0.txt", shader);
     }
 }
