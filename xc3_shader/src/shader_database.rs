@@ -95,7 +95,6 @@ pub fn shader_from_glsl(
     }
 
     ShaderProgram {
-        // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
         outline_width,
         normal_intensity,
@@ -186,49 +185,58 @@ fn shader_from_latte_asm(
     // TODO: Fix vertex parsing errors.
 
     // TODO: What is the largest number of outputs?
-    let output_dependencies = (0..=5)
-        .flat_map(|i| {
-            "xyzw".chars().map(move |c| {
-                let name = format!("PIX{i}");
+    let mut output_dependencies = IndexMap::new();
+    for i in 0..=5 {
+        for c in "xyzw".chars() {
+            let name = format!("PIX{i}");
 
-                let assignments = frag.assignments_recursive(&name, Some(c), None);
-                let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
+            let assignments = frag.assignments_recursive(&name, Some(c), None);
+            let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
 
-                let mut dependencies =
-                    input_dependencies(frag, frag_attributes, &assignments, &dependent_lines);
+            let mut dependencies =
+                input_dependencies(frag, frag_attributes, &assignments, &dependent_lines);
 
-                // TODO: Add texture parameters used for the corresponding vertex output.
+            // TODO: Add texture parameters used for the corresponding vertex output.
 
-                // Apply annotations from the shader metadata.
-                // We don't annotate the assembly itself to avoid parsing errors.
-                for d in &mut dependencies {
-                    match d {
-                        Dependency::Constant(_) => (),
-                        Dependency::Buffer(_) => (),
-                        Dependency::Texture(t) => {
-                            for sampler in &fragment_shader.samplers {
-                                if t.name == format!("t{}", sampler.location) {
-                                    t.name = (&sampler.name).into();
-                                }
+            // Apply annotations from the shader metadata.
+            // We don't annotate the assembly itself to avoid parsing errors.
+            for d in &mut dependencies {
+                match d {
+                    Dependency::Constant(_) => (),
+                    Dependency::Buffer(_) => (),
+                    Dependency::Texture(t) => {
+                        for sampler in &fragment_shader.samplers {
+                            if t.name == format!("t{}", sampler.location) {
+                                t.name = (&sampler.name).into();
                             }
                         }
-                        Dependency::Attribute(_) => todo!(),
                     }
+                    Dependency::Attribute(_) => (),
                 }
+            }
 
+            // TODO: How much of the layer detection can be reused for Wii U?
+            let layers = dependencies
+                .first()
+                .map(|d| {
+                    vec![Layer {
+                        value: LayerValue::Value(d.clone()),
+                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
+                        blend_mode: LayerBlendMode::Mix,
+                        is_fresnel: false,
+                    }]
+                })
+                .unwrap_or_default();
+
+            if !dependent_lines.is_empty() {
                 // Simplify the output name to save space.
                 let output_name = format!("o{i}.{c}");
-                (
-                    output_name.into(),
-                    OutputDependencies { layers: Vec::new() },
-                )
-            })
-        })
-        .filter(|(_, dependencies)| !dependencies.layers.is_empty())
-        .collect();
+                output_dependencies.insert(output_name.into(), OutputDependencies { layers });
+            }
+        }
+    }
 
     ShaderProgram {
-        // IndexMap gives consistent ordering for attribute names.
         output_dependencies,
         outline_width: None,
         normal_intensity: None,

@@ -23,7 +23,7 @@ fn span_to_string(span: Span) -> String {
 }
 
 // TODO: simplify field names
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::program))]
 struct Program {
     instructions: Vec<Instruction>,
@@ -31,7 +31,7 @@ struct Program {
     eoi: EOI,
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::instruction))]
 enum Instruction {
     CfInst(CfInst),
@@ -40,7 +40,7 @@ enum Instruction {
     AluClause(AluClause),
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::cf_inst))]
 struct CfInst {
     inst_count: InstCount,
@@ -48,15 +48,14 @@ struct CfInst {
     cf_inst_properties: CfInstProperties,
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::cf_opcode))]
 struct CfOpcode;
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::cf_inst_properties))]
 struct CfInstProperties(Vec<CfInstProperty>);
 
-#[derive(Debug)]
 enum CfInstProperty {
     Burstcnt(Burstcnt),
     Unk(Rule),
@@ -80,11 +79,11 @@ impl<'pest> FromPest<'pest> for CfInstProperty {
     }
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::burstcnt))]
 struct Burstcnt(Number);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::cf_exp_inst))]
 struct CfExpInst {
     inst_count: InstCount,
@@ -94,11 +93,10 @@ struct CfExpInst {
     cf_inst_properties: CfInstProperties,
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::exp_opcode))]
 struct ExpOpcode(#[pest_ast(outer(with(span_to_string)))] String);
 
-#[derive(Debug)]
 enum ExpTarget {
     ExpPixTarget(ExpPixTarget),
     ExpPosTarget(ExpPosTarget),
@@ -124,32 +122,32 @@ impl<'pest> FromPest<'pest> for ExpTarget {
     }
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::exp_pix_target))]
 struct ExpPixTarget(Number);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::exp_pos_target))]
 struct ExpPosTarget(Number);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::exp_param_target))]
 struct ExpParamTarget(Number);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::exp_src))]
 struct ExpSrc {
     gpr: Gpr, // TODO: Gpr or GprRel
     four_comp_swizzle: FourCompSwizzle,
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_clause))]
 struct TexClause {
     inst_count: InstCount,
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_inst))]
 struct TexInst {
     inst_count: InstCount,
@@ -161,19 +159,19 @@ struct TexInst {
     tex_properties: TexProperties,
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_opcode))]
 struct TexOpcode(#[pest_ast(outer(with(span_to_string)))] String);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_resource_id))]
 struct TexResourceId(#[pest_ast(outer(with(span_to_string)))] String);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_sampler_id))]
 struct TexSamplerId(#[pest_ast(outer(with(span_to_string)))] String);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_dst))]
 struct TexDst {
     gpr: Gpr,
@@ -181,7 +179,7 @@ struct TexDst {
     four_comp_swizzle: FourCompSwizzle,
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_src))]
 struct TexSrc {
     gpr: Gpr,
@@ -189,15 +187,15 @@ struct TexSrc {
     four_comp_swizzle: FourCompSwizzle,
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_rel))]
 struct TexRel;
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_properties))]
 struct TexProperties;
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_clause))]
 struct AluClause {
     inst_count: InstCount,
@@ -206,15 +204,14 @@ struct AluClause {
     groups: Vec<AluGroup>,
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_clause_inst_type))]
 struct AluClauseInstType;
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_clause_properties))]
 struct AluClauseProperties(Vec<AluClauseProperty>);
 
-#[derive(Debug)]
 enum AluClauseProperty {
     Unk(Rule),
 }
@@ -243,14 +240,13 @@ impl<'pest> FromPest<'pest> for AluClauseProperty {
     }
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_group))]
 struct AluGroup {
     inst_count: InstCount,
     scalars: Vec<AluScalar>,
 }
 
-#[derive(Debug)]
 enum AluScalar {
     Scalar0(AluScalar0),
     Scalar1(AluScalar1),
@@ -267,7 +263,7 @@ impl<'pest> FromPest<'pest> for AluScalar {
     fn from_pest(
         pest: &mut Pairs<'pest, Self::Rule>,
     ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
-        let next = pest.peek().unwrap();
+        let next = pest.peek().ok_or(ConversionError::NoMatch)?;
         match next.as_rule() {
             Rule::alu_scalar0 => AluScalar0::from_pest(pest).map(Self::Scalar0),
             Rule::alu_scalar1 => AluScalar1::from_pest(pest).map(Self::Scalar1),
@@ -278,7 +274,7 @@ impl<'pest> FromPest<'pest> for AluScalar {
     }
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_scalar0))]
 struct AluScalar0 {
     alu_unit: AluUnit,
@@ -288,7 +284,7 @@ struct AluScalar0 {
     properties: AluProperties,
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_scalar1))]
 struct AluScalar1 {
     alu_unit: AluUnit,
@@ -299,7 +295,7 @@ struct AluScalar1 {
     properties: AluProperties,
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_scalar2))]
 struct AluScalar2 {
     alu_unit: AluUnit,
@@ -311,7 +307,7 @@ struct AluScalar2 {
     properties: AluProperties,
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_scalar3))]
 struct AluScalar3 {
     alu_unit: AluUnit,
@@ -323,15 +319,14 @@ struct AluScalar3 {
     properties: AluProperties,
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::write_mask))]
 struct WriteMask(#[pest_ast(outer(with(span_to_string)))] String);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_dst))]
 struct AluDst(AluDstInner);
 
-#[derive(Debug)]
 enum AluDstInner {
     Value {
         gpr: Gpr,
@@ -363,20 +358,42 @@ impl<'pest> FromPest<'pest> for AluDstInner {
     }
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_src))]
 struct AluSrc {
     negate: Option<Negate>,
-    src_value: AluSrcValue, // TODO: abs or src value
+    src_value: AluSrcValueOrAbs,
     alu_rel: Option<AluRel>,
     one_comp_swizzle: Option<OneCompSwizzle>,
 }
 
-#[derive(Debug, FromPest)]
+enum AluSrcValueOrAbs {
+    Abs(AluAbsSrcValue),
+    Value(AluSrcValue),
+}
+
+// TODO: Is there a way to derive this?
+impl<'pest> FromPest<'pest> for AluSrcValueOrAbs {
+    type Rule = Rule;
+
+    type FatalError = Void;
+
+    fn from_pest(
+        pest: &mut Pairs<'pest, Self::Rule>,
+    ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
+        let next = pest.peek().unwrap();
+        match next.as_rule() {
+            Rule::alu_abs_src_value => AluAbsSrcValue::from_pest(pest).map(Self::Abs),
+            Rule::alu_src_value => AluSrcValue::from_pest(pest).map(Self::Value),
+            _ => todo!(),
+        }
+    }
+}
+
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_src_value))]
 struct AluSrcValue(AluSrcValueInner);
 
-#[derive(Debug)]
 enum AluSrcValueInner {
     Gpr(Gpr),
     ConstantCache0(ConstantCache0),
@@ -410,11 +427,10 @@ impl<'pest> FromPest<'pest> for AluSrcValueInner {
     }
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::literal))]
 struct Literal(LiteralInner);
 
-#[derive(Debug)]
 enum LiteralInner {
     Hex(String),
     Float(String),
@@ -443,70 +459,69 @@ impl<'pest> FromPest<'pest> for LiteralInner {
     }
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::constant_cache0))]
 struct ConstantCache0(Number);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::constant_cache1))]
 struct ConstantCache1(Number);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::constant_file))]
 struct ConstantFile(Number);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::previous_scalar))]
 struct PreviousScalar(Number);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::previous_vector))]
 struct PreviousVector(Number);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_abs_src_value))]
 struct AluAbsSrcValue {
     value: AluSrcValue,
     one_comp_swizzle: Option<OneCompSwizzle>,
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_rel))]
 struct AluRel;
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_unit))]
 struct AluUnit(#[pest_ast(outer(with(span_to_string)))] String);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::negate))]
 struct Negate;
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_output_modifier))]
 struct AluOutputModifier(#[pest_ast(outer(with(span_to_string)))] String);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_opcode0))]
 struct AluOpCode0(#[pest_ast(outer(with(span_to_string)))] String);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_opcode1))]
 struct AluOpCode1(#[pest_ast(outer(with(span_to_string)))] String);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_opcode2))]
 struct AluOpCode2(#[pest_ast(outer(with(span_to_string)))] String);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_opcode3))]
 struct AluOpCode3(#[pest_ast(outer(with(span_to_string)))] String);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_properties))]
 struct AluProperties(Vec<AluProperty>);
 
-#[derive(Debug)]
 enum AluProperty {
     Unk(Rule),
 }
@@ -533,31 +548,31 @@ impl<'pest> FromPest<'pest> for AluProperty {
     }
 }
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::inst_count))]
 struct InstCount(Number);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::four_comp_swizzle))]
 struct FourCompSwizzle(#[pest_ast(outer(with(span_to_string)))] String);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::one_comp_swizzle))]
 struct OneCompSwizzle(#[pest_ast(outer(with(span_to_string)))] String);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::gpr))]
 struct Gpr(Number);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::number))]
 struct Number(#[pest_ast(outer(with(parse_int)))] usize);
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::end_of_program))]
 struct EndOfProgram;
 
-#[derive(Debug, FromPest)]
+#[derive(FromPest)]
 #[pest_ast(rule(Rule::EOI))]
 struct EOI;
 
@@ -718,61 +733,57 @@ struct AluScalarData {
 }
 
 fn add_alu_clause(inst: Pair<Rule>, nodes: &mut Nodes) {
-    let mut inner = inst.into_inner();
-    let _inst_count: usize = inner.next().unwrap().as_str().parse().unwrap();
-    let _inst_type = inner.next().unwrap().as_str();
-    let _properties = inner.next().unwrap().as_str();
-    for group in inner {
-        let mut inner = group.into_inner();
-        let inst_count: usize = inner.next().unwrap().as_str().trim().parse().unwrap();
+    let clause = AluClause::from_pest(&mut Pairs::single(inst)).unwrap();
 
-        let scalars: Vec<_> = inner
-            .map(|alu_scalar| {
-                let scalar = AluScalar::from_pest(&mut Pairs::single(alu_scalar.clone())).unwrap();
-                match scalar {
-                    AluScalar::Scalar0(s) => {
-                        let alu_unit = s.alu_unit.0.chars().next().unwrap();
-                        AluScalarData {
-                            alu_unit,
-                            op_code: s.opcode.0,
-                            output_modifier: s.modifier.map(|m| m.0),
-                            output: alu_dst_output(s.dst, inst_count, alu_unit),
-                            sources: Vec::new(),
-                        }
+    for group in clause.groups {
+        let inst_count = group.inst_count.0 .0;
+
+        let scalars: Vec<_> = group
+            .scalars
+            .into_iter()
+            .map(|scalar| match scalar {
+                AluScalar::Scalar0(s) => {
+                    let alu_unit = s.alu_unit.0.chars().next().unwrap();
+                    AluScalarData {
+                        alu_unit,
+                        op_code: s.opcode.0,
+                        output_modifier: s.modifier.map(|m| m.0),
+                        output: alu_dst_output(s.dst, inst_count, alu_unit),
+                        sources: Vec::new(),
                     }
-                    AluScalar::Scalar1(s) => {
-                        let alu_unit = s.alu_unit.0.chars().next().unwrap();
-                        AluScalarData {
-                            alu_unit,
-                            op_code: s.opcode.0,
-                            output_modifier: s.modifier.map(|m| m.0),
-                            output: alu_dst_output(s.dst, inst_count, alu_unit),
-                            sources: vec![alu_src_expr(s.src1, nodes)],
-                        }
+                }
+                AluScalar::Scalar1(s) => {
+                    let alu_unit = s.alu_unit.0.chars().next().unwrap();
+                    AluScalarData {
+                        alu_unit,
+                        op_code: s.opcode.0,
+                        output_modifier: s.modifier.map(|m| m.0),
+                        output: alu_dst_output(s.dst, inst_count, alu_unit),
+                        sources: vec![alu_src_expr(s.src1, nodes)],
                     }
-                    AluScalar::Scalar2(s) => {
-                        let alu_unit = s.alu_unit.0.chars().next().unwrap();
-                        AluScalarData {
-                            alu_unit,
-                            op_code: s.opcode.0,
-                            output_modifier: s.modifier.map(|m| m.0),
-                            output: alu_dst_output(s.dst, inst_count, alu_unit),
-                            sources: vec![alu_src_expr(s.src1, nodes), alu_src_expr(s.src2, nodes)],
-                        }
+                }
+                AluScalar::Scalar2(s) => {
+                    let alu_unit = s.alu_unit.0.chars().next().unwrap();
+                    AluScalarData {
+                        alu_unit,
+                        op_code: s.opcode.0,
+                        output_modifier: s.modifier.map(|m| m.0),
+                        output: alu_dst_output(s.dst, inst_count, alu_unit),
+                        sources: vec![alu_src_expr(s.src1, nodes), alu_src_expr(s.src2, nodes)],
                     }
-                    AluScalar::Scalar3(s) => {
-                        let alu_unit = s.alu_unit.0.chars().next().unwrap();
-                        AluScalarData {
-                            alu_unit,
-                            op_code: s.opcode.0,
-                            output_modifier: None,
-                            output: alu_dst_output(s.dst, inst_count, alu_unit),
-                            sources: vec![
-                                alu_src_expr(s.src1, nodes),
-                                alu_src_expr(s.src2, nodes),
-                                alu_src_expr(s.src3, nodes),
-                            ],
-                        }
+                }
+                AluScalar::Scalar3(s) => {
+                    let alu_unit = s.alu_unit.0.chars().next().unwrap();
+                    AluScalarData {
+                        alu_unit,
+                        op_code: s.opcode.0,
+                        output_modifier: None,
+                        output: alu_dst_output(s.dst, inst_count, alu_unit),
+                        sources: vec![
+                            alu_src_expr(s.src1, nodes),
+                            alu_src_expr(s.src2, nodes),
+                            alu_src_expr(s.src3, nodes),
+                        ],
                     }
                 }
             })
@@ -1036,8 +1047,27 @@ fn alu_src_expr(source: AluSrc, nodes: &Nodes) -> Expr {
         .one_comp_swizzle
         .and_then(|s| s.channels().chars().next());
 
+    let expr = match source.src_value {
+        AluSrcValueOrAbs::Abs(abs_value) => Expr::Func {
+            name: "abs".to_string(),
+            args: vec![value_expr(nodes, channel, abs_value.value)],
+            channel: abs_value
+                .one_comp_swizzle
+                .and_then(|s| s.channels().chars().next()),
+        },
+        AluSrcValueOrAbs::Value(value) => value_expr(nodes, channel, value),
+    };
+
+    if negate {
+        Expr::Unary(UnaryOp::Negate, Box::new(expr))
+    } else {
+        expr
+    }
+}
+
+fn value_expr(nodes: &Nodes, channel: Option<char>, value: AluSrcValue) -> Expr {
     // Find a previous assignment that modifies the desired channel for variables.
-    let expr = match source.src_value.0 {
+    match value.0 {
         AluSrcValueInner::Gpr(gpr) => previous_assignment(&gpr.to_string(), channel, nodes),
         AluSrcValueInner::ConstantCache0(c0) => Expr::Parameter {
             name: "KC0".to_string(),
@@ -1061,12 +1091,6 @@ fn alu_src_expr(source: AluSrc, nodes: &Nodes) -> Expr {
         }
         AluSrcValueInner::PreviousScalar(s) => previous_assignment(&s.to_string(), channel, nodes),
         AluSrcValueInner::PreviousVector(v) => previous_assignment(&v.to_string(), channel, nodes),
-    };
-
-    if negate {
-        Expr::Unary(UnaryOp::Negate, Box::new(expr))
-    } else {
-        expr
     }
 }
 
