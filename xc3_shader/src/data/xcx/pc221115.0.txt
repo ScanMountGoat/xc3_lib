@@ -1,377 +1,167 @@
 ShaderProgram {
     output_dependencies: {
-        "o0.x": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s2",
-                                channel: Some(
-                                    'x',
-                                ),
-                                texcoords: [],
-                            },
-                        ),
+        "o0.x": Value(
+            Texture(
+                TextureDependency {
+                    name: "s2",
+                    channel: Some(
+                        'x',
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
+                    texcoords: [],
                 },
-            ],
-        },
-        "o0.y": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s2",
-                                channel: Some(
-                                    'x',
-                                ),
-                                texcoords: [],
-                            },
-                        ),
+            ),
+        ),
+        "o0.y": Value(
+            Texture(
+                TextureDependency {
+                    name: "s2",
+                    channel: Some(
+                        'x',
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
+                    texcoords: [],
                 },
-            ],
-        },
-        "o0.z": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s2",
-                                channel: Some(
-                                    'x',
-                                ),
-                                texcoords: [],
-                            },
-                        ),
+            ),
+        ),
+        "o0.z": Value(
+            Texture(
+                TextureDependency {
+                    name: "s2",
+                    channel: Some(
+                        'x',
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
+                    texcoords: [],
                 },
-            ],
-        },
-        "o0.w": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s2",
-                                channel: Some(
-                                    'x',
-                                ),
-                                texcoords: [],
-                            },
-                        ),
+            ),
+        ),
+        "o0.w": Value(
+            Texture(
+                TextureDependency {
+                    name: "s2",
+                    channel: Some(
+                        'x',
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
+                    texcoords: [],
                 },
-            ],
-        },
-        "o1.x": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s2",
-                                channel: Some(
-                                    'x',
-                                ),
-                                texcoords: [],
-                            },
-                        ),
+            ),
+        ),
+        "o1.x": Value(
+            Texture(
+                TextureDependency {
+                    name: "s2",
+                    channel: Some(
+                        'x',
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
+                    texcoords: [],
                 },
-            ],
-        },
-        "o1.y": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s2",
-                                channel: Some(
-                                    'x',
-                                ),
-                                texcoords: [],
-                            },
-                        ),
+            ),
+        ),
+        "o1.y": Value(
+            Texture(
+                TextureDependency {
+                    name: "s2",
+                    channel: Some(
+                        'x',
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
+                    texcoords: [],
                 },
-            ],
-        },
-        "o1.z": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s2",
-                                channel: Some(
-                                    'x',
-                                ),
-                                texcoords: [],
-                            },
-                        ),
+            ),
+        ),
+        "o1.z": Value(
+            Texture(
+                TextureDependency {
+                    name: "s2",
+                    channel: Some(
+                        'x',
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
+                    texcoords: [],
                 },
-            ],
-        },
-        "o1.w": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Constant(
-                            0.0,
-                        ),
+            ),
+        ),
+        "o1.w": Value(
+            Constant(
+                0.0,
+            ),
+        ),
+        "o2.x": Value(
+            Texture(
+                TextureDependency {
+                    name: "s2",
+                    channel: Some(
+                        'x',
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
+                    texcoords: [],
                 },
-            ],
-        },
-        "o2.x": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s2",
-                                channel: Some(
-                                    'x',
-                                ),
-                                texcoords: [],
-                            },
-                        ),
+            ),
+        ),
+        "o2.y": Value(
+            Texture(
+                TextureDependency {
+                    name: "s2",
+                    channel: Some(
+                        'x',
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
+                    texcoords: [],
                 },
-            ],
-        },
-        "o2.y": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s2",
-                                channel: Some(
-                                    'x',
-                                ),
-                                texcoords: [],
-                            },
-                        ),
+            ),
+        ),
+        "o3.x": Value(
+            Texture(
+                TextureDependency {
+                    name: "s3",
+                    channel: Some(
+                        'x',
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
+                    texcoords: [],
                 },
-            ],
-        },
-        "o2.z": OutputDependencies {
-            layers: [],
-        },
-        "o2.w": OutputDependencies {
-            layers: [],
-        },
-        "o3.x": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s3",
-                                channel: Some(
-                                    'x',
-                                ),
-                                texcoords: [],
-                            },
-                        ),
+            ),
+        ),
+        "o3.y": Value(
+            Texture(
+                TextureDependency {
+                    name: "s3",
+                    channel: Some(
+                        'y',
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
+                    texcoords: [],
                 },
-            ],
-        },
-        "o3.y": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s3",
-                                channel: Some(
-                                    'y',
-                                ),
-                                texcoords: [],
-                            },
-                        ),
+            ),
+        ),
+        "o3.z": Value(
+            Texture(
+                TextureDependency {
+                    name: "s3",
+                    channel: Some(
+                        'z',
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
+                    texcoords: [],
                 },
-            ],
-        },
-        "o3.z": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s3",
-                                channel: Some(
-                                    'z',
-                                ),
-                                texcoords: [],
-                            },
-                        ),
+            ),
+        ),
+        "o3.w": Value(
+            Buffer(
+                BufferDependency {
+                    name: "KC0",
+                    field: "",
+                    index: Some(
+                        1,
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
+                    channel: Some(
+                        'x',
                     ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
                 },
-            ],
-        },
-        "o3.w": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Buffer(
-                            BufferDependency {
-                                name: "KC0",
-                                field: "",
-                                index: Some(
-                                    1,
-                                ),
-                                channel: Some(
-                                    'x',
-                                ),
-                            },
-                        ),
+            ),
+        ),
+        "o4.w": Value(
+            Texture(
+                TextureDependency {
+                    name: "s1",
+                    channel: Some(
+                        'z',
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
+                    texcoords: [],
                 },
-            ],
-        },
-        "o4.x": OutputDependencies {
-            layers: [],
-        },
-        "o4.y": OutputDependencies {
-            layers: [],
-        },
-        "o4.z": OutputDependencies {
-            layers: [],
-        },
-        "o4.w": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s1",
-                                channel: Some(
-                                    'z',
-                                ),
-                                texcoords: [],
-                            },
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
-                },
-            ],
-        },
+            ),
+        ),
     },
     outline_width: None,
     normal_intensity: None,

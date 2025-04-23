@@ -1,7 +1,7 @@
 ShaderProgram {
     output_dependencies: {
-        "o0.x": OutputDependencies {
-            layers: [
+        "o0.x": Layers(
+            [
                 Layer {
                     value: Value(
                         Attribute(
@@ -43,9 +43,9 @@ ShaderProgram {
                     is_fresnel: false,
                 },
             ],
-        },
-        "o0.y": OutputDependencies {
-            layers: [
+        ),
+        "o0.y": Layers(
+            [
                 Layer {
                     value: Value(
                         Attribute(
@@ -87,9 +87,9 @@ ShaderProgram {
                     is_fresnel: false,
                 },
             ],
-        },
-        "o0.z": OutputDependencies {
-            layers: [
+        ),
+        "o0.z": Layers(
+            [
                 Layer {
                     value: Value(
                         Attribute(
@@ -131,45 +131,19 @@ ShaderProgram {
                     is_fresnel: false,
                 },
             ],
-        },
-        "o0.w": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Constant(
-                            0.0,
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
-                },
-            ],
-        },
-        "o1.x": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Constant(
-                            0.0,
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
-                },
-            ],
-        },
-        "o1.y": OutputDependencies {
-            layers: [
+        ),
+        "o0.w": Value(
+            Constant(
+                0.0,
+            ),
+        ),
+        "o1.x": Value(
+            Constant(
+                0.0,
+            ),
+        ),
+        "o1.y": Layers(
+            [
                 Layer {
                     value: Value(
                         Constant(
@@ -197,78 +171,39 @@ ShaderProgram {
                     is_fresnel: false,
                 },
             ],
-        },
-        "o1.z": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Buffer(
-                            BufferDependency {
-                                name: "U_Mate",
-                                field: "gWrkFl4",
-                                index: Some(
-                                    0,
-                                ),
-                                channel: Some(
-                                    'x',
-                                ),
-                            },
-                        ),
+        ),
+        "o1.z": Value(
+            Buffer(
+                BufferDependency {
+                    name: "U_Mate",
+                    field: "gWrkFl4",
+                    index: Some(
+                        0,
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
+                    channel: Some(
+                        'x',
                     ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
                 },
-            ],
-        },
-        "o1.w": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Constant(
-                            0.039607845,
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
-                },
-            ],
-        },
-        "o2.x": OutputDependencies {
-            layers: [],
-        },
-        "o2.y": OutputDependencies {
-            layers: [],
-        },
-        "o2.z": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
-                },
-            ],
-        },
-        "o2.w": OutputDependencies {
-            layers: [
+            ),
+        ),
+        "o1.w": Value(
+            Constant(
+                0.039607845,
+            ),
+        ),
+        "o2.x": Layers(
+            [],
+        ),
+        "o2.y": Layers(
+            [],
+        ),
+        "o2.z": Value(
+            Constant(
+                1.0,
+            ),
+        ),
+        "o2.w": Layers(
+            [
                 Layer {
                     value: Value(
                         Constant(
@@ -303,33 +238,20 @@ ShaderProgram {
                     is_fresnel: false,
                 },
             ],
-        },
-        "o3.x": OutputDependencies {
-            layers: [],
-        },
-        "o3.y": OutputDependencies {
-            layers: [],
-        },
-        "o3.z": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Constant(
-                            0.0,
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
-                },
-            ],
-        },
-        "o3.w": OutputDependencies {
-            layers: [
+        ),
+        "o3.x": Layers(
+            [],
+        ),
+        "o3.y": Layers(
+            [],
+        ),
+        "o3.z": Value(
+            Constant(
+                0.0,
+            ),
+        ),
+        "o3.w": Layers(
+            [
                 Layer {
                     value: Value(
                         Constant(
@@ -371,9 +293,9 @@ ShaderProgram {
                     is_fresnel: false,
                 },
             ],
-        },
-        "o4.x": OutputDependencies {
-            layers: [
+        ),
+        "o4.x": Layers(
+            [
                 Layer {
                     value: Value(
                         Attribute(
@@ -420,9 +342,9 @@ ShaderProgram {
                     is_fresnel: false,
                 },
             ],
-        },
-        "o4.y": OutputDependencies {
-            layers: [
+        ),
+        "o4.y": Layers(
+            [
                 Layer {
                     value: Value(
                         Constant(
@@ -450,9 +372,9 @@ ShaderProgram {
                     is_fresnel: false,
                 },
             ],
-        },
-        "o4.z": OutputDependencies {
-            layers: [
+        ),
+        "o4.z": Layers(
+            [
                 Layer {
                     value: Value(
                         Constant(
@@ -468,25 +390,12 @@ ShaderProgram {
                     is_fresnel: false,
                 },
             ],
-        },
-        "o4.w": OutputDependencies {
-            layers: [
-                Layer {
-                    value: Value(
-                        Constant(
-                            0.5,
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
-                },
-            ],
-        },
+        ),
+        "o4.w": Value(
+            Constant(
+                0.5,
+            ),
+        ),
     },
     outline_width: Some(
         Buffer(

@@ -1,7 +1,7 @@
 ShaderProgram {
     output_dependencies: {
-        "o0.x": OutputDependencies {
-            layers: [
+        "o0.x": Layers(
+            [
                 Layer {
                     value: Value(
                         Texture(
@@ -964,9 +964,9 @@ ShaderProgram {
                     is_fresnel: false,
                 },
             ],
-        },
-        "o0.y": OutputDependencies {
-            layers: [
+        ),
+        "o0.y": Layers(
+            [
                 Layer {
                     value: Value(
                         Texture(
@@ -1929,9 +1929,9 @@ ShaderProgram {
                     is_fresnel: false,
                 },
             ],
-        },
-        "o0.z": OutputDependencies {
-            layers: [
+        ),
+        "o0.z": Layers(
+            [
                 Layer {
                     value: Value(
                         Texture(
@@ -2894,9 +2894,9 @@ ShaderProgram {
                     is_fresnel: false,
                 },
             ],
-        },
-        "o0.w": OutputDependencies {
-            layers: [
+        ),
+        "o0.w": Layers(
+            [
                 Layer {
                     value: Value(
                         Texture(
@@ -3063,7 +3063,7 @@ ShaderProgram {
                     is_fresnel: false,
                 },
             ],
-        },
+        ),
     },
     outline_width: None,
     normal_intensity: None,

@@ -154,32 +154,13 @@ fn output_channel_assignment(
     output_index: usize,
     channel_index: usize,
 ) -> LayerAssignmentValue {
-    let layers = layer_assignments(shader, parameters, output_index, channel_index);
-    if layers.is_empty() {
-        LayerAssignmentValue::Value(None)
-    } else {
-        LayerAssignmentValue::Layers(layers)
-    }
-}
-
-fn layer_assignments(
-    shader: &ShaderProgram,
-    parameters: &MaterialParameters,
-    output_index: usize,
-    channel_index: usize,
-) -> Vec<LayerAssignment> {
     let channel = ['x', 'y', 'z', 'w'][channel_index];
     let output = format!("o{output_index}.{channel}");
-    let layers = shader
+    shader
         .output_dependencies
         .get(&SmolStr::from(output))
-        .map(|d| d.layers.as_slice())
-        .unwrap_or_default();
-
-    layers
-        .iter()
-        .map(|l| layer_channel_assignment(parameters, l))
-        .collect()
+        .map(|v| layer_channel_assignment_value(parameters, v))
+        .unwrap_or(LayerAssignmentValue::Value(None))
 }
 
 fn layer_channel_assignment(parameters: &MaterialParameters, l: &Layer) -> LayerAssignment {

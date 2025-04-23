@@ -1418,10 +1418,25 @@ fn check_shader_dependencies(root: &ModelRoot, path: &Path) {
     for m in &root.models.materials {
         if let Some(shader) = &m.shader {
             for (k, v) in &shader.output_dependencies {
-                if v.layers.is_empty() {
-                    println!("Empty layers for {:?}, {k:?}, {path:?}", &m.name);
+                if has_empty_layers(v) {
+                    println!(
+                        "Empty layers for {:?}, {k:?}, technique {}, {path:?}",
+                        &m.name, m.technique_index
+                    );
                 }
             }
+        }
+    }
+}
+
+fn has_empty_layers(v: &xc3_model::shader_database::LayerValue) -> bool {
+    match v {
+        xc3_model::shader_database::LayerValue::Value(_) => false,
+        xc3_model::shader_database::LayerValue::Layers(layers) => {
+            layers.is_empty()
+                || layers
+                    .iter()
+                    .any(|l| has_empty_layers(&l.ratio) || has_empty_layers(&l.value))
         }
     }
 }

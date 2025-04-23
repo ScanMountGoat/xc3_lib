@@ -18,8 +18,8 @@ use xc3_lib::{
     spch::Spch,
 };
 use xc3_model::shader_database::{
-    AttributeDependency, Dependency, Layer, LayerBlendMode, LayerValue, OutputDependencies,
-    ProgramHash, ShaderDatabase, ShaderProgram,
+    AttributeDependency, Dependency, Layer, LayerBlendMode, LayerValue, ProgramHash,
+    ShaderDatabase, ShaderProgram,
 };
 
 use crate::{
@@ -62,23 +62,34 @@ pub fn shader_from_glsl(
             let name = format!("out_attr{i}");
             let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
 
-            let mut layers;
+            let mut value;
             if i == 2 && (c == 'x' || c == 'y') {
                 // The normals use XY for output index 2 for all games.
                 let (new_layers, intensity) =
                     find_normal_layers(&frag, &frag_attributes, &dependent_lines)
                         .unwrap_or_default();
-                layers = new_layers;
+                value = new_layers;
                 normal_intensity = intensity;
             } else {
                 // Xenoblade X DE uses different outputs than other games.
                 // Detect color or params to handle different outputs and channels.
-                layers = find_color_or_param_layers(&frag, &frag_attributes, &dependent_lines)
+                value = find_color_or_param_layers(&frag, &frag_attributes, &dependent_lines)
                     .unwrap_or_default()
             };
 
             if let (Some(vert), Some(vert_attributes)) = (&vert, &vert_attributes) {
-                apply_attributes(&mut layers, vert, vert_attributes, &frag_attributes);
+                apply_layer_value_attribute_names(
+                    &mut value,
+                    vert,
+                    vert_attributes,
+                    &frag_attributes,
+                );
+                apply_layer_value_vertex_uv_params(
+                    &mut value,
+                    vert,
+                    vert_attributes,
+                    &frag_attributes,
+                );
 
                 if let Some(i) = &mut normal_intensity {
                     apply_layer_value_attribute_names(i, vert, vert_attributes, &frag_attributes);
@@ -89,7 +100,7 @@ pub fn shader_from_glsl(
             if !dependent_lines.is_empty() {
                 // Simplify the output name to save space.
                 let output_name = format!("o{i}.{c}");
-                output_dependencies.insert(output_name.into(), OutputDependencies { layers });
+                output_dependencies.insert(output_name.into(), value);
             }
         }
     }
@@ -101,46 +112,31 @@ pub fn shader_from_glsl(
     }
 }
 
-fn apply_attributes(
-    layers: &mut [Layer],
-    vert: &Graph,
-    vert_attributes: &Attributes,
-    frag_attributes: &Attributes,
-) {
-    for layer in layers {
-        // Add texture parameters used for the corresponding vertex output.
-        // Most shaders apply UV transforms in the vertex shader.
-        // This will be used later for texture layers.
-        apply_layer_vertex_uv_params(layer, vert, vert_attributes, frag_attributes);
-
-        // Names are only present for vertex input attributes.
-        apply_layer_attribute_names(layer, vert, vert_attributes, frag_attributes);
-    }
-}
-
-fn apply_layer_attribute_names(
-    layer: &mut Layer,
-    vert: &Graph,
-    vert_attributes: &Attributes,
-    frag_attributes: &Attributes,
-) {
-    apply_layer_value_attribute_names(&mut layer.value, vert, vert_attributes, frag_attributes);
-    apply_layer_value_attribute_names(&mut layer.ratio, vert, vert_attributes, frag_attributes);
-}
-
 fn apply_layer_value_attribute_names(
     value: &mut LayerValue,
     vert: &Graph,
     vert_attributes: &Attributes,
     frag_attributes: &Attributes,
 ) {
+    // Names are only present for vertex input attributes.
     match value {
         LayerValue::Value(d) => {
             apply_attribute_names(vert, vert_attributes, frag_attributes, d);
         }
         LayerValue::Layers(layers) => {
             for l in layers {
-                apply_layer_attribute_names(l, vert, vert_attributes, frag_attributes);
+                apply_layer_value_attribute_names(
+                    &mut l.value,
+                    vert,
+                    vert_attributes,
+                    frag_attributes,
+                );
+                apply_layer_value_attribute_names(
+                    &mut l.ratio,
+                    vert,
+                    vert_attributes,
+                    frag_attributes,
+                );
             }
         }
     }
@@ -179,8 +175,8 @@ fn shader_from_latte_asm(
     fragment: &str,
     fragment_shader: &FragmentShader,
 ) -> ShaderProgram {
-    let vert = Graph::from_latte_asm(vertex);
-    let vert_attributes = Attributes::default();
+    let _vert = Graph::from_latte_asm(vertex);
+    let _vert_attributes = Attributes::default();
 
     let frag = Graph::from_latte_asm(fragment);
     let frag_attributes = Attributes::default();
@@ -217,24 +213,10 @@ fn shader_from_latte_asm(
             }
 
             // TODO: How much of the layer detection can be reused for Wii U?
-            let mut layers = dependencies
-                .first()
-                .map(|d| {
-                    vec![Layer {
-                        value: LayerValue::Value(d.clone()),
-                        ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
-                        blend_mode: LayerBlendMode::Mix,
-                        is_fresnel: false,
-                    }]
-                })
-                .unwrap_or_default();
-
-            apply_attributes(&mut layers, &vert, &vert_attributes, &frag_attributes);
-
-            if !dependent_lines.is_empty() {
+            if let Some(d) = dependencies.first() {
                 // Simplify the output name to save space.
                 let output_name = format!("o{i}.{c}");
-                output_dependencies.insert(output_name.into(), OutputDependencies { layers });
+                output_dependencies.insert(output_name.into(), LayerValue::Value(d.clone()));
             }
         }
     }
@@ -250,7 +232,7 @@ fn find_color_or_param_layers(
     frag: &Graph,
     frag_attributes: &Attributes,
     dependent_lines: &[usize],
-) -> Option<Vec<Layer>> {
+) -> Option<LayerValue> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
@@ -289,9 +271,7 @@ fn find_color_or_param_layers(
         current = new_current;
     }
 
-    let layers = find_layers(current, frag, frag_attributes);
-
-    Some(layers)
+    Some(layer_value_or_layers(frag, frag_attributes, current))
 }
 
 fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], &'a Expr)> {
@@ -313,7 +293,7 @@ fn find_normal_layers(
     frag: &Graph,
     frag_attributes: &Attributes,
     dependent_lines: &[usize],
-) -> Option<(Vec<Layer>, Option<LayerValue>)> {
+) -> Option<(LayerValue, Option<LayerValue>)> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
@@ -338,25 +318,32 @@ fn find_normal_layers(
         })?;
     let nom_work = assign_x_recursive(&frag.nodes, nom_work[0]);
 
-    let mut layers = find_layers(nom_work, frag, frag_attributes);
+    let mut value = layer_value_or_layers(frag, frag_attributes, nom_work);
 
     // TODO: Modify the query instead to find the appropriate channel?
     // Assume that normal inputs are always XY for now.
     let channel = last_node.output.channel;
-
-    for layer in &mut layers {
-        match &mut layer.value {
-            LayerValue::Value(Dependency::Constant(_)) => (),
-            LayerValue::Value(Dependency::Buffer(b)) => b.channel = channel,
-            LayerValue::Value(Dependency::Texture(t)) => t.channel = channel,
-            LayerValue::Value(Dependency::Attribute(a)) => a.channel = channel,
-            _ => (),
-        }
-    }
+    set_channel(&mut value, channel);
 
     let intensity = intensity.map(|i| layer_value_or_layers(frag, frag_attributes, i));
 
-    Some((layers, intensity))
+    Some((value, intensity))
+}
+
+fn set_channel(v: &mut LayerValue, channel: Option<char>) {
+    match v {
+        LayerValue::Value(dependency) => match dependency {
+            Dependency::Constant(_) => (),
+            Dependency::Buffer(b) => b.channel = channel,
+            Dependency::Texture(t) => t.channel = channel,
+            Dependency::Attribute(a) => a.channel = channel,
+        },
+        LayerValue::Layers(layers) => {
+            for layer in layers {
+                set_channel(&mut layer.value, channel);
+            }
+        }
+    }
 }
 
 fn find_layers(current: &Expr, graph: &Graph, attributes: &Attributes) -> Vec<Layer> {
@@ -371,6 +358,7 @@ fn find_layers(current: &Expr, graph: &Graph, attributes: &Attributes) -> Vec<La
             is_fresnel: false,
         }]
     } else {
+        // TODO: Should this be defined recursively and cached?
         // Detect the layers and blend mode from most to least specific.
         let mut current = current;
         while let Some((layer_a, layer_b, ratio, blend_mode)) =
@@ -1129,39 +1117,33 @@ fn apply_vertex_uv_params(
     }
 }
 
-fn apply_layer_vertex_uv_params(
-    layer: &mut Layer,
-    vertex: &Graph,
-    vertex_attributes: &Attributes,
-    fragment_attributes: &Attributes,
-) {
-    apply_layer_value_vertex_uv_params(
-        &mut layer.value,
-        vertex,
-        vertex_attributes,
-        fragment_attributes,
-    );
-    apply_layer_value_vertex_uv_params(
-        &mut layer.ratio,
-        vertex,
-        vertex_attributes,
-        fragment_attributes,
-    );
-}
-
 fn apply_layer_value_vertex_uv_params(
     value: &mut LayerValue,
     vertex: &Graph,
     vertex_attributes: &Attributes,
     fragment_attributes: &Attributes,
 ) {
+    // Add texture parameters used for the corresponding vertex output.
+    // Most shaders apply UV transforms in the vertex shader.
+    // This will be used later for texture layers.
     match value {
         LayerValue::Value(d) => {
             apply_vertex_uv_params(vertex, vertex_attributes, fragment_attributes, d)
         }
         LayerValue::Layers(layers) => {
             for layer in layers {
-                apply_layer_vertex_uv_params(layer, vertex, vertex_attributes, fragment_attributes);
+                apply_layer_value_vertex_uv_params(
+                    &mut layer.value,
+                    vertex,
+                    vertex_attributes,
+                    fragment_attributes,
+                );
+                apply_layer_value_vertex_uv_params(
+                    &mut layer.ratio,
+                    vertex,
+                    vertex_attributes,
+                    fragment_attributes,
+                );
             }
         }
     }

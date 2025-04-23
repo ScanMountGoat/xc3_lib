@@ -93,31 +93,19 @@ impl ProgramHash {
 /// A single shader program with a vertex and fragment shader.
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct ShaderProgram {
-    /// The input values used to initialize each fragment output.
-    ///
-    /// Each dependency can be thought of as a link
-    /// between the dependency node and group output in a shader node graph.
+    /// A tree of values assigned to a fragment output.
     ///
     /// This assignment information is needed to accurately recreate the G-Buffer texture values.
-    /// Renderers can generate unique shaders for each model
-    /// or select inputs in a shared shader at render time like xc3_wgpu.
+    /// Renderers can generate unique shaders for each model like xc3_wgpu.
     /// Node based editors like Blender's shader editor should use these values
     /// to determine how to construct node groups.
-    pub output_dependencies: IndexMap<SmolStr, OutputDependencies>,
+    pub output_dependencies: IndexMap<SmolStr, LayerValue>,
 
     /// The parameter multiplied by vertex alpha to determine outline width.
     pub outline_width: Option<Dependency>,
 
     /// The intensity map for normal mapping.
     pub normal_intensity: Option<LayerValue>,
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Clone)]
-pub struct OutputDependencies {
-    /// Layering information for blending multiple [Dependency] recursively.
-    /// An empty list indicates no detected assignments for this output.
-    pub layers: Vec<Layer>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -226,11 +214,19 @@ pub struct Layer {
     pub is_fresnel: bool,
 }
 
+/// A tree of computations with [Dependency] for the leaf values.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum LayerValue {
     Value(Dependency),
     Layers(Vec<Layer>),
+}
+
+impl Default for LayerValue {
+    fn default() -> Self {
+        // TODO: Is this a good default?
+        Self::Layers(Vec::new())
+    }
 }
 
 #[cfg(feature = "arbitrary")]

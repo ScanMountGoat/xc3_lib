@@ -6,7 +6,7 @@ use varint_rs::{VarintReader, VarintWriter};
 
 use super::{
     AttributeDependency, BufferDependency, Dependency, Layer, LayerBlendMode, LayerValue,
-    OutputDependencies, ProgramHash, ShaderProgram, TexCoord, TexCoordParams, TextureDependency,
+    ProgramHash, ShaderProgram, TexCoord, TexCoordParams, TextureDependency,
 };
 
 // Faster than the default hash implementation.
@@ -102,7 +102,7 @@ struct ShaderProgramIndexed {
     // Normalize the data to greatly reduce the size file size.
     #[br(parse_with = parse_count)]
     #[bw(write_with = write_count)]
-    output_dependencies: Vec<(VarInt, OutputDependenciesIndexed)>,
+    output_dependencies: Vec<(VarInt, VarInt)>,
 
     outline_width: OptVarInt,
     normal_intensity: OptVarInt,
@@ -382,26 +382,18 @@ impl ShaderDatabaseIndexed {
         ShaderProgramIndexed {
             output_dependencies: p
                 .output_dependencies
-                .into_iter()
-                .map(|(output, dependencies)| {
-                    let output_index = add_string(&mut self.outputs, &output);
+                .iter()
+                .map(|(output, value)| {
+                    let output_index = add_string(&mut self.outputs, output);
                     (
                         output_index,
-                        OutputDependenciesIndexed {
-                            layers: dependencies
-                                .layers
-                                .iter()
-                                .map(|l| {
-                                    self.add_output_layer_indexed(
-                                        l,
-                                        dependency_to_index,
-                                        buffer_dependency_to_index,
-                                        layer_value_to_index,
-                                        tex_coord_to_index,
-                                    )
-                                })
-                                .collect(),
-                        },
+                        self.add_layer_value(
+                            dependency_to_index,
+                            buffer_dependency_to_index,
+                            layer_value_to_index,
+                            tex_coord_to_index,
+                            value,
+                        ),
                     )
                 })
                 .collect(),
@@ -557,16 +549,10 @@ impl ShaderDatabaseIndexed {
             output_dependencies: p
                 .output_dependencies
                 .iter()
-                .map(|(output, output_dependencies)| {
+                .map(|(output, value)| {
                     (
                         self.outputs[output.0].to_smolstr(),
-                        OutputDependencies {
-                            layers: output_dependencies
-                                .layers
-                                .iter()
-                                .map(|l| self.output_layer_from_indexed(l))
-                                .collect(),
-                        },
+                        self.layer_value_from_indexed(&self.layer_values[value.0]),
                     )
                 })
                 .collect(),
