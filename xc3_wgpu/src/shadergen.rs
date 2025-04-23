@@ -6,8 +6,11 @@ use log::error;
 use smol_str::SmolStr;
 use xc3_model::{
     material::{
-        LayerAssignmentValue, OutputAssignment, TexCoordParallax, TextureAlphaTest,
-        TextureAssignment, ValueAssignment,
+        assignments::{
+            LayerAssignmentValue, OutputAssignment, TexCoordParallax, TextureAssignment,
+            ValueAssignment,
+        },
+        TextureAlphaTest,
     },
     shader_database::LayerBlendMode,
     IndexMapExt,

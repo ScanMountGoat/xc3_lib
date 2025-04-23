@@ -1,5 +1,7 @@
 use crate::{
-    material::{LayerAssignmentValue, OutputAssignments, TextureAssignment, ValueAssignment},
+    material::assignments::{
+        LayerAssignmentValue, OutputAssignments, TextureAssignment, ValueAssignment,
+    },
     monolib::ShaderTextures,
     ImageTexture, IndexMapExt,
 };

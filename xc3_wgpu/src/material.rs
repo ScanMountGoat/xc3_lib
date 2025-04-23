@@ -4,7 +4,7 @@ use glam::{uvec4, vec3, vec4, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use xc3_model::{
-    material::{LayerAssignmentValue, OutputAssignments, ValueAssignment},
+    material::assignments::{LayerAssignmentValue, OutputAssignments, ValueAssignment},
     ImageTexture, IndexMapExt,
 };
 
