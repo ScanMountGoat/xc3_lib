@@ -465,31 +465,32 @@ fn channel_assignment_wgsl(
             if i < MAX_SAMPLERS {
                 let uvs = generate_uv_wgsl(t, name_to_index);
                 Some(format!(
-                    "textureSample(s{i}, s{i}_sampler, {uvs}).{}",
-                    t.channels
+                    "textureSample(s{i}, s{i}_sampler, {uvs}){}",
+                    channel_wgsl(t.channel)
                 ))
             } else {
                 error!("Sampler index {i} exceeds supported max of {MAX_SAMPLERS}");
                 None
             }
         }
-        ValueAssignment::Attribute {
-            name,
-            channel_index,
-        } => {
-            // TODO: Support attributes other than vertex color.
-            let c = ["x", "y", "z", "w"][*channel_index];
+        ValueAssignment::Attribute { name, channel } => {
+            // TODO: Support more attributes.
+            let c = channel_wgsl(*channel);
             match name.as_str() {
-                "vColor" => Some(format!("in.vertex_color.{c}")),
-                "vNormal" => Some(format!("in.normal.{c}")),
+                "vColor" => Some(format!("in.vertex_color{c}")),
+                "vNormal" => Some(format!("in.normal{c}")),
                 _ => {
-                    error!("Unsupported attribute {name}.{c}");
+                    error!("Unsupported attribute {name}{c}");
                     None
                 }
             }
         }
         ValueAssignment::Value(f) => Some(format!("{f:?}")),
     }
+}
+
+fn channel_wgsl(c: Option<char>) -> String {
+    c.map(|c| format!(".{c}")).unwrap_or_default()
 }
 
 fn parallax_wgsl(

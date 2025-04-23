@@ -466,13 +466,13 @@ fn assignment_image_index(
         ValueAssignment::Texture(texture) => {
             let TextureAssignment {
                 name,
-                channels,
+                channel,
                 texcoord_name,
                 texcoord_transforms,
                 ..
             } = texture;
 
-            let channel_index = "xyzw".find(channels.chars().next().unwrap()).unwrap();
+            let channel_index = "xyzw".find(channel.unwrap()).unwrap();
 
             // TODO: proper mat2x4 support?
             let texcoord_scale = texcoord_transforms.map(|(u, v)| [u[0], v[1]]);

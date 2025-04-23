@@ -1,5 +1,5 @@
 use ordered_float::OrderedFloat;
-use smol_str::{SmolStr, ToSmolStr};
+use smol_str::SmolStr;
 use xc3_lib::mxmd::TextureUsage;
 
 use crate::{
@@ -70,7 +70,10 @@ pub enum LayerAssignmentValue {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ValueAssignment {
     Texture(TextureAssignment),
-    Attribute { name: SmolStr, channel_index: usize },
+    Attribute {
+        name: SmolStr,
+        channel: Option<char>,
+    },
     Value(OrderedFloat<f32>),
 }
 
@@ -80,7 +83,7 @@ pub struct TextureAssignment {
     // TODO: Always convert everything to a matrix?
     // TODO: how often is the matrix even used?
     pub name: SmolStr,
-    pub channels: SmolStr,
+    pub channel: Option<char>,
     pub texcoord_name: Option<SmolStr>,
     pub texcoord_transforms: Option<([OrderedFloat<f32>; 4], [OrderedFloat<f32>; 4])>,
     pub parallax: Option<TexCoordParallax>,
@@ -100,33 +103,17 @@ impl Default for LayerAssignmentValue {
 }
 
 impl ValueAssignment {
-    pub fn from_dependency(
-        d: &Dependency,
-        parameters: &MaterialParameters,
-        channel: char,
-    ) -> Option<Self> {
+    pub fn from_dependency(d: &Dependency, parameters: &MaterialParameters) -> Option<Self> {
         match d {
             Dependency::Constant(f) => Some(Self::Value(f.0.into())),
             Dependency::Buffer(b) => parameters.get_dependency(b).map(|f| Self::Value(f.into())),
             Dependency::Texture(texture) => {
                 Some(Self::Texture(texture_assignment(texture, parameters)))
             }
-            Dependency::Attribute(a) => {
-                // Attributes may have multiple accessed channels.
-                // First check if the current channel is used.
-                // TODO: Does this always work as intended?
-                let c = if a.channel == Some(channel) {
-                    channel
-                } else {
-                    // TODO: avoid unwrap.
-                    a.channel.unwrap()
-                };
-
-                Some(Self::Attribute {
-                    name: a.name.clone(),
-                    channel_index: "xyzw".find(c).unwrap(),
-                })
-            }
+            Dependency::Attribute(a) => Some(Self::Attribute {
+                name: a.name.clone(),
+                channel: a.channel,
+            }),
         }
     }
 }
@@ -140,11 +127,11 @@ pub(crate) fn output_assignments(
         outline_width: shader
             .outline_width
             .as_ref()
-            .and_then(|d| ValueAssignment::from_dependency(d, parameters, 'x')),
+            .and_then(|d| ValueAssignment::from_dependency(d, parameters)),
         normal_intensity: shader
             .normal_intensity
             .as_ref()
-            .map(|l| layer_channel_assignment_value(parameters, 'x', l)),
+            .map(|l| layer_channel_assignment_value(parameters, l)),
     }
 }
 
@@ -191,17 +178,13 @@ fn layer_assignments(
 
     layers
         .iter()
-        .map(|l| layer_channel_assignment(parameters, channel, l))
+        .map(|l| layer_channel_assignment(parameters, l))
         .collect()
 }
 
-fn layer_channel_assignment(
-    parameters: &MaterialParameters,
-    channel: char,
-    l: &Layer,
-) -> LayerAssignment {
-    let value = layer_channel_assignment_value(parameters, channel, &l.value);
-    let weight = layer_channel_assignment_value(parameters, channel, &l.ratio);
+fn layer_channel_assignment(parameters: &MaterialParameters, l: &Layer) -> LayerAssignment {
+    let value = layer_channel_assignment_value(parameters, &l.value);
+    let weight = layer_channel_assignment_value(parameters, &l.ratio);
 
     LayerAssignment {
         value,
@@ -213,17 +196,16 @@ fn layer_channel_assignment(
 
 fn layer_channel_assignment_value(
     parameters: &MaterialParameters,
-    channel: char,
     value: &LayerValue,
 ) -> LayerAssignmentValue {
     let value = match value {
         crate::shader_database::LayerValue::Value(d) => {
-            LayerAssignmentValue::Value(ValueAssignment::from_dependency(d, parameters, channel))
+            LayerAssignmentValue::Value(ValueAssignment::from_dependency(d, parameters))
         }
         crate::shader_database::LayerValue::Layers(layers) => LayerAssignmentValue::Layers(
             layers
                 .iter()
-                .map(|l| layer_channel_assignment(parameters, channel, l))
+                .map(|l| layer_channel_assignment(parameters, l))
                 .collect(),
         ),
     };
@@ -239,7 +221,7 @@ fn texture_assignment(
     // TODO: different attribute for U and V?
     TextureAssignment {
         name: texture.name.clone(),
-        channels: texture.channel.map(|c| c.to_smolstr()).unwrap_or_default(),
+        channel: texture.channel,
         texcoord_name: texture.texcoords.first().map(|t| t.name.clone()),
         texcoord_transforms,
         parallax: match texture.texcoords.first().and_then(|t| t.params.as_ref()) {
@@ -248,8 +230,8 @@ fn texture_assignment(
                 mask_b,
                 ratio,
             }) => {
-                let mask_a = ValueAssignment::from_dependency(mask_a, parameters, 'x');
-                let mask_b = ValueAssignment::from_dependency(mask_b, parameters, 'x');
+                let mask_a = ValueAssignment::from_dependency(mask_a, parameters);
+                let mask_b = ValueAssignment::from_dependency(mask_b, parameters);
                 // TODO: Why are these sometimes none for xcx de?
                 match (mask_a, mask_b) {
                     (Some(mask_a), Some(mask_b)) => Some(TexCoordParallax {
@@ -313,7 +295,7 @@ pub(crate) fn infer_assignment_from_textures(
         LayerAssignmentValue::Value(i.map(|i| {
             ValueAssignment::Texture(TextureAssignment {
                 name: format!("s{i}").into(),
-                channels: ["x", "y", "z", "w"][c].into(),
+                channel: Some(['x', 'y', 'z', 'w'][c]),
                 texcoord_name: None,
                 texcoord_transforms: None,
                 parallax: None,
