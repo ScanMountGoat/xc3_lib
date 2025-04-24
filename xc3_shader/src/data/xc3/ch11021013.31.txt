@@ -1133,88 +1133,89 @@ ShaderProgram {
             ],
         },
         "o2.y": Func {
-            op: Mul,
+            op: AddNormal,
             args: [
                 Func {
-                    op: MulRatio,
+                    op: AddNormal,
                     args: [
-                        Func {
-                            op: Mul,
-                            args: [
-                                Func {
-                                    op: MulRatio,
-                                    args: [
-                                        Func {
-                                            op: Fma,
-                                            args: [
-                                                Value(
-                                                    Texture(
-                                                        TextureDependency {
-                                                            name: "s2",
-                                                            channel: Some(
-                                                                'y',
-                                                            ),
-                                                            texcoords: [
-                                                                TexCoord {
-                                                                    name: "vTex0",
-                                                                    channel: Some(
-                                                                        'x',
-                                                                    ),
-                                                                    params: None,
-                                                                },
-                                                                TexCoord {
-                                                                    name: "vTex0",
-                                                                    channel: Some(
-                                                                        'y',
-                                                                    ),
-                                                                    params: None,
-                                                                },
-                                                            ],
-                                                        },
-                                                    ),
-                                                ),
-                                                Value(
-                                                    Constant(
-                                                        2.0,
-                                                    ),
-                                                ),
-                                                Value(
-                                                    Constant(
-                                                        -1.0039216,
-                                                    ),
-                                                ),
-                                            ],
-                                        },
-                                        Func {
-                                            op: Unk,
-                                            args: [],
-                                        },
-                                        Value(
-                                            Buffer(
-                                                BufferDependency {
-                                                    name: "U_Mate",
-                                                    field: "gWrkFl4",
-                                                    index: Some(
-                                                        2,
-                                                    ),
-                                                    channel: Some(
-                                                        'y',
-                                                    ),
-                                                },
+                        Value(
+                            Texture(
+                                TextureDependency {
+                                    name: "s2",
+                                    channel: Some(
+                                        'y',
+                                    ),
+                                    texcoords: [
+                                        TexCoord {
+                                            name: "vTex0",
+                                            channel: Some(
+                                                'x',
                                             ),
-                                        ),
+                                            params: None,
+                                        },
+                                        TexCoord {
+                                            name: "vTex0",
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                            params: None,
+                                        },
                                     ],
                                 },
-                                Func {
-                                    op: Unk,
-                                    args: [],
+                            ),
+                        ),
+                        Value(
+                            Texture(
+                                TextureDependency {
+                                    name: "gTResidentTex09",
+                                    channel: Some(
+                                        'y',
+                                    ),
+                                    texcoords: [
+                                        TexCoord {
+                                            name: "vTex0",
+                                            channel: Some(
+                                                'x',
+                                            ),
+                                            params: Some(
+                                                Scale(
+                                                    BufferDependency {
+                                                        name: "U_Mate",
+                                                        field: "gWrkFl4",
+                                                        index: Some(
+                                                            0,
+                                                        ),
+                                                        channel: Some(
+                                                            'z',
+                                                        ),
+                                                    },
+                                                ),
+                                            ),
+                                        },
+                                        TexCoord {
+                                            name: "vTex0",
+                                            channel: Some(
+                                                'y',
+                                            ),
+                                            params: Some(
+                                                Scale(
+                                                    BufferDependency {
+                                                        name: "U_Mate",
+                                                        field: "gWrkFl4",
+                                                        index: Some(
+                                                            0,
+                                                        ),
+                                                        channel: Some(
+                                                            'w',
+                                                        ),
+                                                    },
+                                                ),
+                                            ),
+                                        },
+                                    ],
                                 },
-                            ],
-                        },
-                        Func {
-                            op: Unk,
-                            args: [],
-                        },
+                            ),
+                        ),
                         Value(
                             Buffer(
                                 BufferDependency {
@@ -1224,17 +1225,79 @@ ShaderProgram {
                                         2,
                                     ),
                                     channel: Some(
-                                        'z',
+                                        'y',
                                     ),
                                 },
                             ),
                         ),
                     ],
                 },
-                Func {
-                    op: Unk,
-                    args: [],
-                },
+                Value(
+                    Texture(
+                        TextureDependency {
+                            name: "s3",
+                            channel: Some(
+                                'y',
+                            ),
+                            texcoords: [
+                                TexCoord {
+                                    name: "vTex0",
+                                    channel: Some(
+                                        'x',
+                                    ),
+                                    params: Some(
+                                        Scale(
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gWrkFl4",
+                                                index: Some(
+                                                    1,
+                                                ),
+                                                channel: Some(
+                                                    'x',
+                                                ),
+                                            },
+                                        ),
+                                    ),
+                                },
+                                TexCoord {
+                                    name: "vTex0",
+                                    channel: Some(
+                                        'y',
+                                    ),
+                                    params: Some(
+                                        Scale(
+                                            BufferDependency {
+                                                name: "U_Mate",
+                                                field: "gWrkFl4",
+                                                index: Some(
+                                                    1,
+                                                ),
+                                                channel: Some(
+                                                    'y',
+                                                ),
+                                            },
+                                        ),
+                                    ),
+                                },
+                            ],
+                        },
+                    ),
+                ),
+                Value(
+                    Buffer(
+                        BufferDependency {
+                            name: "U_Mate",
+                            field: "gWrkFl4",
+                            index: Some(
+                                2,
+                            ),
+                            channel: Some(
+                                'z',
+                            ),
+                        },
+                    ),
+                ),
             ],
         },
         "o2.z": Value(
@@ -1273,88 +1336,89 @@ ShaderProgram {
                             op: Fma,
                             args: [
                                 Func {
-                                    op: Mul,
+                                    op: AddNormal,
                                     args: [
                                         Func {
-                                            op: MulRatio,
+                                            op: AddNormal,
                                             args: [
-                                                Func {
-                                                    op: Mul,
-                                                    args: [
-                                                        Func {
-                                                            op: MulRatio,
-                                                            args: [
-                                                                Func {
-                                                                    op: Fma,
-                                                                    args: [
-                                                                        Value(
-                                                                            Texture(
-                                                                                TextureDependency {
-                                                                                    name: "s2",
-                                                                                    channel: Some(
-                                                                                        'y',
-                                                                                    ),
-                                                                                    texcoords: [
-                                                                                        TexCoord {
-                                                                                            name: "vTex0",
-                                                                                            channel: Some(
-                                                                                                'x',
-                                                                                            ),
-                                                                                            params: None,
-                                                                                        },
-                                                                                        TexCoord {
-                                                                                            name: "vTex0",
-                                                                                            channel: Some(
-                                                                                                'y',
-                                                                                            ),
-                                                                                            params: None,
-                                                                                        },
-                                                                                    ],
-                                                                                },
-                                                                            ),
-                                                                        ),
-                                                                        Value(
-                                                                            Constant(
-                                                                                2.0,
-                                                                            ),
-                                                                        ),
-                                                                        Value(
-                                                                            Constant(
-                                                                                -1.0039216,
-                                                                            ),
-                                                                        ),
-                                                                    ],
-                                                                },
-                                                                Func {
-                                                                    op: Unk,
-                                                                    args: [],
-                                                                },
-                                                                Value(
-                                                                    Buffer(
-                                                                        BufferDependency {
-                                                                            name: "U_Mate",
-                                                                            field: "gWrkFl4",
-                                                                            index: Some(
-                                                                                2,
-                                                                            ),
-                                                                            channel: Some(
-                                                                                'y',
-                                                                            ),
-                                                                        },
+                                                Value(
+                                                    Texture(
+                                                        TextureDependency {
+                                                            name: "s2",
+                                                            channel: Some(
+                                                                'y',
+                                                            ),
+                                                            texcoords: [
+                                                                TexCoord {
+                                                                    name: "vTex0",
+                                                                    channel: Some(
+                                                                        'x',
                                                                     ),
-                                                                ),
+                                                                    params: None,
+                                                                },
+                                                                TexCoord {
+                                                                    name: "vTex0",
+                                                                    channel: Some(
+                                                                        'y',
+                                                                    ),
+                                                                    params: None,
+                                                                },
                                                             ],
                                                         },
-                                                        Func {
-                                                            op: Unk,
-                                                            args: [],
+                                                    ),
+                                                ),
+                                                Value(
+                                                    Texture(
+                                                        TextureDependency {
+                                                            name: "gTResidentTex09",
+                                                            channel: Some(
+                                                                'y',
+                                                            ),
+                                                            texcoords: [
+                                                                TexCoord {
+                                                                    name: "vTex0",
+                                                                    channel: Some(
+                                                                        'x',
+                                                                    ),
+                                                                    params: Some(
+                                                                        Scale(
+                                                                            BufferDependency {
+                                                                                name: "U_Mate",
+                                                                                field: "gWrkFl4",
+                                                                                index: Some(
+                                                                                    0,
+                                                                                ),
+                                                                                channel: Some(
+                                                                                    'z',
+                                                                                ),
+                                                                            },
+                                                                        ),
+                                                                    ),
+                                                                },
+                                                                TexCoord {
+                                                                    name: "vTex0",
+                                                                    channel: Some(
+                                                                        'y',
+                                                                    ),
+                                                                    params: Some(
+                                                                        Scale(
+                                                                            BufferDependency {
+                                                                                name: "U_Mate",
+                                                                                field: "gWrkFl4",
+                                                                                index: Some(
+                                                                                    0,
+                                                                                ),
+                                                                                channel: Some(
+                                                                                    'w',
+                                                                                ),
+                                                                            },
+                                                                        ),
+                                                                    ),
+                                                                },
+                                                            ],
                                                         },
-                                                    ],
-                                                },
-                                                Func {
-                                                    op: Unk,
-                                                    args: [],
-                                                },
+                                                    ),
+                                                ),
                                                 Value(
                                                     Buffer(
                                                         BufferDependency {
@@ -1364,17 +1428,79 @@ ShaderProgram {
                                                                 2,
                                                             ),
                                                             channel: Some(
-                                                                'z',
+                                                                'y',
                                                             ),
                                                         },
                                                     ),
                                                 ),
                                             ],
                                         },
-                                        Func {
-                                            op: Unk,
-                                            args: [],
-                                        },
+                                        Value(
+                                            Texture(
+                                                TextureDependency {
+                                                    name: "s3",
+                                                    channel: Some(
+                                                        'y',
+                                                    ),
+                                                    texcoords: [
+                                                        TexCoord {
+                                                            name: "vTex0",
+                                                            channel: Some(
+                                                                'x',
+                                                            ),
+                                                            params: Some(
+                                                                Scale(
+                                                                    BufferDependency {
+                                                                        name: "U_Mate",
+                                                                        field: "gWrkFl4",
+                                                                        index: Some(
+                                                                            1,
+                                                                        ),
+                                                                        channel: Some(
+                                                                            'x',
+                                                                        ),
+                                                                    },
+                                                                ),
+                                                            ),
+                                                        },
+                                                        TexCoord {
+                                                            name: "vTex0",
+                                                            channel: Some(
+                                                                'y',
+                                                            ),
+                                                            params: Some(
+                                                                Scale(
+                                                                    BufferDependency {
+                                                                        name: "U_Mate",
+                                                                        field: "gWrkFl4",
+                                                                        index: Some(
+                                                                            1,
+                                                                        ),
+                                                                        channel: Some(
+                                                                            'y',
+                                                                        ),
+                                                                    },
+                                                                ),
+                                                            ),
+                                                        },
+                                                    ],
+                                                },
+                                            ),
+                                        ),
+                                        Value(
+                                            Buffer(
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gWrkFl4",
+                                                    index: Some(
+                                                        2,
+                                                    ),
+                                                    channel: Some(
+                                                        'z',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
                                     ],
                                 },
                                 Value(
@@ -1391,51 +1517,19 @@ ShaderProgram {
                                     op: Fma,
                                     args: [
                                         Func {
-                                            op: Mul,
+                                            op: AddNormal,
                                             args: [
                                                 Func {
-                                                    op: MulRatio,
+                                                    op: AddNormal,
                                                     args: [
                                                         Func {
-                                                            op: Mul,
+                                                            op: Max,
                                                             args: [
-                                                                Func {
-                                                                    op: MulRatio,
-                                                                    args: [
-                                                                        Func {
-                                                                            op: Max,
-                                                                            args: [
-                                                                                Value(
-                                                                                    Constant(
-                                                                                        0.0,
-                                                                                    ),
-                                                                                ),
-                                                                                Func {
-                                                                                    op: Unk,
-                                                                                    args: [],
-                                                                                },
-                                                                            ],
-                                                                        },
-                                                                        Func {
-                                                                            op: Unk,
-                                                                            args: [],
-                                                                        },
-                                                                        Value(
-                                                                            Buffer(
-                                                                                BufferDependency {
-                                                                                    name: "U_Mate",
-                                                                                    field: "gWrkFl4",
-                                                                                    index: Some(
-                                                                                        2,
-                                                                                    ),
-                                                                                    channel: Some(
-                                                                                        'y',
-                                                                                    ),
-                                                                                },
-                                                                            ),
-                                                                        ),
-                                                                    ],
-                                                                },
+                                                                Value(
+                                                                    Constant(
+                                                                        0.0,
+                                                                    ),
+                                                                ),
                                                                 Func {
                                                                     op: Unk,
                                                                     args: [],
@@ -1443,8 +1537,18 @@ ShaderProgram {
                                                             ],
                                                         },
                                                         Func {
-                                                            op: Unk,
-                                                            args: [],
+                                                            op: Max,
+                                                            args: [
+                                                                Value(
+                                                                    Constant(
+                                                                        0.0,
+                                                                    ),
+                                                                ),
+                                                                Func {
+                                                                    op: Unk,
+                                                                    args: [],
+                                                                },
+                                                            ],
                                                         },
                                                         Value(
                                                             Buffer(
@@ -1455,7 +1559,7 @@ ShaderProgram {
                                                                         2,
                                                                     ),
                                                                     channel: Some(
-                                                                        'z',
+                                                                        'y',
                                                                     ),
                                                                 },
                                                             ),
@@ -1463,9 +1567,33 @@ ShaderProgram {
                                                     ],
                                                 },
                                                 Func {
-                                                    op: Unk,
-                                                    args: [],
+                                                    op: Max,
+                                                    args: [
+                                                        Value(
+                                                            Constant(
+                                                                0.0,
+                                                            ),
+                                                        ),
+                                                        Func {
+                                                            op: Unk,
+                                                            args: [],
+                                                        },
+                                                    ],
                                                 },
+                                                Value(
+                                                    Buffer(
+                                                        BufferDependency {
+                                                            name: "U_Mate",
+                                                            field: "gWrkFl4",
+                                                            index: Some(
+                                                                2,
+                                                            ),
+                                                            channel: Some(
+                                                                'z',
+                                                            ),
+                                                        },
+                                                    ),
+                                                ),
                                             ],
                                         },
                                         Value(

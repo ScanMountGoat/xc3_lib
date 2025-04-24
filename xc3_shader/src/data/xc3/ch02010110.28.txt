@@ -330,178 +330,148 @@ ShaderProgram {
         "o2.y": Func {
             op: Mix,
             args: [
-                Func {
-                    op: Fma,
-                    args: [
-                        Value(
-                            Texture(
-                                TextureDependency {
-                                    name: "s6",
+                Value(
+                    Texture(
+                        TextureDependency {
+                            name: "s6",
+                            channel: Some(
+                                'y',
+                            ),
+                            texcoords: [
+                                TexCoord {
+                                    name: "vTex0",
+                                    channel: Some(
+                                        'x',
+                                    ),
+                                    params: None,
+                                },
+                                TexCoord {
+                                    name: "vTex0",
                                     channel: Some(
                                         'y',
                                     ),
-                                    texcoords: [
-                                        TexCoord {
-                                            name: "vTex0",
-                                            channel: Some(
-                                                'x',
-                                            ),
-                                            params: None,
-                                        },
-                                        TexCoord {
-                                            name: "vTex0",
-                                            channel: Some(
-                                                'y',
-                                            ),
-                                            params: None,
-                                        },
-                                    ],
+                                    params: None,
                                 },
+                            ],
+                        },
+                    ),
+                ),
+                Value(
+                    Texture(
+                        TextureDependency {
+                            name: "s7",
+                            channel: Some(
+                                'y',
                             ),
-                        ),
-                        Value(
-                            Constant(
-                                2.0,
-                            ),
-                        ),
-                        Value(
-                            Constant(
-                                -1.0039216,
-                            ),
-                        ),
-                    ],
-                },
-                Func {
-                    op: Fma,
-                    args: [
-                        Value(
-                            Texture(
-                                TextureDependency {
-                                    name: "s7",
+                            texcoords: [
+                                TexCoord {
+                                    name: "vTex0",
                                     channel: Some(
-                                        'y',
+                                        'x',
                                     ),
-                                    texcoords: [
-                                        TexCoord {
-                                            name: "vTex0",
-                                            channel: Some(
-                                                'x',
-                                            ),
-                                            params: Some(
-                                                Matrix(
-                                                    [
-                                                        BufferDependency {
-                                                            name: "U_Mate",
-                                                            field: "gTexMat",
-                                                            index: Some(
-                                                                0,
-                                                            ),
-                                                            channel: Some(
-                                                                'x',
-                                                            ),
-                                                        },
-                                                        BufferDependency {
-                                                            name: "U_Mate",
-                                                            field: "gTexMat",
-                                                            index: Some(
-                                                                0,
-                                                            ),
-                                                            channel: Some(
-                                                                'y',
-                                                            ),
-                                                        },
-                                                        BufferDependency {
-                                                            name: "U_Mate",
-                                                            field: "gTexMat",
-                                                            index: Some(
-                                                                0,
-                                                            ),
-                                                            channel: Some(
-                                                                'z',
-                                                            ),
-                                                        },
-                                                        BufferDependency {
-                                                            name: "U_Mate",
-                                                            field: "gTexMat",
-                                                            index: Some(
-                                                                0,
-                                                            ),
-                                                            channel: Some(
-                                                                'w',
-                                                            ),
-                                                        },
-                                                    ],
-                                                ),
-                                            ),
-                                        },
-                                        TexCoord {
-                                            name: "vTex0",
-                                            channel: Some(
-                                                'x',
-                                            ),
-                                            params: Some(
-                                                Matrix(
-                                                    [
-                                                        BufferDependency {
-                                                            name: "U_Mate",
-                                                            field: "gTexMat",
-                                                            index: Some(
-                                                                1,
-                                                            ),
-                                                            channel: Some(
-                                                                'x',
-                                                            ),
-                                                        },
-                                                        BufferDependency {
-                                                            name: "U_Mate",
-                                                            field: "gTexMat",
-                                                            index: Some(
-                                                                1,
-                                                            ),
-                                                            channel: Some(
-                                                                'y',
-                                                            ),
-                                                        },
-                                                        BufferDependency {
-                                                            name: "U_Mate",
-                                                            field: "gTexMat",
-                                                            index: Some(
-                                                                1,
-                                                            ),
-                                                            channel: Some(
-                                                                'z',
-                                                            ),
-                                                        },
-                                                        BufferDependency {
-                                                            name: "U_Mate",
-                                                            field: "gTexMat",
-                                                            index: Some(
-                                                                1,
-                                                            ),
-                                                            channel: Some(
-                                                                'w',
-                                                            ),
-                                                        },
-                                                    ],
-                                                ),
-                                            ),
-                                        },
-                                    ],
+                                    params: Some(
+                                        Matrix(
+                                            [
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gTexMat",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'x',
+                                                    ),
+                                                },
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gTexMat",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'y',
+                                                    ),
+                                                },
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gTexMat",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'z',
+                                                    ),
+                                                },
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gTexMat",
+                                                    index: Some(
+                                                        0,
+                                                    ),
+                                                    channel: Some(
+                                                        'w',
+                                                    ),
+                                                },
+                                            ],
+                                        ),
+                                    ),
                                 },
-                            ),
-                        ),
-                        Value(
-                            Constant(
-                                2.0,
-                            ),
-                        ),
-                        Value(
-                            Constant(
-                                -1.0039216,
-                            ),
-                        ),
-                    ],
-                },
+                                TexCoord {
+                                    name: "vTex0",
+                                    channel: Some(
+                                        'x',
+                                    ),
+                                    params: Some(
+                                        Matrix(
+                                            [
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gTexMat",
+                                                    index: Some(
+                                                        1,
+                                                    ),
+                                                    channel: Some(
+                                                        'x',
+                                                    ),
+                                                },
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gTexMat",
+                                                    index: Some(
+                                                        1,
+                                                    ),
+                                                    channel: Some(
+                                                        'y',
+                                                    ),
+                                                },
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gTexMat",
+                                                    index: Some(
+                                                        1,
+                                                    ),
+                                                    channel: Some(
+                                                        'z',
+                                                    ),
+                                                },
+                                                BufferDependency {
+                                                    name: "U_Mate",
+                                                    field: "gTexMat",
+                                                    index: Some(
+                                                        1,
+                                                    ),
+                                                    channel: Some(
+                                                        'w',
+                                                    ),
+                                                },
+                                            ],
+                                        ),
+                                    ),
+                                },
+                            ],
+                        },
+                    ),
+                ),
                 Value(
                     Texture(
                         TextureDependency {
@@ -568,178 +538,148 @@ ShaderProgram {
                                 Func {
                                     op: Mix,
                                     args: [
-                                        Func {
-                                            op: Fma,
-                                            args: [
-                                                Value(
-                                                    Texture(
-                                                        TextureDependency {
-                                                            name: "s6",
+                                        Value(
+                                            Texture(
+                                                TextureDependency {
+                                                    name: "s6",
+                                                    channel: Some(
+                                                        'y',
+                                                    ),
+                                                    texcoords: [
+                                                        TexCoord {
+                                                            name: "vTex0",
+                                                            channel: Some(
+                                                                'x',
+                                                            ),
+                                                            params: None,
+                                                        },
+                                                        TexCoord {
+                                                            name: "vTex0",
                                                             channel: Some(
                                                                 'y',
                                                             ),
-                                                            texcoords: [
-                                                                TexCoord {
-                                                                    name: "vTex0",
-                                                                    channel: Some(
-                                                                        'x',
-                                                                    ),
-                                                                    params: None,
-                                                                },
-                                                                TexCoord {
-                                                                    name: "vTex0",
-                                                                    channel: Some(
-                                                                        'y',
-                                                                    ),
-                                                                    params: None,
-                                                                },
-                                                            ],
+                                                            params: None,
                                                         },
+                                                    ],
+                                                },
+                                            ),
+                                        ),
+                                        Value(
+                                            Texture(
+                                                TextureDependency {
+                                                    name: "s7",
+                                                    channel: Some(
+                                                        'y',
                                                     ),
-                                                ),
-                                                Value(
-                                                    Constant(
-                                                        2.0,
-                                                    ),
-                                                ),
-                                                Value(
-                                                    Constant(
-                                                        -1.0039216,
-                                                    ),
-                                                ),
-                                            ],
-                                        },
-                                        Func {
-                                            op: Fma,
-                                            args: [
-                                                Value(
-                                                    Texture(
-                                                        TextureDependency {
-                                                            name: "s7",
+                                                    texcoords: [
+                                                        TexCoord {
+                                                            name: "vTex0",
                                                             channel: Some(
-                                                                'y',
+                                                                'x',
                                                             ),
-                                                            texcoords: [
-                                                                TexCoord {
-                                                                    name: "vTex0",
-                                                                    channel: Some(
-                                                                        'x',
-                                                                    ),
-                                                                    params: Some(
-                                                                        Matrix(
-                                                                            [
-                                                                                BufferDependency {
-                                                                                    name: "U_Mate",
-                                                                                    field: "gTexMat",
-                                                                                    index: Some(
-                                                                                        0,
-                                                                                    ),
-                                                                                    channel: Some(
-                                                                                        'x',
-                                                                                    ),
-                                                                                },
-                                                                                BufferDependency {
-                                                                                    name: "U_Mate",
-                                                                                    field: "gTexMat",
-                                                                                    index: Some(
-                                                                                        0,
-                                                                                    ),
-                                                                                    channel: Some(
-                                                                                        'y',
-                                                                                    ),
-                                                                                },
-                                                                                BufferDependency {
-                                                                                    name: "U_Mate",
-                                                                                    field: "gTexMat",
-                                                                                    index: Some(
-                                                                                        0,
-                                                                                    ),
-                                                                                    channel: Some(
-                                                                                        'z',
-                                                                                    ),
-                                                                                },
-                                                                                BufferDependency {
-                                                                                    name: "U_Mate",
-                                                                                    field: "gTexMat",
-                                                                                    index: Some(
-                                                                                        0,
-                                                                                    ),
-                                                                                    channel: Some(
-                                                                                        'w',
-                                                                                    ),
-                                                                                },
-                                                                            ],
-                                                                        ),
-                                                                    ),
-                                                                },
-                                                                TexCoord {
-                                                                    name: "vTex0",
-                                                                    channel: Some(
-                                                                        'x',
-                                                                    ),
-                                                                    params: Some(
-                                                                        Matrix(
-                                                                            [
-                                                                                BufferDependency {
-                                                                                    name: "U_Mate",
-                                                                                    field: "gTexMat",
-                                                                                    index: Some(
-                                                                                        1,
-                                                                                    ),
-                                                                                    channel: Some(
-                                                                                        'x',
-                                                                                    ),
-                                                                                },
-                                                                                BufferDependency {
-                                                                                    name: "U_Mate",
-                                                                                    field: "gTexMat",
-                                                                                    index: Some(
-                                                                                        1,
-                                                                                    ),
-                                                                                    channel: Some(
-                                                                                        'y',
-                                                                                    ),
-                                                                                },
-                                                                                BufferDependency {
-                                                                                    name: "U_Mate",
-                                                                                    field: "gTexMat",
-                                                                                    index: Some(
-                                                                                        1,
-                                                                                    ),
-                                                                                    channel: Some(
-                                                                                        'z',
-                                                                                    ),
-                                                                                },
-                                                                                BufferDependency {
-                                                                                    name: "U_Mate",
-                                                                                    field: "gTexMat",
-                                                                                    index: Some(
-                                                                                        1,
-                                                                                    ),
-                                                                                    channel: Some(
-                                                                                        'w',
-                                                                                    ),
-                                                                                },
-                                                                            ],
-                                                                        ),
-                                                                    ),
-                                                                },
-                                                            ],
+                                                            params: Some(
+                                                                Matrix(
+                                                                    [
+                                                                        BufferDependency {
+                                                                            name: "U_Mate",
+                                                                            field: "gTexMat",
+                                                                            index: Some(
+                                                                                0,
+                                                                            ),
+                                                                            channel: Some(
+                                                                                'x',
+                                                                            ),
+                                                                        },
+                                                                        BufferDependency {
+                                                                            name: "U_Mate",
+                                                                            field: "gTexMat",
+                                                                            index: Some(
+                                                                                0,
+                                                                            ),
+                                                                            channel: Some(
+                                                                                'y',
+                                                                            ),
+                                                                        },
+                                                                        BufferDependency {
+                                                                            name: "U_Mate",
+                                                                            field: "gTexMat",
+                                                                            index: Some(
+                                                                                0,
+                                                                            ),
+                                                                            channel: Some(
+                                                                                'z',
+                                                                            ),
+                                                                        },
+                                                                        BufferDependency {
+                                                                            name: "U_Mate",
+                                                                            field: "gTexMat",
+                                                                            index: Some(
+                                                                                0,
+                                                                            ),
+                                                                            channel: Some(
+                                                                                'w',
+                                                                            ),
+                                                                        },
+                                                                    ],
+                                                                ),
+                                                            ),
                                                         },
-                                                    ),
-                                                ),
-                                                Value(
-                                                    Constant(
-                                                        2.0,
-                                                    ),
-                                                ),
-                                                Value(
-                                                    Constant(
-                                                        -1.0039216,
-                                                    ),
-                                                ),
-                                            ],
-                                        },
+                                                        TexCoord {
+                                                            name: "vTex0",
+                                                            channel: Some(
+                                                                'x',
+                                                            ),
+                                                            params: Some(
+                                                                Matrix(
+                                                                    [
+                                                                        BufferDependency {
+                                                                            name: "U_Mate",
+                                                                            field: "gTexMat",
+                                                                            index: Some(
+                                                                                1,
+                                                                            ),
+                                                                            channel: Some(
+                                                                                'x',
+                                                                            ),
+                                                                        },
+                                                                        BufferDependency {
+                                                                            name: "U_Mate",
+                                                                            field: "gTexMat",
+                                                                            index: Some(
+                                                                                1,
+                                                                            ),
+                                                                            channel: Some(
+                                                                                'y',
+                                                                            ),
+                                                                        },
+                                                                        BufferDependency {
+                                                                            name: "U_Mate",
+                                                                            field: "gTexMat",
+                                                                            index: Some(
+                                                                                1,
+                                                                            ),
+                                                                            channel: Some(
+                                                                                'z',
+                                                                            ),
+                                                                        },
+                                                                        BufferDependency {
+                                                                            name: "U_Mate",
+                                                                            field: "gTexMat",
+                                                                            index: Some(
+                                                                                1,
+                                                                            ),
+                                                                            channel: Some(
+                                                                                'w',
+                                                                            ),
+                                                                        },
+                                                                    ],
+                                                                ),
+                                                            ),
+                                                        },
+                                                    ],
+                                                },
+                                            ),
+                                        ),
                                         Value(
                                             Texture(
                                                 TextureDependency {

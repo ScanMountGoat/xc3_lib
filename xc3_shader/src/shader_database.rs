@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, path::Path, sync::LazyLock};
 
+use approx::AbsDiffEq;
 use bimap::BiBTreeMap;
 use glsl_lang::{
     ast::{
@@ -323,6 +324,12 @@ fn normal_output_expr(
 }
 
 fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -> OutputExpr {
+    // Simplify any expressions that would interfere with queries.
+    let mut expr = assign_x_recursive(&graph.nodes, expr);
+    if let Some(new_expr) = normal_map_fma(&graph.nodes, expr) {
+        expr = new_expr;
+    }
+
     if let Some(value) = extract_value(expr, graph, attributes) {
         // The base case is a single value.
         OutputExpr::Value(value)
@@ -350,10 +357,7 @@ fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -> OutputExp
             // TODO: caching to avoid visiting expr more than once?
             let args: Vec<_> = args
                 .into_iter()
-                .map(|a| {
-                    let a = assign_x_recursive(&graph.nodes, a);
-                    output_expr(a, graph, attributes)
-                })
+                .map(|arg| output_expr(arg, graph, attributes))
                 .collect();
             OutputExpr::Func { op, args }
         } else {
@@ -690,10 +694,7 @@ fn dependency_expr(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<D
 static BLEND_ADD_NORMAL: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
-            n = n2;
-            n = n.x;
-            n = fma(n, 2.0, neg_one);
-            n = n * temp;
+            n = n2 * temp;
             neg_n = 0.0 - n;
             n = fma(temp, temp, neg_n);
             n_inv_sqrt = inversesqrt(temp);
@@ -769,8 +770,6 @@ fn blend_overlay2<'a>(nodes: &'a [Node], nom_work: &'a Expr) -> Option<(Operatio
 static NORMAL_MAP_FMA: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
-            result = result;
-            result = result.x;
             result = fma(result, 2.0, neg_one);
         }
     "};
@@ -785,14 +784,14 @@ fn normal_map_fma<'a>(nodes: &'a [Node], nom_work: &'a Expr) -> Option<&'a Expr>
     let neg_one = result.get("neg_one")?;
     match neg_one {
         Expr::Float(f) => {
-            if f.round() == -1.0 {
+            if f.abs_diff_eq(&-1.0, 1.0 / 128.0) {
                 result.get("result").copied()
             } else {
                 None
             }
         }
         Expr::Unary(UnaryOp::Negate, f) => {
-            if matches!(**f, Expr::Float(f) if f.round() == 1.0) {
+            if matches!(**f, Expr::Float(f) if f.abs_diff_eq(&1.0, 1.0 / 128.0)) {
                 result.get("result").copied()
             } else {
                 None
