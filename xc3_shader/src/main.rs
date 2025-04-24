@@ -147,11 +147,13 @@ fn main() {
             input_files,
             output_file,
         } => {
-            if let Some(merged) = input_files
-                .iter()
-                .map(|path| ShaderDatabase::from_file(path).unwrap())
-                .reduce(|a, b| ShaderDatabase::merge(a, &b))
-            {
+            if let Some((merged, others)) = input_files.split_first() {
+                let base = ShaderDatabase::from_file(merged).unwrap();
+                let others: Vec<_> = others
+                    .iter()
+                    .map(|o| ShaderDatabase::from_file(o).unwrap())
+                    .collect();
+                let merged = base.merge(others.iter());
                 merged.save(output_file).unwrap();
             }
         }

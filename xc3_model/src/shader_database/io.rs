@@ -344,7 +344,8 @@ impl ShaderDatabaseIndexed {
         database
     }
 
-    pub fn merge(self, other: &Self) -> Self {
+    pub fn merge<'a>(self, others: impl Iterator<Item = &'a Self>) -> Self {
+        // TODO: Avoid large deallocations?
         // Reuse existing indices when merging.
         let mut dependency_to_index = self
             .dependencies
@@ -367,19 +368,23 @@ impl ShaderDatabaseIndexed {
             .map(|t| self.tex_coord_from_indexed(t))
             .collect();
 
+        // TODO: find a way to only process the unique items in other?
+
         let mut merged = self;
 
         // Reindex all programs.
-        for (hash, program) in &other.programs {
-            let program = other.program_from_indexed(program);
-            let indexed = merged.program_indexed(
-                program,
-                &mut dependency_to_index,
-                &mut buffer_dependency_to_index,
-                &mut output_expr_to_index,
-                &mut tex_coord_to_index,
-            );
-            merged.programs.insert(*hash, indexed);
+        for other in others {
+            for (hash, program) in &other.programs {
+                let program = other.program_from_indexed(program);
+                let indexed = merged.program_indexed(
+                    program,
+                    &mut dependency_to_index,
+                    &mut buffer_dependency_to_index,
+                    &mut output_expr_to_index,
+                    &mut tex_coord_to_index,
+                );
+                merged.programs.insert(*hash, indexed);
+            }
         }
 
         merged
