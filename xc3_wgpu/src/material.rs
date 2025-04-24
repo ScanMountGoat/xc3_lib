@@ -4,7 +4,7 @@ use glam::{uvec4, vec3, vec4, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use xc3_model::{
-    material::assignments::{LayerAssignmentValue, OutputAssignments, ValueAssignment},
+    material::assignments::{AssignmentValue, OutputAssignments, ValueAssignment},
     ImageTexture, IndexMapExt,
 };
 
@@ -248,10 +248,10 @@ fn output_assignments(
     })
 }
 
-fn has_value(value: &LayerAssignmentValue) -> bool {
+fn has_value(value: &AssignmentValue) -> bool {
     match value {
-        LayerAssignmentValue::Value(c) => c.is_some(),
-        LayerAssignmentValue::Layers(layers) => layers.iter().any(|l| has_value(&l.value)),
+        AssignmentValue::Value(c) => c.is_some(),
+        AssignmentValue::Func { args, .. } => args.iter().any(|a| has_value(a)),
     }
 }
 

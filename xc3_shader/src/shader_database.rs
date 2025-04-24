@@ -10,7 +10,7 @@ use glsl_lang::{
     visitor::{Host, Visit, Visitor},
 };
 use indexmap::IndexMap;
-use indoc::{formatdoc, indoc};
+use indoc::indoc;
 use log::error;
 use rayon::prelude::*;
 use xc3_lib::{
@@ -18,8 +18,8 @@ use xc3_lib::{
     spch::Spch,
 };
 use xc3_model::shader_database::{
-    AttributeDependency, Dependency, Layer, LayerBlendMode, LayerValue, ProgramHash,
-    ShaderDatabase, ShaderProgram,
+    AttributeDependency, Dependency, Operation, OutputExpr, ProgramHash, ShaderDatabase,
+    ShaderProgram,
 };
 
 use crate::{
@@ -65,15 +65,15 @@ pub fn shader_from_glsl(
             let mut value;
             if i == 2 && (c == 'x' || c == 'y') {
                 // The normals use XY for output index 2 for all games.
-                let (new_layers, intensity) =
-                    find_normal_layers(&frag, &frag_attributes, &dependent_lines)
+                let (new_value, intensity) =
+                    normal_output_expr(&frag, &frag_attributes, &dependent_lines)
                         .unwrap_or_default();
-                value = new_layers;
+                value = new_value;
                 normal_intensity = intensity;
             } else {
                 // Xenoblade X DE uses different outputs than other games.
                 // Detect color or params to handle different outputs and channels.
-                value = find_color_or_param_layers(&frag, &frag_attributes, &dependent_lines)
+                value = color_or_param_output_expr(&frag, &frag_attributes, &dependent_lines)
                     .unwrap_or_default()
             };
 
@@ -97,6 +97,7 @@ pub fn shader_from_glsl(
                 }
             }
 
+            // TODO: skip entirely if the value is none or use a special value?
             if !dependent_lines.is_empty() {
                 // Simplify the output name to save space.
                 let output_name = format!("o{i}.{c}");
@@ -113,30 +114,19 @@ pub fn shader_from_glsl(
 }
 
 fn apply_layer_value_attribute_names(
-    value: &mut LayerValue,
+    value: &mut OutputExpr,
     vert: &Graph,
     vert_attributes: &Attributes,
     frag_attributes: &Attributes,
 ) {
     // Names are only present for vertex input attributes.
     match value {
-        LayerValue::Value(d) => {
+        OutputExpr::Value(d) => {
             apply_attribute_names(vert, vert_attributes, frag_attributes, d);
         }
-        LayerValue::Layers(layers) => {
-            for l in layers {
-                apply_layer_value_attribute_names(
-                    &mut l.value,
-                    vert,
-                    vert_attributes,
-                    frag_attributes,
-                );
-                apply_layer_value_attribute_names(
-                    &mut l.ratio,
-                    vert,
-                    vert_attributes,
-                    frag_attributes,
-                );
+        OutputExpr::Func { args, .. } => {
+            for arg in args {
+                apply_layer_value_attribute_names(arg, vert, vert_attributes, frag_attributes);
             }
         }
     }
@@ -216,7 +206,7 @@ fn shader_from_latte_asm(
             if let Some(d) = dependencies.first() {
                 // Simplify the output name to save space.
                 let output_name = format!("o{i}.{c}");
-                output_dependencies.insert(output_name.into(), LayerValue::Value(d.clone()));
+                output_dependencies.insert(output_name.into(), OutputExpr::Value(d.clone()));
             }
         }
     }
@@ -228,11 +218,11 @@ fn shader_from_latte_asm(
     }
 }
 
-fn find_color_or_param_layers(
+fn color_or_param_output_expr(
     frag: &Graph,
     frag_attributes: &Attributes,
     dependent_lines: &[usize],
-) -> Option<LayerValue> {
+) -> Option<OutputExpr> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
@@ -271,7 +261,7 @@ fn find_color_or_param_layers(
         current = new_current;
     }
 
-    Some(layer_value_or_layers(frag, frag_attributes, current))
+    Some(output_expr(current, frag, frag_attributes))
 }
 
 fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], &'a Expr)> {
@@ -289,11 +279,11 @@ fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 
     Some((mat_col, monochrome_ratio))
 }
 
-fn find_normal_layers(
+fn normal_output_expr(
     frag: &Graph,
     frag_attributes: &Attributes,
     dependent_lines: &[usize],
-) -> Option<(LayerValue, Option<LayerValue>)> {
+) -> Option<(OutputExpr, Option<OutputExpr>)> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
@@ -316,129 +306,82 @@ fn find_normal_layers(
         .or_else(|| {
             calc_normal_map_w_intensity(&frag.nodes, view_normal).map(|(n, i)| (n, Some(i)))
         })?;
-    let nom_work = assign_x_recursive(&frag.nodes, nom_work[0]);
 
-    let mut value = layer_value_or_layers(frag, frag_attributes, nom_work);
+    let nom_work = match last_node.output.channel {
+        Some('x') => nom_work[0],
+        Some('y') => nom_work[1],
+        Some('z') => nom_work[2],
+        _ => nom_work[0],
+    };
+    let nom_work = assign_x_recursive(&frag.nodes, nom_work);
 
-    // TODO: Modify the query instead to find the appropriate channel?
-    // Assume that normal inputs are always XY for now.
-    let channel = last_node.output.channel;
-    set_channel(&mut value, channel);
+    let value = output_expr(nom_work, frag, frag_attributes);
 
-    let intensity = intensity.map(|i| layer_value_or_layers(frag, frag_attributes, i));
+    let intensity = intensity.map(|i| output_expr(i, frag, frag_attributes));
 
     Some((value, intensity))
 }
 
-fn set_channel(v: &mut LayerValue, channel: Option<char>) {
-    match v {
-        LayerValue::Value(dependency) => match dependency {
-            Dependency::Constant(_) => (),
-            Dependency::Buffer(b) => b.channel = channel,
-            Dependency::Texture(t) => t.channel = channel,
-            Dependency::Attribute(a) => a.channel = channel,
-        },
-        LayerValue::Layers(layers) => {
-            for layer in layers {
-                set_channel(&mut layer.value, channel);
-            }
-        }
-    }
-}
-
-fn find_layers(current: &Expr, graph: &Graph, attributes: &Attributes) -> Vec<Layer> {
-    let mut layers = Vec::new();
-
-    // Detect a single layer.
-    if let Some(value) = extract_layer_value(current, graph, attributes) {
-        vec![Layer {
-            value: LayerValue::Value(value),
-            ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
-            blend_mode: LayerBlendMode::Mix,
-            is_fresnel: false,
-        }]
+fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -> OutputExpr {
+    if let Some(value) = extract_value(expr, graph, attributes) {
+        // The base case is a single value.
+        OutputExpr::Value(value)
     } else {
-        // TODO: Should this be defined recursively and cached?
-        // Detect the layers and blend mode from most to least specific.
-        let mut current = current;
-        while let Some((layer_a, layer_b, ratio, blend_mode)) =
-            blend_add_normal(&graph.nodes, current)
-                .or_else(|| blend_overlay2(&graph.nodes, current))
-                .or_else(|| blend_overlay_ratio(&graph.nodes, current))
-                .or_else(|| blend_overlay(&graph.nodes, current))
-                .or_else(|| blend_mix(&graph.nodes, current))
-                .or_else(|| blend_mul_ratio(&graph.nodes, current))
-                .or_else(|| blend_mul(&graph.nodes, current))
-                .or_else(|| blend_add_ratio(current))
-                .or_else(|| blend_sub(&graph.nodes, current))
-                .or_else(|| blend_add(&graph.nodes, current))
-                .or_else(|| blend_pow(&graph.nodes, current))
-                .or_else(|| blend_clamp(&graph.nodes, current))
-                .or_else(|| blend_min(&graph.nodes, current))
-                .or_else(|| blend_max(&graph.nodes, current))
+        // Detect operations from most specific to least specific.
+        if let Some((op, args)) = blend_add_normal(&graph.nodes, expr)
+            .or_else(|| blend_fresnel_ratio(&graph.nodes, expr))
+            .or_else(|| blend_overlay2(&graph.nodes, expr))
+            .or_else(|| blend_overlay_ratio(&graph.nodes, expr))
+            .or_else(|| blend_overlay(&graph.nodes, expr))
+            .or_else(|| blend_mix(&graph.nodes, expr))
+            .or_else(|| blend_mul_ratio(&graph.nodes, expr))
+            .or_else(|| blend_mul(&graph.nodes, expr))
+            .or_else(|| blend_div(&graph.nodes, expr))
+            .or_else(|| blend_add_ratio(expr))
+            .or_else(|| blend_sub(&graph.nodes, expr))
+            .or_else(|| blend_add(&graph.nodes, expr))
+            .or_else(|| blend_pow(&graph.nodes, expr))
+            .or_else(|| blend_clamp(&graph.nodes, expr))
+            .or_else(|| blend_min(&graph.nodes, expr))
+            .or_else(|| blend_max(&graph.nodes, expr))
+            .or_else(|| blend_abs(&graph.nodes, expr))
         {
-            let (fresnel_ratio, ratio) = ratio_value(ratio, graph, attributes);
-
-            let value = layer_value_or_layers(graph, attributes, layer_b);
-
-            layers.push(Layer {
-                value,
-                ratio,
-                blend_mode,
-                is_fresnel: fresnel_ratio,
-            });
-
-            current = assign_x_recursive(&graph.nodes, layer_a);
-
-            // TODO: Is there a better way to avoid detecting this as a layer?
-            if let Some(new_current) = normal_map_fma(&graph.nodes, current) {
-                current = new_current;
+            // Recursively detect values or functions.
+            // TODO: caching to avoid visiting expr more than once?
+            let args: Vec<_> = args
+                .into_iter()
+                .map(|a| {
+                    let a = assign_x_recursive(&graph.nodes, a);
+                    output_expr(a, graph, attributes)
+                })
+                .collect();
+            OutputExpr::Func { op, args }
+        } else {
+            // TODO: better fallback for unrecognized function or values?
+            // TODO: log unsupported expr during database creation?
+            OutputExpr::Func {
+                op: Operation::Unk,
+                args: Vec::new(),
             }
         }
-
-        // Detect the base layer.
-        if let Some(value) = extract_layer_value(current, graph, attributes) {
-            layers.push(Layer {
-                value: LayerValue::Value(value),
-                ratio: LayerValue::Value(Dependency::Constant(1.0.into())),
-                blend_mode: LayerBlendMode::Mix,
-                is_fresnel: false,
-            });
-        } else {
-            // TODO: This case shouldn't happen
-        }
-
-        // We start from the output, so these are in reverse order.
-        layers.reverse();
-        layers
     }
 }
 
-fn layer_value_or_layers(graph: &Graph, attributes: &Attributes, e: &Expr) -> LayerValue {
-    extract_layer_value(e, graph, attributes)
-        .map(LayerValue::Value)
-        .unwrap_or_else(|| {
-            let e = assign_x_recursive(&graph.nodes, e);
-            let layers = find_layers(e, graph, attributes);
-            LayerValue::Layers(layers)
-        })
-}
-
-fn extract_layer_value(layer: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
-    let mut layer = assign_x_recursive(&graph.nodes, layer);
-    if let Some(new_layer) = normalize(&graph.nodes, layer) {
-        layer = new_layer;
+fn extract_value(expr: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
+    let mut expr = assign_x_recursive(&graph.nodes, expr);
+    if let Some(new_expr) = normalize(&graph.nodes, expr) {
+        expr = new_expr;
     }
-    if let Some(new_layer) = normal_map_fma(&graph.nodes, layer) {
-        layer = new_layer;
+    if let Some(new_expr) = normal_map_fma(&graph.nodes, expr) {
+        expr = new_expr;
     }
 
     // TODO: Is it worth storing information about component max?
-    if let Some(new_layer) = component_max_xyz(&graph.nodes, layer) {
-        layer = new_layer;
+    if let Some(new_expr) = component_max_xyz(&graph.nodes, expr) {
+        expr = new_expr;
     }
 
-    dependency_expr(layer, graph, attributes)
+    dependency_expr(expr, graph, attributes)
 }
 
 static BLEND_OVER: LazyLock<Graph> = LazyLock::new(|| {
@@ -464,17 +407,14 @@ static BLEND_OVER2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn blend_mix<'a>(
-    nodes: &'a [Node],
-    expr: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+fn blend_mix<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // getPixelCalcOver in pcmdo fragment shaders for XC1 and XC3.
     let result = query_nodes(expr, nodes, &BLEND_OVER.nodes)
         .or_else(|| query_nodes(expr, nodes, &BLEND_OVER2.nodes))?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     let ratio = result.get("ratio")?;
-    Some((a, b, ratio, LayerBlendMode::Mix))
+    Some((Operation::Mix, vec![a, b, ratio]))
 }
 
 static BLEND_RATIO: LazyLock<Graph> = LazyLock::new(|| {
@@ -488,36 +428,30 @@ static BLEND_RATIO: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn blend_mul_ratio<'a>(
-    nodes: &'a [Node],
-    expr: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+fn blend_mul_ratio<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // getPixelCalcRatioBlend in pcmdo fragment shaders for XC1 and XC3.
     let result = query_nodes(expr, nodes, &BLEND_RATIO.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     let ratio = result.get("ratio")?;
-    Some((a, b, ratio, LayerBlendMode::Mul))
+    Some((Operation::MulRatio, vec![a, b, ratio]))
 }
 
-fn blend_add_ratio(expr: &Expr) -> Option<(&Expr, &Expr, &Expr, LayerBlendMode)> {
+fn blend_add_ratio(expr: &Expr) -> Option<(Operation, Vec<&Expr>)> {
     // += getPixelCalcRatio in pcmdo fragment shaders for XC1 and XC3.
     let (a, b, c) = fma_a_b_c(expr)?;
-    Some((c, a, b, LayerBlendMode::Add))
+    Some((Operation::Fma, vec![a, b, c]))
 }
 
 static BLEND_ADD: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = a + b; }").unwrap());
 
-fn blend_add<'a>(
-    nodes: &'a [Node],
-    expr: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+fn blend_add<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // Some layers are simply added together like for xeno3/chr/chr/ch05042101.wimdo "hat_toon".
     let result = query_nodes(expr, nodes, &BLEND_ADD.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
-    Some((a, b, &Expr::Float(1.0), LayerBlendMode::Add))
+    Some((Operation::Add, vec![a, b]))
 }
 
 static BLEND_SUB: LazyLock<Graph> =
@@ -533,30 +467,33 @@ static BLEND_SUB2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn blend_sub<'a>(
-    nodes: &'a [Node],
-    expr: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+fn blend_sub<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // Some layers are simply subtracted like for xeno3/chr/chr/ch44000210.wimdo "ch45133501_body".
     let result = query_nodes(expr, nodes, &BLEND_SUB.nodes)
         .or_else(|| query_nodes(expr, nodes, &BLEND_SUB2.nodes))?;
     let a = result.get("a")?;
     let b = result.get("b")?;
-    Some((a, b, &Expr::Float(-1.0), LayerBlendMode::Add))
+    Some((Operation::Sub, vec![a, b]))
 }
 
 static BLEND_MUL: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = a * b; }").unwrap());
 
-fn blend_mul<'a>(
-    nodes: &'a [Node],
-    expr: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
-    // Some layers are simply multiplied together.
+fn blend_mul<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     let result = query_nodes(expr, nodes, &BLEND_MUL.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
-    Some((a, b, &Expr::Float(1.0), LayerBlendMode::Mul))
+    Some((Operation::Mul, vec![a, b]))
+}
+
+static BLEND_DIV: LazyLock<Graph> =
+    LazyLock::new(|| Graph::parse_glsl("void main() { result = a / b; }").unwrap());
+
+fn blend_div<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes(expr, nodes, &BLEND_DIV.nodes)?;
+    let a = result.get("a")?;
+    let b = result.get("b")?;
+    Some((Operation::Div, vec![a, b]))
 }
 
 static BLEND_OVERLAY_XC2: LazyLock<Graph> = LazyLock::new(|| {
@@ -583,14 +520,14 @@ static BLEND_OVERLAY_XC2: LazyLock<Graph> = LazyLock::new(|| {
 fn blend_overlay_ratio<'a>(
     nodes: &'a [Node],
     expr: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+) -> Option<(Operation, Vec<&'a Expr>)> {
     // Overlay combines multiply and screen blend modes.
     // Some XC2 models use overlay blending for metalness.
     let result = query_nodes(expr, nodes, &BLEND_OVERLAY_XC2.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     let ratio = result.get("ratio")?;
-    Some((a, b, ratio, LayerBlendMode::Overlay))
+    Some((Operation::OverlayRatio, vec![a, b, ratio]))
 }
 
 static BLEND_OVERLAY_XCX_DE: LazyLock<Graph> = LazyLock::new(|| {
@@ -614,43 +551,40 @@ static BLEND_OVERLAY_XCX_DE: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn blend_overlay<'a>(
-    nodes: &'a [Node],
-    expr: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+fn blend_overlay<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // Overlay combines multiply and screen blend modes.
     // Some XCX DE models use overlay for face coloring.
     let result = query_nodes(expr, nodes, &BLEND_OVERLAY_XCX_DE.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
-    Some((a, b, &Expr::Float(1.0), LayerBlendMode::Overlay))
+    Some((Operation::Overlay, vec![a, b]))
 }
 
-static RATIO_DEPENDENCY: LazyLock<Graph> = LazyLock::new(|| {
+static FRESNEL_RATIO: LazyLock<Graph> = LazyLock::new(|| {
+    // getPixelCalcFresnel in pcmdo shaders for XC3.
+    // pow(1.0 - n_dot_v, ratio * 5.0)
     let query = indoc! {"
         void main() {
-            a = ratio * 5.0;
-            result = a * b;
+            n_dot_v = abs(n_dot_v);
+            neg_n_dot_v = 0.0 - n_dot_v;
+            one_minus_n_dot_v = neg_n_dot_v + 1.0;
+            result = log2(one_minus_n_dot_v);
+            ratio = ratio * 5.0;
+            result = ratio * result;
             result = exp2(result);
         }
     "};
     Graph::parse_glsl(query).unwrap()
 });
 
-fn ratio_value(ratio: &Expr, graph: &Graph, attributes: &Attributes) -> (bool, LayerValue) {
-    // Reduce any assignment chains for what's likely a parameter or texture assignment.
-    let mut ratio = assign_x_recursive(&graph.nodes, ratio);
-
-    let mut is_fresnel = false;
-
-    // Extract the ratio from getPixelCalcFresnel in pcmdo shaders if present.
-    let result = query_nodes(ratio, &graph.nodes, &RATIO_DEPENDENCY.nodes);
-    if let Some(new_ratio) = result.as_ref().and_then(|r| r.get("ratio")) {
-        ratio = new_ratio;
-        is_fresnel = true;
-    }
-
-    (is_fresnel, layer_value_or_layers(graph, attributes, ratio))
+fn blend_fresnel_ratio<'a>(
+    nodes: &'a [Node],
+    expr: &'a Expr,
+) -> Option<(Operation, Vec<&'a Expr>)> {
+    // TODO: Blend mode for this?
+    let result = query_nodes(expr, nodes, &FRESNEL_RATIO.nodes)?;
+    let a = result.get("ratio")?;
+    Some((Operation::Fresnel, vec![a]))
 }
 
 static BLEND_POW: LazyLock<Graph> = LazyLock::new(|| {
@@ -678,59 +612,54 @@ static BLEND_POW2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn blend_pow<'a>(
-    nodes: &'a [Node],
-    expr: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+fn blend_pow<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     let result = query_nodes(expr, nodes, &BLEND_POW.nodes)
         .or_else(|| query_nodes(expr, nodes, &BLEND_POW2.nodes))?;
     let a = result.get("a")?;
     let b = result.get("b")?;
-    Some((a, b, &Expr::Float(1.0), LayerBlendMode::Power))
+    Some((Operation::Power, vec![a, b]))
 }
 
 static BLEND_MAX: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = max(a, b); }").unwrap());
 
-fn blend_max<'a>(
-    nodes: &'a [Node],
-    expr: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+fn blend_max<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     let result = query_nodes(expr, nodes, &BLEND_MAX.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
-    // TODO: blend mode for min/max
-    Some((a, b, &Expr::Float(1.0), LayerBlendMode::Max))
+    Some((Operation::Max, vec![a, b]))
 }
 
 static BLEND_MIN: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = min(a, b); }").unwrap());
 
-fn blend_min<'a>(
-    nodes: &'a [Node],
-    expr: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+fn blend_min<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     let result = query_nodes(expr, nodes, &BLEND_MIN.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
-    // TODO: blend mode for min/max
-    Some((a, b, &Expr::Float(1.0), LayerBlendMode::Min))
+    Some((Operation::Min, vec![a, b]))
+}
+
+static BLEND_ABS: LazyLock<Graph> =
+    LazyLock::new(|| Graph::parse_glsl("void main() { result = abs(a); }").unwrap());
+
+fn blend_abs<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes(expr, nodes, &BLEND_ABS.nodes)?;
+    let a = result.get("a")?;
+    Some((Operation::Abs, vec![a]))
 }
 
 static BLEND_CLAMP: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = clamp(a, b, c); }").unwrap());
 
-fn blend_clamp<'a>(
-    nodes: &'a [Node],
-    expr: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+fn blend_clamp<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // TODO: also detect min -> max and max -> min.
     // TODO: convert to max and min?
     let result = query_nodes(expr, nodes, &BLEND_CLAMP.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     let c = result.get("c")?;
-    Some((a, b, c, LayerBlendMode::Clamp))
+    Some((Operation::Clamp, vec![a, b, c]))
 }
 
 fn dependency_expr(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
@@ -783,7 +712,7 @@ static BLEND_ADD_NORMAL: LazyLock<Graph> = LazyLock::new(|| {
 fn blend_add_normal<'a>(
     nodes: &'a [Node],
     nom_work: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+) -> Option<(Operation, Vec<&'a Expr>)> {
     // getPixelCalcAddNormal in pcmdo shaders.
     // normalize(mix(nomWork, normalize(r), ratio))
     // XC2: ratio * (normalize(r) - nomWork) + nomWork
@@ -802,7 +731,7 @@ fn blend_add_normal<'a>(
         nom_work = new_nom_work;
     }
 
-    Some((nom_work, n2, ratio, LayerBlendMode::AddNormal))
+    Some((Operation::AddNormal, vec![nom_work, n2, ratio]))
 }
 
 static BLEND_OVERLAY2: LazyLock<Graph> = LazyLock::new(|| {
@@ -830,14 +759,11 @@ static BLEND_OVERLAY2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn blend_overlay2<'a>(
-    nodes: &'a [Node],
-    nom_work: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr, &'a Expr, LayerBlendMode)> {
+fn blend_overlay2<'a>(nodes: &'a [Node], nom_work: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     let result = query_nodes(nom_work, nodes, &BLEND_OVERLAY2.nodes)?;
     let a = *result.get("a")?;
     let b = result.get("b")?;
-    Some((a, b, &Expr::Float(1.0), LayerBlendMode::Overlay2))
+    Some((Operation::Overlay2, vec![a, b]))
 }
 
 static NORMAL_MAP_FMA: LazyLock<Graph> = LazyLock::new(|| {
@@ -894,38 +820,53 @@ fn component_max_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> 
     result.get("value").copied()
 }
 
-fn calc_normal_map_query(c: char) -> String {
-    // getCalcNormalMap in pcmdo shaders for normal.x or normal.y.
-    formatdoc! {"
-        void main() {{
+static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
             inverse_length_tangent = inversesqrt(tangent_length);
-            tangent = tangent.{c};
+            tangent = tangent.x;
             normalize_tangent = tangent * inverse_length_tangent;
             result_x = result_x;
             result = result_x * normalize_tangent;
 
             inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent.{c};
+            bitangent = bitangent.x;
             normalize_bitangent = bitangent * inverse_length_bitangent;
             result_y = result_y;
             result = fma(result_y, normalize_bitangent, result);
 
             inverse_length_normal = inversesqrt(normal_length);
-            normal = normal.{c};
+            normal = normal.x;
             normalize_normal = normal * inverse_length_normal;
             result_z = result_z;
             result = fma(result_z, normalize_normal, result);
-        }}
-    "}
-}
-
-static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
-    let query = calc_normal_map_query('x');
+        }
+    "};
     Graph::parse_glsl(&query).unwrap()
 });
 
 static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
-    let query = calc_normal_map_query('y');
+    let query = indoc! {"
+        void main() {
+            inverse_length_tangent = inversesqrt(tangent_length);
+            tangent = tangent.y;
+            normalize_tangent = tangent * inverse_length_tangent;
+            result_x = result_x;
+            result = result_x * normalize_tangent;
+
+            inverse_length_normal = inversesqrt(normal_length);
+            normal = normal.y;
+            normalize_normal = normal * inverse_length_normal;
+            result_z = result_z;
+            result = fma(result_z, normalize_normal, result);
+
+            inverse_length_bitangent = inversesqrt(bitangent_length);
+            bitangent = bitangent.y;
+            normalize_bitangent = bitangent * inverse_length_bitangent;
+            result_y = result_y;
+            result = fma(result_y, normalize_bitangent, result);
+        }
+    "};
     Graph::parse_glsl(&query).unwrap()
 });
 
@@ -939,46 +880,71 @@ fn calc_normal_map<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Expr; 3
     ])
 }
 
-fn calc_normal_map_w_intensity_query(c: char) -> String {
-    // normal.x or normal.y with normal.w as normal map intensity.
+static CALC_NORMAL_MAP_W_INTENSITY_X: LazyLock<Graph> = LazyLock::new(|| {
+    // normal.x with normal.w as normal map intensity.
     // TODO: Does intensity always use pow(intensity, 0.7)?
-    formatdoc! {"
-        void main() {{
+    let query = indoc! {"
+        void main() {
             intensity = intensity;
             intensity = log2(intensity);
             intensity = intensity * 0.7;
             intensity = exp2(intensity);
 
             inverse_length_tangent = inversesqrt(tangent_length);
-            tangent = tangent.{c};
+            tangent = tangent.x;
             normalize_tangent = tangent * inverse_length_tangent;
             result_x = result_x;
             result_x = result_x * normalize_tangent;
             result = result_x * intensity;
 
             inverse_length_normal = inversesqrt(normal_length);
-            normal = normal.{c};
+            normal = normal.x;
             normalize_normal = normal * inverse_length_normal;
             result_z = result_z;
             result = fma(result_z, normalize_normal, result);
 
             inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent.{c};
+            bitangent = bitangent.x;
             normalize_bitangent = bitangent * inverse_length_bitangent;
             result_y = result_y;
             result_y = normalize_bitangent * result_y;
             result = fma(intensity, result_y, result);
-        }}
-    "}
-}
-
-static CALC_NORMAL_MAP_W_INTENSITY_X: LazyLock<Graph> = LazyLock::new(|| {
-    let query = calc_normal_map_w_intensity_query('x');
+        }
+    "};
     Graph::parse_glsl(&query).unwrap()
 });
 
 static CALC_NORMAL_MAP_W_INTENSITY_Y: LazyLock<Graph> = LazyLock::new(|| {
-    let query = calc_normal_map_w_intensity_query('y');
+    // normal.y with normal.w as normal map intensity.
+    // TODO: Does intensity always use pow(intensity, 0.7)?
+    let query = indoc! {"
+        void main() {
+            intensity = intensity;
+            intensity = log2(intensity);
+            intensity = intensity * 0.7;
+            intensity = exp2(intensity);
+
+            inverse_length_tangent = inversesqrt(tangent_length);
+            tangent = tangent.y;
+            normalize_tangent = tangent * inverse_length_tangent;
+            result_x = result_x;
+            result_x = result_x * normalize_tangent;
+            result = result_x * intensity;
+
+            inverse_length_normal = inversesqrt(normal_length);
+            normal = normal.y;
+            normalize_normal = normal * inverse_length_normal;
+            result_z = result_z;
+            result = fma(result_z, normalize_normal, result);
+
+            inverse_length_bitangent = inversesqrt(bitangent_length);
+            bitangent = bitangent.y;
+            normalize_bitangent = bitangent * inverse_length_bitangent;
+            result_y = result_y;
+            result_y = normalize_bitangent * result_y;
+            result = fma(intensity, result_y, result);
+        }
+    "};
     Graph::parse_glsl(&query).unwrap()
 });
 
@@ -998,24 +964,23 @@ fn calc_normal_map_w_intensity<'a>(
     ))
 }
 
-fn calc_normal_map_xcx_query(c: char) -> String {
-    // normal.x or normal.y for xcx de
-    formatdoc! {"
-        void main() {{
+static CALC_NORMAL_MAP_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
             inverse_length_tangent = inversesqrt(tangent_length);
-            tangent = tangent.{c};
+            tangent = tangent.x;
             normalize_tangent = tangent * inverse_length_tangent;
             result_x = result_x;
             result = result_x * normalize_tangent;
 
             inverse_length_normal = inversesqrt(normal_length);
-            normal = normal.{c};
+            normal = normal.x;
             normalize_normal = normal * inverse_length_normal;
             result_z = result_z;
             result = fma(result_z, normalize_normal, result);
 
             inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent.{c};
+            bitangent = bitangent.x;
             normalize_bitangent = bitangent * inverse_length_bitangent;
             result_y = result_y;
             result = fma(result_y, normalize_bitangent, result);
@@ -1023,17 +988,37 @@ fn calc_normal_map_xcx_query(c: char) -> String {
             inverse_length_normal = inversesqrt(normal_length);
             result = result * inverse_length_normal;
             result = fma(normalize_val_inf, neg_dot_val_inf_normal, result);
-        }}
-    "}
-}
-
-static CALC_NORMAL_MAP_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
-    let query = calc_normal_map_xcx_query('x');
+        }
+    "};
     Graph::parse_glsl(&query).unwrap()
 });
 
 static CALC_NORMAL_MAP_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
-    let query = calc_normal_map_xcx_query('y');
+    let query = indoc! {"
+        void main() {
+            inverse_length_tangent = inversesqrt(tangent_length);
+            tangent = tangent.y;
+            normalize_tangent = tangent * inverse_length_tangent;
+            result_x = result_x;
+            result = result_x * normalize_tangent;
+
+            inverse_length_normal = inversesqrt(normal_length);
+            normal = normal.y;
+            normalize_normal = normal * inverse_length_normal;
+            result_z = result_z;
+            result = fma(result_z, normalize_normal, result);
+
+            inverse_length_bitangent = inversesqrt(bitangent_length);
+            bitangent = bitangent.y;
+            normalize_bitangent = bitangent * inverse_length_bitangent;
+            result_y = result_y;
+            result = fma(result_y, normalize_bitangent, result);
+
+            inverse_length_normal = inversesqrt(normal_length);
+            result = result * inverse_length_normal;
+            result = fma(normalize_val_inf, neg_dot_val_inf_normal, result);
+        }
+    "};
     Graph::parse_glsl(&query).unwrap()
 });
 
@@ -1118,7 +1103,7 @@ fn apply_vertex_uv_params(
 }
 
 fn apply_layer_value_vertex_uv_params(
-    value: &mut LayerValue,
+    value: &mut OutputExpr,
     vertex: &Graph,
     vertex_attributes: &Attributes,
     fragment_attributes: &Attributes,
@@ -1127,19 +1112,13 @@ fn apply_layer_value_vertex_uv_params(
     // Most shaders apply UV transforms in the vertex shader.
     // This will be used later for texture layers.
     match value {
-        LayerValue::Value(d) => {
+        OutputExpr::Value(d) => {
             apply_vertex_uv_params(vertex, vertex_attributes, fragment_attributes, d)
         }
-        LayerValue::Layers(layers) => {
-            for layer in layers {
+        OutputExpr::Func { args, .. } => {
+            for arg in args {
                 apply_layer_value_vertex_uv_params(
-                    &mut layer.value,
-                    vertex,
-                    vertex_attributes,
-                    fragment_attributes,
-                );
-                apply_layer_value_vertex_uv_params(
-                    &mut layer.ratio,
+                    arg,
                     vertex,
                     vertex_attributes,
                     fragment_attributes,

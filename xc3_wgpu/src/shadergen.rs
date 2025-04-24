@@ -7,12 +7,11 @@ use smol_str::SmolStr;
 use xc3_model::{
     material::{
         assignments::{
-            LayerAssignmentValue, OutputAssignment, TexCoordParallax, TextureAssignment,
-            ValueAssignment,
+            AssignmentValue, OutputAssignment, TexCoordParallax, TextureAssignment, ValueAssignment,
         },
         TextureAlphaTest,
     },
-    shader_database::LayerBlendMode,
+    shader_database::Operation,
     IndexMapExt,
 };
 
@@ -30,28 +29,22 @@ const MAX_SAMPLERS: usize = 15;
 struct Nodes {
     nodes: Vec<NodeValue>,
     values: Vec<ValueAssignment>,
-    value_to_node_index: IndexMap<LayerAssignmentValue, usize>,
+    value_to_node_index: IndexMap<AssignmentValue, usize>,
 }
 
 #[derive(Debug)]
 enum NodeValue {
-    Layer {
-        a_node_index: usize,
-        b_node_index: usize,
-        ratio_node_index: usize,
-        blend_mode: LayerBlendMode,
-        is_fresnel: bool,
-    },
+    Func { op: Operation, args: Vec<usize> },
     Value(usize), // TODO: just store the value directly?
 }
 
 impl Nodes {
-    fn insert_layer_value(&mut self, layer_value: &LayerAssignmentValue) -> usize {
+    fn insert_layer_value(&mut self, layer_value: &AssignmentValue) -> usize {
         match self.value_to_node_index.get(layer_value) {
             Some(i) => *i,
             None => {
                 match layer_value {
-                    LayerAssignmentValue::Value(v) => {
+                    AssignmentValue::Value(v) => {
                         // TODO: how to handle missing values?
                         let v = v.clone().unwrap_or(ValueAssignment::Value(0.0.into()));
                         let value_index = self.insert_value(v);
@@ -59,34 +52,19 @@ impl Nodes {
 
                         self.insert_node_value(layer_value.clone(), node)
                     }
-                    LayerAssignmentValue::Layers(layers) => {
-                        if layers.is_empty() {
-                            // Avoid empty layers that cause problems with code gen.
+                    AssignmentValue::Func { op, args } => {
+                        if *op == Operation::Unk {
+                            // Avoid unrecognized values that cause problems with code gen.
                             let value_index = self.insert_value(ValueAssignment::Value(0.0.into()));
                             let node = NodeValue::Value(value_index);
 
                             self.insert_node_value(layer_value.clone(), node)
                         } else {
-                            // TODO: always blend with previous node?
-                            let mut i = self.nodes.len().saturating_sub(1);
+                            // Insert values that this value depends on first.
+                            let args = args.iter().map(|a| self.insert_layer_value(a)).collect();
+                            let node = NodeValue::Func { op: *op, args };
 
-                            for layer in layers {
-                                // Insert values that this value depends on first.
-                                let b_node_index = self.insert_layer_value(&layer.value);
-                                let ratio_node_index = self.insert_layer_value(&layer.weight);
-
-                                let node = NodeValue::Layer {
-                                    a_node_index: i,
-                                    b_node_index,
-                                    ratio_node_index,
-                                    blend_mode: layer.blend_mode,
-                                    is_fresnel: layer.is_fresnel,
-                                };
-
-                                i = self.insert_node_value(layer_value.clone(), node);
-                            }
-
-                            i
+                            self.insert_node_value(layer_value.clone(), node)
                         }
                     }
                 }
@@ -94,7 +72,7 @@ impl Nodes {
         }
     }
 
-    fn insert_node_value(&mut self, layer_value: LayerAssignmentValue, node: NodeValue) -> usize {
+    fn insert_node_value(&mut self, layer_value: AssignmentValue, node: NodeValue) -> usize {
         let i = self.nodes.len();
         self.value_to_node_index.insert(layer_value, i);
         self.nodes.push(node);
@@ -136,46 +114,48 @@ impl Nodes {
         name_to_index: &mut IndexMap<SmolStr, usize>,
     ) -> Option<String> {
         match value {
-            NodeValue::Layer {
-                a_node_index,
-                b_node_index,
-                ratio_node_index,
-                blend_mode,
-                is_fresnel,
-            } => {
-                let a = format!("{node_prefix}{a_node_index}");
-                let b = format!("{node_prefix}{b_node_index}");
-                let ratio = if *is_fresnel {
-                    format!("fresnel_ratio({node_prefix}{ratio_node_index}, n_dot_v)")
-                } else {
-                    format!("{node_prefix}{ratio_node_index}")
-                };
+            NodeValue::Func { op, args } => {
+                let arg0 = arg(args, 0, node_prefix);
+                let arg1 = arg(args, 1, node_prefix);
+                let arg2 = arg(args, 2, node_prefix);
 
-                let result = match blend_mode {
-                    LayerBlendMode::Mix => format!("mix({a}, {b}, {ratio})"),
-                    LayerBlendMode::Mul => format!("mix({a}, {a} * {b}, {ratio})"),
-                    LayerBlendMode::Add => format!("{a} + {b} * {ratio}"),
-                    LayerBlendMode::AddNormal => {
+                match op {
+                    Operation::Mix => Some(format!("mix({}, {}, {})", arg0?, arg1?, arg2?)),
+                    Operation::Mul => Some(format!("{} * {}", arg0?, arg1?)),
+                    Operation::Div => Some(format!("{} / {}", arg0?, arg1?)),
+                    Operation::Add => Some(format!("{} + {}", arg0?, arg1?)),
+                    Operation::AddNormal => {
                         // TODO: only normals xy should use this blend mode?
-                        error!("Unexpected blend mode {blend_mode:?}");
-                        "0.0".to_string()
+                        error!("Unexpected operation {op:?}");
+                        None
                     }
-                    LayerBlendMode::Overlay2 => {
-                        format!("mix({a}, overlay_blend({a}, {b}), {ratio})")
+                    Operation::OverlayRatio => Some(format!(
+                        "mix({0}, overlay_blend({0}, {1}), {2})",
+                        arg0?, arg1?, arg2?
+                    )),
+                    Operation::Overlay => Some(format!("overlay_blend({}, {})", arg0?, arg1?)),
+                    Operation::Overlay2 => Some(format!("overlay_blend2({}, {})", arg0?, arg1?)),
+                    Operation::Power => Some(format!("pow({}, {})", arg0?, arg1?)),
+                    Operation::Min => Some(format!("min({}, {})", arg0?, arg1?)),
+                    Operation::Max => Some(format!("max({}, {})", arg0?, arg1?)),
+                    Operation::Clamp => Some(format!("clamp({}, {}, {})", arg0?, arg1?, arg2?)),
+                    Operation::Sub => Some(format!("{} - {}", arg0?, arg1?)),
+                    Operation::Fma => Some(format!("{} * {} + {}", arg0?, arg1?, arg2?)),
+                    Operation::Abs => Some(format!("abs({})", arg0?)),
+                    Operation::Fresnel => Some(format!("fresnel_ratio({}, n_dot_v)", arg0?)),
+                    Operation::MulRatio => {
+                        Some(format!("mix({0}, {0} * {1}, {2})", arg0?, arg1?, arg2?))
                     }
-                    LayerBlendMode::Overlay => {
-                        format!("mix({a}, overlay_blend2({a}, {b}), {ratio})")
-                    }
-                    LayerBlendMode::Power => format!("mix({a}, pow({a}, {b}), {ratio})"),
-                    LayerBlendMode::Min => format!("mix({a}, min({a}, {b}), {ratio})"),
-                    LayerBlendMode::Max => format!("mix({a}, max({a}, {b}), {ratio})"),
-                    LayerBlendMode::Clamp => format!("clamp({a}, {b}, {ratio})"),
-                };
-                Some(result)
+                    Operation::Unk => None,
+                }
             }
             NodeValue::Value(i) => channel_assignment_wgsl(name_to_index, &self.values[*i]),
         }
     }
+}
+
+fn arg(args: &[usize], i: usize, prefix: &str) -> Option<String> {
+    Some(format!("{prefix}{}", args.get(i)?))
 }
 
 fn write_wgsl_xy(
@@ -196,27 +176,25 @@ fn write_wgsl_xy(
     for (i, (value_x, value_y)) in nodes_x.nodes.iter().zip(&nodes_y.nodes).enumerate() {
         match (value_x, value_y) {
             (
-                NodeValue::Layer {
-                    a_node_index: ax,
-                    b_node_index: bx,
-                    ratio_node_index: rx,
-                    blend_mode: LayerBlendMode::AddNormal,
-                    is_fresnel: fx,
+                NodeValue::Func {
+                    op: Operation::AddNormal,
+                    args: args_x,
                 },
-                NodeValue::Layer {
-                    a_node_index: ay,
-                    b_node_index: by,
-                    ratio_node_index: _ry,
-                    blend_mode: LayerBlendMode::AddNormal,
-                    is_fresnel: _fy,
+                NodeValue::Func {
+                    op: Operation::AddNormal,
+                    args: args_y,
                 },
             ) => {
-                // TODO: check that ratios and fresnel match.
-                let r = if *fx {
-                    format!("fresnel_ratio({prefix_x}{rx}, n_dot_v)")
-                } else {
-                    format!("{prefix_x}{rx}")
-                };
+                // TODO: check that ratios match.
+                let ax = args_x.get(0)?;
+                let bx = args_x.get(1)?;
+                let rx = args_x.get(2)?;
+
+                let ay = args_y.get(0)?;
+                let by = args_y.get(1)?;
+                let _ry = args_y.get(2)?;
+
+                let r = format!("{prefix_x}{rx}");
 
                 let a_nrm = format!("vec3({prefix_x}{ax}, {prefix_y}{ay}, normal_z({prefix_x}{ax}, {prefix_y}{ay}))");
                 let b_nrm = format!("create_normal_map({prefix_x}{bx}, {prefix_y}{by})");
@@ -390,8 +368,8 @@ pub fn generate_layering_wgsl(
     wgsl
 }
 
-fn insert_assignment(nodes: &mut Nodes, value: &LayerAssignmentValue) -> Option<usize> {
-    if *value != LayerAssignmentValue::Value(None) {
+fn insert_assignment(nodes: &mut Nodes, value: &AssignmentValue) -> Option<usize> {
+    if *value != AssignmentValue::Value(None) {
         Some(nodes.insert_layer_value(value))
     } else {
         None
@@ -436,7 +414,7 @@ pub fn generate_normal_layering_wgsl(
 }
 
 pub fn generate_normal_intensity_wgsl(
-    intensity: &LayerAssignmentValue,
+    intensity: &AssignmentValue,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
     let mut wgsl = String::new();

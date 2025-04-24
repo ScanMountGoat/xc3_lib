@@ -4,8 +4,7 @@ use xc3_lib::mxmd::TextureUsage;
 
 use crate::{
     shader_database::{
-        Dependency, Layer, LayerBlendMode, LayerValue, ShaderProgram, TexCoordParams,
-        TextureDependency,
+        Dependency, Operation, OutputExpr, ShaderProgram, TexCoordParams, TextureDependency,
     },
     ImageTexture,
 };
@@ -22,14 +21,13 @@ pub struct OutputAssignments {
     pub outline_width: Option<ValueAssignment>,
 
     /// The intensity map for normal mapping.
-    pub normal_intensity: Option<LayerAssignmentValue>,
+    pub normal_intensity: Option<AssignmentValue>,
 }
 
 impl OutputAssignments {
     /// Calculate the material ID from a hardcoded shader constant if present.
     pub fn mat_id(&self) -> Option<u32> {
-        if let LayerAssignmentValue::Value(Some(ValueAssignment::Value(v))) = self.assignments[1].w
-        {
+        if let AssignmentValue::Value(Some(ValueAssignment::Value(v))) = self.assignments[1].w {
             // TODO: Why is this sometimes 7?
             Some((v.0 * 255.0 + 0.1) as u32 & 0x7)
         } else {
@@ -38,33 +36,37 @@ impl OutputAssignments {
     }
 }
 
+// TODO: Come up with better names.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct OutputAssignment {
     /// The x values.
-    pub x: LayerAssignmentValue,
+    pub x: AssignmentValue,
     /// The y values.
-    pub y: LayerAssignmentValue,
+    pub y: AssignmentValue,
     /// The z values.
-    pub z: LayerAssignmentValue,
+    pub z: AssignmentValue,
     /// The w values.
-    pub w: LayerAssignmentValue,
+    pub w: AssignmentValue,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LayerAssignment {
     /// The layer value to blend with the previous layer.
-    pub value: LayerAssignmentValue,
+    pub value: AssignmentValue,
     /// The factor or blend weight for this layer.
-    pub weight: LayerAssignmentValue,
+    pub weight: AssignmentValue,
     /// The blending operation for this layer.
-    pub blend_mode: LayerBlendMode,
+    pub blend_mode: Operation,
     pub is_fresnel: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum LayerAssignmentValue {
+pub enum AssignmentValue {
     Value(Option<ValueAssignment>),
-    Layers(Vec<LayerAssignment>),
+    Func {
+        op: Operation,
+        args: Vec<AssignmentValue>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -96,7 +98,7 @@ pub struct TexCoordParallax {
     pub ratio: OrderedFloat<f32>,
 }
 
-impl Default for LayerAssignmentValue {
+impl Default for AssignmentValue {
     fn default() -> Self {
         Self::Value(None)
     }
@@ -131,7 +133,7 @@ pub(crate) fn output_assignments(
         normal_intensity: shader
             .normal_intensity
             .as_ref()
-            .map(|l| layer_channel_assignment_value(parameters, l)),
+            .map(|l| assignment_value(parameters, l)),
     }
 }
 
@@ -153,42 +155,28 @@ fn output_channel_assignment(
     parameters: &MaterialParameters,
     output_index: usize,
     channel_index: usize,
-) -> LayerAssignmentValue {
+) -> AssignmentValue {
     let channel = ['x', 'y', 'z', 'w'][channel_index];
     let output = format!("o{output_index}.{channel}");
     shader
         .output_dependencies
         .get(&SmolStr::from(output))
-        .map(|v| layer_channel_assignment_value(parameters, v))
-        .unwrap_or(LayerAssignmentValue::Value(None))
+        .map(|v| assignment_value(parameters, v))
+        .unwrap_or(AssignmentValue::Value(None))
 }
 
-fn layer_channel_assignment(parameters: &MaterialParameters, l: &Layer) -> LayerAssignment {
-    let value = layer_channel_assignment_value(parameters, &l.value);
-    let weight = layer_channel_assignment_value(parameters, &l.ratio);
-
-    LayerAssignment {
-        value,
-        weight,
-        blend_mode: l.blend_mode,
-        is_fresnel: l.is_fresnel,
-    }
-}
-
-fn layer_channel_assignment_value(
-    parameters: &MaterialParameters,
-    value: &LayerValue,
-) -> LayerAssignmentValue {
+fn assignment_value(parameters: &MaterialParameters, value: &OutputExpr) -> AssignmentValue {
     let value = match value {
-        crate::shader_database::LayerValue::Value(d) => {
-            LayerAssignmentValue::Value(ValueAssignment::from_dependency(d, parameters))
+        crate::shader_database::OutputExpr::Value(d) => {
+            AssignmentValue::Value(ValueAssignment::from_dependency(d, parameters))
         }
-        crate::shader_database::LayerValue::Layers(layers) => LayerAssignmentValue::Layers(
-            layers
+        crate::shader_database::OutputExpr::Func { op, args } => AssignmentValue::Func {
+            op: *op,
+            args: args
                 .iter()
-                .map(|l| layer_channel_assignment(parameters, l))
+                .map(|a| assignment_value(parameters, a))
                 .collect(),
-        ),
+        },
     };
     value
 }
@@ -273,7 +261,7 @@ pub(crate) fn infer_assignment_from_textures(
     // No assignment data is available.
     // Guess reasonable defaults based on the texture names or types.
     let assignment = |i: Option<usize>, c: usize| {
-        LayerAssignmentValue::Value(i.map(|i| {
+        AssignmentValue::Value(i.map(|i| {
             ValueAssignment::Texture(TextureAssignment {
                 name: format!("s{i}").into(),
                 channel: Some(['x', 'y', 'z', 'w'][c]),

@@ -1,6 +1,6 @@
 use crate::{
     material::assignments::{
-        LayerAssignmentValue, OutputAssignments, TextureAssignment, ValueAssignment,
+        AssignmentValue, OutputAssignments, TextureAssignment, ValueAssignment,
     },
     monolib::ShaderTextures,
     ImageTexture, IndexMapExt,
@@ -451,10 +451,10 @@ fn channel_name(index: &Option<ImageIndex>) -> Option<String> {
     }
 }
 
-fn image_index(material: &crate::Material, value: &LayerAssignmentValue) -> Option<ImageIndex> {
+fn image_index(material: &crate::Material, value: &AssignmentValue) -> Option<ImageIndex> {
     match value {
-        LayerAssignmentValue::Value(assignment) => assignment_image_index(material, assignment),
-        LayerAssignmentValue::Layers(layers) => image_index(material, &layers.first()?.value),
+        AssignmentValue::Value(assignment) => assignment_image_index(material, assignment),
+        AssignmentValue::Func { args, .. } => image_index(material, args.first()?),
     }
 }
 

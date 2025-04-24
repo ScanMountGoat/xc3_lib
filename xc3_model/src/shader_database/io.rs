@@ -5,8 +5,8 @@ use smol_str::ToSmolStr;
 use varint_rs::{VarintReader, VarintWriter};
 
 use super::{
-    AttributeDependency, BufferDependency, Dependency, Layer, LayerBlendMode, LayerValue,
-    ProgramHash, ShaderProgram, TexCoord, TexCoordParams, TextureDependency,
+    AttributeDependency, BufferDependency, Dependency, Operation, OutputExpr, ProgramHash,
+    ShaderProgram, TexCoord, TexCoordParams, TextureDependency,
 };
 
 // Faster than the default hash implementation.
@@ -43,7 +43,7 @@ pub struct ShaderDatabaseIndexed {
 
     #[br(parse_with = parse_count)]
     #[bw(write_with = write_count)]
-    layer_values: Vec<LayerValueIndexed>,
+    output_exprs: Vec<OutputExprIndexed>,
 
     #[br(parse_with = parse_count)]
     #[bw(write_with = write_count)]
@@ -108,80 +108,90 @@ struct ShaderProgramIndexed {
     normal_intensity: OptVarInt,
 }
 
-#[binrw]
-#[derive(Debug, PartialEq, Clone)]
-struct OutputDependenciesIndexed {
-    #[br(parse_with = parse_count)]
-    #[bw(write_with = write_count)]
-    layers: Vec<LayerIndexed>,
-}
-
 #[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
-struct LayerIndexed {
-    value: VarInt,
-    ratio: VarInt,
-    blend_mode: LayerBlendModeIndexed,
-    is_fresnel: u8,
-}
-
-#[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
-enum LayerValueIndexed {
+enum OutputExprIndexed {
     #[brw(magic(0u8))]
     Value(VarInt),
 
     #[brw(magic(1u8))]
-    Layers(
+    Func {
+        op: OperationIndexed,
+
         #[br(parse_with = parse_count)]
         #[bw(write_with = write_count)]
-        Vec<LayerIndexed>,
-    ),
+        args: Vec<VarInt>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, BinRead, BinWrite)]
 #[brw(repr(u8))]
-pub enum LayerBlendModeIndexed {
-    Mix = 0,
-    Mul = 1,
-    Add = 2,
-    AddNormal = 3,
-    Overlay2 = 4,
-    Overlay = 5,
-    Power = 6,
-    Min = 7,
-    Max = 8,
-    Clamp = 9,
+pub enum OperationIndexed {
+    Unk = 0,
+    Mix = 1,
+    Mul = 2,
+    Div = 3,
+    Add = 4,
+    Sub = 5,
+    Fma = 6,
+    MulRatio = 7,
+    AddNormal = 8,
+    Overlay = 9,
+    Overlay2 = 10,
+    OverlayRatio = 11,
+    Power = 12,
+    Min = 13,
+    Max = 14,
+    Clamp = 15,
+    Abs = 16,
+    Fresnel = 17,
 }
 
-impl From<LayerBlendMode> for LayerBlendModeIndexed {
-    fn from(value: LayerBlendMode) -> Self {
+impl From<Operation> for OperationIndexed {
+    fn from(value: Operation) -> Self {
         match value {
-            LayerBlendMode::Mix => Self::Mix,
-            LayerBlendMode::Mul => Self::Mul,
-            LayerBlendMode::Add => Self::Add,
-            LayerBlendMode::AddNormal => Self::AddNormal,
-            LayerBlendMode::Overlay2 => Self::Overlay2,
-            LayerBlendMode::Overlay => Self::Overlay,
-            LayerBlendMode::Power => Self::Power,
-            LayerBlendMode::Min => Self::Min,
-            LayerBlendMode::Max => Self::Max,
-            LayerBlendMode::Clamp => Self::Clamp,
+            Operation::Mix => Self::Mix,
+            Operation::Mul => Self::Mul,
+            Operation::Div => Self::Div,
+            Operation::Add => Self::Add,
+            Operation::Sub => Self::Sub,
+            Operation::Fma => Self::Fma,
+            Operation::MulRatio => Self::MulRatio,
+            Operation::AddNormal => Self::AddNormal,
+            Operation::Overlay => Self::Overlay,
+            Operation::Overlay2 => Self::Overlay2,
+            Operation::OverlayRatio => Self::OverlayRatio,
+            Operation::Power => Self::Power,
+            Operation::Min => Self::Min,
+            Operation::Max => Self::Max,
+            Operation::Clamp => Self::Clamp,
+            Operation::Abs => Self::Abs,
+            Operation::Fresnel => Self::Fresnel,
+            Operation::Unk => Self::Unk,
         }
     }
 }
 
-impl From<LayerBlendModeIndexed> for LayerBlendMode {
-    fn from(value: LayerBlendModeIndexed) -> Self {
+impl From<OperationIndexed> for Operation {
+    fn from(value: OperationIndexed) -> Self {
         match value {
-            LayerBlendModeIndexed::Mix => Self::Mix,
-            LayerBlendModeIndexed::Mul => Self::Mul,
-            LayerBlendModeIndexed::Add => Self::Add,
-            LayerBlendModeIndexed::AddNormal => Self::AddNormal,
-            LayerBlendModeIndexed::Overlay2 => Self::Overlay2,
-            LayerBlendModeIndexed::Overlay => Self::Overlay,
-            LayerBlendModeIndexed::Power => Self::Power,
-            LayerBlendModeIndexed::Min => Self::Min,
-            LayerBlendModeIndexed::Max => Self::Max,
-            LayerBlendModeIndexed::Clamp => Self::Clamp,
+            OperationIndexed::Mix => Self::Mix,
+            OperationIndexed::Mul => Self::Mul,
+            OperationIndexed::Div => Self::Div,
+            OperationIndexed::Add => Self::Add,
+            OperationIndexed::Sub => Self::Sub,
+            OperationIndexed::Fma => Self::Fma,
+            OperationIndexed::MulRatio => Self::MulRatio,
+            OperationIndexed::AddNormal => Self::AddNormal,
+            OperationIndexed::Overlay => Self::Overlay,
+            OperationIndexed::Overlay2 => Self::Overlay2,
+            OperationIndexed::OverlayRatio => Self::OverlayRatio,
+            OperationIndexed::Power => Self::Power,
+            OperationIndexed::Min => Self::Min,
+            OperationIndexed::Max => Self::Max,
+            OperationIndexed::Clamp => Self::Clamp,
+            OperationIndexed::Abs => Self::Abs,
+            OperationIndexed::Fresnel => Self::Fresnel,
+            OperationIndexed::Unk => Self::Unk,
         }
     }
 }
@@ -376,7 +386,7 @@ impl ShaderDatabaseIndexed {
         p: ShaderProgram,
         dependency_to_index: &mut IndexSet<Dependency>,
         buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
-        layer_value_to_index: &mut IndexSet<LayerValue>,
+        output_expr_to_index: &mut IndexSet<OutputExpr>,
         tex_coord_to_index: &mut IndexSet<TexCoord>,
     ) -> ShaderProgramIndexed {
         ShaderProgramIndexed {
@@ -387,10 +397,10 @@ impl ShaderDatabaseIndexed {
                     let output_index = add_string(&mut self.outputs, output);
                     (
                         output_index,
-                        self.add_layer_value(
+                        self.add_output_expr(
                             dependency_to_index,
                             buffer_dependency_to_index,
-                            layer_value_to_index,
+                            output_expr_to_index,
                             tex_coord_to_index,
                             value,
                         ),
@@ -407,10 +417,10 @@ impl ShaderDatabaseIndexed {
                 .0
             })),
             normal_intensity: OptVarInt(p.normal_intensity.map(|i| {
-                self.add_layer_value(
+                self.add_output_expr(
                     dependency_to_index,
                     buffer_dependency_to_index,
-                    layer_value_to_index,
+                    output_expr_to_index,
                     tex_coord_to_index,
                     &i,
                 )
@@ -419,71 +429,44 @@ impl ShaderDatabaseIndexed {
         }
     }
 
-    fn add_output_layer_indexed(
-        &mut self,
-        l: &Layer,
-        dependency_to_index: &mut IndexSet<Dependency>,
-        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
-        layer_value_to_index: &mut IndexSet<LayerValue>,
-        tex_coord_to_index: &mut IndexSet<TexCoord>,
-    ) -> LayerIndexed {
-        LayerIndexed {
-            value: self.add_layer_value(
-                dependency_to_index,
-                buffer_dependency_to_index,
-                layer_value_to_index,
-                tex_coord_to_index,
-                &l.value,
-            ),
-            ratio: self.add_layer_value(
-                dependency_to_index,
-                buffer_dependency_to_index,
-                layer_value_to_index,
-                tex_coord_to_index,
-                &l.ratio,
-            ),
-            blend_mode: l.blend_mode.into(),
-            is_fresnel: l.is_fresnel.into(),
-        }
-    }
-
-    fn add_layer_value(
+    fn add_output_expr(
         &mut self,
         dependency_to_index: &mut IndexSet<Dependency>,
         buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
-        layer_value_to_index: &mut IndexSet<LayerValue>,
+        layer_value_to_index: &mut IndexSet<OutputExpr>,
         tex_coord_to_index: &mut IndexSet<TexCoord>,
-        value: &LayerValue,
+        value: &OutputExpr,
     ) -> VarInt {
         let index = match layer_value_to_index.get_index_of(value) {
             Some(index) => index,
             None => {
                 let v = match &value {
-                    LayerValue::Value(d) => LayerValueIndexed::Value(self.add_dependency(
+                    OutputExpr::Value(d) => OutputExprIndexed::Value(self.add_dependency(
                         d.clone(),
                         dependency_to_index,
                         buffer_dependency_to_index,
                         tex_coord_to_index,
                     )),
-                    LayerValue::Layers(layers) => LayerValueIndexed::Layers(
-                        layers
+                    OutputExpr::Func { op, args } => OutputExprIndexed::Func {
+                        op: (*op).into(),
+                        args: args
                             .iter()
-                            .map(|l| {
-                                self.add_output_layer_indexed(
-                                    l,
+                            .map(|a| {
+                                self.add_output_expr(
                                     dependency_to_index,
                                     buffer_dependency_to_index,
                                     layer_value_to_index,
                                     tex_coord_to_index,
+                                    a,
                                 )
                             })
                             .collect(),
-                    ),
+                    },
                 };
 
-                let index = self.layer_values.len();
+                let index = self.output_exprs.len();
 
-                self.layer_values.push(v);
+                self.output_exprs.push(v);
                 layer_value_to_index.insert(value.clone());
 
                 index
@@ -552,7 +535,7 @@ impl ShaderDatabaseIndexed {
                 .map(|(output, value)| {
                     (
                         self.outputs[output.0].to_smolstr(),
-                        self.layer_value_from_indexed(&self.layer_values[value.0]),
+                        self.output_expr_from_indexed(&self.output_exprs[value.0]),
                     )
                 })
                 .collect(),
@@ -563,28 +546,20 @@ impl ShaderDatabaseIndexed {
             normal_intensity: p
                 .normal_intensity
                 .0
-                .map(|i| self.layer_value_from_indexed(&self.layer_values[i])),
+                .map(|i| self.output_expr_from_indexed(&self.output_exprs[i])),
         }
     }
 
-    fn output_layer_from_indexed(&self, l: &LayerIndexed) -> Layer {
-        Layer {
-            value: self.layer_value_from_indexed(&self.layer_values[l.value.0]),
-            ratio: self.layer_value_from_indexed(&self.layer_values[l.ratio.0]),
-            blend_mode: l.blend_mode.into(),
-            is_fresnel: l.is_fresnel != 0,
-        }
-    }
-
-    fn layer_value_from_indexed(&self, value: &LayerValueIndexed) -> LayerValue {
+    fn output_expr_from_indexed(&self, value: &OutputExprIndexed) -> OutputExpr {
         match value {
-            LayerValueIndexed::Value(d) => LayerValue::Value(self.dependency_from_indexed(*d)),
-            LayerValueIndexed::Layers(layers) => LayerValue::Layers(
-                layers
+            OutputExprIndexed::Value(d) => OutputExpr::Value(self.dependency_from_indexed(*d)),
+            OutputExprIndexed::Func { op, args } => OutputExpr::Func {
+                op: (*op).into(),
+                args: args
                     .iter()
-                    .map(|l| self.output_layer_from_indexed(l))
+                    .map(|a| self.output_expr_from_indexed(&self.output_exprs[a.0]))
                     .collect(),
-            ),
+            },
         }
     }
 

@@ -99,13 +99,13 @@ pub struct ShaderProgram {
     /// Renderers can generate unique shaders for each model like xc3_wgpu.
     /// Node based editors like Blender's shader editor should use these values
     /// to determine how to construct node groups.
-    pub output_dependencies: IndexMap<SmolStr, LayerValue>,
+    pub output_dependencies: IndexMap<SmolStr, OutputExpr>,
 
     /// The parameter multiplied by vertex alpha to determine outline width.
     pub outline_width: Option<Dependency>,
 
     /// The intensity map for normal mapping.
-    pub normal_intensity: Option<LayerValue>,
+    pub normal_intensity: Option<OutputExpr>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -173,59 +173,72 @@ pub struct AttributeDependency {
     pub channel: Option<char>,
 }
 
-// TODO: rename to operation with a, b, c?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub enum LayerBlendMode {
-    /// `mix(a, b, ratio)`
+pub enum Operation {
+    /// `mix(arg0, arg1, arg2)`
     Mix,
-    /// `mix(a, a * b, ratio)`
+    /// `arg0 * arg1`
     Mul,
-    /// `a + b * ratio`
+    /// `arg0 / arg1`
+    Div,
+    /// `arg0 + arg1`
     Add,
+    /// `arg0 - arg1`
+    Sub,
+    /// `fma(arg0, arg1, arg2)` or `arg0 * arg1 + arg2`
+    Fma,
+    /// `mix(arg0, arg0 * arg1, arg2)`
+    MulRatio,
     /// Normal blend mode similar to "Reoriented Normal Mapping" (RNM).
     AddNormal,
-    /// `mix(a, overlay(a, b), ratio)`.
-    Overlay2,
-    /// `mix(a, overlay(a, b), ratio)`.
+    /// `overlay(arg0, arg1)`.
     Overlay,
-    /// `pow(a, b)`
+    /// `overlay2(arg0, arg1)`.
+    Overlay2,
+    /// `mix(arg0, overlay(arg0, arg1), arg2)`.
+    OverlayRatio,
+    /// `pow(arg0, arg1)`
     Power,
-    /// `min(a, b)`
+    /// `min(arg0, arg1)`
     Min,
-    /// `max(a, b)`
+    /// `max(arg0, arg1)`
     Max,
-    /// `clamp(a, b, ratio)`
+    /// `clamp(arg0, arg1, arg2)`
     Clamp,
+    /// `abs(arg0)`
+    Abs,
+    /// `pow(1.0 - n_dot_v, arg0 * 5.0)`
+    Fresnel,
+    Unk,
 }
 
-impl Default for LayerBlendMode {
+impl Default for Operation {
     fn default() -> Self {
         Self::Mix
     }
 }
 
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct Layer {
-    pub value: LayerValue,
-    pub ratio: LayerValue,
-    pub blend_mode: LayerBlendMode,
-    pub is_fresnel: bool,
-}
-
+// TODO: replace layer and layervalue with this
 /// A tree of computations with [Dependency] for the leaf values.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum LayerValue {
+pub enum OutputExpr {
     Value(Dependency),
-    Layers(Vec<Layer>),
+    // TODO: is it worth having separate unary, binary, etc ops
+    Func {
+        op: Operation,
+        args: Vec<OutputExpr>,
+    },
 }
 
-impl Default for LayerValue {
+impl Default for OutputExpr {
     fn default() -> Self {
-        // TODO: Is this a good default?
-        Self::Layers(Vec::new())
+        // TODO: Create a special value for unsupported values?
+        Self::Func {
+            op: Operation::Unk,
+            args: Vec::new(),
+        }
     }
 }
 

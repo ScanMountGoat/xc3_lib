@@ -1,182 +1,132 @@
 ShaderProgram {
     output_dependencies: {
-        "o0.x": Layers(
-            [
-                Layer {
-                    value: Value(
-                        Attribute(
-                            AttributeDependency {
-                                name: "vColor",
-                                channel: Some(
-                                    'x',
-                                ),
-                            },
-                        ),
+        "o0.x": Func {
+            op: Mul,
+            args: [
+                Value(
+                    Attribute(
+                        AttributeDependency {
+                            name: "vColor",
+                            channel: Some(
+                                'x',
+                            ),
+                        },
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
+                ),
+                Value(
+                    Texture(
+                        TextureDependency {
+                            name: "s0",
+                            channel: Some(
+                                'x',
+                            ),
+                            texcoords: [
+                                TexCoord {
+                                    name: "vTex0",
+                                    channel: Some(
+                                        'x',
+                                    ),
+                                    params: None,
+                                },
+                                TexCoord {
+                                    name: "vTex0",
+                                    channel: Some(
+                                        'y',
+                                    ),
+                                    params: None,
+                                },
+                            ],
+                        },
                     ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s0",
-                                channel: Some(
-                                    'x',
-                                ),
-                                texcoords: [
-                                    TexCoord {
-                                        name: "vTex0",
-                                        channel: Some(
-                                            'x',
-                                        ),
-                                        params: None,
-                                    },
-                                    TexCoord {
-                                        name: "vTex0",
-                                        channel: Some(
-                                            'y',
-                                        ),
-                                        params: None,
-                                    },
-                                ],
-                            },
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mul,
-                    is_fresnel: false,
-                },
+                ),
             ],
-        ),
-        "o0.y": Layers(
-            [
-                Layer {
-                    value: Value(
-                        Attribute(
-                            AttributeDependency {
-                                name: "vColor",
-                                channel: Some(
-                                    'y',
-                                ),
-                            },
-                        ),
+        },
+        "o0.y": Func {
+            op: Mul,
+            args: [
+                Value(
+                    Attribute(
+                        AttributeDependency {
+                            name: "vColor",
+                            channel: Some(
+                                'y',
+                            ),
+                        },
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
+                ),
+                Value(
+                    Texture(
+                        TextureDependency {
+                            name: "s0",
+                            channel: Some(
+                                'y',
+                            ),
+                            texcoords: [
+                                TexCoord {
+                                    name: "vTex0",
+                                    channel: Some(
+                                        'x',
+                                    ),
+                                    params: None,
+                                },
+                                TexCoord {
+                                    name: "vTex0",
+                                    channel: Some(
+                                        'y',
+                                    ),
+                                    params: None,
+                                },
+                            ],
+                        },
                     ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s0",
-                                channel: Some(
-                                    'y',
-                                ),
-                                texcoords: [
-                                    TexCoord {
-                                        name: "vTex0",
-                                        channel: Some(
-                                            'x',
-                                        ),
-                                        params: None,
-                                    },
-                                    TexCoord {
-                                        name: "vTex0",
-                                        channel: Some(
-                                            'y',
-                                        ),
-                                        params: None,
-                                    },
-                                ],
-                            },
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mul,
-                    is_fresnel: false,
-                },
+                ),
             ],
-        ),
-        "o0.z": Layers(
-            [
-                Layer {
-                    value: Value(
-                        Attribute(
-                            AttributeDependency {
-                                name: "vColor",
-                                channel: Some(
-                                    'z',
-                                ),
-                            },
-                        ),
+        },
+        "o0.z": Func {
+            op: Mul,
+            args: [
+                Value(
+                    Attribute(
+                        AttributeDependency {
+                            name: "vColor",
+                            channel: Some(
+                                'z',
+                            ),
+                        },
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
+                ),
+                Value(
+                    Texture(
+                        TextureDependency {
+                            name: "s0",
+                            channel: Some(
+                                'z',
+                            ),
+                            texcoords: [
+                                TexCoord {
+                                    name: "vTex0",
+                                    channel: Some(
+                                        'x',
+                                    ),
+                                    params: None,
+                                },
+                                TexCoord {
+                                    name: "vTex0",
+                                    channel: Some(
+                                        'y',
+                                    ),
+                                    params: None,
+                                },
+                            ],
+                        },
                     ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: Value(
-                        Texture(
-                            TextureDependency {
-                                name: "s0",
-                                channel: Some(
-                                    'z',
-                                ),
-                                texcoords: [
-                                    TexCoord {
-                                        name: "vTex0",
-                                        channel: Some(
-                                            'x',
-                                        ),
-                                        params: None,
-                                    },
-                                    TexCoord {
-                                        name: "vTex0",
-                                        channel: Some(
-                                            'y',
-                                        ),
-                                        params: None,
-                                    },
-                                ],
-                            },
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mul,
-                    is_fresnel: false,
-                },
+                ),
             ],
-        ),
-        "o0.w": Layers(
-            [],
-        ),
+        },
+        "o0.w": Func {
+            op: Unk,
+            args: [],
+        },
         "o1.x": Value(
             Buffer(
                 BufferDependency {
@@ -224,12 +174,14 @@ ShaderProgram {
                 0.25921568,
             ),
         ),
-        "o2.x": Layers(
-            [],
-        ),
-        "o2.y": Layers(
-            [],
-        ),
+        "o2.x": Func {
+            op: Unk,
+            args: [],
+        },
+        "o2.y": Func {
+            op: Unk,
+            args: [],
+        },
         "o2.z": Value(
             Attribute(
                 AttributeDependency {
@@ -240,195 +192,168 @@ ShaderProgram {
                 },
             ),
         ),
-        "o2.w": Layers(
-            [
-                Layer {
-                    value: Value(
-                        Constant(
-                            0.5,
-                        ),
+        "o2.w": Func {
+            op: Fma,
+            args: [
+                Value(
+                    Attribute(
+                        AttributeDependency {
+                            name: "nWgtIdx",
+                            channel: Some(
+                                'z',
+                            ),
+                        },
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
+                ),
+                Value(
+                    Constant(
+                        1000.0,
                     ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: Value(
-                        Attribute(
-                            AttributeDependency {
-                                name: "nWgtIdx",
-                                channel: Some(
-                                    'z',
-                                ),
-                            },
-                        ),
+                ),
+                Value(
+                    Constant(
+                        0.5,
                     ),
-                    ratio: Value(
-                        Constant(
-                            1000.0,
-                        ),
+                ),
+            ],
+        },
+        "o3.x": Func {
+            op: Div,
+            args: [
+                Value(
+                    Constant(
+                        1.0,
                     ),
-                    blend_mode: Add,
-                    is_fresnel: false,
+                ),
+                Func {
+                    op: Unk,
+                    args: [],
                 },
             ],
-        ),
-        "o3.x": Layers(
-            [],
-        ),
-        "o3.y": Layers(
-            [],
-        ),
+        },
+        "o3.y": Func {
+            op: Div,
+            args: [
+                Value(
+                    Constant(
+                        1.0,
+                    ),
+                ),
+                Func {
+                    op: Unk,
+                    args: [],
+                },
+            ],
+        },
         "o3.z": Value(
             Constant(
                 0.0,
             ),
         ),
-        "o3.w": Layers(
-            [
-                Layer {
-                    value: Value(
-                        Constant(
-                            0.6666667,
+        "o3.w": Func {
+            op: Add,
+            args: [
+                Func {
+                    op: Fma,
+                    args: [
+                        Func {
+                            op: Unk,
+                            args: [],
+                        },
+                        Value(
+                            Constant(
+                                0.33333334,
+                            ),
                         ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mul,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: Layers(
-                        [],
-                    ),
-                    ratio: Value(
-                        Constant(
-                            0.33333334,
-                        ),
-                    ),
-                    blend_mode: Add,
-                    is_fresnel: false,
-                },
-                Layer {
-                    value: Value(
-                        Constant(
-                            0.01,
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Add,
-                    is_fresnel: false,
-                },
-            ],
-        ),
-        "o4.x": Layers(
-            [
-                Layer {
-                    value: Value(
-                        Attribute(
-                            AttributeDependency {
-                                name: "nWgtIdx",
-                                channel: Some(
-                                    'z',
+                        Func {
+                            op: Mul,
+                            args: [
+                                Func {
+                                    op: Unk,
+                                    args: [],
+                                },
+                                Value(
+                                    Constant(
+                                        0.6666667,
+                                    ),
                                 ),
-                            },
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mix,
-                    is_fresnel: false,
+                            ],
+                        },
+                    ],
                 },
-                Layer {
-                    value: Value(
-                        Constant(
-                            8.0,
-                        ),
+                Value(
+                    Constant(
+                        0.01,
                     ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
+                ),
+            ],
+        },
+        "o4.x": Func {
+            op: Sub,
+            args: [
+                Func {
+                    op: Mul,
+                    args: [
+                        Value(
+                            Attribute(
+                                AttributeDependency {
+                                    name: "nWgtIdx",
+                                    channel: Some(
+                                        'z',
+                                    ),
+                                },
+                            ),
                         ),
-                    ),
-                    blend_mode: Mul,
-                    is_fresnel: false,
+                        Value(
+                            Constant(
+                                8.0,
+                            ),
+                        ),
+                    ],
                 },
-                Layer {
-                    value: Layers(
-                        [],
-                    ),
-                    ratio: Value(
-                        Constant(
-                            -1.0,
-                        ),
-                    ),
-                    blend_mode: Add,
-                    is_fresnel: false,
+                Func {
+                    op: Unk,
+                    args: [],
                 },
             ],
-        ),
-        "o4.y": Layers(
-            [
-                Layer {
-                    value: Value(
-                        Constant(
-                            0.003921569,
+        },
+        "o4.y": Func {
+            op: Sub,
+            args: [
+                Func {
+                    op: Mul,
+                    args: [
+                        Func {
+                            op: Unk,
+                            args: [],
+                        },
+                        Value(
+                            Constant(
+                                0.003921569,
+                            ),
                         ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mul,
-                    is_fresnel: false,
+                    ],
                 },
-                Layer {
-                    value: Layers(
-                        [],
-                    ),
-                    ratio: Value(
-                        Constant(
-                            -1.0,
-                        ),
-                    ),
-                    blend_mode: Add,
-                    is_fresnel: false,
+                Func {
+                    op: Unk,
+                    args: [],
                 },
             ],
-        ),
-        "o4.z": Layers(
-            [
-                Layer {
-                    value: Value(
-                        Constant(
-                            0.003921569,
-                        ),
-                    ),
-                    ratio: Value(
-                        Constant(
-                            1.0,
-                        ),
-                    ),
-                    blend_mode: Mul,
-                    is_fresnel: false,
+        },
+        "o4.z": Func {
+            op: Mul,
+            args: [
+                Func {
+                    op: Unk,
+                    args: [],
                 },
+                Value(
+                    Constant(
+                        0.003921569,
+                    ),
+                ),
             ],
-        ),
+        },
         "o4.w": Value(
             Constant(
                 0.0,

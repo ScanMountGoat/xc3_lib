@@ -1418,7 +1418,7 @@ fn check_shader_dependencies(root: &ModelRoot, path: &Path) {
     for m in &root.models.materials {
         if let Some(shader) = &m.shader {
             for (k, v) in &shader.output_dependencies {
-                if has_empty_layers(v) {
+                if has_unsupported_values(v) {
                     println!(
                         "Empty layers for {:?}, {k:?}, technique {}, {path:?}",
                         &m.name, m.technique_index
@@ -1429,14 +1429,12 @@ fn check_shader_dependencies(root: &ModelRoot, path: &Path) {
     }
 }
 
-fn has_empty_layers(v: &xc3_model::shader_database::LayerValue) -> bool {
+fn has_unsupported_values(v: &xc3_model::shader_database::OutputExpr) -> bool {
     match v {
-        xc3_model::shader_database::LayerValue::Value(_) => false,
-        xc3_model::shader_database::LayerValue::Layers(layers) => {
-            layers.is_empty()
-                || layers
-                    .iter()
-                    .any(|l| has_empty_layers(&l.ratio) || has_empty_layers(&l.value))
+        xc3_model::shader_database::OutputExpr::Value(_) => false,
+        xc3_model::shader_database::OutputExpr::Func { op, args } => {
+            *op == xc3_model::shader_database::Operation::Unk
+                || args.iter().any(|a| has_unsupported_values(a))
         }
     }
 }
