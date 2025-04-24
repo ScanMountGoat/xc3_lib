@@ -150,7 +150,7 @@ fn main() {
             if let Some(merged) = input_files
                 .iter()
                 .map(|path| ShaderDatabase::from_file(path).unwrap())
-                .reduce(|a, b| ShaderDatabase::merge(&a, &b))
+                .reduce(|a, b| ShaderDatabase::merge(a, &b))
             {
                 merged.save(output_file).unwrap();
             }
