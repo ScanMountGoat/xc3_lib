@@ -147,7 +147,7 @@ fn output_channel_assignment(
         .output_dependencies
         .get(&SmolStr::from(output))
         .map(|v| assignment_value(parameters, v))
-        .unwrap_or(Assignment::Value(None))
+        .unwrap_or_default()
 }
 
 fn assignment_value(parameters: &MaterialParameters, value: &OutputExpr) -> Assignment {

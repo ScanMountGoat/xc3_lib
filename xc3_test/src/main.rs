@@ -1434,7 +1434,7 @@ fn has_unsupported_values(v: &xc3_model::shader_database::OutputExpr) -> bool {
         xc3_model::shader_database::OutputExpr::Value(_) => false,
         xc3_model::shader_database::OutputExpr::Func { op, args } => {
             *op == xc3_model::shader_database::Operation::Unk
-                || args.iter().any(|a| has_unsupported_values(a))
+                || args.iter().any(has_unsupported_values)
         }
     }
 }

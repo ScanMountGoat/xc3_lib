@@ -251,7 +251,7 @@ fn output_assignments(
 fn has_value(value: &Assignment) -> bool {
     match value {
         Assignment::Value(c) => c.is_some(),
-        Assignment::Func { args, .. } => args.iter().any(|a| has_value(a)),
+        Assignment::Func { args, .. } => args.iter().any(has_value),
     }
 }
 

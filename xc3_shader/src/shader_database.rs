@@ -822,7 +822,7 @@ static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(result_z, normalize_normal, result);
         }
     "};
-    Graph::parse_glsl(&query).unwrap()
+    Graph::parse_glsl(query).unwrap()
 });
 
 static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
@@ -847,7 +847,7 @@ static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(result_y, normalize_bitangent, result);
         }
     "};
-    Graph::parse_glsl(&query).unwrap()
+    Graph::parse_glsl(query).unwrap()
 });
 
 fn calc_normal_map<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Expr; 3]> {
@@ -891,7 +891,7 @@ static CALC_NORMAL_MAP_W_INTENSITY_X: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(intensity, result_y, result);
         }
     "};
-    Graph::parse_glsl(&query).unwrap()
+    Graph::parse_glsl(query).unwrap()
 });
 
 static CALC_NORMAL_MAP_W_INTENSITY_Y: LazyLock<Graph> = LazyLock::new(|| {
@@ -925,7 +925,7 @@ static CALC_NORMAL_MAP_W_INTENSITY_Y: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(intensity, result_y, result);
         }
     "};
-    Graph::parse_glsl(&query).unwrap()
+    Graph::parse_glsl(query).unwrap()
 });
 
 fn calc_normal_map_w_intensity<'a>(
@@ -970,7 +970,7 @@ static CALC_NORMAL_MAP_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(normalize_val_inf, neg_dot_val_inf_normal, result);
         }
     "};
-    Graph::parse_glsl(&query).unwrap()
+    Graph::parse_glsl(query).unwrap()
 });
 
 static CALC_NORMAL_MAP_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
@@ -999,7 +999,7 @@ static CALC_NORMAL_MAP_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(normalize_val_inf, neg_dot_val_inf_normal, result);
         }
     "};
-    Graph::parse_glsl(&query).unwrap()
+    Graph::parse_glsl(query).unwrap()
 });
 
 fn calc_normal_map_xcx<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Expr; 3]> {

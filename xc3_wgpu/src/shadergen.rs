@@ -186,11 +186,11 @@ fn write_wgsl_xy(
                 },
             ) => {
                 // TODO: check that ratios match.
-                let ax = args_x.get(0)?;
+                let ax = args_x.first()?;
                 let bx = args_x.get(1)?;
                 let rx = args_x.get(2)?;
 
-                let ay = args_y.get(0)?;
+                let ay = args_y.first()?;
                 let by = args_y.get(1)?;
                 let _ry = args_y.get(2)?;
 
