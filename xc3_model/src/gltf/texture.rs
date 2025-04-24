@@ -1,7 +1,5 @@
 use crate::{
-    material::assignments::{
-        AssignmentValue, OutputAssignments, TextureAssignment, ValueAssignment,
-    },
+    material::assignments::{Assignment, AssignmentValue, OutputAssignments, TextureAssignment},
     monolib::ShaderTextures,
     ImageTexture, IndexMapExt,
 };
@@ -451,19 +449,19 @@ fn channel_name(index: &Option<ImageIndex>) -> Option<String> {
     }
 }
 
-fn image_index(material: &crate::Material, value: &AssignmentValue) -> Option<ImageIndex> {
+fn image_index(material: &crate::Material, value: &Assignment) -> Option<ImageIndex> {
     match value {
-        AssignmentValue::Value(assignment) => assignment_image_index(material, assignment),
-        AssignmentValue::Func { args, .. } => image_index(material, args.first()?),
+        Assignment::Value(assignment) => assignment_image_index(material, assignment),
+        Assignment::Func { args, .. } => image_index(material, args.first()?),
     }
 }
 
 fn assignment_image_index(
     material: &crate::Material,
-    assignment: &Option<ValueAssignment>,
+    assignment: &Option<AssignmentValue>,
 ) -> Option<ImageIndex> {
     match assignment.as_ref()? {
-        ValueAssignment::Texture(texture) => {
+        AssignmentValue::Texture(texture) => {
             let TextureAssignment {
                 name,
                 channel,
@@ -502,8 +500,8 @@ fn assignment_image_index(
                 texcoord_scale,
             }))
         }
-        ValueAssignment::Attribute { .. } => None,
-        ValueAssignment::Value(v) => Some(ImageIndex::Value(*v)),
+        AssignmentValue::Attribute { .. } => None,
+        AssignmentValue::Float(v) => Some(ImageIndex::Value(*v)),
     }
 }
 

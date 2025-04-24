@@ -137,7 +137,7 @@ pub struct PropLods {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropLod {
     // TODO: Do these actually index into the PropModelLod?
-    /// The index of the base LOD (highest quality) [Model](crate::mxmd::Model)
+    /// The index of the base LOD (highest quality) [ModelV112](crate::mxmd::ModelV112)
     /// in [models](struct.PropModelData.html#structfield.models).
     /// Only the first 28 bits (0xFFFFFFF) contain the actual index.
     pub base_lod_index: u32,

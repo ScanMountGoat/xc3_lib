@@ -56,7 +56,7 @@ pub enum MxmdInner {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MxmdV111 {
-    /// A collection of [Model] and associated data.
+    /// A collection of [ModelV111] and associated data.
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
     pub models: ModelsV111,
@@ -108,7 +108,7 @@ pub struct MxmdV111 {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 pub struct MxmdV112 {
-    /// A collection of [Model] and associated data.
+    /// A collection of [ModelV112] and associated data.
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32), align(16))]
     pub models: ModelsV112,
@@ -501,7 +501,7 @@ pub struct SamplerFlags {
     pub unk: u7,
 }
 
-/// A single material assignable to a [Mesh].
+/// A single material assignable to a [MeshV112].
 /// `ml::MdsMatInfoHeader` in the Xenoblade 2 binary.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -859,7 +859,7 @@ pub struct MaterialUnk6ItemUnk4 {
 // xc1: 160, 164, 168 bytes
 // xc2: 160 bytes
 // xc3: 160, 164, 168, 200, 204 bytes
-/// A collection of [Model] as well as skinning and animation information.
+/// A collection of [ModelV112] as well as skinning and animation information.
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
@@ -1124,9 +1124,9 @@ pub struct ModelsExtraDataUnk5 {
     pub unk: Option<[u32; 8]>,
 }
 
-/// A collection of meshes where each [Mesh] represents one draw call.
+/// A collection of meshes where each [MeshV111] represents one draw call.
 ///
-/// Each [Model] has an associated [VertexData] containing vertex and index buffers.
+/// Each [ModelV111] has an associated [VertexData] containing vertex and index buffers.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
@@ -1151,9 +1151,9 @@ pub struct ModelV111 {
     pub unks: [u32; 3],
 }
 
-/// A collection of meshes where each [Mesh] represents one draw call.
+/// A collection of meshes where each [MeshV112] represents one draw call.
 ///
-/// Each [Model] has an associated [VertexData] containing vertex and index buffers.
+/// Each [ModelV112] has an associated [VertexData] containing vertex and index buffers.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
@@ -1257,7 +1257,7 @@ pub struct MeshV112 {
 }
 
 // TODO: remaining bits affect skinning?
-/// Flags to determine how to draw a [Mesh].
+/// Flags to determine how to draw a [MeshV112].
 #[bitsize(32)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(DebugBits, TryFromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
@@ -1287,7 +1287,7 @@ pub enum MeshRenderPass {
     Unk8 = 8,
 }
 
-/// Flags to determine what data is present in [Models].
+/// Flags to determine what data is present in [ModelsV112].
 #[bitsize(32)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]

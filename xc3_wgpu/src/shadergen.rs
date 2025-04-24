@@ -7,7 +7,7 @@ use smol_str::SmolStr;
 use xc3_model::{
     material::{
         assignments::{
-            AssignmentValue, OutputAssignment, TexCoordParallax, TextureAssignment, ValueAssignment,
+            Assignment, AssignmentValue, OutputAssignment, TexCoordParallax, TextureAssignment,
         },
         TextureAlphaTest,
     },
@@ -28,8 +28,8 @@ const MAX_SAMPLERS: usize = 15;
 #[derive(Debug, Default)]
 struct Nodes {
     nodes: Vec<NodeValue>,
-    values: Vec<ValueAssignment>,
-    value_to_node_index: IndexMap<AssignmentValue, usize>,
+    values: Vec<AssignmentValue>,
+    value_to_node_index: IndexMap<Assignment, usize>,
 }
 
 #[derive(Debug)]
@@ -39,23 +39,23 @@ enum NodeValue {
 }
 
 impl Nodes {
-    fn insert_layer_value(&mut self, layer_value: &AssignmentValue) -> usize {
+    fn insert_layer_value(&mut self, layer_value: &Assignment) -> usize {
         match self.value_to_node_index.get(layer_value) {
             Some(i) => *i,
             None => {
                 match layer_value {
-                    AssignmentValue::Value(v) => {
+                    Assignment::Value(v) => {
                         // TODO: how to handle missing values?
-                        let v = v.clone().unwrap_or(ValueAssignment::Value(0.0.into()));
+                        let v = v.clone().unwrap_or(AssignmentValue::Float(0.0.into()));
                         let value_index = self.insert_value(v);
                         let node = NodeValue::Value(value_index);
 
                         self.insert_node_value(layer_value.clone(), node)
                     }
-                    AssignmentValue::Func { op, args } => {
+                    Assignment::Func { op, args } => {
                         if *op == Operation::Unk {
                             // Avoid unrecognized values that cause problems with code gen.
-                            let value_index = self.insert_value(ValueAssignment::Value(0.0.into()));
+                            let value_index = self.insert_value(AssignmentValue::Float(0.0.into()));
                             let node = NodeValue::Value(value_index);
 
                             self.insert_node_value(layer_value.clone(), node)
@@ -72,14 +72,14 @@ impl Nodes {
         }
     }
 
-    fn insert_node_value(&mut self, layer_value: AssignmentValue, node: NodeValue) -> usize {
+    fn insert_node_value(&mut self, layer_value: Assignment, node: NodeValue) -> usize {
         let i = self.nodes.len();
         self.value_to_node_index.insert(layer_value, i);
         self.nodes.push(node);
         i
     }
 
-    fn insert_value(&mut self, value: ValueAssignment) -> usize {
+    fn insert_value(&mut self, value: AssignmentValue) -> usize {
         match self.values.iter().position(|v| v == &value) {
             Some(i) => i,
             None => {
@@ -368,8 +368,8 @@ pub fn generate_layering_wgsl(
     wgsl
 }
 
-fn insert_assignment(nodes: &mut Nodes, value: &AssignmentValue) -> Option<usize> {
-    if *value != AssignmentValue::Value(None) {
+fn insert_assignment(nodes: &mut Nodes, value: &Assignment) -> Option<usize> {
+    if *value != Assignment::Value(None) {
         Some(nodes.insert_layer_value(value))
     } else {
         None
@@ -414,7 +414,7 @@ pub fn generate_normal_layering_wgsl(
 }
 
 pub fn generate_normal_intensity_wgsl(
-    intensity: &AssignmentValue,
+    intensity: &Assignment,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
     let mut wgsl = String::new();
@@ -434,10 +434,10 @@ pub fn generate_normal_intensity_wgsl(
 
 fn channel_assignment_wgsl(
     name_to_index: &mut IndexMap<SmolStr, usize>,
-    value: &ValueAssignment,
+    value: &AssignmentValue,
 ) -> Option<String> {
     match value {
-        ValueAssignment::Texture(t) => {
+        AssignmentValue::Texture(t) => {
             let i = name_to_index.entry_index(t.name.clone());
 
             if i < MAX_SAMPLERS {
@@ -451,7 +451,7 @@ fn channel_assignment_wgsl(
                 None
             }
         }
-        ValueAssignment::Attribute { name, channel } => {
+        AssignmentValue::Attribute { name, channel } => {
             // TODO: Support more attributes.
             let c = channel_wgsl(*channel);
             match name.as_str() {
@@ -463,7 +463,7 @@ fn channel_assignment_wgsl(
                 }
             }
         }
-        ValueAssignment::Value(f) => Some(format!("{f:?}")),
+        AssignmentValue::Float(f) => Some(format!("{f:?}")),
     }
 }
 

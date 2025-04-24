@@ -18,16 +18,16 @@ pub struct OutputAssignments {
     pub assignments: [OutputAssignment; 6],
 
     /// The parameter multiplied by vertex alpha to determine outline width.
-    pub outline_width: Option<ValueAssignment>,
+    pub outline_width: Option<AssignmentValue>,
 
     /// The intensity map for normal mapping.
-    pub normal_intensity: Option<AssignmentValue>,
+    pub normal_intensity: Option<Assignment>,
 }
 
 impl OutputAssignments {
     /// Calculate the material ID from a hardcoded shader constant if present.
     pub fn mat_id(&self) -> Option<u32> {
-        if let AssignmentValue::Value(Some(ValueAssignment::Value(v))) = self.assignments[1].w {
+        if let Assignment::Value(Some(AssignmentValue::Float(v))) = self.assignments[1].w {
             // TODO: Why is this sometimes 7?
             Some((v.0 * 255.0 + 0.1) as u32 & 0x7)
         } else {
@@ -40,50 +40,36 @@ impl OutputAssignments {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct OutputAssignment {
     /// The x values.
-    pub x: AssignmentValue,
+    pub x: Assignment,
     /// The y values.
-    pub y: AssignmentValue,
+    pub y: Assignment,
     /// The z values.
-    pub z: AssignmentValue,
+    pub z: Assignment,
     /// The w values.
-    pub w: AssignmentValue,
+    pub w: Assignment,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct LayerAssignment {
-    /// The layer value to blend with the previous layer.
-    pub value: AssignmentValue,
-    /// The factor or blend weight for this layer.
-    pub weight: AssignmentValue,
-    /// The blending operation for this layer.
-    pub blend_mode: Operation,
-    pub is_fresnel: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum AssignmentValue {
-    Value(Option<ValueAssignment>),
+pub enum Assignment {
+    Value(Option<AssignmentValue>),
     Func {
         op: Operation,
-        args: Vec<AssignmentValue>,
+        args: Vec<Assignment>,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ValueAssignment {
+pub enum AssignmentValue {
     Texture(TextureAssignment),
     Attribute {
         name: SmolStr,
         channel: Option<char>,
     },
-    Value(OrderedFloat<f32>),
+    Float(OrderedFloat<f32>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TextureAssignment {
-    // TODO: Include matrix transform or scale?
-    // TODO: Always convert everything to a matrix?
-    // TODO: how often is the matrix even used?
     pub name: SmolStr,
     pub channel: Option<char>,
     pub texcoord_name: Option<SmolStr>,
@@ -93,22 +79,22 @@ pub struct TextureAssignment {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TexCoordParallax {
-    pub mask_a: Box<ValueAssignment>,
-    pub mask_b: Box<ValueAssignment>,
+    pub mask_a: Box<AssignmentValue>,
+    pub mask_b: Box<AssignmentValue>,
     pub ratio: OrderedFloat<f32>,
 }
 
-impl Default for AssignmentValue {
+impl Default for Assignment {
     fn default() -> Self {
         Self::Value(None)
     }
 }
 
-impl ValueAssignment {
+impl AssignmentValue {
     pub fn from_dependency(d: &Dependency, parameters: &MaterialParameters) -> Option<Self> {
         match d {
-            Dependency::Constant(f) => Some(Self::Value(f.0.into())),
-            Dependency::Buffer(b) => parameters.get_dependency(b).map(|f| Self::Value(f.into())),
+            Dependency::Constant(f) => Some(Self::Float(f.0.into())),
+            Dependency::Buffer(b) => parameters.get_dependency(b).map(|f| Self::Float(f.into())),
             Dependency::Texture(texture) => {
                 Some(Self::Texture(texture_assignment(texture, parameters)))
             }
@@ -129,7 +115,7 @@ pub(crate) fn output_assignments(
         outline_width: shader
             .outline_width
             .as_ref()
-            .and_then(|d| ValueAssignment::from_dependency(d, parameters)),
+            .and_then(|d| AssignmentValue::from_dependency(d, parameters)),
         normal_intensity: shader
             .normal_intensity
             .as_ref()
@@ -143,10 +129,10 @@ fn output_assignment(
     output_index: usize,
 ) -> OutputAssignment {
     OutputAssignment {
-        x: output_channel_assignment(shader, parameters, output_index, 0),
-        y: output_channel_assignment(shader, parameters, output_index, 1),
-        z: output_channel_assignment(shader, parameters, output_index, 2),
-        w: output_channel_assignment(shader, parameters, output_index, 3),
+        x: output_channel_assignment(shader, parameters, output_index, 'x'),
+        y: output_channel_assignment(shader, parameters, output_index, 'y'),
+        z: output_channel_assignment(shader, parameters, output_index, 'z'),
+        w: output_channel_assignment(shader, parameters, output_index, 'w'),
     }
 }
 
@@ -154,23 +140,22 @@ fn output_channel_assignment(
     shader: &ShaderProgram,
     parameters: &MaterialParameters,
     output_index: usize,
-    channel_index: usize,
-) -> AssignmentValue {
-    let channel = ['x', 'y', 'z', 'w'][channel_index];
+    channel: char,
+) -> Assignment {
     let output = format!("o{output_index}.{channel}");
     shader
         .output_dependencies
         .get(&SmolStr::from(output))
         .map(|v| assignment_value(parameters, v))
-        .unwrap_or(AssignmentValue::Value(None))
+        .unwrap_or(Assignment::Value(None))
 }
 
-fn assignment_value(parameters: &MaterialParameters, value: &OutputExpr) -> AssignmentValue {
+fn assignment_value(parameters: &MaterialParameters, value: &OutputExpr) -> Assignment {
     let value = match value {
         crate::shader_database::OutputExpr::Value(d) => {
-            AssignmentValue::Value(ValueAssignment::from_dependency(d, parameters))
+            Assignment::Value(AssignmentValue::from_dependency(d, parameters))
         }
-        crate::shader_database::OutputExpr::Func { op, args } => AssignmentValue::Func {
+        crate::shader_database::OutputExpr::Func { op, args } => Assignment::Func {
             op: *op,
             args: args
                 .iter()
@@ -199,8 +184,8 @@ fn texture_assignment(
                 mask_b,
                 ratio,
             }) => {
-                let mask_a = ValueAssignment::from_dependency(mask_a, parameters);
-                let mask_b = ValueAssignment::from_dependency(mask_b, parameters);
+                let mask_a = AssignmentValue::from_dependency(mask_a, parameters);
+                let mask_b = AssignmentValue::from_dependency(mask_b, parameters);
                 // TODO: Why are these sometimes none for xcx de?
                 match (mask_a, mask_b) {
                     (Some(mask_a), Some(mask_b)) => Some(TexCoordParallax {
@@ -261,8 +246,8 @@ pub(crate) fn infer_assignment_from_textures(
     // No assignment data is available.
     // Guess reasonable defaults based on the texture names or types.
     let assignment = |i: Option<usize>, c: usize| {
-        AssignmentValue::Value(i.map(|i| {
-            ValueAssignment::Texture(TextureAssignment {
+        Assignment::Value(i.map(|i| {
+            AssignmentValue::Texture(TextureAssignment {
                 name: format!("s{i}").into(),
                 channel: Some(['x', 'y', 'z', 'w'][c]),
                 texcoord_name: None,

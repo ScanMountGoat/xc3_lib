@@ -4,7 +4,7 @@ use glam::{uvec4, vec3, vec4, Vec3, Vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use xc3_model::{
-    material::assignments::{AssignmentValue, OutputAssignments, ValueAssignment},
+    material::assignments::{Assignment, AssignmentValue, OutputAssignments},
     ImageTexture, IndexMapExt,
 };
 
@@ -248,15 +248,15 @@ fn output_assignments(
     })
 }
 
-fn has_value(value: &AssignmentValue) -> bool {
+fn has_value(value: &Assignment) -> bool {
     match value {
-        AssignmentValue::Value(c) => c.is_some(),
-        AssignmentValue::Func { args, .. } => args.iter().any(|a| has_value(a)),
+        Assignment::Value(c) => c.is_some(),
+        Assignment::Func { args, .. } => args.iter().any(|a| has_value(a)),
     }
 }
 
-fn value_channel_assignment(assignment: Option<&ValueAssignment>) -> Option<f32> {
-    if let Some(ValueAssignment::Value(f)) = assignment {
+fn value_channel_assignment(assignment: Option<&AssignmentValue>) -> Option<f32> {
+    if let Some(AssignmentValue::Float(f)) = assignment {
         Some(f.0)
     } else {
         None

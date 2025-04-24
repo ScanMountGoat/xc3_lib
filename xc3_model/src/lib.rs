@@ -116,7 +116,7 @@ pub struct ModelGroup {
 
 // TODO: Should samplers be optional?
 // TODO: Come up with a better name?
-/// See [Models](xc3_lib::mxmd::Models).
+/// See [ModelsV112](xc3_lib::mxmd::ModelsV112).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Models {
@@ -147,7 +147,7 @@ pub struct Models {
     pub min_xyz: Vec3,
 }
 
-/// See [Model](xc3_lib::mxmd::Model).
+/// See [ModelV112](xc3_lib::mxmd::ModelV112).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Model {
@@ -166,7 +166,7 @@ pub struct Model {
     pub bounding_radius: f32,
 }
 
-/// See [Mesh](xc3_lib::mxmd::Mesh).
+/// See [MeshV112](xc3_lib::mxmd::MeshV112).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Mesh {

@@ -769,27 +769,27 @@ pub struct MaterialParameter {
 #[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
 #[brw(repr(u16))]
 pub enum ParamType {
-    /// `gMatAmb` uniform in the [Spch].
+    /// `gMatAmb` uniform in the [Spch](crate::spch::Spch).
     MaterialAmbient = 0,
-    /// `gMatSpec` uniform in the [Spch].
+    /// `gMatSpec` uniform in the [Spch](crate::spch::Spch).
     MaterialSpecular = 1,
-    /// `gDpRat` uniform in the [Spch].
+    /// `gDpRat` uniform in the [Spch](crate::spch::Spch).
     DpRat = 3,
-    /// `gTexMat` uniform in the [Spch].
+    /// `gTexMat` uniform in the [Spch](crate::spch::Spch).
     TexMatrix = 4,
-    /// `gWrkFl4` uniform in the [Spch].
+    /// `gWrkFl4` uniform in the [Spch](crate::spch::Spch).
     WorkFloat4 = 5,
-    /// `gWrkCol` uniform in the [Spch].
+    /// `gWrkCol` uniform in the [Spch](crate::spch::Spch).
     WorkColor = 6,
-    /// `gProjTexMat` uniform in the [Spch].
+    /// `gProjTexMat` uniform in the [Spch](crate::spch::Spch).
     ProjectionTexMatrix = 7,
-    /// `gAlInf` uniform in the [Spch].
+    /// `gAlInf` uniform in the [Spch](crate::spch::Spch).
     AlphaInfo = 14,
-    /// `gMatCol` uniform in the [Spch].
+    /// `gMatCol` uniform in the [Spch](crate::spch::Spch).
     MaterialColor = 15,
-    /// `gDTWrk` uniform in the [Spch].
+    /// `gDTWrk` uniform in the [Spch](crate::spch::Spch).
     DtWork = 17,
-    /// `gMdlParm` uniform in the [Spch].
+    /// `gMdlParm` uniform in the [Spch](crate::spch::Spch).
     MdlParam = 19,
 }
 

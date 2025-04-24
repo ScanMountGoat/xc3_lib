@@ -4,7 +4,7 @@
 //! A [VertexData] file stores model geometry in a combined [buffer](struct.VertexData.html#structfield.buffer).
 //! The remaining fields describe the data stored in the buffer like vertices or morph targets.
 //!
-//! Each [Mesh](crate::mxmd::Mesh) draw call references a [VertexBufferDescriptor] and [IndexBufferDescriptor].
+//! Each [MeshV112](crate::mxmd::MeshV112) draw call references a [VertexBufferDescriptor] and [IndexBufferDescriptor].
 //! Vertex buffers except the weights buffer have an associated [VertexBufferExtInfo]
 //! for assigning additional data like outline buffers or morph targets.
 //!
@@ -55,7 +55,7 @@ use bilge::prelude::*;
 use binrw::{args, binread, BinRead, BinWrite};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-/// Vertex and vertex index buffer data used by a [Model](crate::mxmd::Model).
+/// Vertex and vertex index buffer data used by a [ModelV112](crate::mxmd::ModelV112).
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
@@ -359,7 +359,7 @@ pub struct MorphTargetFlags {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Weights {
-    /// Selected based on the associated [WeightLod] for a [Mesh](crate::mxmd::Mesh).
+    /// Selected based on the associated [WeightLod] for a [MeshV112](crate::mxmd::MeshV112).
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
     pub groups: Vec<WeightGroup>,
@@ -368,7 +368,7 @@ pub struct Weights {
     /// This is typically the last element.
     pub vertex_buffer_index: u16,
 
-    /// Selected based on the LOD of the [Mesh](crate::mxmd::Mesh).
+    /// Selected based on the LOD of the [MeshV112](crate::mxmd::MeshV112).
     #[br(parse_with = parse_count16_offset32, offset = base_offset)]
     #[xc3(count_offset(u16, u32))]
     pub weight_lods: Vec<WeightLod>,
@@ -421,7 +421,7 @@ pub struct WeightLod {
     /// One plus the indices pointing back to [groups](struct.Weights.html#structfield.groups).
     /// Unused entries use the value `0`.
     ///
-    /// Each [Mesh](crate::mxmd::Mesh) indexes into this list using a hardcoded remapping
+    /// Each [MeshV112](crate::mxmd::MeshV112) indexes into this list using a hardcoded remapping
     /// for the [RenderPassType](crate::mxmd::RenderPassType) of the assigned material.
     // TODO: Document each entry.
     pub group_indices_plus_one: [u16; 9],

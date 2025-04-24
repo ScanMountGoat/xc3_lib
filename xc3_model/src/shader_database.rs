@@ -1,9 +1,8 @@
 //! Database for compiled shader metadata for more accurate rendering.
 //!
 //! In game shaders are precompiled and embedded in files like `.wismt`.
-//! These types represent precomputed metadata like assignments to G-Buffer textures.
-//! This is necessary for determining the usage of a texture like albedo or normal map
-//! since the assignments are compiled into the shader code itself.
+//! These types represent compiled shader instructions as a graph for
+//! to make it easier to generate shader code or material nodes in applications.
 //!
 //! Shader database files should be generated using the xc3_shader CLI tool.
 //! Applications can parse the data with [ShaderDatabase::from_file]
@@ -63,7 +62,6 @@ impl ProgramHash {
     /// Hash a legacy shader program.
     pub fn from_mths(mths: &xc3_lib::mths::Mths) -> Self {
         let mut hasher = crc32fast::Hasher::new();
-        // TODO: Update metadata separately instead of entire buffer?
         hasher.update(&mths.data);
         Self(hasher.finalize())
     }
@@ -108,6 +106,7 @@ pub struct ShaderProgram {
     pub normal_intensity: Option<OutputExpr>,
 }
 
+/// A single access to a constant or global resource like a texture.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Dependency {
@@ -173,6 +172,7 @@ pub struct AttributeDependency {
     pub channel: Option<char>,
 }
 
+/// A function or operation applied to one or more [OutputExpr].
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Operation {
@@ -219,22 +219,23 @@ impl Default for Operation {
     }
 }
 
-// TODO: replace layer and layervalue with this
 /// A tree of computations with [Dependency] for the leaf values.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum OutputExpr {
+    /// A single value.
     Value(Dependency),
-    // TODO: is it worth having separate unary, binary, etc ops
+    /// An operation applied to one or more [OutputExpr].
     Func {
+        /// The operation this function performs.
         op: Operation,
+        /// The function argument list `[arg0, arg1, ...]`.
         args: Vec<OutputExpr>,
     },
 }
 
 impl Default for OutputExpr {
     fn default() -> Self {
-        // TODO: Create a special value for unsupported values?
         Self::Func {
             op: Operation::Unk,
             args: Vec::new(),
