@@ -246,8 +246,6 @@ pub fn create_model_shader(key: &PipelineKey) -> String {
         ("// ASSIGN_COLOR_GENERATED", "g_color"),
         ("// ASSIGN_ETC_GENERATED", "g_etc_buffer"),
         ("// ASSIGN_NORMAL_GENERATED", "g_normal"),
-        ("// ASSIGN_G_VELOCITY_GENERATED", "g_velocity"),
-        ("// ASSIGN_G_DEPTH_GENERATED", "g_depth"),
         ("// ASSIGN_G_LGT_COLOR_GENERATED", "g_lgt_color"),
     ]
     .iter()

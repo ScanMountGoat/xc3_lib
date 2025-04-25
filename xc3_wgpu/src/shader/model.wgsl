@@ -542,8 +542,6 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
 
     // ASSIGN_COLOR_GENERATED
     // ASSIGN_ETC_GENERATED
-    // ASSIGN_G_VELOCITY_GENERATED
-    // ASSIGN_G_DEPTH_GENERATED
     // ASSIGN_G_LGT_COLOR_GENERATED
 
     // The ordering here is the order of per material fragment shader outputs.

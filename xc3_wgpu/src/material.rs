@@ -69,10 +69,12 @@ pub fn create_material(
         name_to_index.entry_index(format!("s{}", a.texture_index).into());
     }
 
+    // Don't generate code for velocity or depth.
     let output_layers_wgsl: Vec<_> = material_assignments
         .assignments
         .iter()
         .enumerate()
+        .filter(|(i, _)| *i != 3 && *i != 4)
         .map(|(i, a)| {
             if i == 2 {
                 generate_normal_layering_wgsl(a, &mut name_to_index)
