@@ -264,6 +264,12 @@ pub fn create_model_shader(key: &PipelineKey) -> String {
         &key.normal_intensity_wgsl.replace(OUT_VAR, "intensity"),
     );
 
+    // This section is only used for wgsl_to_wgpu reachability analysis and can be removed.
+    if let (Some(start), Some(end)) = (source.find("// REMOVE_BEGIN"), source.find("// REMOVE_END"))
+    {
+        source.replace_range(start..end, "");
+    }
+
     source
 }
 

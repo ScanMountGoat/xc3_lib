@@ -483,6 +483,7 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let tex8 = in.tex8.xy;
 
     // Required for reachability analysis to include these resources.
+    // REMOVE_BEGIN
     var _unused = textureSample(s0, s0_sampler, vec2(0.0));
     _unused = textureSample(s1, s1_sampler, vec2(0.0));
     _unused = textureSample(s2, s2_sampler, vec2(0.0));
@@ -500,6 +501,7 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     _unused = textureSample(s14, s14_sampler, vec2(0.0));
     _unused = textureSample(s15, s14_sampler, vec2(0.0));
     _unused = textureSample(s0, alpha_test_sampler, vec2(0.0));
+    // REMOVE_END
 
     // ALPHA_TEST_DISCARD_GENERATED
 
