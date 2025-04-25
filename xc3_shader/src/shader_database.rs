@@ -35,7 +35,7 @@ use crate::{
             assign_x, assign_x_recursive, dot3_a_b, fma_a_b_c, fma_half_half, mix_a_b_ratio,
             node_expr, normalize, query_nodes,
         },
-        Expr, Graph, Node, UnaryOp,
+        BinaryOp, Expr, Graph, Node, UnaryOp,
     },
 };
 
@@ -333,16 +333,16 @@ fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -> OutputExp
             .or_else(|| op_overlay(&graph.nodes, expr))
             .or_else(|| op_mix(&graph.nodes, expr))
             .or_else(|| op_mul_ratio(&graph.nodes, expr))
-            .or_else(|| op_mul(&graph.nodes, expr))
-            .or_else(|| op_div(&graph.nodes, expr))
             .or_else(|| op_add_ratio(expr))
             .or_else(|| op_sub(&graph.nodes, expr))
-            .or_else(|| op_add(&graph.nodes, expr))
+            .or_else(|| binary_op(expr, BinaryOp::Mul, Operation::Mul))
+            .or_else(|| binary_op(expr, BinaryOp::Div, Operation::Div))
+            .or_else(|| binary_op(expr, BinaryOp::Add, Operation::Add))
             .or_else(|| op_pow(&graph.nodes, expr))
             .or_else(|| op_clamp(&graph.nodes, expr))
             .or_else(|| op_min(&graph.nodes, expr))
             .or_else(|| op_max(&graph.nodes, expr))
-            .or_else(|| op_abs(&graph.nodes, expr))
+            .or_else(|| unary_op(expr, "abs", Operation::Abs))
         {
             // Recursively detect values or functions.
             // TODO: caching to avoid visiting expr more than once?
@@ -352,8 +352,11 @@ fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -> OutputExp
                 .collect();
             OutputExpr::Func { op, args }
         } else {
+            // TODO: sqrt, inversesqrt, floor, ternary, comparisons,
+            // TODO: exp2 should always be part of a pow expression
             // TODO: better fallback for unrecognized function or values?
             // TODO: log unsupported expr during database creation?
+            println!("{}", graph.expr_to_glsl(expr));
             OutputExpr::Func {
                 op: Operation::Unk,
                 args: Vec::new(),
@@ -423,6 +426,7 @@ static OP_RATIO: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
+// TODO: Is it better to just detect this as mix -> mul?
 fn op_mul_ratio<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // getPixelCalcRatioBlend in pcmdo fragment shaders for XC1 and XC3.
     let result = query_nodes(expr, nodes, &OP_RATIO.nodes)?;
@@ -436,59 +440,6 @@ fn op_add_ratio(expr: &Expr) -> Option<(Operation, Vec<&Expr>)> {
     // += getPixelCalcRatio in pcmdo fragment shaders for XC1 and XC3.
     let (a, b, c) = fma_a_b_c(expr)?;
     Some((Operation::Fma, vec![a, b, c]))
-}
-
-static OP_ADD: LazyLock<Graph> =
-    LazyLock::new(|| Graph::parse_glsl("void main() { result = a + b; }").unwrap());
-
-fn op_add<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    // Some layers are simply added together like for xeno3/chr/chr/ch05042101.wimdo "hat_toon".
-    let result = query_nodes(expr, nodes, &OP_ADD.nodes)?;
-    let a = result.get("a")?;
-    let b = result.get("b")?;
-    Some((Operation::Add, vec![a, b]))
-}
-
-static OP_SUB: LazyLock<Graph> =
-    LazyLock::new(|| Graph::parse_glsl("void main() { result = a - b; }").unwrap());
-
-static OP_SUB2: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-            void main() {
-                neg_b = 0.0 - b;
-                result = a + neg_b;
-            }
-        "};
-    Graph::parse_glsl(query).unwrap()
-});
-
-fn op_sub<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    // Some layers are simply subtracted like for xeno3/chr/chr/ch44000210.wimdo "ch45133501_body".
-    let result = query_nodes(expr, nodes, &OP_SUB.nodes)
-        .or_else(|| query_nodes(expr, nodes, &OP_SUB2.nodes))?;
-    let a = result.get("a")?;
-    let b = result.get("b")?;
-    Some((Operation::Sub, vec![a, b]))
-}
-
-static OP_MUL: LazyLock<Graph> =
-    LazyLock::new(|| Graph::parse_glsl("void main() { result = a * b; }").unwrap());
-
-fn op_mul<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(expr, nodes, &OP_MUL.nodes)?;
-    let a = result.get("a")?;
-    let b = result.get("b")?;
-    Some((Operation::Mul, vec![a, b]))
-}
-
-static OP_DIV: LazyLock<Graph> =
-    LazyLock::new(|| Graph::parse_glsl("void main() { result = a / b; }").unwrap());
-
-fn op_div<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(expr, nodes, &OP_DIV.nodes)?;
-    let a = result.get("a")?;
-    let b = result.get("b")?;
-    Some((Operation::Div, vec![a, b]))
 }
 
 static OP_OVERLAY_XC2: LazyLock<Graph> = LazyLock::new(|| {
@@ -630,15 +581,6 @@ fn op_min<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a E
     Some((Operation::Min, vec![a, b]))
 }
 
-static OP_ABS: LazyLock<Graph> =
-    LazyLock::new(|| Graph::parse_glsl("void main() { result = abs(a); }").unwrap());
-
-fn op_abs<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(expr, nodes, &OP_ABS.nodes)?;
-    let a = result.get("a")?;
-    Some((Operation::Abs, vec![a]))
-}
-
 static OP_CLAMP: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = clamp(a, b, c); }").unwrap());
 
@@ -650,6 +592,54 @@ fn op_clamp<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a
     let b = result.get("b")?;
     let c = result.get("c")?;
     Some((Operation::Clamp, vec![a, b, c]))
+}
+
+fn unary_op<'a>(
+    expr: &'a Expr,
+    fn_name: &str,
+    op: Operation,
+) -> Option<(Operation, Vec<&'a Expr>)> {
+    if let Expr::Func { name, args, .. } = expr {
+        if name == fn_name {
+            return Some((op, vec![&args[0]]));
+        }
+    }
+    None
+}
+
+static OP_SUB: LazyLock<Graph> =
+    LazyLock::new(|| Graph::parse_glsl("void main() { result = a - b; }").unwrap());
+
+static OP_SUB2: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+            void main() {
+                neg_b = 0.0 - b;
+                result = a + neg_b;
+            }
+        "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn op_sub<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    // Some layers are simply subtracted like for xeno3/chr/chr/ch44000210.wimdo "ch45133501_body".
+    let result = query_nodes(expr, nodes, &OP_SUB.nodes)
+        .or_else(|| query_nodes(expr, nodes, &OP_SUB2.nodes))?;
+    let a = result.get("a")?;
+    let b = result.get("b")?;
+    Some((Operation::Sub, vec![a, b]))
+}
+
+fn binary_op<'a>(
+    expr: &'a Expr,
+    binary_op: BinaryOp,
+    operation: Operation,
+) -> Option<(Operation, Vec<&'a Expr>)> {
+    if let Expr::Binary(op, a0, a1) = expr {
+        if *op == binary_op {
+            return Some((operation, vec![a0, a1]));
+        }
+    }
+    None
 }
 
 fn dependency_expr(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
