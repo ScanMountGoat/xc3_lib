@@ -49,8 +49,8 @@ impl ShaderDatabase {
     }
 
     /// Create a new database with combined entries from `other`.
-    pub fn merge<'a>(self, others: impl Iterator<Item = &'a Self>) -> Self {
-        Self(self.0.merge(others.into_iter().map(|o| &o.0)))
+    pub fn merge<'a>(self, others: impl Iterator<Item = Self>) -> Self {
+        Self(self.0.merge(others.into_iter().map(|o| o.0)))
     }
 }
 

@@ -344,8 +344,7 @@ impl ShaderDatabaseIndexed {
         database
     }
 
-    pub fn merge<'a>(self, others: impl Iterator<Item = &'a Self>) -> Self {
-        // TODO: Avoid large deallocations?
+    pub fn merge(self, others: impl Iterator<Item = Self>) -> Self {
         // Reuse existing indices when merging.
         let mut dependency_to_index = self
             .dependencies
@@ -357,33 +356,63 @@ impl ShaderDatabaseIndexed {
             .iter()
             .map(|b| self.buffer_dependency_from_indexed(b))
             .collect();
-        let mut output_expr_to_index = self
-            .output_exprs
-            .iter()
-            .map(|e| self.output_expr_from_indexed(e))
-            .collect();
         let mut tex_coord_to_index = self
             .tex_coords
             .iter()
             .map(|t| self.tex_coord_from_indexed(t))
             .collect();
 
-        // TODO: find a way to only process the unique items in other?
-
         let mut merged = self;
 
         // Reindex all programs.
-        for other in others {
+        for mut other in others {
+            // Remap indices to process unique items only once.
+            let output_indices: Vec<_> = other
+                .outputs
+                .iter()
+                .map(|o| add_string(&mut merged.outputs, o.clone()))
+                .collect();
+
+            let dependency_indices: Vec<_> = other
+                .dependencies
+                .iter()
+                .map(|d| {
+                    let d = other.dependency_from_indexed(d);
+                    merged
+                        .add_dependency(
+                            d,
+                            &mut dependency_to_index,
+                            &mut buffer_dependency_to_index,
+                            &mut tex_coord_to_index,
+                        )
+                        .0
+                })
+                .collect();
+
+            // Remap output exprs in place to avoid costly indexing and large allocations.
+            // TODO: Collect only unique exprs.
+            let base_index = merged.output_exprs.len();
+            for expr in &mut other.output_exprs {
+                match expr {
+                    OutputExprIndexed::Value(d) => {
+                        *d = VarInt(dependency_indices[d.0]);
+                    }
+                    OutputExprIndexed::Func { args, .. } => {
+                        for arg in args {
+                            arg.0 += base_index;
+                        }
+                    }
+                }
+            }
+            merged.output_exprs.extend_from_slice(&other.output_exprs);
+
             for (hash, program) in &other.programs {
-                let program = other.program_from_indexed(program);
-                let indexed = merged.program_indexed(
-                    program,
-                    &mut dependency_to_index,
-                    &mut buffer_dependency_to_index,
-                    &mut output_expr_to_index,
-                    &mut tex_coord_to_index,
-                );
-                merged.programs.insert(*hash, indexed);
+                let mut program = program.clone();
+                for (k, v) in &mut program.output_dependencies {
+                    *k = output_indices[k.0];
+                    v.0 += base_index;
+                }
+                merged.programs.insert(*hash, program);
             }
         }
 

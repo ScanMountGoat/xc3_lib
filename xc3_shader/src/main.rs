@@ -153,7 +153,7 @@ fn main() {
                     .iter()
                     .map(|o| ShaderDatabase::from_file(o).unwrap())
                     .collect();
-                let merged = base.merge(others.iter());
+                let merged = base.merge(others.into_iter());
                 merged.save(output_file).unwrap();
             }
         }
