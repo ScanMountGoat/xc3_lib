@@ -90,16 +90,16 @@ fn check_exprs<'a>(
     input_nodes: &'a [Node],
     vars: &mut BTreeMap<String, &'a Expr>,
 ) -> bool {
-    let mut check = |a, b| check_exprs(a, b, query_nodes, input_nodes, vars);
+    let mut check = |a, b| check_args(a, b, query_nodes, input_nodes, vars);
 
     match (query, input) {
         (Expr::Binary(BinaryOp::Sub, a1, b1), Expr::Binary(BinaryOp::Add, a2, b2)) => {
             // a - b == a + (-b) == a + (0.0 - b)
             // TODO: Find a way to avoid repetition.
             match b2.deref() {
-                Expr::Unary(UnaryOp::Negate, b2) => check(a1, a2) && check(b1, b2),
+                Expr::Unary(UnaryOp::Negate, b2) => check(&[a1, b1], &[a2, b2]),
                 Expr::Binary(BinaryOp::Sub, z, b2) => {
-                    **z == Expr::Float(0.0) && check(a1, a2) && check(b1, b2)
+                    **z == Expr::Float(0.0) && check(&[a1, b1], &[a2, b2])
                 }
                 _ => false,
             }
@@ -107,25 +107,28 @@ fn check_exprs<'a>(
         (Expr::Binary(BinaryOp::Add, a1, b1), Expr::Binary(BinaryOp::Sub, a2, b2)) => {
             // a + (-b) == a + (0.0 - b) == a - b
             match b1.deref() {
-                Expr::Unary(UnaryOp::Negate, b1) => check(a1, a2) && check(b1, b2),
+                Expr::Unary(UnaryOp::Negate, b1) => check(&[a1, b1], &[a2, b2]),
                 Expr::Binary(BinaryOp::Sub, z, b1) => {
-                    **z == Expr::Float(0.0) && check(a1, a2) && check(b1, b2)
+                    **z == Expr::Float(0.0) && check(&[a1, b1], &[a2, b2])
                 }
                 _ => false,
             }
         }
-        (Expr::Unary(op1, a1), Expr::Unary(op2, a2)) => op1 == op2 && check(a1, a2),
+        (Expr::Unary(op1, a1), Expr::Unary(op2, a2)) => op1 == op2 && check(&[a1], &[a2]),
         (Expr::Binary(op1, a1, b1), Expr::Binary(op2, a2, b2)) => {
             op1 == op2
                 && if matches!(op1, BinaryOp::Add | BinaryOp::Mul) {
                     // commutativity
-                    check(a1, a2) && check(b1, b2) || check(a1, b2) && check(b1, a2)
+                    let q1 = &[a1.deref(), b1.deref()];
+                    let q2 = &[b1.deref(), a1.deref()];
+                    let i = &[a2.deref(), b2.deref()];
+                    check(q1, i) || check(q2, i)
                 } else {
-                    check(a1, a2) && check(b1, b2)
+                    check(&[a1, b1], &[a2, b2])
                 }
         }
         (Expr::Ternary(a1, b1, c1), Expr::Ternary(a2, b2, c2)) => {
-            check(a1, a2) && check(b1, b2) && check(c1, c2)
+            check(&[a1, b1, c1], &[a2, b2, c2])
         }
         (
             Expr::Func {
@@ -141,17 +144,17 @@ fn check_exprs<'a>(
         ) => {
             name1 == name2
                 && channel1 == channel2
-                && args1.len() == args2.len()
                 && if name1 == "fma" {
                     // commutativity of the mul part of fma
-                    check(&args1[0], &args2[0])
-                        && check(&args1[1], &args2[1])
-                        && check(&args1[2], &args2[2])
-                        || check(&args1[1], &args2[0])
-                            && check(&args1[0], &args2[1])
-                            && check(&args1[2], &args2[2])
+                    let q1 = &[&args1[0], &args1[1], &args1[2]];
+                    let q2 = &[&args1[1], &args1[0], &args1[2]];
+                    let i = &[&args2[0], &args2[1], &args2[2]];
+                    check(q1, i) || check(q2, i)
                 } else {
-                    args1.iter().zip(args2).all(|(a1, a2)| check(a1, a2))
+                    check(
+                        &args1.iter().collect::<Vec<_>>(),
+                        &args2.iter().collect::<Vec<_>>(),
+                    )
                 }
         }
         (
@@ -163,7 +166,7 @@ fn check_exprs<'a>(
                 node_index: n2,
                 channel: c2,
             },
-        ) => c1 == c2 && check(&query_nodes[*n1].input, &input_nodes[*n2].input),
+        ) => c1 == c2 && check(&[&query_nodes[*n1].input], &[&input_nodes[*n2].input]),
         (Expr::Global { name, channel }, i) => {
             // TODO: What happens if the var is already in the map?
             // TODO: Special case to check name if query and input are both Expr::Global?
@@ -177,14 +180,49 @@ fn check_exprs<'a>(
         }
         (Expr::Unary(UnaryOp::Negate, a1), Expr::Binary(BinaryOp::Sub, a2, b2)) => {
             // 0.0 - x == -x
-            **a2 == Expr::Float(0.0) && check(a1, b2)
+            **a2 == Expr::Float(0.0) && check(&[a1], &[b2])
         }
         (Expr::Binary(BinaryOp::Sub, a1, b1), Expr::Unary(UnaryOp::Negate, a2)) => {
             // 0.0 - x == -x
-            **a1 == Expr::Float(0.0) && check(b1, a2)
+            **a1 == Expr::Float(0.0) && check(&[b1], &[a2])
         }
         _ => query == input,
     }
+}
+
+fn check_args<'a>(
+    query: &[&Expr],
+    input: &[&'a Expr],
+    query_nodes: &[Node],
+    input_nodes: &'a [Node],
+    vars: &mut BTreeMap<String, &'a Expr>,
+) -> bool {
+    // Number unique nodes to handle repeated variables.
+    // fma(a, b, a) should not match fma(temp0, 2.0, temp1).
+    let mut query_indices = Vec::new();
+    let mut input_indices = Vec::new();
+    query.len() == input.len()
+        && query.iter().zip(input).all(|(q, i)| {
+            // TODO: only number variables to allow more simplification?
+            let q_index = query_indices
+                .iter()
+                .position(|e| *e == q)
+                .unwrap_or_else(|| {
+                    let index = query_indices.len();
+                    query_indices.push(q);
+                    index
+                });
+            let i_index = input_indices
+                .iter()
+                .position(|e| *e == i)
+                .unwrap_or_else(|| {
+                    let index = input_indices.len();
+                    input_indices.push(i);
+                    index
+                });
+
+            q_index == i_index && check_exprs(q, i, query_nodes, input_nodes, vars)
+        })
 }
 
 pub fn assign_x<'a>(nodes: &'a [Node], expr: &Expr) -> Option<&'a Expr> {
@@ -395,6 +433,36 @@ mod tests {
             "}
         )
         .is_none());
+    }
+
+    #[test]
+    fn query_repeated_args() {
+        assert!(query_glsl(
+            indoc! {"
+                result = fma(1.0, 2.0, 3.0);
+            "},
+            indoc! {"
+                result = fma(a, b, a);
+            "}
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn query_repeated_args_multiple_assignments() {
+        assert!(query_glsl(
+            indoc! {"
+                temp0 = 4.0;
+                temp1 = temp0 + 3.0;
+                result = fma(temp1, 2.0, temp1);
+            "},
+            indoc! {"
+                a = 4.0;
+                b = a + 3.0;
+                result = fma(b, c, b);
+            "}
+        )
+        .is_some());
     }
 
     #[test]

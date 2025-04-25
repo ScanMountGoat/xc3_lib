@@ -248,7 +248,7 @@ static TEX_PARALLAX_XC2: LazyLock<Graph> = LazyLock::new(|| {
         void main() {
             coord = coord;
             mask = mask;
-            nrm_result = fma(temp, 0.7, temp);
+            nrm_result = fma(temp1, 0.7, temp2);
             neg_mask = 0.0 - mask;
             param_minus_mask = neg_mask + param;
             ratio = fma(param_minus_mask, param_ratio, mask);
@@ -264,7 +264,7 @@ static TEX_PARALLAX_XC3: LazyLock<Graph> = LazyLock::new(|| {
         void main() {
             coord = coord;
             mask = mask;
-            nrm_result = fma(temp, 0.7, temp);
+            nrm_result = fma(temp1, 0.7, temp2);
             neg_param = 0.0 - param;
             mask_minus_param = mask + neg_param;
             ratio = fma(mask_minus_param, param_ratio, param);
@@ -280,7 +280,7 @@ static TEX_PARALLAX_XC3_2: LazyLock<Graph> = LazyLock::new(|| {
         void main() {
             coord = coord;
             mask = mask;
-            nrm_result = fma(temp, 0.7, temp);
+            nrm_result = fma(temp1, 0.7, temp2);
             neg_param = 0.0 - param;
             mask_minus_param = mask + neg_param;
             ratio = fma(mask_minus_param, param_ratio, param);

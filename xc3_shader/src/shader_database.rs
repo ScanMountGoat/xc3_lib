@@ -391,7 +391,7 @@ static OP_OVER: LazyLock<Graph> = LazyLock::new(|| {
 });
 
 static OP_OVER2: LazyLock<Graph> = LazyLock::new(|| {
-    // Alternative form used for some XC1 shaders.
+    // Alternative form used for some shaders.
     let query = indoc! {"
         void main() {
             neg_ratio = 0.0 - ratio;
@@ -512,6 +512,7 @@ static OP_OVERLAY_XC2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
+// TODO: This can just be detected as mix -> overlay2?
 fn op_overlay_ratio<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // Overlay combines multiply and screen blend modes.
     // Some XC2 models use overlay blending for metalness.
@@ -679,16 +680,16 @@ fn dependency_expr(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<D
 static OP_ADD_NORMAL: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
-            n = n2 * temp;
+            n = n2 * temp1;
             neg_n = 0.0 - n;
-            n = fma(temp, temp, neg_n);
-            n_inv_sqrt = inversesqrt(temp);
+            n = fma(temp2, temp3, neg_n);
+            n_inv_sqrt = inversesqrt(temp4);
             neg_n1 = 0.0 - n1;
             r = fma(n, n_inv_sqrt, neg_n1);
 
             nom_work = nom_work;
             nom_work = fma(r, ratio, nom_work);
-            inv_sqrt = inversesqrt(temp);
+            inv_sqrt = inversesqrt(temp5);
             nom_work = nom_work * inv_sqrt;
         }
     "};
@@ -1521,7 +1522,7 @@ mod tests {
         let vertex = TranslationUnit::parse(vert_glsl).unwrap();
         let fragment = TranslationUnit::parse(frag_glsl).unwrap();
         let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc3/oj110006.3.txt", shader);
+        assert_debug_eq!("data/xc1/oj110006.3.txt", shader);
     }
 
     #[test]

@@ -166,7 +166,7 @@ impl Graph {
         format!("{}{} = {input_expr};\n", node.output.name, channels)
     }
 
-    fn expr_to_glsl(&self, input: &Expr) -> String {
+    pub(crate) fn expr_to_glsl(&self, input: &Expr) -> String {
         match input {
             Expr::Node {
                 node_index,
