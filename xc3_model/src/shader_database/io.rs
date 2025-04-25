@@ -779,16 +779,11 @@ impl ShaderDatabaseIndexed {
 }
 
 fn add_string(strings: &mut Vec<SmolStr>, str: SmolStr) -> VarInt {
-    VarInt(
-        strings
-            .iter()
-            .position(|s| s.to_string() == str)
-            .unwrap_or_else(|| {
-                let index = strings.len();
-                strings.push(str);
-                index
-            }),
-    )
+    VarInt(strings.iter().position(|s| s == &str).unwrap_or_else(|| {
+        let index = strings.len();
+        strings.push(str);
+        index
+    }))
 }
 
 // Variable length ints are slightly slower to parse but take up much less space.
