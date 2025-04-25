@@ -88,7 +88,7 @@ enum Commands {
         output: String,
     },
     /// Find output dependencies for the given GLSL shader program.
-    OutputDependenciesGlsl {
+    GlslOutputDependencies {
         /// The input fragment GLSL file.
         frag: String,
         /// The output text file.
@@ -162,7 +162,7 @@ fn main() {
             let graph = Graph::from_latte_asm(&asm);
             std::fs::write(output, graph.to_glsl()).unwrap();
         }
-        Commands::OutputDependenciesGlsl { frag, output } => {
+        Commands::GlslOutputDependencies { frag, output } => {
             let frag_glsl = std::fs::read_to_string(frag).unwrap();
             let fragment = TranslationUnit::parse(&frag_glsl).unwrap();
             let shader = shader_from_glsl(None, &fragment);

@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Added
 * Added support for reading and writing `.wilut` files to to xc3_tex.
-* Added `output-dependencies-glsl` command to xc3_shader for testing shader database output for a single shader program.
+* Added `glsl-output-dependencies` command to xc3_shader for testing shader database output for a single shader program.
 * Added rendering and shader database support for normal map intensity.
 
 ### Changed
