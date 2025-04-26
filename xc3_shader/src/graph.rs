@@ -245,12 +245,19 @@ impl Graph {
 fn simplify(input: &Expr, nodes: &[Node], simplified: &mut BTreeMap<usize, Expr>) -> Expr {
     // TODO: perform other simplifications?
     match input {
-        Expr::Node { node_index, .. } => {
+        Expr::Node {
+            node_index,
+            channel,
+        } => {
             // Simplify assignments using variable substitution.
             if let Some(expr) = simplified.get(node_index) {
                 expr.clone()
             } else {
-                let expr = simplify(&nodes[*node_index].input, nodes, simplified);
+                let mut expr = simplify(&nodes[*node_index].input, nodes, simplified);
+                // TODO: Is this the right way to apply channels?
+                if expr.channel().is_none() {
+                    expr.set_channel(*channel);
+                }
                 simplified.insert(*node_index, expr.clone());
                 expr
             }
@@ -304,6 +311,16 @@ impl Expr {
             Expr::Binary(_, _, _) => None,
             Expr::Ternary(_, _, _) => None,
             Expr::Func { channel, .. } => *channel,
+        }
+    }
+
+    pub fn set_channel(&mut self, c: Option<char>) {
+        match self {
+            Expr::Node { channel, .. } => *channel = c,
+            Expr::Parameter { channel, .. } => *channel = c,
+            Expr::Global { channel, .. } => *channel = c,
+            Expr::Func { channel, .. } => *channel = c,
+            _ => (),
         }
     }
 }

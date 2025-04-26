@@ -453,23 +453,32 @@ mod tests {
 
     #[test]
     fn query_simplification() {
+        let graph = indoc! {"
+            color = texture(s0, vec2(0.0, 0.5));
+            color2 = color;
+            glossiness = color2.x;
+            result = 0.0 - glossiness;
+            result = 1.0 + result;
+            result = clamp(result, 0.0, 1.0);
+            result = sqrt(result);
+            result = 0.0 - result;
+            result = result + 1.0;
+            result = result;
+        "};
+
         assert!(query_glsl_simplified(
+            graph,
             indoc! {"
-                result = 0.0 - glossiness;
-                result = 1.0 + result;
-                result = fma(result, result, temp);
-                result = clamp(result, 0.0, 1.0);
-                result = sqrt(result);
-                result = 0.0 - result;
-                result = result + 1.0;
-                result = result;
-            "},
-            indoc! {"
-                result = 1.0 + (0.0 - glossiness);
-                result = fma(result, result, temp);
+                result = 1.0 + (0.0 - texture(s0, vec2(0.0, 0.5)).x);
                 result = clamp(result, 0.0, 1.0);
                 result = 1.0 + (0.0 - sqrt(result));
             "}
+        )
+        .is_some());
+
+        assert!(query_glsl_simplified(
+            graph,
+            "result = 1.0 + (0.0 - sqrt(clamp(1.0 + (0.0 - texture(s0, vec2(0.0, 0.5)).x), 0.0, 1.0)));"
         )
         .is_some());
     }
