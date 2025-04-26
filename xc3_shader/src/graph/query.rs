@@ -478,7 +478,7 @@ mod tests {
 
         assert!(query_glsl_simplified(
             graph,
-            "result = 1.0 + (0.0 - sqrt(clamp(1.0 + (0.0 - texture(s0, vec2(0.0, 0.5)).x), 0.0, 1.0)));"
+            "result = 1.0 - sqrt(clamp(1.0 - texture(s0, vec2(0.0, 0.5)).x, 0.0, 1.0));"
         )
         .is_some());
     }

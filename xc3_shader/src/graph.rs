@@ -243,6 +243,7 @@ impl Graph {
 }
 
 fn simplify(input: &Expr, nodes: &[Node], simplified: &mut BTreeMap<usize, Expr>) -> Expr {
+    // Recursively simplify an expression.
     // TODO: perform other simplifications?
     match input {
         Expr::Node {
@@ -262,7 +263,53 @@ fn simplify(input: &Expr, nodes: &[Node], simplified: &mut BTreeMap<usize, Expr>
                 expr
             }
         }
+        Expr::Unary(UnaryOp::Negate, e) => {
+            let e = simplify(e, nodes, simplified);
+
+            if let Expr::Float(f) = e {
+                // -(f) == -f
+                Expr::Float(-f)
+            } else {
+                Expr::Unary(UnaryOp::Negate, Box::new(e))
+            }
+        }
         Expr::Unary(op, e) => Expr::Unary(*op, Box::new(simplify(e, nodes, simplified))),
+        Expr::Binary(BinaryOp::Sub, a, b) => {
+            let a = simplify(a, nodes, simplified);
+            let b = simplify(b, nodes, simplified);
+
+            // TODO: a - -b == a + b
+            if let Expr::Float(0.0) = a {
+                // 0.0 - b == -b
+                simplify(
+                    &Expr::Unary(UnaryOp::Negate, Box::new(b)),
+                    nodes,
+                    simplified,
+                )
+            } else {
+                Expr::Binary(BinaryOp::Sub, Box::new(a), Box::new(b))
+            }
+        }
+        Expr::Binary(BinaryOp::Add, a, b) => {
+            let a = simplify(a, nodes, simplified);
+            let b = simplify(b, nodes, simplified);
+
+            if let Expr::Float(0.0) = a {
+                // 0.0 + b == b
+                b
+            } else if let Expr::Float(0.0) = b {
+                // a + 0.0 == a
+                a
+            } else if let Expr::Unary(UnaryOp::Negate, a) = a {
+                // -a + b == b - a
+                Expr::Binary(BinaryOp::Sub, Box::new(b), a)
+            } else if let Expr::Unary(UnaryOp::Negate, b) = b {
+                // a + -b == a - b
+                Expr::Binary(BinaryOp::Sub, Box::new(a), b)
+            } else {
+                Expr::Binary(BinaryOp::Add, Box::new(a), Box::new(b))
+            }
+        }
         Expr::Binary(op, a, b) => Expr::Binary(
             *op,
             Box::new(simplify(a, nodes, simplified)),
@@ -370,10 +417,12 @@ mod tests {
     #[test]
     fn simplify_statements() {
         let glsl = indoc! {"
-            void main() {
+            void main() {       
+                color = texture(s0, vec2(0.0, 0.5));
+                color2 = color;
+                glossiness = color2.x;
                 result = 0.0 - glossiness;
                 result = 1.0 + result;
-                result = fma(result, result, temp);
                 result = clamp(result, 0.0, 1.0);
                 result = sqrt(result);
                 result = 0.0 - result;
@@ -383,11 +432,8 @@ mod tests {
         "};
         let graph = Graph::parse_glsl(glsl).unwrap();
 
-        // TODO: Also simplify subtraction.
-        let expected =
-            "result = 0.0 - sqrt(clamp(fma(1.0 + 0.0 - glossiness, 1.0 + 0.0 - glossiness, temp), 0.0, 1.0)) + 1.0;\n";
         assert_eq!(
-            expected,
+            "result = 1.0 - sqrt(clamp(1.0 - texture(s0, vec2(0.0, 0.5)).x, 0.0, 1.0));\n",
             graph.simplify(graph.nodes.last().unwrap()).to_glsl()
         );
     }
