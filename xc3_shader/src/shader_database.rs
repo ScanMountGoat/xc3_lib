@@ -629,11 +629,11 @@ fn op_sub<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a E
     Some((Operation::Sub, vec![a, b]))
 }
 
-fn binary_op<'a>(
-    expr: &'a Expr,
+fn binary_op(
+    expr: &Expr,
     binary_op: BinaryOp,
     operation: Operation,
-) -> Option<(Operation, Vec<&'a Expr>)> {
+) -> Option<(Operation, Vec<&Expr>)> {
     if let Expr::Binary(op, a0, a1) = expr {
         if *op == binary_op {
             return Some((operation, vec![a0, a1]));

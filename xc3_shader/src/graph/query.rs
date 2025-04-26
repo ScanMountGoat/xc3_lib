@@ -22,6 +22,7 @@
 use crate::graph::UnaryOp;
 
 use super::{BinaryOp, Expr, Graph, Node};
+use indexmap::IndexMap;
 use indoc::indoc;
 use std::{collections::BTreeMap, ops::Deref, sync::LazyLock};
 
@@ -197,31 +198,21 @@ fn check_args<'a>(
     input_nodes: &'a [Node],
     vars: &mut BTreeMap<String, &'a Expr>,
 ) -> bool {
-    // Number unique nodes to handle repeated variables.
-    // fma(a, b, a) should not match fma(temp0, 2.0, temp1).
-    let mut query_indices = Vec::new();
-    let mut input_indices = Vec::new();
+    // Track values for query variables used in this expr.
+    // fma(a, b, a) should not match fma(0.0, 1.0, 2.0).
+    // fma(a, b, c) should still match fma(1.0, 1.0, 1.0).
+    let mut local_vars = IndexMap::new();
     query.len() == input.len()
         && query.iter().zip(input).all(|(q, i)| {
-            // TODO: only number variables to allow more simplification?
-            let q_index = query_indices
-                .iter()
-                .position(|e| *e == q)
-                .unwrap_or_else(|| {
-                    let index = query_indices.len();
-                    query_indices.push(q);
-                    index
-                });
-            let i_index = input_indices
-                .iter()
-                .position(|e| *e == i)
-                .unwrap_or_else(|| {
-                    let index = input_indices.len();
-                    input_indices.push(i);
-                    index
-                });
-
-            q_index == i_index && check_exprs(q, i, query_nodes, input_nodes, vars)
+            if let Expr::Global { name, .. } = q {
+                if let Some(i_prev) = local_vars.insert(name, i) {
+                    // TODO: Should this check equivalent exprs?
+                    if i_prev != i {
+                        return false;
+                    }
+                }
+            }
+            check_exprs(q, i, query_nodes, input_nodes, vars)
         })
 }
 
@@ -437,15 +428,10 @@ mod tests {
 
     #[test]
     fn query_repeated_args() {
-        assert!(query_glsl(
-            indoc! {"
-                result = fma(1.0, 2.0, 3.0);
-            "},
-            indoc! {"
-                result = fma(a, b, a);
-            "}
-        )
-        .is_none());
+        assert!(query_glsl("result = fma(1.0, 2.0, 3.0);", "result = fma(a, b, c);").is_some());
+        assert!(query_glsl("result = fma(1.0, 2.0, 3.0);", "result = fma(a, b, a);").is_none());
+        assert!(query_glsl("result = fma(1.0, 2.0, 1.0);", "result = fma(a, b, a);").is_some());
+        assert!(query_glsl("result = fma(1.0, 1.0, 1.0);", "result = fma(a, b, c);").is_some());
     }
 
     #[test]
