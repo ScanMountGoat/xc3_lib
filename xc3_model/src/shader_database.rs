@@ -290,13 +290,14 @@ impl<'a> arbitrary::Arbitrary<'a> for TexCoord {
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for ShaderProgram {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
-        let output_dependencies: Vec<(String, OutputDependencies)> = u.arbitrary()?;
+        let output_dependencies: Vec<(String, OutputExpr)> = u.arbitrary()?;
         Ok(Self {
             output_dependencies: output_dependencies
                 .into_iter()
                 .map(|(k, v)| (k.into(), v))
                 .collect(),
             outline_width: u.arbitrary()?,
+            normal_intensity: u.arbitrary()?,
         })
     }
 }
