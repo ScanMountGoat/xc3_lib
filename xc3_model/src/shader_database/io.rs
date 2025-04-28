@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, io::Cursor, path::Path};
 
 use binrw::{binrw, BinRead, BinReaderExt, BinResult, BinWrite, BinWriterExt, NullString};
+use ordered_float::OrderedFloat;
 use smol_str::{SmolStr, ToSmolStr};
 use varint_rs::{VarintReader, VarintWriter};
 
@@ -12,7 +13,7 @@ use super::{
 // Faster than the default hash implementation.
 type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
 
-// Create a separate optimized representation for on disk.
+// Create a separate format optimized for storing on disk.
 #[binrw]
 #[derive(Debug, PartialEq, Clone, Default)]
 #[brw(magic(b"SHDB"))]
@@ -29,69 +30,70 @@ pub struct ShaderDatabaseIndexed {
     // This results in significantly fewer unique entries,
     // supports moving entries between files,
     // and allows for combining databases from different games.
+    // Use an ordered map for consistent ordering.
     #[br(parse_with = parse_map32)]
     #[bw(write_with = write_map32)]
     programs: BTreeMap<u32, ShaderProgramIndexed>,
 
-    #[br(parse_with = parse_count)]
-    #[bw(write_with = write_count)]
-    dependencies: Vec<DependencyIndexed>,
+    #[br(parse_with = parse_set)]
+    #[bw(write_with = write_set)]
+    dependencies: IndexSet<DependencyIndexed>,
 
-    #[br(parse_with = parse_count)]
-    #[bw(write_with = write_count)]
-    buffer_dependencies: Vec<BufferDependencyIndexed>,
+    #[br(parse_with = parse_set)]
+    #[bw(write_with = write_set)]
+    buffer_dependencies: IndexSet<BufferDependencyIndexed>,
 
-    #[br(parse_with = parse_count)]
-    #[bw(write_with = write_count)]
-    output_exprs: Vec<OutputExprIndexed>,
+    #[br(parse_with = parse_set)]
+    #[bw(write_with = write_set)]
+    output_exprs: IndexSet<OutputExprIndexed>,
 
-    #[br(parse_with = parse_count)]
-    #[bw(write_with = write_count)]
-    tex_coords: Vec<TexCoordIndexed>,
+    #[br(parse_with = parse_set)]
+    #[bw(write_with = write_set)]
+    tex_coords: IndexSet<TexCoordIndexed>,
 
     // Storing multiple string lists enables 8-bit instead of 16-bit indices.
     #[br(parse_with = parse_strings)]
     #[bw(write_with = write_strings)]
-    attribute_names: Vec<SmolStr>,
+    attribute_names: IndexSet<SmolStr>,
 
     #[br(parse_with = parse_strings)]
     #[bw(write_with = write_strings)]
-    buffer_names: Vec<SmolStr>,
+    buffer_names: IndexSet<SmolStr>,
 
     #[br(parse_with = parse_strings)]
     #[bw(write_with = write_strings)]
-    buffer_field_names: Vec<SmolStr>,
+    buffer_field_names: IndexSet<SmolStr>,
 
     #[br(parse_with = parse_strings)]
     #[bw(write_with = write_strings)]
-    texture_names: Vec<SmolStr>,
+    texture_names: IndexSet<SmolStr>,
 
     #[br(parse_with = parse_strings)]
     #[bw(write_with = write_strings)]
-    outputs: Vec<SmolStr>,
+    outputs: IndexSet<SmolStr>,
 }
 
 #[binrw]
 #[derive(Debug, PartialEq, Clone)]
 struct MapIndexed {
-    #[br(parse_with = parse_count)]
-    #[bw(write_with = write_count)]
+    #[br(parse_with = parse_vec)]
+    #[bw(write_with = write_vec)]
     map_models: Vec<ModelIndexed>,
 
-    #[br(parse_with = parse_count)]
-    #[bw(write_with = write_count)]
+    #[br(parse_with = parse_vec)]
+    #[bw(write_with = write_vec)]
     prop_models: Vec<ModelIndexed>,
 
-    #[br(parse_with = parse_count)]
-    #[bw(write_with = write_count)]
+    #[br(parse_with = parse_vec)]
+    #[bw(write_with = write_vec)]
     env_models: Vec<ModelIndexed>,
 }
 
 #[binrw]
 #[derive(Debug, PartialEq, Clone)]
 struct ModelIndexed {
-    #[br(parse_with = parse_count)]
-    #[bw(write_with = write_count)]
+    #[br(parse_with = parse_vec)]
+    #[bw(write_with = write_vec)]
     programs: Vec<ShaderProgramIndexed>,
 }
 
@@ -100,15 +102,15 @@ struct ModelIndexed {
 struct ShaderProgramIndexed {
     // There are very few unique dependencies across all shaders in a game dump.
     // Normalize the data to greatly reduce the size file size.
-    #[br(parse_with = parse_count)]
-    #[bw(write_with = write_count)]
+    #[br(parse_with = parse_vec)]
+    #[bw(write_with = write_vec)]
     output_dependencies: Vec<(VarInt, VarInt)>,
 
     outline_width: OptVarInt,
     normal_intensity: OptVarInt,
 }
 
-#[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, BinRead, BinWrite)]
 enum OutputExprIndexed {
     #[brw(magic(0u8))]
     Value(VarInt),
@@ -117,13 +119,13 @@ enum OutputExprIndexed {
     Func {
         op: OperationIndexed,
 
-        #[br(parse_with = parse_count)]
-        #[bw(write_with = write_count)]
+        #[br(parse_with = parse_vec)]
+        #[bw(write_with = write_vec)]
         args: Vec<VarInt>,
     },
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, BinRead, BinWrite)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, BinRead, BinWrite)]
 #[brw(repr(u8))]
 pub enum OperationIndexed {
     Unk = 0,
@@ -196,7 +198,7 @@ impl From<OperationIndexed> for Operation {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, BinRead, BinWrite)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, BinRead, BinWrite)]
 #[brw(repr(u8))]
 pub enum Channel {
     None = 0,
@@ -235,10 +237,14 @@ impl From<Option<char>> for Channel {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, BinRead, BinWrite)]
 enum DependencyIndexed {
     #[brw(magic(0u8))]
-    Constant(f32),
+    Constant(
+        #[br(map(|f: f32| f.into()))]
+        #[bw(map(|f| f.0))]
+        OrderedFloat<f32>,
+    ),
 
     #[brw(magic(1u8))]
     Buffer(VarInt),
@@ -250,7 +256,7 @@ enum DependencyIndexed {
     Attribute(AttributeDependencyIndexed),
 }
 
-#[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, BinRead, BinWrite)]
 struct BufferDependencyIndexed {
     name: VarInt,
     field: VarInt,
@@ -259,25 +265,25 @@ struct BufferDependencyIndexed {
 }
 
 #[binrw]
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct TextureDependencyIndexed {
     name: VarInt,
     channel: Channel,
 
-    #[br(parse_with = parse_count)]
-    #[bw(write_with = write_count)]
+    #[br(parse_with = parse_vec)]
+    #[bw(write_with = write_vec)]
     texcoords: Vec<VarInt>,
 }
 
 #[binrw]
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct TexCoordIndexed {
     name: VarInt,
     channel: Channel,
     params: TexCoordParamsIndexed,
 }
 
-#[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, BinRead, BinWrite)]
 enum TexCoordParamsIndexed {
     #[brw(magic(0u8))]
     None,
@@ -296,7 +302,7 @@ enum TexCoordParamsIndexed {
     },
 }
 
-#[derive(Debug, PartialEq, Clone, BinRead, BinWrite)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, BinRead, BinWrite)]
 struct AttributeDependencyIndexed {
     name: VarInt,
     channel: Channel,
@@ -322,22 +328,10 @@ impl ShaderDatabaseIndexed {
     }
 
     pub fn from_programs(programs: BTreeMap<ProgramHash, ShaderProgram>) -> Self {
-        let mut dependency_to_index = IndexSet::default();
-        let mut buffer_dependency_to_index = IndexSet::default();
-        let mut output_expr_to_index = IndexSet::default();
-        let mut tex_coord_to_index = IndexSet::default();
-
         let mut database = Self::default();
 
-        // Use an ordered map for consistent ordering.
         for (hash, p) in programs.into_iter() {
-            let program = database.program_indexed(
-                p,
-                &mut dependency_to_index,
-                &mut buffer_dependency_to_index,
-                &mut output_expr_to_index,
-                &mut tex_coord_to_index,
-            );
+            let program = database.program_indexed(p);
             database.programs.insert(hash.0, program);
         }
 
@@ -346,26 +340,10 @@ impl ShaderDatabaseIndexed {
 
     pub fn merge(self, others: impl Iterator<Item = Self>) -> Self {
         // Reuse existing indices when merging.
-        let mut dependency_to_index = self
-            .dependencies
-            .iter()
-            .map(|d| self.dependency_from_indexed(d))
-            .collect();
-        let mut buffer_dependency_to_index = self
-            .buffer_dependencies
-            .iter()
-            .map(|b| self.buffer_dependency_from_indexed(b))
-            .collect();
-        let mut tex_coord_to_index = self
-            .tex_coords
-            .iter()
-            .map(|t| self.tex_coord_from_indexed(t))
-            .collect();
-
         let mut merged = self;
 
         // Reindex all programs.
-        for mut other in others {
+        for other in others {
             // Remap indices to process unique items only once.
             let output_indices: Vec<_> = other
                 .outputs
@@ -378,33 +356,25 @@ impl ShaderDatabaseIndexed {
                 .iter()
                 .map(|d| {
                     let d = other.dependency_from_indexed(d);
-                    merged
-                        .add_dependency(
-                            d,
-                            &mut dependency_to_index,
-                            &mut buffer_dependency_to_index,
-                            &mut tex_coord_to_index,
-                        )
-                        .0
+                    merged.add_dependency(d).0
                 })
                 .collect();
 
             // Remap output exprs in place to avoid costly indexing and large allocations.
             // TODO: Collect only unique exprs.
             let base_index = merged.output_exprs.len();
-            for expr in &mut other.output_exprs {
-                match expr {
+            for expr in other.output_exprs {
+                let new_expr = match expr {
                     OutputExprIndexed::Value(d) => {
-                        *d = VarInt(dependency_indices[d.0]);
+                        OutputExprIndexed::Value(VarInt(dependency_indices[d.0]))
                     }
-                    OutputExprIndexed::Func { args, .. } => {
-                        for arg in args {
-                            arg.0 += base_index;
-                        }
-                    }
-                }
+                    OutputExprIndexed::Func { op, args } => OutputExprIndexed::Func {
+                        op,
+                        args: args.iter().map(|a| VarInt(a.0 + base_index)).collect(),
+                    },
+                };
+                merged.output_exprs.insert(new_expr);
             }
-            merged.output_exprs.extend_from_slice(&other.output_exprs);
 
             for (hash, program) in &other.programs {
                 let mut program = program.clone();
@@ -419,148 +389,46 @@ impl ShaderDatabaseIndexed {
         merged
     }
 
-    fn program_indexed(
-        &mut self,
-        p: ShaderProgram,
-        dependency_to_index: &mut IndexSet<Dependency>,
-        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
-        output_expr_to_index: &mut IndexSet<OutputExpr>,
-        tex_coord_to_index: &mut IndexSet<TexCoord>,
-    ) -> ShaderProgramIndexed {
+    fn program_indexed(&mut self, p: ShaderProgram) -> ShaderProgramIndexed {
         ShaderProgramIndexed {
             output_dependencies: p
                 .output_dependencies
                 .into_iter()
                 .map(|(output, value)| {
                     let output_index = add_string(&mut self.outputs, output);
-                    (
-                        output_index,
-                        self.add_output_expr(
-                            dependency_to_index,
-                            buffer_dependency_to_index,
-                            output_expr_to_index,
-                            tex_coord_to_index,
-                            &value,
-                        ),
-                    )
+                    (output_index, self.add_output_expr(&value))
                 })
                 .collect(),
-            outline_width: OptVarInt(p.outline_width.map(|d| {
-                self.add_dependency(
-                    d,
-                    dependency_to_index,
-                    buffer_dependency_to_index,
-                    tex_coord_to_index,
-                )
-                .0
-            })),
-            normal_intensity: OptVarInt(p.normal_intensity.map(|i| {
-                self.add_output_expr(
-                    dependency_to_index,
-                    buffer_dependency_to_index,
-                    output_expr_to_index,
-                    tex_coord_to_index,
-                    &i,
-                )
-                .0
-            })),
+            outline_width: OptVarInt(p.outline_width.map(|d| self.add_dependency(d).0)),
+            normal_intensity: OptVarInt(p.normal_intensity.map(|i| self.add_output_expr(&i).0)),
         }
     }
 
-    fn add_output_expr(
-        &mut self,
-        dependency_to_index: &mut IndexSet<Dependency>,
-        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
-        output_expr_to_index: &mut IndexSet<OutputExpr>,
-        tex_coord_to_index: &mut IndexSet<TexCoord>,
-        value: &OutputExpr,
-    ) -> VarInt {
-        let index = match output_expr_to_index.get_index_of(value) {
-            Some(index) => index,
-            None => {
-                let v = match &value {
-                    OutputExpr::Value(d) => OutputExprIndexed::Value(self.add_dependency(
-                        d.clone(),
-                        dependency_to_index,
-                        buffer_dependency_to_index,
-                        tex_coord_to_index,
-                    )),
-                    OutputExpr::Func { op, args } => OutputExprIndexed::Func {
-                        op: (*op).into(),
-                        args: args
-                            .iter()
-                            .map(|a| {
-                                self.add_output_expr(
-                                    dependency_to_index,
-                                    buffer_dependency_to_index,
-                                    output_expr_to_index,
-                                    tex_coord_to_index,
-                                    a,
-                                )
-                            })
-                            .collect(),
-                    },
-                };
-
-                let index = self.output_exprs.len();
-
-                self.output_exprs.push(v);
-                output_expr_to_index.insert(value.clone());
-
-                index
-            }
+    fn add_output_expr(&mut self, value: &OutputExpr) -> VarInt {
+        // Insert values that this value depends on first.
+        let v = match &value {
+            OutputExpr::Value(d) => OutputExprIndexed::Value(self.add_dependency(d.clone())),
+            OutputExpr::Func { op, args } => OutputExprIndexed::Func {
+                op: (*op).into(),
+                args: args.iter().map(|a| self.add_output_expr(a)).collect(),
+            },
         };
+
+        let (index, _) = self.output_exprs.insert_full(v);
 
         VarInt(index)
     }
 
-    fn add_dependency(
-        &mut self,
-        d: Dependency,
-        dependency_to_index: &mut IndexSet<Dependency>,
-        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
-        tex_coord_to_index: &mut IndexSet<TexCoord>,
-    ) -> VarInt {
-        let index = match dependency_to_index.get_index_of(&d) {
-            Some(index) => index,
-            None => {
-                let dependency = self.dependency_indexed(
-                    d.clone(),
-                    dependency_to_index,
-                    buffer_dependency_to_index,
-                    tex_coord_to_index,
-                );
-
-                let index = self.dependencies.len();
-
-                self.dependencies.push(dependency);
-                dependency_to_index.insert(d);
-
-                index
-            }
-        };
+    fn add_dependency(&mut self, d: Dependency) -> VarInt {
+        let dependency = self.dependency_indexed(d.clone());
+        let (index, _) = self.dependencies.insert_full(dependency);
 
         VarInt(index)
     }
 
-    fn add_buffer_dependency(
-        &mut self,
-        b: BufferDependency,
-        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
-    ) -> VarInt {
-        let index = match buffer_dependency_to_index.get_index_of(&b) {
-            Some(index) => index,
-            None => {
-                let dependency = self.buffer_dependency_indexed(b.clone());
-
-                let index = self.buffer_dependencies.len();
-
-                self.buffer_dependencies.push(dependency);
-                buffer_dependency_to_index.insert(b);
-
-                index
-            }
-        };
+    fn add_buffer_dependency(&mut self, b: BufferDependency) -> VarInt {
+        let dependency = self.buffer_dependency_indexed(b.clone());
+        let (index, _) = self.buffer_dependencies.insert_full(dependency);
 
         VarInt(index)
     }
@@ -625,32 +493,17 @@ impl ShaderDatabaseIndexed {
         }
     }
 
-    fn dependency_indexed(
-        &mut self,
-        d: Dependency,
-        dependency_to_index: &mut IndexSet<Dependency>,
-        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
-        tex_coord_to_index: &mut IndexSet<TexCoord>,
-    ) -> DependencyIndexed {
+    fn dependency_indexed(&mut self, d: Dependency) -> DependencyIndexed {
         match d {
-            Dependency::Constant(c) => DependencyIndexed::Constant(c.0),
-            Dependency::Buffer(b) => {
-                DependencyIndexed::Buffer(self.add_buffer_dependency(b, buffer_dependency_to_index))
-            }
+            Dependency::Constant(c) => DependencyIndexed::Constant(c),
+            Dependency::Buffer(b) => DependencyIndexed::Buffer(self.add_buffer_dependency(b)),
             Dependency::Texture(t) => DependencyIndexed::Texture(TextureDependencyIndexed {
                 name: add_string(&mut self.texture_names, t.name),
                 channel: t.channel.into(),
                 texcoords: t
                     .texcoords
                     .into_iter()
-                    .map(|t| {
-                        self.add_tex_coord(
-                            t,
-                            dependency_to_index,
-                            buffer_dependency_to_index,
-                            tex_coord_to_index,
-                        )
-                    })
+                    .map(|t| self.add_tex_coord(t))
                     .collect(),
             }),
             Dependency::Attribute(a) => DependencyIndexed::Attribute(AttributeDependencyIndexed {
@@ -660,31 +513,9 @@ impl ShaderDatabaseIndexed {
         }
     }
 
-    fn add_tex_coord(
-        &mut self,
-        t: TexCoord,
-        dependency_to_index: &mut IndexSet<Dependency>,
-        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
-        tex_coord_to_index: &mut IndexSet<TexCoord>,
-    ) -> VarInt {
-        let index = match tex_coord_to_index.get_index_of(&t) {
-            Some(index) => index,
-            None => {
-                let tex_coord = self.tex_coord_indexed(
-                    t.clone(),
-                    dependency_to_index,
-                    buffer_dependency_to_index,
-                    tex_coord_to_index,
-                );
-
-                let index = self.tex_coords.len();
-
-                self.tex_coords.push(tex_coord);
-                tex_coord_to_index.insert(t);
-
-                index
-            }
-        };
+    fn add_tex_coord(&mut self, t: TexCoord) -> VarInt {
+        let tex_coord = self.tex_coord_indexed(t.clone());
+        let (index, _) = self.tex_coords.insert_full(tex_coord);
 
         VarInt(index)
     }
@@ -716,43 +547,27 @@ impl ShaderDatabaseIndexed {
         }
     }
 
-    fn tex_coord_indexed(
-        &mut self,
-        t: TexCoord,
-        dependency_to_index: &mut IndexSet<Dependency>,
-        buffer_dependency_to_index: &mut IndexSet<BufferDependency>,
-        tex_coord_to_index: &mut IndexSet<TexCoord>,
-    ) -> TexCoordIndexed {
+    fn tex_coord_indexed(&mut self, t: TexCoord) -> TexCoordIndexed {
         TexCoordIndexed {
             name: add_string(&mut self.attribute_names, t.name),
             channel: t.channel.into(),
             params: t
                 .params
                 .map(|params| match params {
-                    TexCoordParams::Scale(s) => TexCoordParamsIndexed::Scale(
-                        self.add_buffer_dependency(s, buffer_dependency_to_index),
-                    ),
-                    TexCoordParams::Matrix(m) => TexCoordParamsIndexed::Matrix(
-                        m.map(|s| self.add_buffer_dependency(s, buffer_dependency_to_index)),
-                    ),
+                    TexCoordParams::Scale(s) => {
+                        TexCoordParamsIndexed::Scale(self.add_buffer_dependency(s))
+                    }
+                    TexCoordParams::Matrix(m) => {
+                        TexCoordParamsIndexed::Matrix(m.map(|s| self.add_buffer_dependency(s)))
+                    }
                     TexCoordParams::Parallax {
                         mask_a,
                         mask_b,
                         ratio,
                     } => TexCoordParamsIndexed::Parallax {
-                        mask_a: self.add_dependency(
-                            mask_a,
-                            dependency_to_index,
-                            buffer_dependency_to_index,
-                            tex_coord_to_index,
-                        ),
-                        mask_b: self.add_dependency(
-                            mask_b,
-                            dependency_to_index,
-                            buffer_dependency_to_index,
-                            tex_coord_to_index,
-                        ),
-                        ratio: self.add_buffer_dependency(ratio, buffer_dependency_to_index),
+                        mask_a: self.add_dependency(mask_a),
+                        mask_b: self.add_dependency(mask_b),
+                        ratio: self.add_buffer_dependency(ratio),
                     },
                 })
                 .unwrap_or(TexCoordParamsIndexed::None),
@@ -778,16 +593,16 @@ impl ShaderDatabaseIndexed {
     }
 }
 
-fn add_string(strings: &mut Vec<SmolStr>, str: SmolStr) -> VarInt {
-    VarInt(strings.iter().position(|s| s == &str).unwrap_or_else(|| {
+fn add_string(strings: &mut IndexSet<SmolStr>, str: SmolStr) -> VarInt {
+    VarInt(strings.get_index_of(&str).unwrap_or_else(|| {
         let index = strings.len();
-        strings.push(str);
+        strings.insert(str);
         index
     }))
 }
 
 // Variable length ints are slightly slower to parse but take up much less space.
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 struct VarInt(usize);
 
 impl BinRead for VarInt {
@@ -815,7 +630,7 @@ impl BinWrite for VarInt {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 struct OptVarInt(Option<usize>);
 
 impl BinRead for OptVarInt {
@@ -850,7 +665,7 @@ impl BinWrite for OptVarInt {
 }
 
 #[binrw::parser(reader, endian)]
-fn parse_count<T>() -> BinResult<Vec<T>>
+fn parse_vec<T>() -> BinResult<Vec<T>>
 where
     for<'a> T: BinRead<Args<'a> = ()> + 'static,
 {
@@ -859,7 +674,7 @@ where
 }
 
 #[binrw::writer(writer, endian)]
-fn write_count<T>(value: &Vec<T>) -> BinResult<()>
+fn write_vec<T>(value: &Vec<T>) -> BinResult<()>
 where
     for<'a> T: BinWrite<Args<'a> = ()> + 'static,
 {
@@ -869,15 +684,45 @@ where
 }
 
 #[binrw::parser(reader, endian)]
-fn parse_strings() -> BinResult<Vec<SmolStr>> {
+fn parse_set<T>() -> BinResult<IndexSet<T>>
+where
+    T: std::hash::Hash + Eq,
+    for<'a> T: BinRead<Args<'a> = ()> + 'static,
+{
     let count = VarInt::read_options(reader, endian, ())?.0;
-    let strings =
-        <Vec<NullString>>::read_options(reader, endian, binrw::VecArgs { count, inner: () })?;
-    Ok(strings.into_iter().map(|s| s.to_smolstr()).collect())
+    let mut values = IndexSet::default();
+    for _ in 0..count {
+        let value = T::read_options(reader, endian, ())?;
+        values.insert(value);
+    }
+    Ok(values)
 }
 
 #[binrw::writer(writer, endian)]
-fn write_strings(value: &Vec<SmolStr>) -> BinResult<()> {
+fn write_set<T>(values: &IndexSet<T>) -> BinResult<()>
+where
+    for<'a> T: BinWrite<Args<'a> = ()> + 'static,
+{
+    VarInt(values.len()).write_options(writer, endian, ())?;
+    for v in values {
+        v.write_options(writer, endian, ())?;
+    }
+    Ok(())
+}
+
+#[binrw::parser(reader, endian)]
+fn parse_strings() -> BinResult<IndexSet<SmolStr>> {
+    let count = VarInt::read_options(reader, endian, ())?.0;
+    let mut values = IndexSet::default();
+    for _ in 0..count {
+        let s = NullString::read_options(reader, endian, ())?;
+        values.insert(s.to_smolstr());
+    }
+    Ok(values)
+}
+
+#[binrw::writer(writer, endian)]
+fn write_strings(value: &IndexSet<SmolStr>) -> BinResult<()> {
     VarInt(value.len()).write_options(writer, endian, ())?;
     for v in value {
         NullString::from(v.as_str()).write_options(writer, endian, ())?;
