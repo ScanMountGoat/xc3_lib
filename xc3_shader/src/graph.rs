@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use smol_str::SmolStr;
+
 pub mod glsl;
 #[cfg(feature = "xc3")]
 pub mod latte;
@@ -19,7 +21,6 @@ pub struct Node {
     pub input: Expr,
 }
 
-// TODO: SmolStr?
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     /// A value assigned in a previous node.
@@ -37,21 +38,21 @@ pub enum Expr {
     Bool(bool),
     /// A parameter access like `name.field[index].x`, `name[index].x`, or `name.field.x`.
     Parameter {
-        name: String,
-        field: Option<String>,
+        name: SmolStr,
+        field: Option<SmolStr>,
         index: Option<Box<Expr>>,
         channel: Option<char>,
     },
     /// A global identifier like `in_attr0.x`.
     Global {
-        name: String,
+        name: SmolStr,
         channel: Option<char>,
     },
     Unary(UnaryOp, Box<Expr>),
     Binary(BinaryOp, Box<Expr>, Box<Expr>),
     Ternary(Box<Expr>, Box<Expr>, Box<Expr>),
     Func {
-        name: String,
+        name: SmolStr,
         args: Vec<Expr>,
         channel: Option<char>,
     },
@@ -88,7 +89,7 @@ pub enum BinaryOp {
 #[derive(Debug, PartialEq, Clone, Eq, PartialOrd, Ord)]
 pub struct Output {
     /// The name of the output variable like `out` in `out.x = in`
-    pub name: String,
+    pub name: SmolStr,
     // TODO: use a char index instead?
     /// The channel to assign to like `x` in `out.x = in`.
     /// Multiple channel assignments need to be split into multiple scalar assignments.

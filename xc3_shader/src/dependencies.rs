@@ -6,6 +6,7 @@ use crate::{
     shader_database::Attributes,
 };
 use indoc::indoc;
+use smol_str::SmolStr;
 use std::sync::LazyLock;
 use xc3_model::shader_database::{
     AttributeDependency, BufferDependency, Dependency, TexCoord, TexCoordParams, TextureDependency,
@@ -33,7 +34,7 @@ pub fn input_dependencies(
             } => {
                 if let Some(Expr::Int(index)) = index.as_deref() {
                     dependencies.push(Dependency::Buffer(BufferDependency {
-                        name: name.into(),
+                        name: name.clone(),
                         field: field.clone().unwrap_or_default().into(),
                         index: Some((*index).try_into().unwrap()),
                         channel: *channel,
@@ -82,7 +83,7 @@ pub fn attribute_dependencies(
                     if let Expr::Global { name, channel } = e {
                         if attributes.input_locations.contains_left(name.as_str()) {
                             Some(AttributeDependency {
-                                name: name.into(),
+                                name: name.clone(),
                                 channel: *channel,
                             })
                         } else {
@@ -126,7 +127,7 @@ pub fn texture_dependency(e: &Expr, graph: &Graph, attributes: &Attributes) -> O
                 let texcoords = texcoord_args(args, graph, attributes);
 
                 Some(Dependency::Texture(TextureDependency {
-                    name: name.into(),
+                    name: name.clone(),
                     channel: *channel,
                     texcoords,
                 }))
@@ -194,7 +195,7 @@ static SCALE_PARAMETER: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn scale_parameter(graph: &Graph, expr: &Expr) -> Option<(TexCoordParams, String, Option<char>)> {
+fn scale_parameter(graph: &Graph, expr: &Expr) -> Option<(TexCoordParams, SmolStr, Option<char>)> {
     // Detect simple multiplication by scale parameters.
     let result = query_nodes(expr, &graph.nodes, &SCALE_PARAMETER.nodes)?;
 
@@ -223,7 +224,7 @@ static TEX_MATRIX: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn tex_matrix(graph: &Graph, expr: &Expr) -> Option<(TexCoordParams, String, Option<char>)> {
+fn tex_matrix(graph: &Graph, expr: &Expr) -> Option<(TexCoordParams, SmolStr, Option<char>)> {
     // TODO: Also check that the attribute name matches?
     // Detect matrix multiplication for the mat4x2 "gTexMat * vec4(u, v, 0.0, 1.0)".
     // U and V have the same pattern but use a different row of the matrix.
@@ -297,7 +298,7 @@ fn tex_parallax(
     graph: &Graph,
     expr: &Expr,
     attributes: &Attributes,
-) -> Option<(TexCoordParams, String, Option<char>)> {
+) -> Option<(TexCoordParams, SmolStr, Option<char>)> {
     let expr = assign_x_recursive(&graph.nodes, expr);
 
     // Some eye shaders use some form of parallax mapping.
@@ -382,14 +383,14 @@ pub fn buffer_dependency(e: &Expr) -> Option<BufferDependency> {
     {
         if let Some(Expr::Int(index)) = index.as_deref() {
             Some(BufferDependency {
-                name: name.into(),
+                name: name.clone(),
                 field: field.clone().unwrap_or_default().into(),
                 index: Some((*index).try_into().unwrap()),
                 channel: *channel,
             })
         } else {
             Some(BufferDependency {
-                name: name.into(),
+                name: name.clone(),
                 field: field.clone().unwrap_or_default().into(),
                 index: None,
                 channel: *channel,

@@ -10,6 +10,7 @@ use glsl_lang::{
     visitor::{Host, Visit, Visitor},
 };
 use log::error;
+use smol_str::ToSmolStr;
 
 use super::*;
 
@@ -45,7 +46,7 @@ impl AssignmentVisitor {
         for input in inputs {
             let assignment = AssignmentDependency {
                 output: Output {
-                    name: output_name.to_string(),
+                    name: output_name.to_smolstr(),
                     channel: channels.next(),
                 },
                 input,
@@ -300,12 +301,12 @@ fn input_expr_inner(
             // The previous assignment may not always have a channel.
             match last_assignment_index
                 .get(&Output {
-                    name: i.to_string(),
+                    name: i.to_smolstr(),
                     channel,
                 })
                 .or_else(|| {
                     last_assignment_index.get(&Output {
-                        name: i.to_string(),
+                        name: i.to_smolstr(),
                         channel: None,
                     })
                 }) {
@@ -314,7 +315,7 @@ fn input_expr_inner(
                     channel,
                 },
                 None => Expr::Global {
-                    name: i.to_string(),
+                    name: i.to_smolstr(),
                     channel,
                 },
             }
@@ -374,12 +375,12 @@ fn input_expr_inner(
             let (name, field) = match &e.as_ref().content {
                 ExprData::Variable(id) => {
                     // buffer[index].x
-                    (id.content.to_string(), None)
+                    (id.content.to_smolstr(), None)
                 }
                 ExprData::Dot(e, field) => {
                     if let ExprData::Variable(id) = &e.content {
                         // buffer.field[index].x
-                        (id.content.to_string(), Some(field.to_string()))
+                        (id.content.to_smolstr(), Some(field.to_smolstr()))
                     } else {
                         todo!()
                     }
@@ -393,7 +394,7 @@ fn input_expr_inner(
                             show_expr(&mut index2, specifier2, &mut FormattingState::default())
                                 .unwrap();
 
-                            (id.content.to_string(), Some(format!("{field}[{index2}]")))
+                            (id.content.to_smolstr(), Some(format!("{field}[{index2}]").into()))
                         } else {
                             todo!()
                         }
@@ -405,7 +406,7 @@ fn input_expr_inner(
                     let mut text = String::new();
                     show_expr(&mut text, e, &mut FormattingState::default()).unwrap();
                     error!("Unsupported bracket expr {text:?}");
-                    (text, None)
+                    (text.into(), None)
                 }
             };
 
@@ -423,7 +424,7 @@ fn input_expr_inner(
                 FunIdentifierData::Expr(expr) => {
                     if let ExprData::Variable(id) = &expr.content {
                         // A normal function like "fma" or "texture".
-                        id.to_string()
+                        id.to_smolstr()
                     } else {
                         todo!()
                     }
@@ -432,7 +433,7 @@ fn input_expr_inner(
                     // A type cast like "int(temp_0)".
                     let mut name = String::new();
                     show_type_specifier(&mut name, ty, &mut FormattingState::default()).unwrap();
-                    name
+                    name.into()
                 }
             };
 
@@ -454,14 +455,14 @@ fn input_expr_inner(
                 input_expr_inner(e, last_assignment_index, rh.as_str().chars().next())
             } else if !rh.as_str().chars().all(|c| "xyzw".contains(c)) {
                 let name = match &e.as_ref().content {
-                    ExprData::Variable(id) => id.content.to_string(),
+                    ExprData::Variable(id) => id.content.to_smolstr(),
                     _ => todo!(),
                 };
 
                 // Handle params like U_Mate.gAlInf.w.
                 Expr::Parameter {
                     name,
-                    field: Some(rh.to_string()),
+                    field: Some(rh.to_smolstr()),
                     index: None,
                     channel,
                 }
@@ -512,11 +513,11 @@ mod tests {
                 nodes: vec![
                     Node {
                         output: Output {
-                            name: "a".to_string(),
+                            name: "a".into(),
                             channel: None,
                         },
                         input: Expr::Parameter {
-                            name: "fp_c9_data".to_string(),
+                            name: "fp_c9_data".into(),
                             field: None,
                             index: Some(Box::new(Expr::Int(0))),
                             channel: Some('x'),
@@ -524,17 +525,17 @@ mod tests {
                     },
                     Node {
                         output: Output {
-                            name: "b".to_string(),
+                            name: "b".into(),
                             channel: None,
                         },
                         input: Expr::Global {
-                            name: "in_attr0".to_string(),
+                            name: "in_attr0".into(),
                             channel: Some('z'),
                         },
                     },
                     Node {
                         output: Output {
-                            name: "c".to_string(),
+                            name: "c".into(),
                             channel: None,
                         },
                         input: Expr::Binary(
@@ -551,11 +552,11 @@ mod tests {
                     },
                     Node {
                         output: Output {
-                            name: "d".to_string(),
+                            name: "d".into(),
                             channel: None,
                         },
                         input: Expr::Func {
-                            name: "fma".to_string(),
+                            name: "fma".into(),
                             args: vec![
                                 Expr::Node {
                                     node_index: 0,
@@ -575,7 +576,7 @@ mod tests {
                     },
                     Node {
                         output: Output {
-                            name: "d".to_string(),
+                            name: "d".into(),
                             channel: None,
                         },
                         input: Expr::Binary(
@@ -589,7 +590,7 @@ mod tests {
                     },
                     Node {
                         output: Output {
-                            name: "OUT_Color".to_string(),
+                            name: "OUT_Color".into(),
                             channel: Some('x'),
                         },
                         input: Expr::Binary(
@@ -616,11 +617,11 @@ mod tests {
             nodes: vec![
                 Node {
                     output: Output {
-                        name: "a".to_string(),
+                        name: "a".into(),
                         channel: None,
                     },
                     input: Expr::Parameter {
-                        name: "fp_c9_data".to_string(),
+                        name: "fp_c9_data".into(),
                         field: None,
                         index: Some(Box::new(Expr::Int(0))),
                         channel: Some('x'),
@@ -628,17 +629,17 @@ mod tests {
                 },
                 Node {
                     output: Output {
-                        name: "b".to_string(),
+                        name: "b".into(),
                         channel: None,
                     },
                     input: Expr::Global {
-                        name: "in_attr0".to_string(),
+                        name: "in_attr0".into(),
                         channel: Some('z'),
                     },
                 },
                 Node {
                     output: Output {
-                        name: "c".to_string(),
+                        name: "c".into(),
                         channel: None,
                     },
                     input: Expr::Binary(
@@ -655,11 +656,11 @@ mod tests {
                 },
                 Node {
                     output: Output {
-                        name: "d".to_string(),
+                        name: "d".into(),
                         channel: None,
                     },
                     input: Expr::Func {
-                        name: "fma".to_string(),
+                        name: "fma".into(),
                         args: vec![
                             Expr::Node {
                                 node_index: 0,
@@ -679,7 +680,7 @@ mod tests {
                 },
                 Node {
                     output: Output {
-                        name: "d".to_string(),
+                        name: "d".into(),
                         channel: None,
                     },
                     input: Expr::Binary(
@@ -693,7 +694,7 @@ mod tests {
                 },
                 Node {
                     output: Output {
-                        name: "OUT_Color".to_string(),
+                        name: "OUT_Color".into(),
                         channel: Some('x'),
                     },
                     input: Expr::Binary(
@@ -730,14 +731,14 @@ mod tests {
             nodes: vec![
                 Node {
                     output: Output {
-                        name: "a".to_string(),
+                        name: "a".into(),
                         channel: None,
                     },
                     input: Expr::Float(1.0),
                 },
                 Node {
                     output: Output {
-                        name: "a2".to_string(),
+                        name: "a2".into(),
                         channel: None,
                     },
                     input: Expr::Binary(
@@ -751,18 +752,18 @@ mod tests {
                 },
                 Node {
                     output: Output {
-                        name: "b".to_string(),
+                        name: "b".into(),
                         channel: None,
                     },
                     input: Expr::Func {
-                        name: "texture".to_string(),
+                        name: "texture".into(),
                         args: vec![
                             Expr::Global {
-                                name: "texture1".to_string(),
+                                name: "texture1".into(),
                                 channel: None,
                             },
                             Expr::Func {
-                                name: "vec2".to_string(),
+                                name: "vec2".into(),
                                 args: vec![
                                     Expr::Binary(
                                         BinaryOp::Add,
@@ -782,14 +783,14 @@ mod tests {
                 },
                 Node {
                     output: Output {
-                        name: "c".to_string(),
+                        name: "c".into(),
                         channel: None,
                     },
                     input: Expr::Parameter {
-                        name: "data".to_string(),
+                        name: "data".into(),
                         field: None,
                         index: Some(Box::new(Expr::Func {
-                            name: "int".to_string(),
+                            name: "int".into(),
                             args: vec![Expr::Node {
                                 node_index: 2,
                                 channel: None,
@@ -830,14 +831,14 @@ mod tests {
                 nodes: vec![
                     Node {
                         output: Output {
-                            name: "a".to_string(),
+                            name: "a".into(),
                             channel: None,
                         },
                         input: Expr::Float(1.0,),
                     },
                     Node {
                         output: Output {
-                            name: "a2".to_string(),
+                            name: "a2".into(),
                             channel: None,
                         },
                         input: Expr::Binary(
@@ -851,18 +852,18 @@ mod tests {
                     },
                     Node {
                         output: Output {
-                            name: "b".to_string(),
+                            name: "b".into(),
                             channel: None,
                         },
                         input: Expr::Func {
-                            name: "texture".to_string(),
+                            name: "texture".into(),
                             args: vec![
                                 Expr::Global {
-                                    name: "texture1".to_string(),
+                                    name: "texture1".into(),
                                     channel: None,
                                 },
                                 Expr::Func {
-                                    name: "vec2".to_string(),
+                                    name: "vec2".into(),
                                     args: vec![
                                         Expr::Binary(
                                             BinaryOp::Add,
@@ -882,14 +883,14 @@ mod tests {
                     },
                     Node {
                         output: Output {
-                            name: "c".to_string(),
+                            name: "c".into(),
                             channel: None,
                         },
                         input: Expr::Parameter {
-                            name: "data".to_string(),
+                            name: "data".into(),
                             field: None,
                             index: Some(Box::new(Expr::Func {
-                                name: "int".to_string(),
+                                name: "int".into(),
                                 args: vec![Expr::Node {
                                     node_index: 2,
                                     channel: None,
@@ -919,17 +920,17 @@ mod tests {
                 nodes: vec![
                     Node {
                         output: Output {
-                            name: "R12".to_string(),
+                            name: "R12".into(),
                             channel: Some('w'),
                         },
                         input: Expr::Global {
-                            name: "R9".to_string(),
+                            name: "R9".into(),
                             channel: Some('z'),
                         },
                     },
                     Node {
                         output: Output {
-                            name: "PIX2".to_string(),
+                            name: "PIX2".into(),
                             channel: Some('w'),
                         },
                         input: Expr::Node {
@@ -959,14 +960,14 @@ mod tests {
                 nodes: vec![
                     Node {
                         output: Output {
-                            name: "f0".to_string(),
+                            name: "f0".into(),
                             channel: None,
                         },
                         input: Expr::Parameter {
-                            name: "U_BILL".to_string(),
-                            field: Some("data[int(temp_4)]".to_string()),
+                            name: "U_BILL".into(),
+                            field: Some("data[int(temp_4)]".into()),
                             index: Some(Box::new(Expr::Global {
-                                name: "temp_5".to_string(),
+                                name: "temp_5".into(),
                                 channel: None
                             })),
                             channel: None
@@ -974,16 +975,16 @@ mod tests {
                     },
                     Node {
                         output: Output {
-                            name: "f1".to_string(),
+                            name: "f1".into(),
                             channel: None,
                         },
                         input: Expr::Parameter {
-                            name: "U_POST".to_string(),
-                            field: Some("data".to_string()),
+                            name: "U_POST".into(),
+                            field: Some("data".into()),
                             index: Some(Box::new(Expr::Func {
-                                name: "int".to_string(),
+                                name: "int".into(),
                                 args: vec![Expr::Global {
-                                    name: "temp_206".to_string(),
+                                    name: "temp_206".into(),
                                     channel: None
                                 }],
                                 channel: None
@@ -993,24 +994,24 @@ mod tests {
                     },
                     Node {
                         output: Output {
-                            name: "f2".to_string(),
+                            name: "f2".into(),
                             channel: None,
                         },
                         input: Expr::Parameter {
-                            name: "U_Mate".to_string(),
-                            field: Some("gMatCol".to_string()),
+                            name: "U_Mate".into(),
+                            field: Some("gMatCol".into()),
                             index: None,
                             channel: Some('x')
                         }
                     },
                     Node {
                         output: Output {
-                            name: "f3".to_string(),
+                            name: "f3".into(),
                             channel: None,
                         },
                         input: Expr::Parameter {
-                            name: "U_Mate".to_string(),
-                            field: Some("gWrkCol".to_string()),
+                            name: "U_Mate".into(),
+                            field: Some("gWrkCol".into()),
                             index: Some(Box::new(Expr::Int(1))),
                             channel: Some('w')
                         }

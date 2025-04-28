@@ -2,6 +2,7 @@ use from_pest::{ConversionError, FromPest, Void};
 use pest::{iterators::Pairs, Parser, Span};
 use pest_ast::FromPest;
 use pest_derive::Parser;
+use smol_str::ToSmolStr;
 
 use super::*;
 
@@ -729,7 +730,7 @@ fn add_exp_inst(exp: CfExpInst, nodes: &mut Nodes) {
         for c in channels.chars() {
             let node = Node {
                 output: Output {
-                    name: format!("{target_name}{}", target_index + i),
+                    name: format!("{target_name}{}", target_index + i).into(),
                     channel: Some(c),
                 },
                 input: previous_assignment(
@@ -855,19 +856,19 @@ fn dot_product_node_index(
     if !dot4_a.is_empty() && !dot4_b.is_empty() {
         let node = Node {
             output: Output {
-                name: format!("temp{inst_count}"),
+                name: format!("temp{inst_count}").into(),
                 channel: None,
             },
             input: Expr::Func {
-                name: "dot".to_string(),
+                name: "dot".into(),
                 args: vec![
                     Expr::Func {
-                        name: "vec4".to_string(),
+                        name: "vec4".into(),
                         args: dot4_a,
                         channel: None,
                     },
                     Expr::Func {
-                        name: "vec4".to_string(),
+                        name: "vec4".into(),
                         args: dot4_b,
                         channel: None,
                     },
@@ -942,7 +943,7 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
         "MULADD" | "MULADD_IEEE" => add_func("fma", 3, &scalar, output, inst_count, nodes),
         "MULADD_D2" => {
             let input = Expr::Func {
-                name: "fma".to_string(),
+                name: "fma".into(),
                 args: vec![
                     scalar.sources[0].clone(),
                     scalar.sources[1].clone(),
@@ -991,7 +992,7 @@ fn add_func(
     let node = Node {
         output,
         input: Expr::Func {
-            name: func.to_string(),
+            name: func.into(),
             args: (0..arg_count).map(|i| scalar.sources[i].clone()).collect(),
             channel: None,
         },
@@ -1008,7 +1009,7 @@ fn alu_dst_output(dst: AluDst, inst_count: usize, alu_unit: char) -> Output {
         } => {
             let channel = one_comp_swizzle.and_then(|s| s.channels().chars().next());
             Output {
-                name: gpr.to_string(),
+                name: gpr.to_smolstr(),
                 channel,
             }
         }
@@ -1017,23 +1018,23 @@ fn alu_dst_output(dst: AluDst, inst_count: usize, alu_unit: char) -> Output {
             // ____ mask for t writes to a previous scalar "PS".
             match alu_unit {
                 'x' => Output {
-                    name: format!("PV{inst_count}"),
+                    name: format!("PV{inst_count}").into(),
                     channel: Some('x'),
                 },
                 'y' => Output {
-                    name: format!("PV{inst_count}"),
+                    name: format!("PV{inst_count}").into(),
                     channel: Some('y'),
                 },
                 'z' => Output {
-                    name: format!("PV{inst_count}"),
+                    name: format!("PV{inst_count}").into(),
                     channel: Some('z'),
                 },
                 'w' => Output {
-                    name: format!("PV{inst_count}"),
+                    name: format!("PV{inst_count}").into(),
                     channel: Some('w'),
                 },
                 't' => Output {
-                    name: format!("PS{inst_count}"),
+                    name: format!("PS{inst_count}").into(),
                     channel: None,
                 },
                 _ => unreachable!(),
@@ -1073,7 +1074,7 @@ fn alu_src_expr(source: AluSrc, nodes: &Nodes) -> Expr {
 
     let expr = match source.value {
         AluSrcValueOrAbs::Abs(abs_value) => Expr::Func {
-            name: "abs".to_string(),
+            name: "abs".into(),
             args: vec![value_expr(nodes, channel, abs_value.value)],
             channel: abs_value.swizzle.and_then(|s| s.channels().chars().next()),
         },
@@ -1092,19 +1093,19 @@ fn value_expr(nodes: &Nodes, channel: Option<char>, value: AluSrcValue) -> Expr 
     match value.0 {
         AluSrcValueInner::Gpr(gpr) => previous_assignment(&gpr.to_string(), channel, nodes),
         AluSrcValueInner::ConstantCache0(c0) => Expr::Parameter {
-            name: "KC0".to_string(),
+            name: "KC0".into(),
             field: None,
             index: Some(Box::new(Expr::Int(c0.0 .0 as i32))),
             channel,
         },
         AluSrcValueInner::ConstantCache1(c1) => Expr::Parameter {
-            name: "KC1".to_string(),
+            name: "KC1".into(),
             field: None,
             index: Some(Box::new(Expr::Int(c1.0 .0 as i32))),
             channel,
         },
         AluSrcValueInner::ConstantFile(cf) => Expr::Global {
-            name: format!("C{}", cf.0 .0), // TODO: how to handle constant file expressions?
+            name: format!("C{}", cf.0 .0).into(), // TODO: how to handle constant file expressions?
             channel,
         },
         AluSrcValueInner::Literal(literal) => {
@@ -1138,7 +1139,7 @@ fn previous_assignment(value: &str, channel: Option<char>, nodes: &Nodes) -> Exp
                 }
             })
             .unwrap_or(Expr::Global {
-                name: value.to_string(),
+                name: value.into(),
                 channel,
             })
     } else if value.starts_with("PS") {
@@ -1158,7 +1159,7 @@ fn previous_assignment(value: &str, channel: Option<char>, nodes: &Nodes) -> Exp
                 }
             })
             .unwrap_or(Expr::Global {
-                name: value.to_string(),
+                name: value.into(),
                 channel,
             })
     } else {
@@ -1171,7 +1172,7 @@ fn previous_assignment(value: &str, channel: Option<char>, nodes: &Nodes) -> Exp
                 channel,
             })
             .unwrap_or(Expr::Global {
-                name: value.to_string(),
+                name: value.into(),
                 channel,
             })
     }
@@ -1182,7 +1183,7 @@ fn tex_inst_node(tex: TexInst, nodes: &Nodes) -> Option<Vec<Node>> {
 
     // TODO: Get the input names and channels.
     // TODO: register or mask?
-    let output_name = tex.dst.gpr.to_string();
+    let output_name = tex.dst.gpr.to_smolstr();
     let output_channels = tex.dst.swizzle.channels();
 
     let texcoords = tex_src_coords(tex.src, nodes)?;
@@ -1192,7 +1193,7 @@ fn tex_inst_node(tex: TexInst, nodes: &Nodes) -> Option<Vec<Node>> {
     let _sampler = tex.sampler_id.0;
 
     let texture_name = Expr::Global {
-        name: texture.to_string(),
+        name: texture.into(),
         channel: None,
     };
 
@@ -1203,7 +1204,7 @@ fn tex_inst_node(tex: TexInst, nodes: &Nodes) -> Option<Vec<Node>> {
                 channel: None,
             },
             input: Expr::Func {
-                name: "texture".to_string(),
+                name: "texture".into(),
                 args: vec![texture_name, texcoords],
                 channel: None,
             },
@@ -1224,7 +1225,7 @@ fn tex_inst_node(tex: TexInst, nodes: &Nodes) -> Option<Vec<Node>> {
                                 channel: Some(c_out),
                             },
                             input: Expr::Func {
-                                name: "texture".to_string(),
+                                name: "texture".into(),
                                 args: vec![texture_name.clone(), texcoords.clone()],
                                 channel: Some(c_in),
                             },
@@ -1247,7 +1248,7 @@ fn tex_src_coords(src: TexSrc, nodes: &Nodes) -> Option<Expr> {
 
     // TODO: Also handle cube maps.
     Some(Expr::Func {
-        name: "vec2".to_string(),
+        name: "vec2".into(),
         args: vec![
             previous_assignment(&gpr, channels.next(), nodes),
             previous_assignment(&gpr, channels.next(), nodes),

@@ -171,7 +171,7 @@ fn check_exprs<'a>(
         (Expr::Global { name, channel }, i) => {
             // TODO: What happens if the var is already in the map?
             // TODO: Special case to check name if query and input are both Expr::Global?
-            vars.insert(name.clone(), i);
+            vars.insert(name.to_string(), i);
 
             // Treat unspecified channels as allowing all channels.
             match channel {
@@ -205,7 +205,7 @@ fn check_args<'a>(
     query.len() == input.len()
         && query.iter().zip(input).all(|(q, i)| {
             if let Expr::Global { name, .. } = q {
-                if let Some(i_prev) = local_vars.insert(name, i) {
+                if let Some(i_prev) = local_vars.insert(name.to_string(), i) {
                     // TODO: Should this check equivalent exprs?
                     if i_prev != i {
                         return false;

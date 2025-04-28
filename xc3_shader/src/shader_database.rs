@@ -356,7 +356,7 @@ fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -> OutputExp
             // TODO: exp2 should always be part of a pow expression
             // TODO: better fallback for unrecognized function or values?
             // TODO: log unsupported expr during database creation?
-            println!("{}", graph.expr_to_glsl(expr));
+            // println!("{}", graph.expr_to_glsl(expr));
             OutputExpr::Func {
                 op: Operation::Unk,
                 args: Vec::new(),
@@ -658,7 +658,7 @@ fn dependency_expr(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<D
                 Expr::Global { name, channel } => {
                     // TODO: Also check if this matches a vertex input name?
                     Some(Dependency::Attribute(AttributeDependency {
-                        name: name.into(),
+                        name: name.clone(),
                         channel: *channel,
                     }))
                 }
@@ -1143,8 +1143,8 @@ fn find_texcoord_input_name_channel(
 }
 
 pub fn create_shader_database(input: &str) -> ShaderDatabase {
+    // Collect unique programs.
     let mut programs = BTreeMap::new();
-
     for folder in std::fs::read_dir(input).unwrap().map(|e| e.unwrap().path()) {
         // TODO: Find a better way to detect maps.
         if !folder.join("map").exists()
@@ -1159,20 +1159,45 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
         }
     }
 
+    // Process programs in parallel since this is CPU heavy.
+    let programs = programs
+        .into_par_iter()
+        .map(|(hash, (vert, frag))| {
+            let vertex = vert.and_then(|s| {
+                let source = shader_source_no_extensions(&s);
+                match TranslationUnit::parse(source) {
+                    Ok(vertex) => Some(vertex),
+                    Err(e) => {
+                        error!("Error parsing shader: {e}");
+                        None
+                    }
+                }
+            });
+
+            let shader_program = frag
+                .map(|s| {
+                    let source = shader_source_no_extensions(&s);
+                    match TranslationUnit::parse(source) {
+                        Ok(fragment) => shader_from_glsl(vertex.as_ref(), &fragment),
+                        Err(e) => {
+                            error!("Error parsing shader: {e}");
+                            ShaderProgram::default()
+                        }
+                    }
+                })
+                .unwrap_or_default();
+
+            (hash, shader_program)
+        })
+        .collect();
+
     ShaderDatabase::from_programs(programs)
 }
 
-pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
-    let mut programs = BTreeMap::new();
-
-    for folder in std::fs::read_dir(input).unwrap().map(|e| e.unwrap().path()) {
-        add_programs_legacy(&mut programs, &folder);
-    }
-
-    ShaderDatabase::from_programs(programs)
-}
-
-fn add_map_programs(programs: &mut BTreeMap<ProgramHash, ShaderProgram>, folder: &Path) {
+fn add_map_programs(
+    programs: &mut BTreeMap<ProgramHash, (Option<String>, Option<String>)>,
+    folder: &Path,
+) {
     // TODO: Not all maps have env or prop models?
     if let Ok(dir) = std::fs::read_dir(folder) {
         // Folders are generated like "ma01a/prop/4".
@@ -1182,11 +1207,11 @@ fn add_map_programs(programs: &mut BTreeMap<ProgramHash, ShaderProgram>, folder:
     }
 }
 
-fn add_programs(programs: &mut BTreeMap<ProgramHash, ShaderProgram>, folder: &Path) {
+fn add_programs(
+    programs: &mut BTreeMap<ProgramHash, (Option<String>, Option<String>)>,
+    folder: &Path,
+) {
     if let Ok(spch) = Spch::from_file(folder.join("shaders.wishp")) {
-        // Avoid processing the same program more than once.
-        let mut unique_hash_slct_index = BTreeMap::new();
-
         for (i, slct_offset) in spch.slct_offsets.iter().enumerate() {
             let slct = slct_offset.read_slct(&spch.slct_section).unwrap();
 
@@ -1196,47 +1221,30 @@ fn add_programs(programs: &mut BTreeMap<ProgramHash, ShaderProgram>, folder: &Pa
             {
                 let hash = ProgramHash::from_spch_program(p, vert, frag);
 
-                if !programs.contains_key(&hash) {
-                    unique_hash_slct_index.insert(hash, i);
-                }
+                programs.entry(hash).or_insert_with(|| {
+                    let path = &folder
+                        .join(nvsd_glsl_name(&spch, i, 0))
+                        .with_extension("frag");
+
+                    // TODO: Should the vertex shader be mandatory?
+                    let vertex_source = std::fs::read_to_string(path.with_extension("vert")).ok();
+                    let frag_source = std::fs::read_to_string(path).ok();
+                    (vertex_source, frag_source)
+                });
             }
         }
-
-        // Shader processing is CPU intensive and benefits from parallelism.
-        programs.par_extend(unique_hash_slct_index.into_par_iter().map(|(hash, i)| {
-            let path = &folder
-                .join(nvsd_glsl_name(&spch, i, 0))
-                .with_extension("frag");
-
-            // TODO: Should the vertex shader be mandatory?
-            let vertex_source = std::fs::read_to_string(path.with_extension("vert")).ok();
-            let vertex = vertex_source.and_then(|s| {
-                let source = shader_source_no_extensions(&s);
-                match TranslationUnit::parse(source) {
-                    Ok(vertex) => Some(vertex),
-                    Err(e) => {
-                        error!("Error parsing {path:?}: {e}");
-                        None
-                    }
-                }
-            });
-
-            let frag_source = std::fs::read_to_string(path).ok();
-            let shader_program = frag_source
-                .map(|s| {
-                    let source = shader_source_no_extensions(&s);
-                    match TranslationUnit::parse(source) {
-                        Ok(fragment) => shader_from_glsl(vertex.as_ref(), &fragment),
-                        Err(e) => {
-                            error!("Error parsing {path:?}: {e}");
-                            ShaderProgram::default()
-                        }
-                    }
-                })
-                .unwrap_or_default();
-            (hash, shader_program)
-        }));
     }
+}
+
+pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
+    let mut programs = BTreeMap::new();
+
+    // TODO: Run this in parallel?
+    for folder in std::fs::read_dir(input).unwrap().map(|e| e.unwrap().path()) {
+        add_programs_legacy(&mut programs, &folder);
+    }
+
+    ShaderDatabase::from_programs(programs)
 }
 
 fn add_programs_legacy(programs: &mut BTreeMap<ProgramHash, ShaderProgram>, folder: &Path) {
