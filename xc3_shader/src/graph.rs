@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
 
 pub mod glsl;
@@ -21,7 +22,7 @@ pub struct Node {
     pub input: Expr,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Expr {
     /// A value assigned in a previous node.
     Node {
@@ -29,7 +30,7 @@ pub enum Expr {
         channel: Option<char>,
     },
     /// A float constant like `1.0`.
-    Float(f32),
+    Float(OrderedFloat<f32>),
     /// An integer constant like `-1`.
     Int(i32),
     /// An unsigned integer constant like `1`.
@@ -58,14 +59,14 @@ pub enum Expr {
     },
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum UnaryOp {
     Negate,
     Not,
     Complement,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum BinaryOp {
     Add,
     Sub,
@@ -280,7 +281,7 @@ fn simplify(input: &Expr, nodes: &[Node], simplified: &mut BTreeMap<usize, Expr>
             let b = simplify(b, nodes, simplified);
 
             // TODO: a - -b == a + b
-            if let Expr::Float(0.0) = a {
+            if let Expr::Float(OrderedFloat(0.0)) = a {
                 // 0.0 - b == -b
                 simplify(
                     &Expr::Unary(UnaryOp::Negate, Box::new(b)),
@@ -295,10 +296,10 @@ fn simplify(input: &Expr, nodes: &[Node], simplified: &mut BTreeMap<usize, Expr>
             let a = simplify(a, nodes, simplified);
             let b = simplify(b, nodes, simplified);
 
-            if let Expr::Float(0.0) = a {
+            if let Expr::Float(OrderedFloat(0.0)) = a {
                 // 0.0 + b == b
                 b
-            } else if let Expr::Float(0.0) = b {
+            } else if let Expr::Float(OrderedFloat(0.0)) = b {
                 // a + 0.0 == a
                 a
             } else if let Expr::Unary(UnaryOp::Negate, a) = a {

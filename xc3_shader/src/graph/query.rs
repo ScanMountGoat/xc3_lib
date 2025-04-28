@@ -24,6 +24,7 @@ use crate::graph::UnaryOp;
 use super::{BinaryOp, Expr, Graph, Node};
 use indexmap::IndexMap;
 use indoc::indoc;
+use ordered_float::OrderedFloat;
 use std::{collections::BTreeMap, ops::Deref, sync::LazyLock};
 
 impl Graph {
@@ -100,7 +101,7 @@ fn check_exprs<'a>(
             match b2.deref() {
                 Expr::Unary(UnaryOp::Negate, b2) => check(&[a1, b1], &[a2, b2]),
                 Expr::Binary(BinaryOp::Sub, z, b2) => {
-                    **z == Expr::Float(0.0) && check(&[a1, b1], &[a2, b2])
+                    **z == Expr::Float(OrderedFloat(0.0)) && check(&[a1, b1], &[a2, b2])
                 }
                 _ => false,
             }
@@ -110,7 +111,7 @@ fn check_exprs<'a>(
             match b1.deref() {
                 Expr::Unary(UnaryOp::Negate, b1) => check(&[a1, b1], &[a2, b2]),
                 Expr::Binary(BinaryOp::Sub, z, b1) => {
-                    **z == Expr::Float(0.0) && check(&[a1, b1], &[a2, b2])
+                    **z == Expr::Float(OrderedFloat(0.0)) && check(&[a1, b1], &[a2, b2])
                 }
                 _ => false,
             }
@@ -181,11 +182,11 @@ fn check_exprs<'a>(
         }
         (Expr::Unary(UnaryOp::Negate, a1), Expr::Binary(BinaryOp::Sub, a2, b2)) => {
             // 0.0 - x == -x
-            **a2 == Expr::Float(0.0) && check(&[a1], &[b2])
+            **a2 == Expr::Float(OrderedFloat(0.0)) && check(&[a1], &[b2])
         }
         (Expr::Binary(BinaryOp::Sub, a1, b1), Expr::Unary(UnaryOp::Negate, a2)) => {
             // 0.0 - x == -x
-            **a1 == Expr::Float(0.0) && check(&[b1], &[a2])
+            **a1 == Expr::Float(OrderedFloat(0.0)) && check(&[b1], &[a2])
         }
         _ => query == input,
     }

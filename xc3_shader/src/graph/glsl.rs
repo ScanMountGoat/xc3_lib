@@ -323,7 +323,7 @@ fn input_expr_inner(
         ExprData::IntConst(i) => Expr::Int(*i),
         ExprData::UIntConst(u) => Expr::Uint(*u),
         ExprData::BoolConst(b) => Expr::Bool(*b),
-        ExprData::FloatConst(f) => Expr::Float(*f),
+        ExprData::FloatConst(f) => Expr::Float((*f).into()),
         ExprData::DoubleConst(_) => todo!(),
         ExprData::Unary(op, e) => {
             let a = Box::new(input_expr_inner(e, last_assignment_index, channel));
@@ -394,7 +394,10 @@ fn input_expr_inner(
                             show_expr(&mut index2, specifier2, &mut FormattingState::default())
                                 .unwrap();
 
-                            (id.content.to_smolstr(), Some(format!("{field}[{index2}]").into()))
+                            (
+                                id.content.to_smolstr(),
+                                Some(format!("{field}[{index2}]").into()),
+                            )
                         } else {
                             todo!()
                         }
@@ -585,7 +588,7 @@ mod tests {
                                 node_index: 3,
                                 channel: None,
                             }),
-                            Box::new(Expr::Float(1.0)),
+                            Box::new(Expr::Float(1.0.into())),
                         ),
                     },
                     Node {
@@ -689,7 +692,7 @@ mod tests {
                             node_index: 3,
                             channel: None,
                         }),
-                        Box::new(Expr::Float(1.0)),
+                        Box::new(Expr::Float(1.0.into())),
                     ),
                 },
                 Node {
@@ -734,7 +737,7 @@ mod tests {
                         name: "a".into(),
                         channel: None,
                     },
-                    input: Expr::Float(1.0),
+                    input: Expr::Float(1.0.into()),
                 },
                 Node {
                     output: Output {
@@ -747,7 +750,7 @@ mod tests {
                             node_index: 0,
                             channel: None,
                         }),
-                        Box::new(Expr::Float(5.0)),
+                        Box::new(Expr::Float(5.0.into())),
                     ),
                 },
                 Node {
@@ -771,9 +774,9 @@ mod tests {
                                             node_index: 1,
                                             channel: None,
                                         }),
-                                        Box::new(Expr::Float(2.0)),
+                                        Box::new(Expr::Float(2.0.into())),
                                     ),
-                                    Expr::Float(1.0),
+                                    Expr::Float(1.0.into()),
                                 ],
                                 channel: None,
                             },
@@ -834,7 +837,7 @@ mod tests {
                             name: "a".into(),
                             channel: None,
                         },
-                        input: Expr::Float(1.0,),
+                        input: Expr::Float(1.0.into()),
                     },
                     Node {
                         output: Output {
@@ -847,7 +850,7 @@ mod tests {
                                 node_index: 0,
                                 channel: None,
                             }),
-                            Box::new(Expr::Float(5.0,)),
+                            Box::new(Expr::Float(5.0.into())),
                         ),
                     },
                     Node {
@@ -871,9 +874,9 @@ mod tests {
                                                 node_index: 1,
                                                 channel: None,
                                             }),
-                                            Box::new(Expr::Float(2.0,)),
+                                            Box::new(Expr::Float(2.0.into())),
                                         ),
-                                        Expr::Float(1.0,),
+                                        Expr::Float(1.0.into()),
                                     ],
                                     channel: None,
                                 },

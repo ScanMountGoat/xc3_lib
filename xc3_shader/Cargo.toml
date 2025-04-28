@@ -19,6 +19,7 @@ pest_derive = { version = "2.7.11", optional = true }
 from-pest = { version = "0.3.3", optional = true }
 pest-ast = { version = "0.3.5", optional = true }
 approx.workspace = true
+ordered-float.workspace = true
 
 smol_str.workspace = true
 indexmap.workspace = true

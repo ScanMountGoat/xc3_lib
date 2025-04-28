@@ -54,6 +54,8 @@ pub fn shader_from_glsl(
         .map(outline_width_parameter)
         .unwrap_or_default();
 
+    let mut expr_to_output_expr = IndexMap::new();
+
     let mut output_dependencies = IndexMap::new();
     let mut normal_intensity = None;
 
@@ -66,16 +68,25 @@ pub fn shader_from_glsl(
             let mut value;
             if i == 2 && (c == 'x' || c == 'y') {
                 // The normals use XY for output index 2 for all games.
-                let (new_value, intensity) =
-                    normal_output_expr(&frag, &frag_attributes, &dependent_lines)
-                        .unwrap_or_default();
+                let (new_value, intensity) = normal_output_expr(
+                    &frag,
+                    &frag_attributes,
+                    &dependent_lines,
+                    &mut expr_to_output_expr,
+                )
+                .unwrap_or_default();
                 value = new_value;
                 normal_intensity = intensity;
             } else {
                 // Xenoblade X DE uses different outputs than other games.
                 // Detect color or params to handle different outputs and channels.
-                value = color_or_param_output_expr(&frag, &frag_attributes, &dependent_lines)
-                    .unwrap_or_default()
+                value = color_or_param_output_expr(
+                    &frag,
+                    &frag_attributes,
+                    &dependent_lines,
+                    &mut expr_to_output_expr,
+                )
+                .unwrap_or_default()
             };
 
             if let (Some(vert), Some(vert_attributes)) = (&vert, &vert_attributes) {
@@ -213,6 +224,7 @@ fn color_or_param_output_expr(
     frag: &Graph,
     frag_attributes: &Attributes,
     dependent_lines: &[usize],
+    expr_to_output_expr: &mut IndexMap<Expr, OutputExpr>,
 ) -> Option<OutputExpr> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
@@ -252,7 +264,12 @@ fn color_or_param_output_expr(
         current = new_current;
     }
 
-    Some(output_expr(current, frag, frag_attributes))
+    Some(output_expr(
+        current,
+        frag,
+        frag_attributes,
+        expr_to_output_expr,
+    ))
 }
 
 fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], &'a Expr)> {
@@ -274,6 +291,7 @@ fn normal_output_expr(
     frag: &Graph,
     frag_attributes: &Attributes,
     dependent_lines: &[usize],
+    expr_to_output_expr: &mut IndexMap<Expr, OutputExpr>,
 ) -> Option<(OutputExpr, Option<OutputExpr>)> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
@@ -306,61 +324,76 @@ fn normal_output_expr(
     };
     let nom_work = assign_x_recursive(&frag.nodes, nom_work);
 
-    let value = output_expr(nom_work, frag, frag_attributes);
+    let value = output_expr(nom_work, frag, frag_attributes, expr_to_output_expr);
 
-    let intensity = intensity.map(|i| output_expr(i, frag, frag_attributes));
+    let intensity = intensity.map(|i| output_expr(i, frag, frag_attributes, expr_to_output_expr));
 
     Some((value, intensity))
 }
 
-fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -> OutputExpr {
-    // Simplify any expressions that would interfere with queries.
-    let mut expr = assign_x_recursive(&graph.nodes, expr);
-    if let Some(new_expr) = normal_map_fma(&graph.nodes, expr) {
-        expr = new_expr;
-    }
+fn output_expr(
+    expr: &Expr,
+    graph: &Graph,
+    attributes: &Attributes,
+    expr_to_output_expr: &mut IndexMap<Expr, OutputExpr>,
+) -> OutputExpr {
+    match expr_to_output_expr.get(expr) {
+        Some(o) => o.clone(),
+        None => {
+            // TODO: Should this use the value before or after applying simplification?
+            let original_expr = expr.clone();
 
-    if let Some(value) = extract_value(expr, graph, attributes) {
-        // The base case is a single value.
-        OutputExpr::Value(value)
-    } else {
-        // Detect operations from most specific to least specific.
-        // This results in fewer operations in many cases.
-        if let Some((op, args)) = op_add_normal(&graph.nodes, expr)
-            .or_else(|| op_fresnel_ratio(&graph.nodes, expr))
-            .or_else(|| op_overlay2(&graph.nodes, expr))
-            .or_else(|| op_overlay_ratio(&graph.nodes, expr))
-            .or_else(|| op_overlay(&graph.nodes, expr))
-            .or_else(|| op_mix(&graph.nodes, expr))
-            .or_else(|| op_mul_ratio(&graph.nodes, expr))
-            .or_else(|| op_add_ratio(expr))
-            .or_else(|| op_sub(&graph.nodes, expr))
-            .or_else(|| binary_op(expr, BinaryOp::Mul, Operation::Mul))
-            .or_else(|| binary_op(expr, BinaryOp::Div, Operation::Div))
-            .or_else(|| binary_op(expr, BinaryOp::Add, Operation::Add))
-            .or_else(|| op_pow(&graph.nodes, expr))
-            .or_else(|| op_clamp(&graph.nodes, expr))
-            .or_else(|| op_min(&graph.nodes, expr))
-            .or_else(|| op_max(&graph.nodes, expr))
-            .or_else(|| unary_op(expr, "abs", Operation::Abs))
-        {
-            // Recursively detect values or functions.
-            // TODO: caching to avoid visiting expr more than once?
-            let args: Vec<_> = args
-                .into_iter()
-                .map(|arg| output_expr(arg, graph, attributes))
-                .collect();
-            OutputExpr::Func { op, args }
-        } else {
-            // TODO: sqrt, inversesqrt, floor, ternary, comparisons,
-            // TODO: exp2 should always be part of a pow expression
-            // TODO: better fallback for unrecognized function or values?
-            // TODO: log unsupported expr during database creation?
-            // println!("{}", graph.expr_to_glsl(expr));
-            OutputExpr::Func {
-                op: Operation::Unk,
-                args: Vec::new(),
+            // Simplify any expressions that would interfere with queries.
+            let mut expr = assign_x_recursive(&graph.nodes, expr);
+            if let Some(new_expr) = normal_map_fma(&graph.nodes, expr) {
+                expr = new_expr;
             }
+
+            let output = if let Some(value) = extract_value(expr, graph, attributes) {
+                // The base case is a single value.
+                OutputExpr::Value(value)
+            } else {
+                // Detect operations from most specific to least specific.
+                // This results in fewer operations in many cases.
+                if let Some((op, args)) = op_add_normal(&graph.nodes, expr)
+                    .or_else(|| op_fresnel_ratio(&graph.nodes, expr))
+                    .or_else(|| op_overlay2(&graph.nodes, expr))
+                    .or_else(|| op_overlay_ratio(&graph.nodes, expr))
+                    .or_else(|| op_overlay(&graph.nodes, expr))
+                    .or_else(|| op_mix(&graph.nodes, expr))
+                    .or_else(|| op_mul_ratio(&graph.nodes, expr))
+                    .or_else(|| op_add_ratio(expr))
+                    .or_else(|| op_sub(&graph.nodes, expr))
+                    .or_else(|| binary_op(expr, BinaryOp::Mul, Operation::Mul))
+                    .or_else(|| binary_op(expr, BinaryOp::Div, Operation::Div))
+                    .or_else(|| binary_op(expr, BinaryOp::Add, Operation::Add))
+                    .or_else(|| op_pow(&graph.nodes, expr))
+                    .or_else(|| op_clamp(&graph.nodes, expr))
+                    .or_else(|| op_min(&graph.nodes, expr))
+                    .or_else(|| op_max(&graph.nodes, expr))
+                    .or_else(|| unary_op(expr, "abs", Operation::Abs))
+                {
+                    // Recursively detect values or functions.
+                    let args: Vec<_> = args
+                        .into_iter()
+                        .map(|arg| output_expr(arg, graph, attributes, expr_to_output_expr))
+                        .collect();
+                    OutputExpr::Func { op, args }
+                } else {
+                    // TODO: sqrt, inversesqrt, floor, ternary, comparisons,
+                    // TODO: exp2 should always be part of a pow expression
+                    // TODO: better fallback for unrecognized function or values?
+                    // TODO: log unsupported expr during database creation?
+                    // println!("{}", graph.expr_to_glsl(expr));
+                    OutputExpr::Func {
+                        op: Operation::Unk,
+                        args: Vec::new(),
+                    }
+                }
+            };
+
+            expr_to_output_expr.insert(original_expr, output.clone());
+            output
         }
     }
 }

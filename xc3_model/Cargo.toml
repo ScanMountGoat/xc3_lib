@@ -18,7 +18,7 @@ image_dds = { workspace = true, default-features = true }
 rayon.workspace = true
 log.workspace = true
 tracing.workspace = true
-ordered-float = "5.0.0"
+ordered-float.workspace = true
 serde_json = { version = "1.0", optional = true }
 indexmap = { workspace = true, features = ["rayon"] }
 thiserror.workspace = true

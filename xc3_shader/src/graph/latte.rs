@@ -901,7 +901,7 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
                 output,
                 input: Expr::Binary(
                     BinaryOp::Div,
-                    Box::new(Expr::Float(1.0)),
+                    Box::new(Expr::Float(1.0.into())),
                     Box::new(scalar.sources[0].clone()),
                 ),
             };
@@ -965,7 +965,7 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
                         node_index,
                         channel: scalar.output.channel,
                     }),
-                    Box::new(Expr::Float(2.0)),
+                    Box::new(Expr::Float(2.0.into())),
                 ),
             };
             nodes.add_node(node, Some(scalar.alu_unit), inst_count)
@@ -1062,7 +1062,7 @@ fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Nod
                 node_index,
                 channel,
             }),
-            Box::new(Expr::Float(f)),
+            Box::new(Expr::Float(f.into())),
         ),
     }
 }
