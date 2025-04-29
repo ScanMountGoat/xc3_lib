@@ -541,11 +541,10 @@ ShaderProgram {
                 0.0,
             ),
         ),
-        "o2.w": Value(
-            Constant(
-                0.0,
-            ),
-        ),
+        "o2.w": Func {
+            op: Unk,
+            args: [],
+        },
         "o3.x": Func {
             op: Mul,
             args: [
@@ -718,7 +717,7 @@ ShaderProgram {
                                                         Value(
                                                             Attribute(
                                                                 AttributeDependency {
-                                                                    name: "nWgtIdx",
+                                                                    name: "vPos",
                                                                     channel: Some(
                                                                         'z',
                                                                     ),
@@ -759,7 +758,7 @@ ShaderProgram {
                                                 Value(
                                                     Attribute(
                                                         AttributeDependency {
-                                                            name: "nWgtIdx",
+                                                            name: "vPos",
                                                             channel: Some(
                                                                 'z',
                                                             ),
@@ -813,7 +812,7 @@ ShaderProgram {
                                                 Value(
                                                     Attribute(
                                                         AttributeDependency {
-                                                            name: "nWgtIdx",
+                                                            name: "vPos",
                                                             channel: Some(
                                                                 'z',
                                                             ),
@@ -849,7 +848,7 @@ ShaderProgram {
                                         Value(
                                             Attribute(
                                                 AttributeDependency {
-                                                    name: "nWgtIdx",
+                                                    name: "vPos",
                                                     channel: Some(
                                                         'z',
                                                     ),
@@ -902,7 +901,7 @@ ShaderProgram {
                                                 Value(
                                                     Attribute(
                                                         AttributeDependency {
-                                                            name: "nWgtIdx",
+                                                            name: "vPos",
                                                             channel: Some(
                                                                 'z',
                                                             ),
@@ -938,7 +937,7 @@ ShaderProgram {
                                         Value(
                                             Attribute(
                                                 AttributeDependency {
-                                                    name: "nWgtIdx",
+                                                    name: "vPos",
                                                     channel: Some(
                                                         'z',
                                                     ),

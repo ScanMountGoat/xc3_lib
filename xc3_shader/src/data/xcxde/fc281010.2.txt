@@ -303,7 +303,7 @@ ShaderProgram {
                                                                                                 Value(
                                                                                                     Attribute(
                                                                                                         AttributeDependency {
-                                                                                                            name: "nWgtIdx",
+                                                                                                            name: "vNormal",
                                                                                                             channel: Some(
                                                                                                                 'z',
                                                                                                             ),
@@ -339,7 +339,7 @@ ShaderProgram {
                                                                                         Value(
                                                                                             Attribute(
                                                                                                 AttributeDependency {
-                                                                                                    name: "nWgtIdx",
+                                                                                                    name: "vNormal",
                                                                                                     channel: Some(
                                                                                                         'y',
                                                                                                     ),
@@ -366,7 +366,7 @@ ShaderProgram {
                                                                                                 Value(
                                                                                                     Attribute(
                                                                                                         AttributeDependency {
-                                                                                                            name: "nWgtIdx",
+                                                                                                            name: "vNormal",
                                                                                                             channel: Some(
                                                                                                                 'x',
                                                                                                             ),
@@ -465,7 +465,7 @@ ShaderProgram {
                                                                                                 Value(
                                                                                                     Attribute(
                                                                                                         AttributeDependency {
-                                                                                                            name: "nWgtIdx",
+                                                                                                            name: "vNormal",
                                                                                                             channel: Some(
                                                                                                                 'z',
                                                                                                             ),
@@ -501,7 +501,7 @@ ShaderProgram {
                                                                                         Value(
                                                                                             Attribute(
                                                                                                 AttributeDependency {
-                                                                                                    name: "nWgtIdx",
+                                                                                                    name: "vNormal",
                                                                                                     channel: Some(
                                                                                                         'y',
                                                                                                     ),
@@ -528,7 +528,7 @@ ShaderProgram {
                                                                                                 Value(
                                                                                                     Attribute(
                                                                                                         AttributeDependency {
-                                                                                                            name: "nWgtIdx",
+                                                                                                            name: "vNormal",
                                                                                                             channel: Some(
                                                                                                                 'x',
                                                                                                             ),
@@ -754,7 +754,7 @@ ShaderProgram {
                 Value(
                     Attribute(
                         AttributeDependency {
-                            name: "nWgtIdx",
+                            name: "vPos",
                             channel: Some(
                                 'x',
                             ),
@@ -764,7 +764,7 @@ ShaderProgram {
                 Value(
                     Attribute(
                         AttributeDependency {
-                            name: "nWgtIdx",
+                            name: "vPos",
                             channel: Some(
                                 'w',
                             ),
@@ -1076,7 +1076,7 @@ ShaderProgram {
                                                                                                 Value(
                                                                                                     Attribute(
                                                                                                         AttributeDependency {
-                                                                                                            name: "nWgtIdx",
+                                                                                                            name: "vNormal",
                                                                                                             channel: Some(
                                                                                                                 'z',
                                                                                                             ),
@@ -1112,7 +1112,7 @@ ShaderProgram {
                                                                                         Value(
                                                                                             Attribute(
                                                                                                 AttributeDependency {
-                                                                                                    name: "nWgtIdx",
+                                                                                                    name: "vNormal",
                                                                                                     channel: Some(
                                                                                                         'y',
                                                                                                     ),
@@ -1139,7 +1139,7 @@ ShaderProgram {
                                                                                                 Value(
                                                                                                     Attribute(
                                                                                                         AttributeDependency {
-                                                                                                            name: "nWgtIdx",
+                                                                                                            name: "vNormal",
                                                                                                             channel: Some(
                                                                                                                 'x',
                                                                                                             ),
@@ -1238,7 +1238,7 @@ ShaderProgram {
                                                                                                 Value(
                                                                                                     Attribute(
                                                                                                         AttributeDependency {
-                                                                                                            name: "nWgtIdx",
+                                                                                                            name: "vNormal",
                                                                                                             channel: Some(
                                                                                                                 'z',
                                                                                                             ),
@@ -1274,7 +1274,7 @@ ShaderProgram {
                                                                                         Value(
                                                                                             Attribute(
                                                                                                 AttributeDependency {
-                                                                                                    name: "nWgtIdx",
+                                                                                                    name: "vNormal",
                                                                                                     channel: Some(
                                                                                                         'y',
                                                                                                     ),
@@ -1301,7 +1301,7 @@ ShaderProgram {
                                                                                                 Value(
                                                                                                     Attribute(
                                                                                                         AttributeDependency {
-                                                                                                            name: "nWgtIdx",
+                                                                                                            name: "vNormal",
                                                                                                             channel: Some(
                                                                                                                 'x',
                                                                                                             ),
@@ -1527,7 +1527,7 @@ ShaderProgram {
                 Value(
                     Attribute(
                         AttributeDependency {
-                            name: "nWgtIdx",
+                            name: "vPos",
                             channel: Some(
                                 'y',
                             ),
@@ -1537,7 +1537,7 @@ ShaderProgram {
                 Value(
                     Attribute(
                         AttributeDependency {
-                            name: "nWgtIdx",
+                            name: "vPos",
                             channel: Some(
                                 'w',
                             ),
@@ -1849,7 +1849,7 @@ ShaderProgram {
                                                                                                 Value(
                                                                                                     Attribute(
                                                                                                         AttributeDependency {
-                                                                                                            name: "nWgtIdx",
+                                                                                                            name: "vNormal",
                                                                                                             channel: Some(
                                                                                                                 'z',
                                                                                                             ),
@@ -1885,7 +1885,7 @@ ShaderProgram {
                                                                                         Value(
                                                                                             Attribute(
                                                                                                 AttributeDependency {
-                                                                                                    name: "nWgtIdx",
+                                                                                                    name: "vNormal",
                                                                                                     channel: Some(
                                                                                                         'y',
                                                                                                     ),
@@ -1912,7 +1912,7 @@ ShaderProgram {
                                                                                                 Value(
                                                                                                     Attribute(
                                                                                                         AttributeDependency {
-                                                                                                            name: "nWgtIdx",
+                                                                                                            name: "vNormal",
                                                                                                             channel: Some(
                                                                                                                 'x',
                                                                                                             ),
@@ -2011,7 +2011,7 @@ ShaderProgram {
                                                                                                 Value(
                                                                                                     Attribute(
                                                                                                         AttributeDependency {
-                                                                                                            name: "nWgtIdx",
+                                                                                                            name: "vNormal",
                                                                                                             channel: Some(
                                                                                                                 'z',
                                                                                                             ),
@@ -2047,7 +2047,7 @@ ShaderProgram {
                                                                                         Value(
                                                                                             Attribute(
                                                                                                 AttributeDependency {
-                                                                                                    name: "nWgtIdx",
+                                                                                                    name: "vNormal",
                                                                                                     channel: Some(
                                                                                                         'y',
                                                                                                     ),
@@ -2074,7 +2074,7 @@ ShaderProgram {
                                                                                                 Value(
                                                                                                     Attribute(
                                                                                                         AttributeDependency {
-                                                                                                            name: "nWgtIdx",
+                                                                                                            name: "vNormal",
                                                                                                             channel: Some(
                                                                                                                 'x',
                                                                                                             ),
@@ -2300,7 +2300,7 @@ ShaderProgram {
                 Value(
                     Attribute(
                         AttributeDependency {
-                            name: "nWgtIdx",
+                            name: "vPos",
                             channel: Some(
                                 'z',
                             ),
@@ -2310,7 +2310,7 @@ ShaderProgram {
                 Value(
                     Attribute(
                         AttributeDependency {
-                            name: "nWgtIdx",
+                            name: "vPos",
                             channel: Some(
                                 'w',
                             ),

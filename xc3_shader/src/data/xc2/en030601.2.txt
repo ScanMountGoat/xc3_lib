@@ -614,29 +614,8 @@ ShaderProgram {
             ),
         ),
         "o2.w": Func {
-            op: Fma,
-            args: [
-                Value(
-                    Attribute(
-                        AttributeDependency {
-                            name: "nWgtIdx",
-                            channel: Some(
-                                'z',
-                            ),
-                        },
-                    ),
-                ),
-                Value(
-                    Constant(
-                        1000.0,
-                    ),
-                ),
-                Value(
-                    Constant(
-                        0.5,
-                    ),
-                ),
-            ],
+            op: Unk,
+            args: [],
         },
         "o3.x": Func {
             op: Div,
@@ -718,7 +697,7 @@ ShaderProgram {
                         Value(
                             Attribute(
                                 AttributeDependency {
-                                    name: "nWgtIdx",
+                                    name: "vPos",
                                     channel: Some(
                                         'z',
                                     ),

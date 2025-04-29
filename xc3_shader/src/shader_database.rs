@@ -77,6 +77,11 @@ pub fn shader_from_glsl(
                 .unwrap_or_default();
                 value = new_value;
                 normal_intensity = intensity;
+            } else if i == 2 && c == 'w' {
+                // o2.w is n.z * 1000 + 0.5 for XC1 DE, XC2, and XC3.
+                // This can be easily handled by consuming applications.
+                // XCX and XCX DE only have 2 components.
+                value = OutputExpr::default();
             } else {
                 // Xenoblade X DE uses different outputs than other games.
                 // Detect color or params to handle different outputs and channels.
@@ -1147,9 +1152,12 @@ fn apply_attribute_names(
                 let dependent_lines =
                     vertex.dependencies_recursive(vertex_output_name, attribute.channel, None);
 
+                // TODO: detect cases like vertex skinning?
                 if let Some(input_attribute) =
                     attribute_dependencies(vertex, &dependent_lines, vertex_attributes, None)
-                        .first()
+                        .iter()
+                        .filter(|a| a.name != "nWgtIdx")
+                        .next()
                 {
                     attribute.name.clone_from(&input_attribute.name);
                 }
