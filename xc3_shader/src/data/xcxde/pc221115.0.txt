@@ -6698,6 +6698,26 @@ ShaderProgram {
                 },
             ),
         ),
+        "o6.x": Value(
+            Constant(
+                1.0,
+            ),
+        ),
+        "o6.y": Value(
+            Constant(
+                1.0,
+            ),
+        ),
+        "o6.z": Value(
+            Constant(
+                1.0,
+            ),
+        ),
+        "o6.w": Value(
+            Constant(
+                0.0,
+            ),
+        ),
     },
     outline_width: None,
     normal_intensity: None,

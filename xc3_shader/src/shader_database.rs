@@ -59,8 +59,8 @@ pub fn shader_from_glsl(
     let mut output_dependencies = IndexMap::new();
     let mut normal_intensity = None;
 
-    // TODO: Some shaders have more than 6 outputs?
-    for i in 0..=5 {
+    // Some shaders have up to 8 outputs.
+    for i in frag_attributes.output_locations.right_values().copied() {
         for c in "xyzw".chars() {
             let name = format!("out_attr{i}");
             let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
@@ -105,11 +105,9 @@ pub fn shader_from_glsl(
             }
 
             // TODO: skip entirely if the value is none or use a special value?
-            if !dependent_lines.is_empty() {
-                // Simplify the output name to save space.
-                let output_name = format!("o{i}.{c}");
-                output_dependencies.insert(output_name.into(), value);
-            }
+            // Simplify the output name to save space.
+            let output_name = format!("o{i}.{c}");
+            output_dependencies.insert(output_name.into(), value);
         }
     }
 
