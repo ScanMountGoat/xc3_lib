@@ -122,6 +122,7 @@ impl MaterialParameters {
         let c = "xyzw".find(p.channel?).unwrap();
         let index = p.index.unwrap_or_default();
         let value = match (p.name.as_str(), p.field.as_str()) {
+            // U_Mate uniform buffer from material parameters.
             ("U_Mate", "gMatCol") => self.material_color.get(c),
             ("U_Mate", "gWrkFl4") => self.work_float4.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gWrkCol") => self.work_color.as_ref()?.get(index)?.get(c),
@@ -129,6 +130,22 @@ impl MaterialParameters {
             ("U_Mate", "gAlInf") => self.alpha_info.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gDpRat") => self.dp_rat.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gProjTexMat") => self.projection_tex_matrix.as_ref()?.get(index)?.get(c),
+            // U_Static uniform buffer values taken from XC3 in RenderDoc.
+            // These appear to be constant across models.
+            // TODO: Compare with other games.
+            ("U_Static", "gEtcParm") => [37.68019, -0.00031, 1.376, 1.0].get(c),
+            ("U_Static", "gCDep") => [-1.0, -0.2, 1.0, 2.2].get(c),
+            // U_Toon2 uniform buffer values taken from XC3 in RenderDoc.
+            // These appear to be constant across models.
+            // TODO: Compare with other games.
+            ("U_Toon2", "gToonParam") => [
+                [0.00, 0.15, 0.23873, 0.02],
+                [0.00, 0.00, 0.00, 0.46],
+                [-0.64923, 0.40759, 0.64216, 0.50],
+                [0.30, 2.00, 0.00, 0.00],
+            ]
+            .get(index)?
+            .get(c),
             // Xenoblade X DE
             ("U_Mate", "gMatAmb") => self.material_ambient.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gMatSpec") => self.material_specular.as_ref()?.get(index)?.get(c),
