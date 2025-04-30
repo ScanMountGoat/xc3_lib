@@ -360,27 +360,20 @@ impl ShaderDatabaseIndexed {
                 })
                 .collect();
 
-            // Remap output exprs in place to avoid costly indexing and large allocations.
-            // TODO: Collect only unique exprs.
-            let base_index = merged.output_exprs.len();
-            for expr in other.output_exprs {
-                let new_expr = match expr {
-                    OutputExprIndexed::Value(d) => {
-                        OutputExprIndexed::Value(VarInt(dependency_indices[d.0]))
-                    }
-                    OutputExprIndexed::Func { op, args } => OutputExprIndexed::Func {
-                        op,
-                        args: args.iter().map(|a| VarInt(a.0 + base_index)).collect(),
-                    },
-                };
-                merged.output_exprs.insert(new_expr);
-            }
+            // Remap indexed output exprs to reduce costly indexing and large allocations.
+            let output_expr_indices: Vec<_> = other
+                .output_exprs
+                .iter()
+                .map(|e| {
+                    merged.add_output_expr_indexed(e, &other.output_exprs, &dependency_indices)
+                })
+                .collect();
 
             for (hash, program) in &other.programs {
                 let mut program = program.clone();
                 for (k, v) in &mut program.output_dependencies {
                     *k = output_indices[k.0];
-                    v.0 += base_index;
+                    *v = output_expr_indices[v.0];
                 }
                 merged.programs.insert(*hash, program);
             }
@@ -416,6 +409,29 @@ impl ShaderDatabaseIndexed {
 
         let (index, _) = self.output_exprs.insert_full(v);
 
+        VarInt(index)
+    }
+
+    fn add_output_expr_indexed(
+        &mut self,
+        value: &OutputExprIndexed,
+        values: &IndexSet<OutputExprIndexed>,
+        dependency_indices: &[usize],
+    ) -> VarInt {
+        // Insert values that this value depends on first.
+        let new_expr = match value {
+            OutputExprIndexed::Value(d) => {
+                OutputExprIndexed::Value(VarInt(dependency_indices[d.0]))
+            }
+            OutputExprIndexed::Func { op, args } => OutputExprIndexed::Func {
+                op: *op,
+                args: args
+                    .iter()
+                    .map(|a| self.add_output_expr_indexed(&values[a.0], values, dependency_indices))
+                    .collect(),
+            },
+        };
+        let (index, _) = self.output_exprs.insert_full(new_expr);
         VarInt(index)
     }
 
