@@ -31,8 +31,8 @@ pub struct OutputAssignments {
 impl OutputAssignments {
     /// Calculate the material ID from a hardcoded shader constant if present.
     pub fn mat_id(&self) -> Option<u32> {
-        if let Assignment::Value(Some(AssignmentValue::Float(v))) =
-            &self.assignments[self.output_assignments[1].w]
+        if let Some(Assignment::Value(Some(AssignmentValue::Float(v)))) =
+            self.assignments.get(self.output_assignments[1].w)
         {
             // TODO: Why is this sometimes 7?
             Some((v.0 * 255.0 + 0.1) as u32 & 0x7)
