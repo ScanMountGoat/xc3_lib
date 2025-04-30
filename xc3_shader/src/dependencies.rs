@@ -25,7 +25,7 @@ pub fn input_dependencies(
     // Assignments are in reverse order, so take only the first element.
     if let Some(i) = assignments.first() {
         match &graph.nodes[*i].input {
-            Expr::Float(f) => dependencies.push(Dependency::Constant((*f).into())),
+            Expr::Float(f) => dependencies.push(Dependency::Constant(*f)),
             Expr::Parameter {
                 name,
                 field,
@@ -35,7 +35,7 @@ pub fn input_dependencies(
                 if let Some(Expr::Int(index)) = index.as_deref() {
                     dependencies.push(Dependency::Buffer(BufferDependency {
                         name: name.clone(),
-                        field: field.clone().unwrap_or_default().into(),
+                        field: field.clone().unwrap_or_default(),
                         index: Some((*index).try_into().unwrap()),
                         channel: *channel,
                     }))
@@ -178,7 +178,7 @@ pub fn texcoord_params(graph: &Graph, input: &Expr, attributes: &Attributes) -> 
         .or_else(|| tex_parallax(graph, input, attributes))?;
 
     Some(TexCoord {
-        name: name.into(),
+        name,
         channel,
         params: Some(params),
     })
@@ -384,14 +384,14 @@ pub fn buffer_dependency(e: &Expr) -> Option<BufferDependency> {
         if let Some(Expr::Int(index)) = index.as_deref() {
             Some(BufferDependency {
                 name: name.clone(),
-                field: field.clone().unwrap_or_default().into(),
+                field: field.clone().unwrap_or_default(),
                 index: Some((*index).try_into().unwrap()),
                 channel: *channel,
             })
         } else {
             Some(BufferDependency {
                 name: name.clone(),
-                field: field.clone().unwrap_or_default().into(),
+                field: field.clone().unwrap_or_default(),
                 index: None,
                 channel: *channel,
             })

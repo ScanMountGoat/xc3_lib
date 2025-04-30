@@ -20,6 +20,7 @@ fn span_to_string(span: Span) -> String {
     span.as_str().to_string()
 }
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::program))]
 struct Program {
@@ -37,6 +38,7 @@ enum Instruction {
     AluClause(AluClause),
 }
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::cf_inst))]
 struct CfInst {
@@ -53,6 +55,7 @@ struct CfOpcode;
 #[pest_ast(rule(Rule::cf_inst_properties))]
 struct CfInstProperties(Vec<CfInstProperty>);
 
+#[allow(dead_code)]
 enum CfInstProperty {
     Burstcnt(Burstcnt),
     Unk(Rule),
@@ -80,6 +83,7 @@ impl<'pest> FromPest<'pest> for CfInstProperty {
 #[pest_ast(rule(Rule::burstcnt))]
 struct Burstcnt(Number);
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::cf_exp_inst))]
 struct CfExpInst {
@@ -90,14 +94,15 @@ struct CfExpInst {
     properties: CfInstProperties,
 }
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::exp_opcode))]
 struct ExpOpcode(#[pest_ast(outer(with(span_to_string)))] String);
 
 enum ExpTarget {
-    ExpPixTarget(ExpPixTarget),
-    ExpPosTarget(ExpPosTarget),
-    ExpParamTarget(ExpParamTarget),
+    Pix(ExpPixTarget),
+    Pos(ExpPosTarget),
+    Param(ExpParamTarget),
 }
 
 // TODO: Is there a way to derive this?
@@ -111,9 +116,9 @@ impl<'pest> FromPest<'pest> for ExpTarget {
     ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
         let next = pest.peek().unwrap();
         match next.as_rule() {
-            Rule::exp_pix_target => ExpPixTarget::from_pest(pest).map(Self::ExpPixTarget),
-            Rule::exp_pos_target => ExpPosTarget::from_pest(pest).map(Self::ExpPosTarget),
-            Rule::exp_param_target => ExpParamTarget::from_pest(pest).map(Self::ExpParamTarget),
+            Rule::exp_pix_target => ExpPixTarget::from_pest(pest).map(Self::Pix),
+            Rule::exp_pos_target => ExpPosTarget::from_pest(pest).map(Self::Pos),
+            Rule::exp_param_target => ExpParamTarget::from_pest(pest).map(Self::Param),
             _ => todo!(),
         }
     }
@@ -138,6 +143,7 @@ struct ExpSrc {
     swizzle: FourCompSwizzle,
 }
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_clause))]
 struct TexClause {
@@ -151,10 +157,12 @@ struct TexClause {
 #[pest_ast(rule(Rule::tex_clause_inst_type))]
 struct TexClauseInstType;
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_clause_properties))]
 struct TexClauseProperties(Vec<TexClauseProperty>);
 
+#[allow(dead_code)]
 enum TexClauseProperty {
     Unk(Rule),
 }
@@ -183,6 +191,7 @@ impl<'pest> FromPest<'pest> for TexClauseProperty {
     }
 }
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_inst))]
 struct TexInst {
@@ -195,6 +204,7 @@ struct TexInst {
     properties: TexProperties,
 }
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_opcode))]
 struct TexOpcode(#[pest_ast(outer(with(span_to_string)))] String);
@@ -207,6 +217,7 @@ struct TexResourceId(#[pest_ast(outer(with(span_to_string)))] String);
 #[pest_ast(rule(Rule::tex_sampler_id))]
 struct TexSamplerId(#[pest_ast(outer(with(span_to_string)))] String);
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_dst))]
 struct TexDst {
@@ -215,6 +226,7 @@ struct TexDst {
     swizzle: FourCompSwizzle,
 }
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_src))]
 struct TexSrc {
@@ -231,6 +243,7 @@ struct TexRel;
 #[pest_ast(rule(Rule::tex_properties))]
 struct TexProperties;
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_clause))]
 struct AluClause {
@@ -244,10 +257,12 @@ struct AluClause {
 #[pest_ast(rule(Rule::alu_clause_inst_type))]
 struct AluClauseInstType;
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_clause_properties))]
 struct AluClauseProperties(Vec<AluClauseProperty>);
 
+#[allow(dead_code)]
 enum AluClauseProperty {
     Unk(Rule),
 }
@@ -310,6 +325,7 @@ impl<'pest> FromPest<'pest> for AluScalar {
     }
 }
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_scalar0))]
 struct AluScalar0 {
@@ -320,6 +336,7 @@ struct AluScalar0 {
     properties: AluProperties,
 }
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_scalar1))]
 struct AluScalar1 {
@@ -331,6 +348,7 @@ struct AluScalar1 {
     properties: AluProperties,
 }
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_scalar2))]
 struct AluScalar2 {
@@ -343,6 +361,7 @@ struct AluScalar2 {
     properties: AluProperties,
 }
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_scalar3))]
 struct AluScalar3 {
@@ -355,6 +374,7 @@ struct AluScalar3 {
     properties: AluProperties,
 }
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::write_mask))]
 struct WriteMask(#[pest_ast(outer(with(span_to_string)))] String);
@@ -363,6 +383,7 @@ struct WriteMask(#[pest_ast(outer(with(span_to_string)))] String);
 #[pest_ast(rule(Rule::alu_dst))]
 struct AluDst(AluDstInner);
 
+#[allow(dead_code)]
 enum AluDstInner {
     Value {
         gpr: Gpr,
@@ -394,6 +415,7 @@ impl<'pest> FromPest<'pest> for AluDstInner {
     }
 }
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_src))]
 struct AluSrc {
@@ -467,6 +489,7 @@ impl<'pest> FromPest<'pest> for AluSrcValueInner {
 #[pest_ast(rule(Rule::literal))]
 struct Literal(LiteralInner);
 
+#[allow(dead_code)]
 enum LiteralInner {
     Hex(String),
     Float(String),
@@ -554,10 +577,12 @@ struct AluOpCode2(#[pest_ast(outer(with(span_to_string)))] String);
 #[pest_ast(rule(Rule::alu_opcode3))]
 struct AluOpCode3(#[pest_ast(outer(with(span_to_string)))] String);
 
+#[allow(dead_code)]
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::alu_properties))]
 struct AluProperties(Vec<AluProperty>);
 
+#[allow(dead_code)]
 enum AluProperty {
     Unk(Rule),
 }
@@ -702,9 +727,9 @@ fn add_exp_inst(exp: CfExpInst, nodes: &mut Nodes) {
     let inst_count = exp.inst_count.0 .0;
 
     let (target_name, target_index) = match exp.target {
-        ExpTarget::ExpPixTarget(t) => ("PIX", t.0 .0),
-        ExpTarget::ExpPosTarget(t) => ("POS", t.0 .0),
-        ExpTarget::ExpParamTarget(t) => ("PARAM", t.0 .0),
+        ExpTarget::Pix(t) => ("PIX", t.0 .0),
+        ExpTarget::Pos(t) => ("POS", t.0 .0),
+        ExpTarget::Param(t) => ("PARAM", t.0 .0),
     };
 
     let source_name = "R";
@@ -1004,7 +1029,7 @@ fn alu_dst_output(dst: AluDst, inst_count: usize, alu_unit: char) -> Output {
     match dst.0 {
         AluDstInner::Value {
             gpr,
-            alu_rel,
+            alu_rel: _,
             swizzle: one_comp_swizzle,
         } => {
             let channel = one_comp_swizzle.and_then(|s| s.channels().chars().next());
@@ -1013,7 +1038,7 @@ fn alu_dst_output(dst: AluDst, inst_count: usize, alu_unit: char) -> Output {
                 channel,
             }
         }
-        AluDstInner::WriteMask(write_mask) => {
+        AluDstInner::WriteMask(_write_mask) => {
             // ____ mask for xyzw writes to a previous vector "PV".
             // ____ mask for t writes to a previous scalar "PS".
             match alu_unit {
@@ -1111,7 +1136,7 @@ fn value_expr(nodes: &Nodes, channel: Option<char>, value: AluSrcValue) -> Expr 
         AluSrcValueInner::Literal(literal) => {
             // TODO: how to handle hex literals?
             match literal.0 {
-                LiteralInner::Hex(hex) => todo!(),
+                LiteralInner::Hex(_) => todo!(),
                 LiteralInner::Float(f) => Expr::Float(f.trim_end_matches('f').parse().unwrap()),
             }
         }

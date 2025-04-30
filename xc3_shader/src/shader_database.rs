@@ -685,12 +685,12 @@ fn dependency_expr(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<D
             .or_else(|| match e {
                 Expr::Unary(UnaryOp::Negate, e) => {
                     if let Expr::Float(f) = **e {
-                        Some(Dependency::Constant((-f).into()))
+                        Some(Dependency::Constant(-f))
                     } else {
                         None
                     }
                 }
-                Expr::Float(f) => Some(Dependency::Constant((*f).into())),
+                Expr::Float(f) => Some(Dependency::Constant(*f)),
                 Expr::Global { name, channel } => {
                     // TODO: Also check if this matches a vertex input name?
                     Some(Dependency::Attribute(AttributeDependency {
@@ -1083,7 +1083,7 @@ fn apply_vertex_uv_params(
                     // Preserve the channel ordering here.
                     // Find any additional scale parameters.
                     if let Some(node) = vertex.nodes.iter().rfind(|n| {
-                        &n.output.name == vertex_output_name && n.output.channel == texcoord.channel
+                        n.output.name == vertex_output_name && n.output.channel == texcoord.channel
                     }) {
                         // Detect common cases for transforming UV coordinates.
                         if let Some(new_texcoord) =
@@ -1154,8 +1154,7 @@ fn apply_attribute_names(
                 if let Some(input_attribute) =
                     attribute_dependencies(vertex, &dependent_lines, vertex_attributes, None)
                         .iter()
-                        .filter(|a| a.name != "nWgtIdx")
-                        .next()
+                        .find(|a| a.name != "nWgtIdx")
                 {
                     attribute.name.clone_from(&input_attribute.name);
                 }

@@ -489,7 +489,7 @@ impl ShaderDatabaseIndexed {
 
     fn dependency_from_indexed(&self, d: &DependencyIndexed) -> Dependency {
         match d {
-            DependencyIndexed::Constant(f) => Dependency::Constant((*f).into()),
+            DependencyIndexed::Constant(f) => Dependency::Constant(*f),
             DependencyIndexed::Buffer(b) => Dependency::Buffer(
                 self.buffer_dependency_from_indexed(&self.buffer_dependencies[b.0]),
             ),
