@@ -1,3 +1,4 @@
+use indexmap::IndexSet;
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
 use xc3_lib::mxmd::TextureUsage;
@@ -15,19 +16,24 @@ use super::{MaterialParameters, Texture};
 /// This includes channels from textures, material parameters, or shader constants.
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutputAssignments {
-    pub assignments: [OutputAssignment; 6],
+    pub output_assignments: [OutputAssignment; 6],
 
+    // TODO: make this the same type as normal intensity.
     /// The parameter multiplied by vertex alpha to determine outline width.
     pub outline_width: Option<AssignmentValue>,
 
-    /// The intensity map for normal mapping.
-    pub normal_intensity: Option<Assignment>,
+    /// Index into [assignments](#structfield.assignments] for the intensity map for normal mapping.
+    pub normal_intensity: Option<usize>,
+
+    pub assignments: Vec<Assignment>,
 }
 
 impl OutputAssignments {
     /// Calculate the material ID from a hardcoded shader constant if present.
     pub fn mat_id(&self) -> Option<u32> {
-        if let Assignment::Value(Some(AssignmentValue::Float(v))) = self.assignments[1].w {
+        if let Assignment::Value(Some(AssignmentValue::Float(v))) =
+            &self.assignments[self.output_assignments[1].w]
+        {
             // TODO: Why is this sometimes 7?
             Some((v.0 * 255.0 + 0.1) as u32 & 0x7)
         } else {
@@ -39,14 +45,14 @@ impl OutputAssignments {
 // TODO: Come up with better names.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct OutputAssignment {
-    /// The x values.
-    pub x: Assignment,
-    /// The y values.
-    pub y: Assignment,
-    /// The z values.
-    pub z: Assignment,
-    /// The w values.
-    pub w: Assignment,
+    /// Index into [assignments](struct.OutputAssignments.html#structfield.assignments) for the x value.
+    pub x: usize,
+    /// Index into [assignments](struct.OutputAssignments.html#structfield.assignments) for the y value.
+    pub y: usize,
+    /// Index into [assignments](struct.OutputAssignments.html#structfield.assignments) for the z value.
+    pub z: usize,
+    /// Index into [assignments](struct.OutputAssignments.html#structfield.assignments) for the w value.
+    pub w: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -54,7 +60,9 @@ pub enum Assignment {
     Value(Option<AssignmentValue>),
     Func {
         op: Operation,
-        args: Vec<Assignment>,
+        /// Index into [assignments](struct.OutputAssignments.html#structfield.assignments)
+        /// for the function argument list `[arg0, arg1, ...]`.
+        args: Vec<usize>,
     },
 }
 
@@ -110,8 +118,11 @@ pub(crate) fn output_assignments(
     shader: &ShaderProgram,
     parameters: &MaterialParameters,
 ) -> OutputAssignments {
+    let mut assignments = IndexSet::new();
+
     OutputAssignments {
-        assignments: [0, 1, 2, 3, 4, 5].map(|i| output_assignment(shader, parameters, i)),
+        output_assignments: [0, 1, 2, 3, 4, 5]
+            .map(|i| output_assignment(shader, parameters, &mut assignments, i)),
         outline_width: shader
             .outline_width
             .as_ref()
@@ -119,38 +130,45 @@ pub(crate) fn output_assignments(
         normal_intensity: shader
             .normal_intensity
             .as_ref()
-            .map(|l| assignment_value(parameters, l)),
+            .map(|l| assignment_value(parameters, l, &mut assignments)),
+        assignments: assignments.into_iter().collect(),
     }
 }
 
 fn output_assignment(
     shader: &ShaderProgram,
     parameters: &MaterialParameters,
+    assignments: &mut IndexSet<Assignment>,
     output_index: usize,
 ) -> OutputAssignment {
     OutputAssignment {
-        x: output_channel_assignment(shader, parameters, output_index, 'x'),
-        y: output_channel_assignment(shader, parameters, output_index, 'y'),
-        z: output_channel_assignment(shader, parameters, output_index, 'z'),
-        w: output_channel_assignment(shader, parameters, output_index, 'w'),
+        x: output_channel_assignment(shader, parameters, assignments, output_index, 'x'),
+        y: output_channel_assignment(shader, parameters, assignments, output_index, 'y'),
+        z: output_channel_assignment(shader, parameters, assignments, output_index, 'z'),
+        w: output_channel_assignment(shader, parameters, assignments, output_index, 'w'),
     }
 }
 
 fn output_channel_assignment(
     shader: &ShaderProgram,
     parameters: &MaterialParameters,
+    assignments: &mut IndexSet<Assignment>,
     output_index: usize,
     channel: char,
-) -> Assignment {
+) -> usize {
     let output = format!("o{output_index}.{channel}");
     shader
         .output_dependencies
         .get(&SmolStr::from(output))
-        .map(|v| assignment_value(parameters, v))
+        .map(|v| assignment_value(parameters, v, assignments))
         .unwrap_or_default()
 }
 
-fn assignment_value(parameters: &MaterialParameters, value: &OutputExpr) -> Assignment {
+fn assignment_value(
+    parameters: &MaterialParameters,
+    value: &OutputExpr,
+    assignments: &mut IndexSet<Assignment>,
+) -> usize {
     let value = match value {
         crate::shader_database::OutputExpr::Value(d) => {
             Assignment::Value(AssignmentValue::from_dependency(d, parameters))
@@ -159,11 +177,12 @@ fn assignment_value(parameters: &MaterialParameters, value: &OutputExpr) -> Assi
             op: *op,
             args: args
                 .iter()
-                .map(|a| assignment_value(parameters, a))
+                .map(|a| assignment_value(parameters, a, assignments))
                 .collect(),
         },
     };
-    value
+    let (index, _) = assignments.insert_full(value);
+    index
 }
 
 fn texture_assignment(
@@ -245,16 +264,20 @@ pub(crate) fn infer_assignment_from_textures(
 ) -> OutputAssignments {
     // No assignment data is available.
     // Guess reasonable defaults based on the texture names or types.
-    let assignment = |i: Option<usize>, c: usize| {
-        Assignment::Value(i.map(|i| {
-            AssignmentValue::Texture(TextureAssignment {
-                name: format!("s{i}").into(),
-                channel: Some(['x', 'y', 'z', 'w'][c]),
-                texcoord_name: None,
-                texcoord_transforms: None,
-                parallax: None,
-            })
-        }))
+    let mut assignments = IndexSet::new();
+
+    let mut assignment = |i: Option<usize>, c: usize| {
+        assignments
+            .insert_full(Assignment::Value(i.map(|i| {
+                AssignmentValue::Texture(TextureAssignment {
+                    name: format!("s{i}").into(),
+                    channel: Some(['x', 'y', 'z', 'w'][c]),
+                    texcoord_name: None,
+                    texcoord_transforms: None,
+                    parallax: None,
+                })
+            })))
+            .0
     };
 
     let color_index = textures.iter().position(|t| {
@@ -285,7 +308,7 @@ pub(crate) fn infer_assignment_from_textures(
     });
 
     OutputAssignments {
-        assignments: [
+        output_assignments: [
             OutputAssignment {
                 x: assignment(color_index, 0),
                 y: assignment(color_index, 1),
@@ -309,5 +332,6 @@ pub(crate) fn infer_assignment_from_textures(
         ],
         outline_width: None,
         normal_intensity: None,
+        assignments: assignments.into_iter().collect(),
     }
 }

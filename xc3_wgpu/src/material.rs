@@ -71,15 +71,19 @@ pub fn create_material(
 
     // Don't generate code for velocity or depth.
     let output_layers_wgsl: Vec<_> = material_assignments
-        .assignments
+        .output_assignments
         .iter()
         .enumerate()
         .filter(|(i, _)| *i != 3 && *i != 4)
         .map(|(i, a)| {
             if i == 2 {
-                generate_normal_layering_wgsl(a, &mut name_to_index)
+                generate_normal_layering_wgsl(
+                    a,
+                    &material_assignments.assignments,
+                    &mut name_to_index,
+                )
             } else {
-                generate_layering_wgsl(a, &mut name_to_index)
+                generate_layering_wgsl(a, &material_assignments.assignments, &mut name_to_index)
             }
         })
         .collect();
@@ -94,7 +98,13 @@ pub fn create_material(
     let normal_intensity_wgsl = material_assignments
         .normal_intensity
         .as_ref()
-        .map(|i| generate_normal_intensity_wgsl(i, &mut name_to_index))
+        .map(|i| {
+            generate_normal_intensity_wgsl(
+                *i,
+                &material_assignments.assignments,
+                &mut name_to_index,
+            )
+        })
         .unwrap_or_default();
 
     let mut texture_views: [Option<_>; 16] = std::array::from_fn(|_| None);
@@ -236,24 +246,24 @@ fn output_assignments(
     assignments: &OutputAssignments,
 ) -> [crate::shader::model::OutputAssignment; 6] {
     [0, 1, 2, 3, 4, 5].map(|i| {
-        let assignment = &assignments.assignments[i];
+        let assignment = &assignments.output_assignments[i];
 
         crate::shader::model::OutputAssignment {
             has_channels: uvec4(
-                has_value(&assignment.x) as u32,
-                has_value(&assignment.y) as u32,
-                has_value(&assignment.z) as u32,
-                has_value(&assignment.w) as u32,
+                has_value(&assignments.assignments, assignment.x) as u32,
+                has_value(&assignments.assignments, assignment.y) as u32,
+                has_value(&assignments.assignments, assignment.z) as u32,
+                has_value(&assignments.assignments, assignment.w) as u32,
             ),
             default_value: output_default(i),
         }
     })
 }
 
-fn has_value(value: &Assignment) -> bool {
-    match value {
+fn has_value(assignments: &[Assignment], i: usize) -> bool {
+    match &assignments[i] {
         Assignment::Value(c) => c.is_some(),
-        Assignment::Func { args, .. } => args.iter().any(has_value),
+        Assignment::Func { args, .. } => args.iter().any(|a| has_value(assignments, *a)),
     }
 }
 

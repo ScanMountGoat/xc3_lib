@@ -132,33 +132,36 @@ pub fn albedo_generated_key(
     root_index: usize,
 ) -> GeneratedImageKey {
     // Assume the first texture is albedo if no assignments are possible.
-    let red_index = image_index(material, &assignments.assignments[0].x).or_else(|| {
-        material.textures.first().map(|t| ImageIndex::Image {
-            image_texture: t.image_texture_index,
-            sampler: 0,
-            channel: 0,
-            texcoord_name: SmolStr::default(),
-            texcoord_scale: None,
-        })
-    });
-    let green_index = image_index(material, &assignments.assignments[0].y).or_else(|| {
-        material.textures.first().map(|t| ImageIndex::Image {
-            image_texture: t.image_texture_index,
-            sampler: 0,
-            channel: 1,
-            texcoord_name: SmolStr::default(),
-            texcoord_scale: None,
-        })
-    });
-    let blue_index = image_index(material, &assignments.assignments[0].z).or_else(|| {
-        material.textures.first().map(|t| ImageIndex::Image {
-            image_texture: t.image_texture_index,
-            sampler: 0,
-            channel: 2,
-            texcoord_name: SmolStr::default(),
-            texcoord_scale: None,
-        })
-    });
+    let red_index = image_index(material, assignments, assignments.output_assignments[0].x)
+        .or_else(|| {
+            material.textures.first().map(|t| ImageIndex::Image {
+                image_texture: t.image_texture_index,
+                sampler: 0,
+                channel: 0,
+                texcoord_name: SmolStr::default(),
+                texcoord_scale: None,
+            })
+        });
+    let green_index = image_index(material, assignments, assignments.output_assignments[0].y)
+        .or_else(|| {
+            material.textures.first().map(|t| ImageIndex::Image {
+                image_texture: t.image_texture_index,
+                sampler: 0,
+                channel: 1,
+                texcoord_name: SmolStr::default(),
+                texcoord_scale: None,
+            })
+        });
+    let blue_index = image_index(material, assignments, assignments.output_assignments[0].z)
+        .or_else(|| {
+            material.textures.first().map(|t| ImageIndex::Image {
+                image_texture: t.image_texture_index,
+                sampler: 0,
+                channel: 2,
+                texcoord_name: SmolStr::default(),
+                texcoord_scale: None,
+            })
+        });
 
     // Some materials have alpha testing in a separate depth prepass.
     // glTF expects the alpha to be part of the main albedo texture.
@@ -193,8 +196,8 @@ pub fn normal_generated_key(
     assignments: &OutputAssignments,
     root_index: usize,
 ) -> GeneratedImageKey {
-    let red_index = image_index(material, &assignments.assignments[2].x);
-    let green_index = image_index(material, &assignments.assignments[2].y);
+    let red_index = image_index(material, assignments, assignments.output_assignments[2].x);
+    let green_index = image_index(material, assignments, assignments.output_assignments[2].y);
 
     GeneratedImageKey {
         root_index,
@@ -213,9 +216,9 @@ pub fn metallic_roughness_generated_key(
     root_index: usize,
 ) -> GeneratedImageKey {
     // The red channel is unused, we can pack occlusion here.
-    let occlusion_index = image_index(material, &assignments.assignments[2].z);
-    let metalness_index = image_index(material, &assignments.assignments[1].x);
-    let glossiness_index = image_index(material, &assignments.assignments[1].y);
+    let occlusion_index = image_index(material, assignments, assignments.output_assignments[2].z);
+    let metalness_index = image_index(material, assignments, assignments.output_assignments[1].x);
+    let glossiness_index = image_index(material, assignments, assignments.output_assignments[1].y);
 
     // Invert the glossiness since glTF uses roughness.
     GeneratedImageKey {
@@ -237,9 +240,9 @@ pub fn emissive_generated_key(
     // TODO: Is it correct to assume only toon and hair materials use specular?
     let has_emission = !matches!(assignments.mat_id(), Some(2 | 5));
     if has_emission {
-        let red_index = image_index(material, &assignments.assignments[5].x);
-        let green_index = image_index(material, &assignments.assignments[5].y);
-        let blue_index = image_index(material, &assignments.assignments[5].z);
+        let red_index = image_index(material, assignments, assignments.output_assignments[5].x);
+        let green_index = image_index(material, assignments, assignments.output_assignments[5].y);
+        let blue_index = image_index(material, assignments, assignments.output_assignments[5].z);
 
         GeneratedImageKey {
             root_index,
@@ -449,10 +452,15 @@ fn channel_name(index: &Option<ImageIndex>) -> Option<String> {
     }
 }
 
-fn image_index(material: &crate::Material, value: &Assignment) -> Option<ImageIndex> {
-    match value {
+fn image_index(
+    material: &crate::Material,
+    assignments: &OutputAssignments,
+    value: usize,
+) -> Option<ImageIndex> {
+    match &assignments.assignments[value] {
         Assignment::Value(assignment) => assignment_image_index(material, assignment),
-        Assignment::Func { args, .. } => image_index(material, args.first()?),
+        // TODO: Find a better heuristic for determining the base value.
+        Assignment::Func { args, .. } => image_index(material, assignments, *args.first()?),
     }
 }
 

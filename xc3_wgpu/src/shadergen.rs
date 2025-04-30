@@ -22,6 +22,9 @@ const OUT_VAR: &str = "RESULT";
 // TODO: This needs to be 16 to support all in game shaders.
 const MAX_SAMPLERS: usize = 15;
 
+// TODO: Just use the existing assignment instead of nodes?
+// TODO: move these docs to xc3_model?
+
 /// Static single assignment (SSA) representation for [LayerAssignmentValue]
 /// where each [NodeValue] represents a single assignment for that node index.
 /// This results in less generated code by reusing intermediate values.
@@ -39,18 +42,18 @@ enum NodeValue {
 }
 
 impl Nodes {
-    fn insert_layer_value(&mut self, layer_value: &Assignment) -> usize {
-        match self.value_to_node_index.get(layer_value) {
+    fn insert_layer_value(&mut self, assignments: &[Assignment], value: usize) -> usize {
+        match self.value_to_node_index.get(&assignments[value]) {
             Some(i) => *i,
             None => {
-                match layer_value {
+                match &assignments[value] {
                     Assignment::Value(v) => {
                         // TODO: how to handle missing values?
                         let v = v.clone().unwrap_or(AssignmentValue::Float(0.0.into()));
                         let value_index = self.insert_value(v);
                         let node = NodeValue::Value(value_index);
 
-                        self.insert_node_value(layer_value.clone(), node)
+                        self.insert_node_value(assignments[value].clone(), node)
                     }
                     Assignment::Func { op, args } => {
                         if *op == Operation::Unk {
@@ -58,13 +61,16 @@ impl Nodes {
                             let value_index = self.insert_value(AssignmentValue::Float(0.0.into()));
                             let node = NodeValue::Value(value_index);
 
-                            self.insert_node_value(layer_value.clone(), node)
+                            self.insert_node_value(assignments[value].clone(), node)
                         } else {
                             // Insert values that this value depends on first.
-                            let args = args.iter().map(|a| self.insert_layer_value(a)).collect();
+                            let args = args
+                                .iter()
+                                .map(|a| self.insert_layer_value(assignments, *a))
+                                .collect();
                             let node = NodeValue::Func { op: *op, args };
 
-                            self.insert_node_value(layer_value.clone(), node)
+                            self.insert_node_value(assignments[value].clone(), node)
                         }
                     }
                 }
@@ -340,6 +346,7 @@ pub fn generate_alpha_test_wgsl(
 
 pub fn generate_layering_wgsl(
     assignment: &OutputAssignment,
+    assignments: &[Assignment],
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
     let mut wgsl = String::new();
@@ -347,10 +354,10 @@ pub fn generate_layering_wgsl(
     // TODO: Share this cache with all outputs.
     let mut nodes = Nodes::default();
 
-    let x_index = insert_assignment(&mut nodes, &assignment.x);
-    let y_index = insert_assignment(&mut nodes, &assignment.y);
-    let z_index = insert_assignment(&mut nodes, &assignment.z);
-    let w_index = insert_assignment(&mut nodes, &assignment.w);
+    let x_index = insert_assignment(&mut nodes, assignments, assignment.x);
+    let y_index = insert_assignment(&mut nodes, assignments, assignment.y);
+    let z_index = insert_assignment(&mut nodes, assignments, assignment.z);
+    let w_index = insert_assignment(&mut nodes, assignments, assignment.w);
 
     let node_prefix = format!("{OUT_VAR}_n");
     nodes.write_wgsl(&mut wgsl, &node_prefix, name_to_index);
@@ -372,9 +379,9 @@ pub fn generate_layering_wgsl(
     wgsl
 }
 
-fn insert_assignment(nodes: &mut Nodes, value: &Assignment) -> Option<usize> {
-    if *value != Assignment::Value(None) {
-        Some(nodes.insert_layer_value(value))
+fn insert_assignment(nodes: &mut Nodes, assignments: &[Assignment], value: usize) -> Option<usize> {
+    if assignments[value] != Assignment::Value(None) {
+        Some(nodes.insert_layer_value(assignments, value))
     } else {
         None
     }
@@ -382,6 +389,7 @@ fn insert_assignment(nodes: &mut Nodes, value: &Assignment) -> Option<usize> {
 
 pub fn generate_normal_layering_wgsl(
     assignment: &OutputAssignment,
+    assignments: &[Assignment],
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
     let mut wgsl = String::new();
@@ -389,16 +397,16 @@ pub fn generate_normal_layering_wgsl(
     let node_prefix = format!("{OUT_VAR}_n");
 
     let mut nodes_x = Nodes::default();
-    insert_assignment(&mut nodes_x, &assignment.x);
+    insert_assignment(&mut nodes_x, assignments, assignment.x);
 
     let mut nodes_y = Nodes::default();
-    insert_assignment(&mut nodes_y, &assignment.y);
+    insert_assignment(&mut nodes_y, assignments, assignment.y);
 
     let xy_values = write_wgsl_xy(&mut wgsl, &nodes_x, &nodes_y, &node_prefix, name_to_index);
 
     let mut nodes_zw = Nodes::default();
-    let z_index = insert_assignment(&mut nodes_zw, &assignment.z);
-    let w_index = insert_assignment(&mut nodes_zw, &assignment.w);
+    let z_index = insert_assignment(&mut nodes_zw, assignments, assignment.z);
+    let w_index = insert_assignment(&mut nodes_zw, assignments, assignment.w);
 
     nodes_zw.write_wgsl(&mut wgsl, &node_prefix, name_to_index);
 
@@ -418,7 +426,8 @@ pub fn generate_normal_layering_wgsl(
 }
 
 pub fn generate_normal_intensity_wgsl(
-    intensity: &Assignment,
+    intensity: usize,
+    assignments: &[Assignment],
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
     let mut wgsl = String::new();
@@ -426,7 +435,7 @@ pub fn generate_normal_intensity_wgsl(
     let node_prefix = format!("{OUT_VAR}_nrm_intensity");
 
     let mut nodes = Nodes::default();
-    let index = insert_assignment(&mut nodes, intensity);
+    let index = insert_assignment(&mut nodes, assignments, intensity);
 
     nodes.write_wgsl(&mut wgsl, &node_prefix, name_to_index);
 
