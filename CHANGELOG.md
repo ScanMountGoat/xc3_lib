@@ -12,11 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added rendering and shader database support for normal map intensity.
 
 ### Changed
-* Adjusted shader database to define output layers recursively to more accurately represent in game shaders.
+* Adjusted shader database to define outputs with recursive expressions to more accurately represent in game shaders.
 * Improved accuracy, code size, and generation time for xc3_wgpu shader generation.
 
 ### Removed
-* Removed dependency list from `xc3_model::shader_database` and associated methods. Use the first layer if present for detecting dependencies instead.
+* Removed dependency list from `xc3_model::shader_database` and associated methods.
 
 ## 0.19.0 - 2025-04-03
 ### Added
