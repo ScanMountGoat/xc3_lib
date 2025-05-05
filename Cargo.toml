@@ -10,7 +10,7 @@ image_dds = { version = "0.7.1", default-features = false }
 indexmap = "2.1.0"
 rayon = "1.8.1"
 globwalk = "0.9.1"
-binrw = "0.14.1"
+binrw = "0.15.0"
 smol_str = "0.3.2"
 simple_logger = "5.0.0"
 clap = "4.2.7"

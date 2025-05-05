@@ -44,7 +44,7 @@ use std::{
 
 use binrw::{
     file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, Endian, FilePtr32,
-    NullString,
+    NullString, VecArgs,
 };
 use tracing::{trace, trace_span};
 use xc3_write::{WriteFull, Xc3Write, Xc3WriteOffsets};
@@ -393,15 +393,15 @@ where
     let type_name = std::any::type_name::<Vec<T>>();
     let span = trace_span!("parse_vec", type_name).entered();
 
-    // binrw::helpers::count_with is technically faster but compiles much slower.
-    // The runtime performance difference isn't significant for most files.
-    // TODO: replace with Vec<T>::read_options with next binrw release.
     let start = reader.stream_position()?;
-    let mut values = Vec::new();
-    for _ in 0..count {
-        let value = T::read_options(reader, endian, args.inner.clone())?;
-        values.push(value);
-    }
+    let values = <Vec<T>>::read_options(
+        reader,
+        endian,
+        VecArgs {
+            count,
+            inner: args.inner.clone(),
+        },
+    )?;
     let end = reader.stream_position()?;
 
     if count > 0 {
