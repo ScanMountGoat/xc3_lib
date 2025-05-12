@@ -81,15 +81,12 @@ fn main() {
     }))
     .unwrap();
 
-    let (device, queue) = block_on(adapter.request_device(
-        &wgpu::DeviceDescriptor {
-            label: None,
-            required_features: xc3_wgpu::FEATURES,
-            required_limits: xc3_wgpu::LIMITS,
-            memory_hints: wgpu::MemoryHints::default(),
-        },
-        None,
-    ))
+    let (device, queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+        label: None,
+        required_features: xc3_wgpu::FEATURES,
+        required_limits: xc3_wgpu::LIMITS,
+        ..Default::default()
+    }))
     .unwrap();
 
     // Assume the path is the game root folder.
@@ -213,7 +210,7 @@ fn main() {
 
                     // Clean up resources.
                     queue.submit(std::iter::empty());
-                    device.poll(wgpu::Maintain::Wait);
+                    device.poll(wgpu::PollType::Wait).unwrap();
                 }
                 Err(e) => println!("Error loading {model_path:?}: {e:?}"),
             }
@@ -354,7 +351,7 @@ fn save_screenshot(
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
             tx.send(result).unwrap();
         });
-        device.poll(wgpu::Maintain::Wait);
+        device.poll(wgpu::PollType::Wait).unwrap();
         block_on(rx.receive()).unwrap().unwrap();
 
         let data = buffer_slice.get_mapped_range();

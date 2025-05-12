@@ -80,6 +80,7 @@ pub const LIMITS: wgpu::Limits = wgpu::Limits {
     max_texture_dimension_3d: 2048,
     max_color_attachment_bytes_per_sample: 48,
     max_uniform_buffer_binding_size: 64 << 10, // (64 KiB)
+    max_color_attachments: 8,
     ..wgpu::Limits::downlevel_defaults()
 };
 

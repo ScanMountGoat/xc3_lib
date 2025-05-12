@@ -90,15 +90,12 @@ impl<'a> State<'a> {
         info!("{:?}", adapter.get_info());
 
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    required_features: xc3_wgpu::FEATURES,
-                    required_limits: xc3_wgpu::LIMITS,
-                    memory_hints: wgpu::MemoryHints::default(),
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: None,
+                required_features: xc3_wgpu::FEATURES,
+                required_limits: xc3_wgpu::LIMITS,
+                ..Default::default()
+            })
             .await
             .unwrap();
 
