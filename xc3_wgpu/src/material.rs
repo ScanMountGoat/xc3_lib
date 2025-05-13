@@ -260,10 +260,14 @@ fn output_assignments(
     })
 }
 
-fn has_value(assignments: &[Assignment], i: usize) -> bool {
-    match &assignments[i] {
-        Assignment::Value(c) => c.is_some(),
-        Assignment::Func { args, .. } => args.iter().any(|a| has_value(assignments, *a)),
+fn has_value(assignments: &[Assignment], i: Option<usize>) -> bool {
+    if let Some(i) = i {
+        match &assignments[i] {
+            Assignment::Value(c) => c.is_some(),
+            Assignment::Func { args, .. } => args.iter().any(|a| has_value(assignments, Some(*a))),
+        }
+    } else {
+        false
     }
 }
 

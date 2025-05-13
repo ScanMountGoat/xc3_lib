@@ -591,14 +591,6 @@ ShaderProgram {
                 0.0043137255,
             ),
         ),
-        "o2.x": Func {
-            op: Unk,
-            args: [],
-        },
-        "o2.y": Func {
-            op: Unk,
-            args: [],
-        },
         "o2.z": Value(
             Buffer(
                 BufferDependency {
@@ -613,10 +605,6 @@ ShaderProgram {
                 },
             ),
         ),
-        "o2.w": Func {
-            op: Unk,
-            args: [],
-        },
         "o3.x": Func {
             op: Div,
             args: [

@@ -74,14 +74,14 @@ pub fn shader_from_glsl(
                     &dependent_lines,
                     &mut expr_to_output_expr,
                 )
-                .unwrap_or_default();
+                .unzip();
                 value = new_value;
-                normal_intensity = intensity;
+                normal_intensity = intensity.flatten();
             } else if i == 2 && c == 'w' {
                 // o2.w is n.z * 1000 + 0.5 for XC1 DE, XC2, and XC3.
                 // This can be easily handled by consuming applications.
                 // XCX and XCX DE only have 2 components.
-                value = OutputExpr::default();
+                value = None;
             } else {
                 // Xenoblade X DE uses different outputs than other games.
                 // Detect color or params to handle different outputs and channels.
@@ -90,13 +90,14 @@ pub fn shader_from_glsl(
                     &frag_attributes,
                     &dependent_lines,
                     &mut expr_to_output_expr,
-                )
-                .unwrap_or_default()
+                );
             };
 
-            if let (Some(vert), Some(vert_attributes)) = (&vert, &vert_attributes) {
-                apply_expr_attribute_names(&mut value, vert, vert_attributes, &frag_attributes);
-                apply_expr_vertex_uv_params(&mut value, vert, vert_attributes, &frag_attributes);
+            if let (Some(value), Some(vert), Some(vert_attributes)) =
+                (&mut value, &vert, &vert_attributes)
+            {
+                apply_expr_attribute_names(value, vert, vert_attributes, &frag_attributes);
+                apply_expr_vertex_uv_params(value, vert, vert_attributes, &frag_attributes);
 
                 if let Some(i) = &mut normal_intensity {
                     apply_expr_attribute_names(i, vert, vert_attributes, &frag_attributes);
@@ -104,10 +105,11 @@ pub fn shader_from_glsl(
                 }
             }
 
-            // TODO: skip entirely if the value is none or use a special value?
             // Simplify the output name to save space.
-            let output_name = format!("o{i}.{c}");
-            output_dependencies.insert(output_name.into(), value);
+            if let Some(value) = value {
+                let output_name = format!("o{i}.{c}");
+                output_dependencies.insert(output_name.into(), value);
+            }
         }
     }
 

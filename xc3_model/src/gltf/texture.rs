@@ -455,12 +455,12 @@ fn channel_name(index: &Option<ImageIndex>) -> Option<String> {
 fn image_index(
     material: &crate::Material,
     assignments: &OutputAssignments,
-    value: usize,
+    value: Option<usize>,
 ) -> Option<ImageIndex> {
-    match &assignments.assignments[value] {
+    match &assignments.assignments[value?] {
         Assignment::Value(assignment) => assignment_image_index(material, assignment),
         // TODO: Find a better heuristic for determining the base value.
-        Assignment::Func { args, .. } => image_index(material, assignments, *args.first()?),
+        Assignment::Func { args, .. } => image_index(material, assignments, args.first().copied()),
     }
 }
 

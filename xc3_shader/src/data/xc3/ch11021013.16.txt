@@ -1021,10 +1021,6 @@ ShaderProgram {
                 1.0,
             ),
         ),
-        "o2.w": Func {
-            op: Unk,
-            args: [],
-        },
         "o3.x": Func {
             op: Div,
             args: [

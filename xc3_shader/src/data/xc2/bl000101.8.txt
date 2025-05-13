@@ -174,14 +174,6 @@ ShaderProgram {
                 0.25921568,
             ),
         ),
-        "o2.x": Func {
-            op: Unk,
-            args: [],
-        },
-        "o2.y": Func {
-            op: Unk,
-            args: [],
-        },
         "o2.z": Value(
             Attribute(
                 AttributeDependency {
@@ -192,10 +184,6 @@ ShaderProgram {
                 },
             ),
         ),
-        "o2.w": Func {
-            op: Unk,
-            args: [],
-        },
         "o3.x": Func {
             op: Div,
             args: [

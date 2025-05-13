@@ -1180,10 +1180,6 @@ ShaderProgram {
                 },
             ),
         ),
-        "o2.w": Func {
-            op: Unk,
-            args: [],
-        },
         "o3.x": Func {
             op: Div,
             args: [

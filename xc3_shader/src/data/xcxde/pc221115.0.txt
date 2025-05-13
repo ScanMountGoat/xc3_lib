@@ -6292,10 +6292,6 @@ ShaderProgram {
                 0.0,
             ),
         ),
-        "o2.w": Func {
-            op: Unk,
-            args: [],
-        },
         "o3.x": Value(
             Texture(
                 TextureDependency {

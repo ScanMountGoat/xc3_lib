@@ -379,9 +379,14 @@ pub fn generate_layering_wgsl(
     wgsl
 }
 
-fn insert_assignment(nodes: &mut Nodes, assignments: &[Assignment], value: usize) -> Option<usize> {
-    if assignments[value] != Assignment::Value(None) {
-        Some(nodes.insert_layer_value(assignments, value))
+fn insert_assignment(
+    nodes: &mut Nodes,
+    assignments: &[Assignment],
+    index: Option<usize>,
+) -> Option<usize> {
+    let index = index?;
+    if assignments[index] != Assignment::Value(None) {
+        Some(nodes.insert_layer_value(assignments, index))
     } else {
         None
     }
@@ -435,7 +440,7 @@ pub fn generate_normal_intensity_wgsl(
     let node_prefix = format!("{OUT_VAR}_nrm_intensity");
 
     let mut nodes = Nodes::default();
-    let index = insert_assignment(&mut nodes, assignments, intensity);
+    let index = insert_assignment(&mut nodes, assignments, Some(intensity));
 
     nodes.write_wgsl(&mut wgsl, &node_prefix, name_to_index);
 

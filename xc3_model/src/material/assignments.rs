@@ -31,8 +31,8 @@ pub struct OutputAssignments {
 impl OutputAssignments {
     /// Calculate the material ID from a hardcoded shader constant if present.
     pub fn mat_id(&self) -> Option<u32> {
-        if let Some(Assignment::Value(Some(AssignmentValue::Float(v)))) =
-            self.assignments.get(self.output_assignments[1].w)
+        if let Assignment::Value(Some(AssignmentValue::Float(v))) =
+            self.assignments.get(self.output_assignments[1].w?)?
         {
             // TODO: Why is this sometimes 7?
             Some((v.0 * 255.0 + 0.1) as u32 & 0x7)
@@ -46,13 +46,13 @@ impl OutputAssignments {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct OutputAssignment {
     /// Index into [assignments](struct.OutputAssignments.html#structfield.assignments) for the x value.
-    pub x: usize,
+    pub x: Option<usize>,
     /// Index into [assignments](struct.OutputAssignments.html#structfield.assignments) for the y value.
-    pub y: usize,
+    pub y: Option<usize>,
     /// Index into [assignments](struct.OutputAssignments.html#structfield.assignments) for the z value.
-    pub z: usize,
+    pub z: Option<usize>,
     /// Index into [assignments](struct.OutputAssignments.html#structfield.assignments) for the w value.
-    pub w: usize,
+    pub w: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -155,13 +155,12 @@ fn output_channel_assignment(
     assignments: &mut IndexSet<Assignment>,
     output_index: usize,
     channel: char,
-) -> usize {
+) -> Option<usize> {
     let output = format!("o{output_index}.{channel}");
     shader
         .output_dependencies
         .get(&SmolStr::from(output))
         .map(|v| assignment_value(parameters, v, assignments))
-        .unwrap_or_default()
 }
 
 fn assignment_value(
@@ -267,17 +266,19 @@ pub(crate) fn infer_assignment_from_textures(
     let mut assignments = IndexSet::new();
 
     let mut assignment = |i: Option<usize>, c: usize| {
-        assignments
-            .insert_full(Assignment::Value(i.map(|i| {
-                AssignmentValue::Texture(TextureAssignment {
-                    name: format!("s{i}").into(),
-                    channel: Some(['x', 'y', 'z', 'w'][c]),
-                    texcoord_name: None,
-                    texcoord_transforms: None,
-                    parallax: None,
-                })
-            })))
-            .0
+        Some(
+            assignments
+                .insert_full(Assignment::Value(i.map(|i| {
+                    AssignmentValue::Texture(TextureAssignment {
+                        name: format!("s{i}").into(),
+                        channel: Some(['x', 'y', 'z', 'w'][c]),
+                        texcoord_name: None,
+                        texcoord_transforms: None,
+                        parallax: None,
+                    })
+                })))
+                .0,
+        )
     };
 
     let color_index = textures.iter().position(|t| {

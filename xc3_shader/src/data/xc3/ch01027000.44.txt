@@ -97,23 +97,11 @@ ShaderProgram {
                 0.008235293,
             ),
         ),
-        "o2.x": Func {
-            op: Unk,
-            args: [],
-        },
-        "o2.y": Func {
-            op: Unk,
-            args: [],
-        },
         "o2.z": Value(
             Constant(
                 1.0,
             ),
         ),
-        "o2.w": Func {
-            op: Unk,
-            args: [],
-        },
         "o3.x": Func {
             op: Div,
             args: [
