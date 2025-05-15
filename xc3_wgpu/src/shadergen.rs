@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use indexmap::IndexMap;
 use indoc::formatdoc;
-use log::error;
+use log::{error, warn};
 use smol_str::SmolStr;
 use xc3_model::{
     material::{
@@ -132,6 +132,7 @@ impl Nodes {
                     Operation::Add => Some(format!("{} + {}", arg0?, arg1?)),
                     Operation::AddNormal => {
                         // TODO: only normals xy should use this blend mode?
+                        // TODO: Some shaders with two outputs use this?
                         error!("Unexpected operation {op:?}");
                         None
                     }
@@ -474,9 +475,11 @@ fn channel_assignment_wgsl(
             let c = channel_wgsl(*channel);
             match name.as_str() {
                 "vColor" => Some(format!("in.vertex_color{c}")),
+                "vPos" => Some(format!("in.position{c}")),
                 "vNormal" => Some(format!("in.normal{c}")),
+                "vTan" => Some(format!("in.tangent{c}")),
                 _ => {
-                    error!("Unsupported attribute {name}{c}");
+                    warn!("Unsupported attribute {name}{c}");
                     None
                 }
             }

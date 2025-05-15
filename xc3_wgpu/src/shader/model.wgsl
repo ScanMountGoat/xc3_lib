@@ -200,7 +200,7 @@ struct InstanceInput {
 // wgpu recommends @invariant for position with depth func equals.
 struct VertexOutput {
     @builtin(position) @invariant clip_position: vec4<f32>,
-    @location(0) position: vec3<f32>,
+    @location(0) position: vec4<f32>,
     @location(1) normal: vec4<f32>,
     @location(2) tangent: vec4<f32>,
     @location(3) vertex_color: vec4<f32>,
@@ -287,7 +287,7 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
     }
 
     out.clip_position = camera.projection * vec4(position, 1.0);
-    out.position = out.clip_position.xyz;
+    out.position = vec4(position, 1.0);
 
     // Some shaders have gTexA, gTexB, gTexC for up to 5 scaled versions of tex0.
     // This is handled in the fragment shader, so just return the attributes.
@@ -341,7 +341,7 @@ fn vs_main_instanced_static(in0: VertexInput0, in1: VertexInput1, instance: Inst
     let tangent_xyz = (model_view_matrix * vec4(in0.tangent.xyz, 0.0)).xyz;
 
     out.clip_position = camera.projection * vec4(position, 1.0);
-    out.position = out.clip_position.xyz;
+    out.position = vec4(position, 1.0);
 
     // Some shaders have gTexA, gTexB, gTexC for up to 5 scaled versions of tex0.
     // This is handled in the fragment shader, so just return the attributes.
