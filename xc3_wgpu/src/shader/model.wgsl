@@ -435,12 +435,12 @@ fn transform_uv(uv: vec2<f32>, transform_u: vec4<f32>, transform_v: vec4<f32>) -
     return vec2(dot(v, transform_u), dot(v, transform_v));
 }
 
-fn uv_parallax(vert: VertexOutput, mask_a: f32, mask_b: f32, ratio: f32) -> vec2<f32> {
+fn uv_parallax(vert: VertexOutput, ratio: f32) -> vec2<f32> {
     // TODO: How similar is this to traditional parallax mapping with a height map?
     let bitangent = cross(vert.normal.xyz, vert.tangent.xyz) * vert.tangent.w;
     let offset = vert.normal.x * vert.tangent.xy - vert.normal.x * bitangent.xy;
 
-    return mix(mask_a, mask_b, ratio) * 0.7 * offset;
+    return ratio * 0.7 * offset;
 }
 
 fn overlay_blend(a: f32, b: f32) -> f32 {
@@ -529,7 +529,8 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     if assignments[2].has_channels.x != 0u || assignments[2].has_channels.y != 0u {
         var intensity = 1.0;
         // ASSIGN_NORMAL_INTENSITY_GENERATED
-        let normal_map = vec3(g_normal.xy * pow(intensity, 0.7), normal_z(g_normal.x, g_normal.y));
+        intensity = pow(intensity, 0.7);
+        let normal_map = create_normal_map(g_normal.x * intensity, g_normal.y * intensity);
         normal = apply_normal_map(normal_map, tangent, bitangent, vertex_normal);
     }
     let ao = g_normal.z;

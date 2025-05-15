@@ -1,15 +1,10 @@
 use crate::{
-    graph::{
-        query::{assign_x_recursive, query_nodes},
-        Expr, Graph,
-    },
-    shader_database::Attributes,
+    graph::{Expr, Graph},
+    shader_database::{output_expr, Attributes},
 };
-use indoc::indoc;
-use smol_str::SmolStr;
-use std::sync::LazyLock;
+
 use xc3_model::shader_database::{
-    AttributeDependency, BufferDependency, Dependency, TexCoord, TexCoordParams, TextureDependency,
+    AttributeDependency, BufferDependency, Dependency, OutputExpr, TextureDependency,
 };
 
 pub fn input_dependencies(
@@ -142,275 +137,20 @@ pub fn texture_dependency(e: &Expr, graph: &Graph, attributes: &Attributes) -> O
     }
 }
 
-fn texcoord_args(args: &[Expr], graph: &Graph, attributes: &Attributes) -> Vec<TexCoord> {
+fn texcoord_args(args: &[Expr], graph: &Graph, attributes: &Attributes) -> Vec<OutputExpr> {
     // Search recursively to find texcoord variables.
     // The first arg is always the texture name.
+    // texture(arg0, vec2(arg2, arg3, ...))
     args.iter()
         .skip(1)
-        .flat_map(|a| a.exprs_recursive())
-        .filter_map(|e| {
-            // Detect common cases for transforming UV coordinates.
-            texcoord_params(graph, e, attributes).or_else(|| {
-                if let Expr::Node { node_index, .. } = e {
-                    // Find the attribute used for this input.
-                    // TODO: Is this a subset of the dependencies for the output variable?
-                    let node_assignments = graph.node_dependencies_recursive(*node_index, None);
-
-                    let (name, channel) =
-                        texcoord_name_channel(&node_assignments, graph, attributes)?;
-
-                    Some(TexCoord {
-                        name: name.into(),
-                        channel,
-                        params: None,
-                    })
-                } else {
-                    None
-                }
-            })
+        .flat_map(|a| {
+            a.exprs_recursive()
+                .iter()
+                .skip(1)
+                .map(|e| output_expr(e, graph, attributes))
+                .collect::<Vec<_>>()
         })
         .collect()
-}
-
-pub fn texcoord_params(graph: &Graph, input: &Expr, attributes: &Attributes) -> Option<TexCoord> {
-    // Detect operations from most specific to least specific.
-    let (params, name, channel) = tex_parallax(graph, input, attributes)
-        .or_else(|| tex_parallax_xcx_de(graph, input, attributes))
-        .or_else(|| tex_matrix(graph, input))
-        .or_else(|| scale_parameter(graph, input))?;
-
-    Some(TexCoord {
-        name,
-        channel,
-        params: Some(params),
-    })
-}
-
-static SCALE_PARAMETER: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        void main() {
-            coord = coord;
-            result = coord * scale;
-            result = result;
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
-});
-
-fn scale_parameter(graph: &Graph, expr: &Expr) -> Option<(TexCoordParams, SmolStr, Option<char>)> {
-    // Detect simple multiplication by scale parameters.
-    let result = query_nodes(expr, &graph.nodes, &SCALE_PARAMETER.nodes)?;
-
-    let param = buffer_dependency(result.get("scale")?)?;
-
-    let (coord, channel) = match result.get("coord")? {
-        Expr::Global { name, channel } => Some((name.clone(), *channel)),
-        _ => None,
-    }?;
-
-    Some((TexCoordParams::Scale(param), coord, channel))
-}
-
-static TEX_MATRIX: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        void main() {
-            u = coord.x;
-            v = coord.y;
-            result = u * param_x;
-            result = fma(v, param_y, result);
-            result = fma(0.0, param_z, result);
-            result = result + param_w;
-            result = result;
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
-});
-
-fn tex_matrix(graph: &Graph, expr: &Expr) -> Option<(TexCoordParams, SmolStr, Option<char>)> {
-    // TODO: Also check that the attribute name matches?
-    // Detect matrix multiplication for the mat4x2 "gTexMat * vec4(u, v, 0.0, 1.0)".
-    // U and V have the same pattern but use a different row of the matrix.
-    let result = query_nodes(expr, &graph.nodes, &TEX_MATRIX.nodes)?;
-    let x = result.get("param_x").copied().and_then(buffer_dependency)?;
-    let y = result.get("param_y").copied().and_then(buffer_dependency)?;
-    let z = result.get("param_z").copied().and_then(buffer_dependency)?;
-    let w = result.get("param_w").copied().and_then(buffer_dependency)?;
-
-    // TODO: How to differentiate between u and v?
-    let (coord, channel) = match result.get("coord")? {
-        Expr::Global { name, channel } => Some((name.clone(), *channel)),
-        _ => None,
-    }?;
-
-    Some((TexCoordParams::Matrix([x, y, z, w]), coord, channel))
-}
-
-static TEX_PARALLAX_XC2: LazyLock<Graph> = LazyLock::new(|| {
-    // uv = mix(mask, param, param_ratio) * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
-    let query = indoc! {"
-        void main() {
-            coord = coord;
-            mask = mask;
-            nrm_result = fma(temp1, 0.7, temp2);
-            neg_mask = 0.0 - mask;
-            param_minus_mask = neg_mask + param;
-            ratio = fma(param_minus_mask, param_ratio, mask);
-            result = fma(ratio, nrm_result, coord);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
-});
-
-static TEX_PARALLAX_XC3: LazyLock<Graph> = LazyLock::new(|| {
-    // uv = mix(param, mask, param_ratio) * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
-    let query = indoc! {"
-        void main() {
-            coord = coord;
-            mask = mask;
-            nrm_result = fma(temp1, 0.7, temp2);
-            neg_param = 0.0 - param;
-            mask_minus_param = mask + neg_param;
-            ratio = fma(mask_minus_param, param_ratio, param);
-            result = fma(ratio, nrm_result, coord);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
-});
-
-static TEX_PARALLAX_XC3_2: LazyLock<Graph> = LazyLock::new(|| {
-    // uv = mix(param, mask, param_ratio) * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
-    let query = indoc! {"
-        void main() {
-            coord = coord;
-            mask = mask;
-            nrm_result = fma(temp1, 0.7, temp2);
-            neg_param = 0.0 - param;
-            mask_minus_param = mask + neg_param;
-            ratio = fma(mask_minus_param, param_ratio, param);
-            result = fma(ratio, nrm_result, coord);
-            // Generated for some shaders.
-            result = abs(result);
-            result = result + -0.0;
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
-});
-
-fn tex_parallax(
-    graph: &Graph,
-    expr: &Expr,
-    attributes: &Attributes,
-) -> Option<(TexCoordParams, SmolStr, Option<char>)> {
-    let expr = assign_x_recursive(&graph.nodes, expr);
-
-    // Some eye shaders use some form of parallax mapping.
-    let (result, is_swapped) = query_nodes(expr, &graph.nodes, &TEX_PARALLAX_XC2.nodes)
-        .map(|r| (r, false))
-        .or_else(|| query_nodes(expr, &graph.nodes, &TEX_PARALLAX_XC3.nodes).map(|r| (r, true)))
-        .or_else(|| {
-            query_nodes(expr, &graph.nodes, &TEX_PARALLAX_XC3_2.nodes).map(|r| (r, true))
-        })?;
-
-    let mut mask_a = result.get("mask").copied().and_then(|e| {
-        texture_dependency(e, graph, attributes)
-            .or_else(|| buffer_dependency(e).map(Dependency::Buffer))
-    })?;
-
-    let mut mask_b = result.get("param").copied().and_then(|e| {
-        texture_dependency(e, graph, attributes)
-            .or_else(|| buffer_dependency(e).map(Dependency::Buffer))
-    })?;
-
-    if is_swapped {
-        std::mem::swap(&mut mask_a, &mut mask_b);
-    }
-
-    let ratio = result.get("param_ratio").copied().and_then(|e| {
-        texture_dependency(e, graph, attributes)
-            .or_else(|| buffer_dependency(e).map(Dependency::Buffer))
-    })?;
-
-    let (coord, channel) = match result.get("coord")? {
-        Expr::Global { name, channel } => Some((name.clone(), *channel)),
-        _ => None,
-    }?;
-
-    Some((
-        TexCoordParams::Parallax {
-            mask_a,
-            mask_b,
-            ratio,
-        },
-        coord,
-        channel,
-    ))
-}
-
-static TEX_PARALLAX_XCX_DE: LazyLock<Graph> = LazyLock::new(|| {
-    // uv = ratio * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
-    let query = indoc! {"
-        void main() {
-            nrm_result = fma(temp1, 0.7, temp2);
-            result = fma(nrm_result, ratio, coord);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
-});
-
-fn tex_parallax_xcx_de(
-    graph: &Graph,
-    expr: &Expr,
-    attributes: &Attributes,
-) -> Option<(TexCoordParams, SmolStr, Option<char>)> {
-    let expr = assign_x_recursive(&graph.nodes, expr);
-
-    // Some eye shaders use some form of parallax mapping.
-    let result = query_nodes(expr, &graph.nodes, &TEX_PARALLAX_XCX_DE.nodes)?;
-
-    let ratio = assign_x_recursive(&graph.nodes, result.get("ratio")?);
-    let ratio = texture_dependency(ratio, graph, attributes)
-        .or_else(|| buffer_dependency(ratio).map(Dependency::Buffer))?;
-
-    let coord = assign_x_recursive(&graph.nodes, result.get("coord")?);
-    let (coord, channel) = match coord {
-        Expr::Global { name, channel } => Some((name.clone(), *channel)),
-        _ => None,
-    }?;
-
-    Some((
-        TexCoordParams::Parallax {
-            mask_a: ratio,
-            mask_b: Dependency::Constant(0.0.into()),
-            ratio: Dependency::Constant(0.0.into()),
-        },
-        coord,
-        channel,
-    ))
-}
-
-fn texcoord_name_channel(
-    node_assignments: &[usize],
-    graph: &Graph,
-    attributes: &Attributes,
-) -> Option<(String, Option<char>)> {
-    node_assignments.iter().find_map(|i| {
-        // Check all exprs for binary ops, function args, etc.
-        graph.nodes[*i]
-            .input
-            .exprs_recursive()
-            .into_iter()
-            .find_map(|e| {
-                if let Expr::Global { name, channel } = e {
-                    if attributes.input_locations.contains_left(name.as_str()) {
-                        Some((name.to_string(), *channel))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            })
-    })
 }
 
 pub fn latte_dependencies(source: &str, variable: &str, channel: Option<char>) -> String {
@@ -453,7 +193,7 @@ mod tests {
     use glsl_lang::{ast::TranslationUnit, parse::DefaultParse};
     use indoc::indoc;
     use pretty_assertions::assert_eq;
-    use xc3_model::shader_database::AttributeDependency;
+    use xc3_model::shader_database::{AttributeDependency, Operation};
 
     #[test]
     fn input_dependencies_single_channel() {
@@ -482,16 +222,14 @@ mod tests {
                 name: "texture1".into(),
                 channel: Some('w'),
                 texcoords: vec![
-                    TexCoord {
+                    OutputExpr::Value(Dependency::Attribute(AttributeDependency {
                         name: "in_attr0".into(),
-                        channel: Some('x'),
-                        params: None
-                    },
-                    TexCoord {
+                        channel: Some('x')
+                    })),
+                    OutputExpr::Value(Dependency::Attribute(AttributeDependency {
                         name: "in_attr0".into(),
-                        channel: Some('w'),
-                        params: None
-                    }
+                        channel: Some('w')
+                    }))
                 ]
             })],
             input_dependencies(&graph, &attributes, &assignments, &dependent_lines)
@@ -533,65 +271,71 @@ mod tests {
                 name: "gTResidentTex05".into(),
                 channel: Some('x'),
                 texcoords: vec![
-                    TexCoord {
-                        name: "in_attr4".into(),
-                        channel: Some('x'),
-                        params: Some(TexCoordParams::Matrix([
-                            BufferDependency {
+                    OutputExpr::Func {
+                        op: Operation::TexMatrix,
+                        args: vec![
+                            OutputExpr::Value(Dependency::Attribute(AttributeDependency {
+                                name: "in_attr4".into(),
+                                channel: Some('x')
+                            })),
+                            OutputExpr::Value(Dependency::Buffer(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(0),
                                 channel: Some('x'),
-                            },
-                            BufferDependency {
+                            })),
+                            OutputExpr::Value(Dependency::Buffer(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(0),
                                 channel: Some('y'),
-                            },
-                            BufferDependency {
+                            })),
+                            OutputExpr::Value(Dependency::Buffer(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(0),
                                 channel: Some('z'),
-                            },
-                            BufferDependency {
+                            })),
+                            OutputExpr::Value(Dependency::Buffer(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(0),
                                 channel: Some('w'),
-                            }
-                        ]))
+                            }))
+                        ]
                     },
-                    TexCoord {
-                        name: "in_attr4".into(),
-                        channel: Some('x'),
-                        params: Some(TexCoordParams::Matrix([
-                            BufferDependency {
+                    OutputExpr::Func {
+                        op: Operation::TexMatrix,
+                        args: vec![
+                            OutputExpr::Value(Dependency::Attribute(AttributeDependency {
+                                name: "in_attr4".into(),
+                                channel: Some('y')
+                            })),
+                            OutputExpr::Value(Dependency::Buffer(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(1),
                                 channel: Some('x'),
-                            },
-                            BufferDependency {
+                            })),
+                            OutputExpr::Value(Dependency::Buffer(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(1),
                                 channel: Some('y'),
-                            },
-                            BufferDependency {
+                            })),
+                            OutputExpr::Value(Dependency::Buffer(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(1),
                                 channel: Some('z'),
-                            },
-                            BufferDependency {
+                            })),
+                            OutputExpr::Value(Dependency::Buffer(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
                                 index: Some(1),
                                 channel: Some('w'),
-                            }
-                        ]))
+                            }))
+                        ]
                     }
                 ]
             })],
@@ -627,25 +371,35 @@ mod tests {
                 name: "gTResidentTex04".into(),
                 channel: Some('x'),
                 texcoords: vec![
-                    TexCoord {
-                        name: "in_attr4".into(),
-                        channel: Some('x'),
-                        params: Some(TexCoordParams::Scale(BufferDependency {
-                            name: "U_Mate".into(),
-                            field: "gWrkFl4".into(),
-                            index: Some(0),
-                            channel: Some('z')
-                        }))
+                    OutputExpr::Func {
+                        op: Operation::Mul,
+                        args: vec![
+                            OutputExpr::Value(Dependency::Attribute(AttributeDependency {
+                                name: "in_attr4".into(),
+                                channel: Some('x')
+                            })),
+                            OutputExpr::Value(Dependency::Buffer(BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: Some(0),
+                                channel: Some('z')
+                            }))
+                        ]
                     },
-                    TexCoord {
-                        name: "in_attr4".into(),
-                        channel: Some('y'),
-                        params: Some(TexCoordParams::Scale(BufferDependency {
-                            name: "U_Mate".into(),
-                            field: "gWrkFl4".into(),
-                            index: Some(0),
-                            channel: Some('w')
-                        }))
+                    OutputExpr::Func {
+                        op: Operation::Mul,
+                        args: vec![
+                            OutputExpr::Value(Dependency::Attribute(AttributeDependency {
+                                name: "in_attr4".into(),
+                                channel: Some('y')
+                            })),
+                            OutputExpr::Value(Dependency::Buffer(BufferDependency {
+                                name: "U_Mate".into(),
+                                field: "gWrkFl4".into(),
+                                index: Some(0),
+                                channel: Some('w')
+                            }))
+                        ]
                     }
                 ]
             })],
@@ -674,7 +428,7 @@ mod tests {
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".into(),
                 channel: Some('z'),
-                texcoords: Vec::new()
+                texcoords: vec![OutputExpr::Value(Dependency::Constant(1.0.into()))]
             })],
             input_dependencies(&graph, &attributes, &assignments, &dependent_lines)
         );
@@ -701,12 +455,12 @@ mod tests {
                 Dependency::Texture(TextureDependency {
                     name: "texture1".into(),
                     channel: Some('z'),
-                    texcoords: Vec::new()
+                    texcoords: vec![OutputExpr::Value(Dependency::Constant(1.0.into()))]
                 }),
                 Dependency::Texture(TextureDependency {
                     name: "texture1".into(),
                     channel: Some('w'),
-                    texcoords: Vec::new()
+                    texcoords: vec![OutputExpr::Value(Dependency::Constant(1.0.into()))]
                 })
             ],
             input_dependencies(&graph, &attributes, &assignments, &dependent_lines)
@@ -736,7 +490,7 @@ mod tests {
             vec![Dependency::Texture(TextureDependency {
                 name: "texture1".into(),
                 channel: Some('x'),
-                texcoords: Vec::new()
+                texcoords: vec![OutputExpr::Value(Dependency::Constant(1.0.into()))]
             })],
             input_dependencies(
                 &graph,
@@ -835,7 +589,7 @@ mod tests {
             vec![Dependency::Texture(TextureDependency {
                 name: "tex".into(),
                 channel: Some('x'),
-                texcoords: Vec::new()
+                texcoords: vec![OutputExpr::Value(Dependency::Constant(0.0.into()))]
             })],
             input_dependencies(&graph, &attributes, &assignments, &dependent_lines)
         );

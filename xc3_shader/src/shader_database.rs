@@ -24,10 +24,7 @@ use xc3_model::shader_database::{
 };
 
 use crate::{
-    dependencies::{
-        attribute_dependencies, buffer_dependency, input_dependencies, texcoord_params,
-        texture_dependency,
-    },
+    dependencies::{buffer_dependency, input_dependencies, texture_dependency},
     extract::nvsd_glsl_name,
     graph::{
         glsl::shader_source_no_extensions,
@@ -87,24 +84,22 @@ pub fn shader_from_glsl(
             if let (Some(value), Some(vert), Some(vert_attributes)) =
                 (&mut value, &vert, &vert_attributes)
             {
-                apply_expr_attribute_names(
+                apply_expr_vertex_outputs(
                     value,
                     vert,
                     vert_attributes,
                     &frag_attributes,
                     &mut vertex_output_exprs,
                 );
-                apply_expr_vertex_uv_params(value, vert, vert_attributes, &frag_attributes);
 
                 if let Some(i) = &mut normal_intensity {
-                    apply_expr_attribute_names(
+                    apply_expr_vertex_outputs(
                         i,
                         vert,
                         vert_attributes,
                         &frag_attributes,
                         &mut vertex_output_exprs,
                     );
-                    apply_expr_vertex_uv_params(i, vert, vert_attributes, &frag_attributes);
                 }
             }
 
@@ -120,40 +115,6 @@ pub fn shader_from_glsl(
         output_dependencies,
         outline_width,
         normal_intensity,
-    }
-}
-
-fn apply_expr_attribute_names(
-    value: &mut OutputExpr,
-    vert: &Graph,
-    vert_attributes: &Attributes,
-    frag_attributes: &Attributes,
-    vertex_output_exprs: &mut IndexMap<(i32, Option<char>), OutputExpr>,
-) {
-    // Names are only present for vertex input attributes.
-    match value {
-        OutputExpr::Value(d) => {
-            if let Some(new_value) = vertex_attribute_output_expr(
-                vert,
-                vert_attributes,
-                frag_attributes,
-                d,
-                vertex_output_exprs,
-            ) {
-                *value = new_value;
-            }
-        }
-        OutputExpr::Func { args, .. } => {
-            for arg in args {
-                apply_expr_attribute_names(
-                    arg,
-                    vert,
-                    vert_attributes,
-                    frag_attributes,
-                    vertex_output_exprs,
-                );
-            }
-        }
     }
 }
 
@@ -347,7 +308,7 @@ fn normal_output_expr(
     Some((value, intensity))
 }
 
-fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -> OutputExpr {
+pub(crate) fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -> OutputExpr {
     // Simplify any expressions that would interfere with queries.
     let mut expr = assign_x_recursive(&graph.nodes, expr);
     if let Some(new_expr) = normal_map_fma(&graph.nodes, expr) {
@@ -375,6 +336,8 @@ fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -> OutputExp
             .or_else(|| op_overlay2(&graph.nodes, expr))
             .or_else(|| op_overlay_ratio(&graph.nodes, expr))
             .or_else(|| op_overlay(&graph.nodes, expr))
+            .or_else(|| tex_parallax(graph, expr))
+            .or_else(|| tex_matrix(graph, expr))
             .or_else(|| op_mix(&graph.nodes, expr))
             .or_else(|| op_mul_ratio(&graph.nodes, expr))
             .or_else(|| op_add_ratio(expr))
@@ -1189,128 +1152,158 @@ fn skin_attribute_clip_space_xyzw<'a>(nodes: &'a [Node], expr: &'a Expr) -> Opti
     result.get("result").copied()
 }
 
-fn apply_vertex_uv_params(
-    vertex: &Graph,
-    vertex_attributes: &Attributes,
-    fragment_attributes: &Attributes,
-    dependency: &mut Dependency,
-) {
-    if let Dependency::Texture(texture) = dependency {
-        for texcoord in &mut texture.texcoords {
-            // Convert a fragment input like "in_attr4" to its vertex output like "vTex0".
-            if let Some(fragment_location) = fragment_attributes
-                .input_locations
-                .get_by_left(texcoord.name.as_str())
-            {
-                if let Some(vertex_output_name) = vertex_attributes
-                    .output_locations
-                    .get_by_right(fragment_location)
-                {
-                    // Preserve the channel ordering here.
-                    // Find any additional scale parameters.
-                    if let Some(node) = vertex.nodes.iter().rfind(|n| {
-                        n.output.name == vertex_output_name && n.output.channel == texcoord.channel
-                    }) {
-                        // Detect common cases for transforming UV coordinates.
-                        if let Some(new_texcoord) =
-                            texcoord_params(vertex, &node.input, vertex_attributes)
-                        {
-                            *texcoord = new_texcoord;
-                        }
-                    }
-
-                    // Also fix channels since the zw output may just be scaled vTex0.xy.
-                    if let Some((actual_name, actual_channel)) = find_texcoord_input_name_channel(
-                        vertex,
-                        texcoord,
-                        vertex_output_name,
-                        vertex_attributes,
-                    ) {
-                        texcoord.name = actual_name.into();
-                        texcoord.channel = actual_channel;
-                    }
-                }
-            }
+static TEX_MATRIX: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            u = coord.x;
+            v = coord.y;
+            result = u * param_x;
+            result = fma(v, param_y, result);
+            result = fma(0.0, param_z, result);
+            result = result + param_w;
         }
-    }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn tex_matrix<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    // TODO: Also check that the attribute name matches?
+    // Detect matrix multiplication for the mat4x2 "gTexMat * vec4(u, v, 0.0, 1.0)".
+    // U and V have the same pattern but use a different row of the matrix.
+    // TODO: How to differentiate between u and v?
+    let result = query_nodes(expr, &graph.nodes, &TEX_MATRIX.nodes)?;
+    let coord = result.get("coord")?;
+    let x = result.get("param_x")?;
+    let y = result.get("param_y")?;
+    let z = result.get("param_z")?;
+    let w = result.get("param_w")?;
+
+    Some((Operation::TexMatrix, vec![coord, x, y, z, w]))
 }
 
-fn apply_expr_vertex_uv_params(
-    value: &mut OutputExpr,
-    vertex: &Graph,
-    vertex_attributes: &Attributes,
-    fragment_attributes: &Attributes,
-) {
-    // Add texture parameters used for the corresponding vertex output.
-    // Most shaders apply UV transforms in the vertex shader.
-    match value {
-        OutputExpr::Value(d) => {
-            apply_vertex_uv_params(vertex, vertex_attributes, fragment_attributes, d);
+static TEX_PARALLAX: LazyLock<Graph> = LazyLock::new(|| {
+    // uv = ratio * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
+    let query = indoc! {"
+        void main() {
+            nrm_result = fma(temp1, 0.7, temp2);
+            result = fma(nrm_result, ratio, coord);
         }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static TEX_PARALLAX2: LazyLock<Graph> = LazyLock::new(|| {
+    // uv = ratio * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
+    let query = indoc! {"
+        void main() {
+            coord = coord;
+            mask = mask;
+            nrm_result = fma(temp1, 0.7, temp2);
+            result = fma(ratio, nrm_result, coord);
+            // Generated for some shaders.
+            result = abs(result);
+            result = result + -0.0;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn tex_parallax<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let expr = assign_x_recursive(&graph.nodes, expr);
+
+    // Some eye shaders use some form of parallax mapping.
+    let result = query_nodes(expr, &graph.nodes, &TEX_PARALLAX.nodes)
+        .or_else(|| query_nodes(expr, &graph.nodes, &TEX_PARALLAX2.nodes))?;
+
+    let ratio = result.get("ratio")?;
+    let coord = result.get("coord")?;
+
+    Some((Operation::TexParallax, vec![coord, ratio]))
+}
+
+fn apply_expr_vertex_outputs(
+    value: &mut OutputExpr,
+    vert: &Graph,
+    vert_attributes: &Attributes,
+    frag_attributes: &Attributes,
+    vertex_output_exprs: &mut IndexMap<(i32, Option<char>), OutputExpr>,
+) {
+    // Replace fragment inputs with the corresponding vertex output expr.
+    match value {
+        OutputExpr::Value(d) => match d {
+            Dependency::Constant(_) => (),
+            Dependency::Buffer(_) => (),
+            Dependency::Texture(texture) => {
+                for arg in &mut texture.texcoords {
+                    apply_expr_vertex_outputs(
+                        arg,
+                        vert,
+                        vert_attributes,
+                        frag_attributes,
+                        vertex_output_exprs,
+                    );
+                }
+            }
+            Dependency::Attribute(attribute) => {
+                if let Some(new_value) = vertex_attribute_output_expr(
+                    attribute,
+                    vert,
+                    vert_attributes,
+                    frag_attributes,
+                    vertex_output_exprs,
+                ) {
+                    *value = new_value;
+                }
+            }
+        },
         OutputExpr::Func { args, .. } => {
             for arg in args {
-                apply_expr_vertex_uv_params(arg, vertex, vertex_attributes, fragment_attributes);
+                apply_expr_vertex_outputs(
+                    arg,
+                    vert,
+                    vert_attributes,
+                    frag_attributes,
+                    vertex_output_exprs,
+                );
             }
         }
     }
 }
 
-// TODO: Share code with texcoord function.
 fn vertex_attribute_output_expr(
+    attribute: &AttributeDependency,
     vertex: &Graph,
     vertex_attributes: &Attributes,
     fragment_attributes: &Attributes,
-    dependency: &mut Dependency,
     vertex_output_exprs: &mut IndexMap<(i32, Option<char>), OutputExpr>,
 ) -> Option<OutputExpr> {
-    if let Dependency::Attribute(attribute) = dependency {
-        // Convert a fragment input like "in_attr4" to its vertex output like "out_attr4".
-        let fragment_location = fragment_attributes
-            .input_locations
-            .get_by_left(attribute.name.as_str())?;
+    // Convert a fragment input like "in_attr4" to its vertex output like "out_attr4".
+    let fragment_location = fragment_attributes
+        .input_locations
+        .get_by_left(attribute.name.as_str())?;
 
-        let vertex_output_name = vertex_attributes
-            .output_locations
-            .get_by_right(fragment_location)?;
+    let vertex_output_name = vertex_attributes
+        .output_locations
+        .get_by_right(fragment_location)?;
 
-        let key = (*fragment_location, attribute.channel);
-        match vertex_output_exprs.get(&key) {
-            Some(expr) => Some(expr.clone()),
-            None => {
-                // TODO: Convert texcoord params to operations
-                // TODO: detect bitangent calculated from tangent
-                let dependent_lines =
-                    vertex.dependencies_recursive(vertex_output_name, attribute.channel, None);
+    let key = (*fragment_location, attribute.channel);
+    match vertex_output_exprs.get(&key) {
+        Some(expr) => Some(expr.clone()),
+        None => {
+            // TODO: Convert texcoord params to operations
+            // TODO: detect bitangent calculated from tangent
+            let dependent_lines =
+                vertex.dependencies_recursive(vertex_output_name, attribute.channel, None);
 
-                if let Some(last_node) = dependent_lines.last().and_then(|l| vertex.nodes.get(*l)) {
-                    let new_expr = output_expr(&last_node.input, vertex, vertex_attributes);
-                    vertex_output_exprs.insert(key, new_expr.clone());
-                    Some(new_expr)
-                } else {
-                    None
-                }
+            if let Some(last_node) = dependent_lines.last().and_then(|l| vertex.nodes.get(*l)) {
+                let new_expr = output_expr(&last_node.input, vertex, vertex_attributes);
+                vertex_output_exprs.insert(key, new_expr.clone());
+                Some(new_expr)
+            } else {
+                None
             }
         }
-    } else {
-        None
     }
-}
-
-fn find_texcoord_input_name_channel(
-    vertex: &Graph,
-    texcoord: &xc3_model::shader_database::TexCoord,
-    vertex_output_name: &str,
-    vertex_attributes: &Attributes,
-) -> Option<(String, Option<char>)> {
-    // We only need to look up one output per texcoord.
-    let c = texcoord.channel;
-
-    // TODO: Avoid calculating this more than once.
-    let dependent_lines = vertex.dependencies_recursive(vertex_output_name, c, None);
-
-    attribute_dependencies(vertex, &dependent_lines, vertex_attributes, None)
-        .first()
-        .map(|a| (a.name.to_string(), a.channel))
 }
 
 pub fn create_shader_database(input: &str) -> ShaderDatabase {

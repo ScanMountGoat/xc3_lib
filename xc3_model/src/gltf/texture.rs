@@ -470,20 +470,13 @@ fn assignment_image_index(
 ) -> Option<ImageIndex> {
     match assignment.as_ref()? {
         AssignmentValue::Texture(texture) => {
-            let TextureAssignment {
-                name,
-                channel,
-                texcoord_name,
-                texcoord_transforms,
-                ..
-            } = texture;
+            let TextureAssignment { name, channel, .. } = texture;
 
             let channel_index = "xyzw".find(channel.unwrap()).unwrap();
 
             // TODO: proper mat2x4 support?
-            let texcoord_scale = texcoord_transforms.map(|(u, v)| [u[0], v[1]]);
-
-            let texcoord_name = texcoord_name.clone().unwrap_or_default();
+            // TODO: how to get the texcoord name and scale?
+            let texcoord_name: SmolStr = "vTex0".into();
 
             // Find the sampler from the material.
             // Find the texture referenced by this sampler.
@@ -496,7 +489,7 @@ fn assignment_image_index(
                         sampler: t.sampler_index,
                         channel: channel_index,
                         texcoord_name: texcoord_name.clone(),
-                        texcoord_scale,
+                        texcoord_scale: None,
                     })
             });
 
@@ -505,7 +498,7 @@ fn assignment_image_index(
                 name: name.clone(),
                 channel: channel_index,
                 texcoord_name,
-                texcoord_scale,
+                texcoord_scale: None,
             }))
         }
         AssignmentValue::Attribute { .. } => None,

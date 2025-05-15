@@ -131,38 +131,7 @@ pub struct TextureDependency {
     pub name: SmolStr,
     pub channel: Option<char>,
     /// Texture coordinate values used for the texture function call.
-    pub texcoords: Vec<TexCoord>,
-}
-
-/// A texture coordinate attribute with optional transform parameters.
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct TexCoord {
-    /// The name of the attribute like "in_attr4".
-    pub name: SmolStr,
-    /// The accessed channels like "x" or "y".
-    pub channel: Option<char>,
-    pub params: Option<TexCoordParams>,
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum TexCoordParams {
-    // A single scale parameter.
-    Scale(BufferDependency),
-
-    /// A float2x4 texture matrix.
-    /// ```text
-    /// u = dot(vec4(u, v, 0.0, 1.0), gTexMat[0].xyzw);
-    /// v = dot(vec4(u, v, 0.0, 1.0), gTexMat[1].xyzw);
-    /// ```
-    Matrix([BufferDependency; 4]),
-
-    /// Masked parallax mapping with `mix(mask_a, mask_b, ratio)` as the intensity.
-    Parallax {
-        mask_a: Dependency,
-        mask_b: Dependency,
-        ratio: Dependency,
-    },
+    pub texcoords: Vec<OutputExpr>,
 }
 
 /// A single input attribute like `in_attr0.x` in GLSL.
@@ -212,6 +181,16 @@ pub enum Operation {
     Fresnel,
     /// `sqrt(arg0)`
     Sqrt,
+    /// ```text
+    /// u = dot(vec4(arg0, arg1, 0.0, 1.0), (arg2, arg3, arg4, arg5)
+    /// v = dot(vec4(arg0, arg1, 0.0, 1.0), (arg2, arg3, arg4, arg5)
+    /// ```
+    TexMatrix,
+    /// ```text
+    /// u = arg0 + arg1 * 0.7 * (normal.x * tangent.x - normal.x * bitangent.x)
+    /// v = arg0 + arg1 * 0.7 * (normal.x * tangent.y - normal.x * bitangent.y)
+    /// ```
+    TexParallax,
     /// An unsupported operation or function call.
     Unk,
 }
@@ -275,17 +254,6 @@ impl<'a> arbitrary::Arbitrary<'a> for TextureDependency {
             name: crate::arbitrary_smolstr(u)?,
             channel: u.arbitrary()?,
             texcoords: u.arbitrary()?,
-        })
-    }
-}
-
-#[cfg(feature = "arbitrary")]
-impl<'a> arbitrary::Arbitrary<'a> for TexCoord {
-    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
-        Ok(Self {
-            name: crate::arbitrary_smolstr(u)?,
-            channel: u.arbitrary()?,
-            params: u.arbitrary()?,
         })
     }
 }

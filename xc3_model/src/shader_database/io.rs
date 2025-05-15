@@ -7,7 +7,7 @@ use varint_rs::{VarintReader, VarintWriter};
 
 use super::{
     AttributeDependency, BufferDependency, Dependency, Operation, OutputExpr, ProgramHash,
-    ShaderProgram, TexCoord, TexCoordParams, TextureDependency,
+    ShaderProgram, TextureDependency,
 };
 
 // Faster than the default hash implementation.
@@ -46,10 +46,6 @@ pub struct ShaderDatabaseIndexed {
     #[br(parse_with = parse_set)]
     #[bw(write_with = write_set)]
     output_exprs: IndexSet<OutputExprIndexed>,
-
-    #[br(parse_with = parse_set)]
-    #[bw(write_with = write_set)]
-    tex_coords: IndexSet<TexCoordIndexed>,
 
     // Storing multiple string lists enables 8-bit instead of 16-bit indices.
     #[br(parse_with = parse_strings)]
@@ -147,6 +143,8 @@ pub enum OperationIndexed {
     Abs = 16,
     Fresnel = 17,
     Sqrt = 18,
+    TexMatrix = 19,
+    TexParallax = 20,
 }
 
 impl From<Operation> for OperationIndexed {
@@ -170,6 +168,8 @@ impl From<Operation> for OperationIndexed {
             Operation::Abs => Self::Abs,
             Operation::Fresnel => Self::Fresnel,
             Operation::Sqrt => Self::Sqrt,
+            Operation::TexMatrix => Self::TexMatrix,
+            Operation::TexParallax => Self::TexParallax,
             Operation::Unk => Self::Unk,
         }
     }
@@ -196,6 +196,8 @@ impl From<OperationIndexed> for Operation {
             OperationIndexed::Abs => Self::Abs,
             OperationIndexed::Fresnel => Self::Fresnel,
             OperationIndexed::Sqrt => Self::Sqrt,
+            OperationIndexed::TexMatrix => Self::TexMatrix,
+            OperationIndexed::TexParallax => Self::TexParallax,
             OperationIndexed::Unk => Self::Unk,
         }
     }
@@ -502,7 +504,7 @@ impl ShaderDatabaseIndexed {
                 texcoords: t
                     .texcoords
                     .iter()
-                    .map(|coord| self.tex_coord_from_indexed(&self.tex_coords[coord.0]))
+                    .map(|coord| self.output_expr_from_indexed(&self.output_exprs[coord.0]))
                     .collect(),
             }),
             DependencyIndexed::Attribute(a) => Dependency::Attribute(AttributeDependency {
@@ -521,75 +523,14 @@ impl ShaderDatabaseIndexed {
                 channel: t.channel.into(),
                 texcoords: t
                     .texcoords
-                    .into_iter()
-                    .map(|t| self.add_tex_coord(t))
+                    .iter()
+                    .map(|t| self.add_output_expr(t))
                     .collect(),
             }),
             Dependency::Attribute(a) => DependencyIndexed::Attribute(AttributeDependencyIndexed {
                 name: add_string(&mut self.attribute_names, a.name),
                 channel: a.channel.into(),
             }),
-        }
-    }
-
-    fn add_tex_coord(&mut self, t: TexCoord) -> VarInt {
-        let tex_coord = self.tex_coord_indexed(t.clone());
-        let (index, _) = self.tex_coords.insert_full(tex_coord);
-
-        VarInt(index)
-    }
-
-    fn tex_coord_from_indexed(&self, coord: &TexCoordIndexed) -> TexCoord {
-        TexCoord {
-            name: self.attribute_names[coord.name.0].clone(),
-            channel: coord.channel.into(),
-            params: match coord.params {
-                TexCoordParamsIndexed::None => None,
-                TexCoordParamsIndexed::Scale(s) => Some(TexCoordParams::Scale(
-                    self.buffer_dependency_from_indexed(&self.buffer_dependencies[s.0]),
-                )),
-                TexCoordParamsIndexed::Matrix(m) => {
-                    Some(TexCoordParams::Matrix(m.map(|s| {
-                        self.buffer_dependency_from_indexed(&self.buffer_dependencies[s.0])
-                    })))
-                }
-                TexCoordParamsIndexed::Parallax {
-                    mask_a,
-                    mask_b,
-                    ratio,
-                } => Some(TexCoordParams::Parallax {
-                    mask_a: self.dependency_from_indexed(&self.dependencies[mask_a.0]),
-                    mask_b: self.dependency_from_indexed(&self.dependencies[mask_b.0]),
-                    ratio: self.dependency_from_indexed(&self.dependencies[ratio.0]),
-                }),
-            },
-        }
-    }
-
-    fn tex_coord_indexed(&mut self, t: TexCoord) -> TexCoordIndexed {
-        TexCoordIndexed {
-            name: add_string(&mut self.attribute_names, t.name),
-            channel: t.channel.into(),
-            params: t
-                .params
-                .map(|params| match params {
-                    TexCoordParams::Scale(s) => {
-                        TexCoordParamsIndexed::Scale(self.add_buffer_dependency(s))
-                    }
-                    TexCoordParams::Matrix(m) => {
-                        TexCoordParamsIndexed::Matrix(m.map(|s| self.add_buffer_dependency(s)))
-                    }
-                    TexCoordParams::Parallax {
-                        mask_a,
-                        mask_b,
-                        ratio,
-                    } => TexCoordParamsIndexed::Parallax {
-                        mask_a: self.add_dependency(mask_a),
-                        mask_b: self.add_dependency(mask_b),
-                        ratio: self.add_dependency(ratio),
-                    },
-                })
-                .unwrap_or(TexCoordParamsIndexed::None),
         }
     }
 

@@ -6,9 +6,7 @@ use log::{error, warn};
 use smol_str::SmolStr;
 use xc3_model::{
     material::{
-        assignments::{
-            Assignment, AssignmentValue, OutputAssignment, TexCoordParallax, TextureAssignment,
-        },
+        assignments::{Assignment, AssignmentValue, OutputAssignment},
         TextureAlphaTest,
     },
     shader_database::Operation,
@@ -37,7 +35,15 @@ struct Nodes {
 
 #[derive(Debug)]
 enum NodeValue {
-    Func { op: Operation, args: Vec<usize> },
+    Func {
+        op: Operation,
+        args: Vec<usize>,
+    },
+    Texture {
+        name: SmolStr,
+        coords: Vec<usize>,
+        channel: Option<char>,
+    },
     Value(usize), // TODO: just store the value directly?
 }
 
@@ -47,6 +53,20 @@ impl Nodes {
             Some(i) => *i,
             None => {
                 match &assignments[value] {
+                    Assignment::Value(Some(AssignmentValue::Texture(texture))) => {
+                        let coords = texture
+                            .texcoords
+                            .iter()
+                            .map(|c| self.insert_layer_value(assignments, *c))
+                            .collect();
+                        let node = NodeValue::Texture {
+                            name: texture.name.clone(),
+                            coords,
+                            channel: texture.channel,
+                        };
+
+                        self.insert_node_value(assignments[value].clone(), node)
+                    }
                     Assignment::Value(v) => {
                         // TODO: how to handle missing values?
                         let v = v.clone().unwrap_or(AssignmentValue::Float(0.0.into()));
@@ -154,10 +174,39 @@ impl Nodes {
                         Some(format!("mix({0}, {0} * {1}, {2})", arg0?, arg1?, arg2?))
                     }
                     Operation::Sqrt => Some(format!("sqrt({})", arg0?)),
+                    Operation::TexMatrix => {
+                        // TODO: how to handle multiple channels like this?
+                        Some(format!("{}", arg0?))
+                    }
+                    Operation::TexParallax => {
+                        // TODO: how to handle multiple channels like this?
+                        Some(format!("{} + uv_parallax(in, {}).x", arg0?, arg1?))
+                    }
                     Operation::Unk => None,
                 }
             }
-            NodeValue::Value(i) => channel_assignment_wgsl(name_to_index, &self.values[*i]),
+            NodeValue::Texture {
+                name,
+                coords,
+                channel,
+            } => {
+                let i = name_to_index.entry_index(name.clone());
+
+                if i < MAX_SAMPLERS {
+                    // TODO: This won't work for normals.
+                    let u = coords.first()?;
+                    let v = coords.get(1)?;
+
+                    Some(format!(
+                        "textureSample(s{i}, s{i}_sampler, vec2({node_prefix}{u}, {node_prefix}{v})){}",
+                        channel_wgsl(*channel)
+                    ))
+                } else {
+                    error!("Sampler index {i} exceeds supported max of {MAX_SAMPLERS}");
+                    None
+                }
+            }
+            NodeValue::Value(i) => channel_assignment_wgsl(&self.values[*i]),
         }
     }
 }
@@ -181,6 +230,7 @@ fn write_wgsl_xy(
     // Blend modes that use multiple channels require special handling.
     // Interleave x and y channel assignments to enable blending both channels.
     // This assumes the database xy entries differ only in the accessed channel.
+    // TODO: The first nodes might be UVs instead of actual normal values?
     for (i, (value_x, value_y)) in nodes_x.nodes.iter().zip(&nodes_y.nodes).enumerate() {
         match (value_x, value_y) {
             (
@@ -204,11 +254,13 @@ fn write_wgsl_xy(
 
                 let r = format!("{prefix_x}{rx}");
 
-                let a_nrm = format!("vec3({prefix_x}{ax}, {prefix_y}{ay}, normal_z({prefix_x}{ax}, {prefix_y}{ay}))");
+                // Always keep the current normal map XY values in the range [0.0, 1.0].
+                // This makes it easier to blend different channels together.
+                let a_nrm = format!("create_normal_map({prefix_x}{ax}, {prefix_y}{ay})");
                 let b_nrm = format!("create_normal_map({prefix_x}{bx}, {prefix_y}{by})");
                 writeln!(
                     wgsl,
-                    "let {prefix}_xy{i} = add_normal_maps({a_nrm}, {b_nrm}, {r});",
+                    "let {prefix}_xy{i} = add_normal_maps({a_nrm}, {b_nrm}, {r}) * 0.5 + 0.5;",
                 )
                 .unwrap();
 
@@ -229,15 +281,8 @@ fn write_wgsl_xy(
                 let x_value = format!("{prefix_x}{i}");
                 let y_value = format!("{prefix_y}{i}");
 
-                // TODO: Handle value ranges and channels with add normal itself?
-                if i == 0 {
-                    writeln!(wgsl, "let {prefix}_xy{i} = create_normal_map({v1}, {v2});").unwrap();
-                    writeln!(wgsl, "let {prefix_x}{i} = {prefix}_xy{i}.x;").unwrap();
-                    writeln!(wgsl, "let {prefix_y}{i} = {prefix}_xy{i}.y;").unwrap();
-                } else {
-                    writeln!(wgsl, "let {prefix_x}{i} = {v1};").unwrap();
-                    writeln!(wgsl, "let {prefix_y}{i} = {v2};").unwrap();
-                }
+                writeln!(wgsl, "let {prefix_x}{i} = {v1};").unwrap();
+                writeln!(wgsl, "let {prefix_y}{i} = {v2};").unwrap();
 
                 final_xy = Some((x_value, y_value));
             }
@@ -277,51 +322,6 @@ pub fn create_model_shader(key: &PipelineKey) -> String {
     }
 
     source
-}
-
-fn generate_uv_wgsl(
-    texture: &TextureAssignment,
-    name_to_index: &mut IndexMap<SmolStr, usize>,
-) -> String {
-    let parallax = texture
-        .parallax
-        .as_ref()
-        .and_then(|p| parallax_wgsl(name_to_index, p));
-
-    let uv = transformed_uv_wgsl(texture);
-
-    match parallax {
-        Some(parallax) => format!("{uv} + {parallax}"),
-        None => uv,
-    }
-}
-
-fn transformed_uv_wgsl(texture: &TextureAssignment) -> String {
-    let index = texture
-        .texcoord_name
-        .as_deref()
-        .and_then(texcoord_index)
-        .unwrap_or_default();
-
-    if let Some((u, v)) = texture.texcoord_transforms {
-        // Generate simpler code for identity transforms or simple scaling.
-        match (u.map(Into::into), v.map(Into::into)) {
-            ([1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]) => format!("tex{index}"),
-            ([u, 0.0, 0.0, 0.0], [0.0, v, 0.0, 0.0]) => format!("tex{index} * vec2({u}, {v})"),
-            _ => {
-                let u = format!("vec4({}, {}, {}, {})", u[0], u[1], u[2], u[3]);
-                let v = format!("vec4({}, {}, {}, {})", v[0], v[1], v[2], v[3]);
-                format!("transform_uv(tex{index}, {u}, {v})")
-            }
-        }
-    } else {
-        format!("tex{index}")
-    }
-}
-
-fn texcoord_index(name: &str) -> Option<u32> {
-    // vTex1 -> 1
-    name.strip_prefix("vTex")?.parse().ok()
 }
 
 pub fn generate_alpha_test_wgsl(
@@ -452,24 +452,11 @@ pub fn generate_normal_intensity_wgsl(
     wgsl
 }
 
-fn channel_assignment_wgsl(
-    name_to_index: &mut IndexMap<SmolStr, usize>,
-    value: &AssignmentValue,
-) -> Option<String> {
+fn channel_assignment_wgsl(value: &AssignmentValue) -> Option<String> {
     match value {
-        AssignmentValue::Texture(t) => {
-            let i = name_to_index.entry_index(t.name.clone());
-
-            if i < MAX_SAMPLERS {
-                let uvs = generate_uv_wgsl(t, name_to_index);
-                Some(format!(
-                    "textureSample(s{i}, s{i}_sampler, {uvs}){}",
-                    channel_wgsl(t.channel)
-                ))
-            } else {
-                error!("Sampler index {i} exceeds supported max of {MAX_SAMPLERS}");
-                None
-            }
+        AssignmentValue::Texture(_) => {
+            // TODO: This shouldn't happen?
+            todo!()
         }
         AssignmentValue::Attribute { name, channel } => {
             // TODO: Support more attributes.
@@ -479,6 +466,15 @@ fn channel_assignment_wgsl(
                 "vPos" => Some(format!("in.position{c}")),
                 "vNormal" => Some(format!("in.normal{c}")),
                 "vTan" => Some(format!("in.tangent{c}")),
+                "vTex0" => Some(format!("tex0{c}")),
+                "vTex1" => Some(format!("tex1{c}")),
+                "vTex2" => Some(format!("tex2{c}")),
+                "vTex3" => Some(format!("tex3{c}")),
+                "vTex4" => Some(format!("tex4{c}")),
+                "vTex5" => Some(format!("tex5{c}")),
+                "vTex6" => Some(format!("tex6{c}")),
+                "vTex7" => Some(format!("tex7{c}")),
+                "vTex8" => Some(format!("tex8{c}")),
                 _ => {
                     warn!("Unsupported attribute {name}{c}");
                     None
@@ -491,15 +487,4 @@ fn channel_assignment_wgsl(
 
 fn channel_wgsl(c: Option<char>) -> String {
     c.map(|c| format!(".{c}")).unwrap_or_default()
-}
-
-fn parallax_wgsl(
-    name_to_index: &mut IndexMap<SmolStr, usize>,
-    parallax: &TexCoordParallax,
-) -> Option<String> {
-    let mask_a = channel_assignment_wgsl(name_to_index, &parallax.mask_a)?;
-    let mask_b = channel_assignment_wgsl(name_to_index, &parallax.mask_b)?;
-    let ratio = channel_assignment_wgsl(name_to_index, &parallax.ratio)?;
-
-    Some(format!("uv_parallax(in, {mask_a}, {mask_b}, {ratio})"))
 }
