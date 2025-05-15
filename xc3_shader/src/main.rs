@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use clap::{Parser, Subcommand};
 
 use glsl_lang::ast::TranslationUnit;
@@ -163,9 +165,15 @@ fn main() {
             std::fs::write(output, graph.to_glsl()).unwrap();
         }
         Commands::GlslOutputDependencies { frag, output } => {
-            let frag_glsl = std::fs::read_to_string(frag).unwrap();
+            let frag_glsl = std::fs::read_to_string(&frag).unwrap();
             let fragment = TranslationUnit::parse(&frag_glsl).unwrap();
-            let shader = shader_from_glsl(None, &fragment);
+
+            // TODO: make an argument for this?
+            let vert = std::fs::read_to_string(Path::new(&frag).with_extension("vert"))
+                .ok()
+                .map(|v| TranslationUnit::parse(&v).unwrap());
+
+            let shader = shader_from_glsl(vert.as_ref(), &fragment);
             std::fs::write(output, format!("{shader:#?}")).unwrap();
         }
     }
