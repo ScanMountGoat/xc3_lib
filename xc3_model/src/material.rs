@@ -135,6 +135,7 @@ impl MaterialParameters {
             // TODO: Compare with other games.
             ("U_Static", "gEtcParm") => [37.68019, -0.00031, 1.376, 1.0].get(c),
             ("U_Static", "gCDep") => [-1.0, -0.2, 1.0, 2.2].get(c),
+            ("U_Static", "gLightShaft") => [0.0; 4].get(c),
             // U_Toon2 uniform buffer values taken from XC3 in RenderDoc.
             // These appear to be constant across models.
             // TODO: Compare with other games.
@@ -152,6 +153,9 @@ impl MaterialParameters {
             ("U_Mate", "gDTWrk") => self.dt_work.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gMdlParm") => self.mdl_param.as_ref()?.get(index)?.get(c),
             ("U_CHR", "gAvaSkin") => self.ava_skin.as_ref()?.get(c),
+            // TODO: Is it worth using in game values for these?
+            ("U_Static", "gLgtPreDir") => [[0.0, 0.0, 1.0, 0.0]; 2].get(index)?.get(c),
+            ("U_Static", "gLgtPreCol") => [[1.0; 4]; 2].get(index)?.get(c),
             _ => None,
         };
         if value.is_none() {
@@ -437,21 +441,26 @@ fn get_shader_legacy<S: GetProgramHash>(
             .output_dependencies
             .iter()
             .filter_map(|(k, v)| match k.as_str() {
+                // Ambient Occlusion
                 "o0.x" => Some(("o2.z".into(), v.clone())),
+                // Color
                 "o1.x" => Some(("o0.x".into(), v.clone())),
                 "o1.y" => Some(("o0.y".into(), v.clone())),
                 "o1.z" => Some(("o0.z".into(), v.clone())),
                 "o1.w" => Some(("o0.w".into(), v.clone())),
-                // The normal output has only RG channels.
+                // The normal output has only XY channels.
                 "o2.x" => Some(("o2.x".into(), v.clone())),
                 "o2.y" => Some(("o2.y".into(), v.clone())),
+                // Specular
                 "o3.x" => Some(("o5.x".into(), v.clone())),
                 "o3.y" => Some(("o5.y".into(), v.clone())),
                 "o3.z" => Some(("o5.z".into(), v.clone())),
                 "o3.w" => Some(("o5.w".into(), v.clone())),
+                // Depth
                 "o4.x" => Some(("o4.x".into(), v.clone())),
                 "o4.y" => Some(("o4.y".into(), v.clone())),
                 "o4.z" => Some(("o4.z".into(), v.clone())),
+                // Glossiness
                 "o4.w" => Some(("o1.y".into(), v.clone())),
                 _ => None,
             })

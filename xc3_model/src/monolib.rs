@@ -99,6 +99,7 @@ impl ShaderTextures {
                 ("texAO", default_texture([128; 4])),
                 ("texShadow", default_texture([255; 4])),
                 ("texLgt", default_texture([0; 4])),
+                ("gIBL", default_texture([255; 4])),
             ]
             .into(),
         }
