@@ -1,4 +1,4 @@
-//! Utilities for loading textures from the `monolib/shader` folder.
+//! Utilities for loading global textures from the `monolib/shader` folder or calculated in previous passes.
 //!
 //! # Supported Global Textures
 //! | Sampler | monolib/shader Texture |
@@ -43,7 +43,7 @@ use crate::ImageTexture;
 use std::{collections::BTreeMap, path::Path};
 use xc3_lib::mibl::Mibl;
 
-/// Textures and resources from the `monolib/shader` folder.
+/// Textures and resources from the `monolib/shader` folder or calculated in previous passes.
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct ShaderTextures {
     /// The texture like `toon_grad.witex` for supported sampler names like `gTToonGrad`.
@@ -94,6 +94,11 @@ impl ShaderTextures {
                 ("gTAmbBRDF", tex(path, "ambientbrdf.witex")),
                 ("gTToonGrad", tex(path, "toon_grad.witex")),
                 ("gTToonDarkGrad", tex(path, "toon_grad_night.witex")),
+                // Defaults for global textures not in monolib/shader
+                ("gTLightShaft", default_texture([0; 4])),
+                ("texAO", default_texture([128; 4])),
+                ("texShadow", default_texture([255; 4])),
+                ("texLgt", default_texture([0; 4])),
             ]
             .into(),
         }
@@ -109,4 +114,18 @@ impl ShaderTextures {
 fn tex(path: &Path, name: &str) -> Option<ImageTexture> {
     let mibl = Mibl::from_file(path.join(name)).ok()?;
     Some(ImageTexture::from_mibl(&mibl, Some(name.to_string()), None).unwrap())
+}
+
+fn default_texture(rgba: [u8; 4]) -> Option<ImageTexture> {
+    Some(ImageTexture {
+        name: None,
+        usage: None,
+        width: 4,
+        height: 4,
+        depth: 1,
+        view_dimension: xc3_lib::mibl::ViewDimension::D2,
+        image_format: xc3_lib::mibl::ImageFormat::R8G8B8A8Unorm,
+        mipmap_count: 1,
+        image_data: std::iter::repeat_n(rgba, 16).flatten().collect(),
+    })
 }
