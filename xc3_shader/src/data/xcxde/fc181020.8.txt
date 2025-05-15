@@ -710,16 +710,50 @@ ShaderProgram {
                                                 Func {
                                                     op: Min,
                                                     args: [
-                                                        Value(
-                                                            Attribute(
-                                                                AttributeDependency {
-                                                                    name: "vPos",
-                                                                    channel: Some(
-                                                                        'z',
-                                                                    ),
+                                                        Func {
+                                                            op: Mul,
+                                                            args: [
+                                                                Func {
+                                                                    op: Sub,
+                                                                    args: [
+                                                                        Value(
+                                                                            Attribute(
+                                                                                AttributeDependency {
+                                                                                    name: "vPos",
+                                                                                    channel: Some(
+                                                                                        'x',
+                                                                                    ),
+                                                                                },
+                                                                            ),
+                                                                        ),
+                                                                        Value(
+                                                                            Buffer(
+                                                                                BufferDependency {
+                                                                                    name: "U_Static",
+                                                                                    field: "gCDep",
+                                                                                    index: None,
+                                                                                    channel: Some(
+                                                                                        'y',
+                                                                                    ),
+                                                                                },
+                                                                            ),
+                                                                        ),
+                                                                    ],
                                                                 },
-                                                            ),
-                                                        ),
+                                                                Value(
+                                                                    Buffer(
+                                                                        BufferDependency {
+                                                                            name: "U_Static",
+                                                                            field: "gCDep",
+                                                                            index: None,
+                                                                            channel: Some(
+                                                                                'z',
+                                                                            ),
+                                                                        },
+                                                                    ),
+                                                                ),
+                                                            ],
+                                                        },
                                                         Value(
                                                             Constant(
                                                                 8191.9995,
@@ -751,16 +785,50 @@ ShaderProgram {
                                         Func {
                                             op: Min,
                                             args: [
-                                                Value(
-                                                    Attribute(
-                                                        AttributeDependency {
-                                                            name: "vPos",
-                                                            channel: Some(
-                                                                'z',
-                                                            ),
+                                                Func {
+                                                    op: Mul,
+                                                    args: [
+                                                        Func {
+                                                            op: Sub,
+                                                            args: [
+                                                                Value(
+                                                                    Attribute(
+                                                                        AttributeDependency {
+                                                                            name: "vPos",
+                                                                            channel: Some(
+                                                                                'x',
+                                                                            ),
+                                                                        },
+                                                                    ),
+                                                                ),
+                                                                Value(
+                                                                    Buffer(
+                                                                        BufferDependency {
+                                                                            name: "U_Static",
+                                                                            field: "gCDep",
+                                                                            index: None,
+                                                                            channel: Some(
+                                                                                'y',
+                                                                            ),
+                                                                        },
+                                                                    ),
+                                                                ),
+                                                            ],
                                                         },
-                                                    ),
-                                                ),
+                                                        Value(
+                                                            Buffer(
+                                                                BufferDependency {
+                                                                    name: "U_Static",
+                                                                    field: "gCDep",
+                                                                    index: None,
+                                                                    channel: Some(
+                                                                        'z',
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                    ],
+                                                },
                                                 Value(
                                                     Constant(
                                                         8191.9995,
@@ -805,16 +873,50 @@ ShaderProgram {
                                         Func {
                                             op: Min,
                                             args: [
-                                                Value(
-                                                    Attribute(
-                                                        AttributeDependency {
-                                                            name: "vPos",
-                                                            channel: Some(
-                                                                'z',
-                                                            ),
+                                                Func {
+                                                    op: Mul,
+                                                    args: [
+                                                        Func {
+                                                            op: Sub,
+                                                            args: [
+                                                                Value(
+                                                                    Attribute(
+                                                                        AttributeDependency {
+                                                                            name: "vPos",
+                                                                            channel: Some(
+                                                                                'x',
+                                                                            ),
+                                                                        },
+                                                                    ),
+                                                                ),
+                                                                Value(
+                                                                    Buffer(
+                                                                        BufferDependency {
+                                                                            name: "U_Static",
+                                                                            field: "gCDep",
+                                                                            index: None,
+                                                                            channel: Some(
+                                                                                'y',
+                                                                            ),
+                                                                        },
+                                                                    ),
+                                                                ),
+                                                            ],
                                                         },
-                                                    ),
-                                                ),
+                                                        Value(
+                                                            Buffer(
+                                                                BufferDependency {
+                                                                    name: "U_Static",
+                                                                    field: "gCDep",
+                                                                    index: None,
+                                                                    channel: Some(
+                                                                        'z',
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                    ],
+                                                },
                                                 Value(
                                                     Constant(
                                                         8191.9995,
@@ -841,16 +943,50 @@ ShaderProgram {
                                 Func {
                                     op: Min,
                                     args: [
-                                        Value(
-                                            Attribute(
-                                                AttributeDependency {
-                                                    name: "vPos",
-                                                    channel: Some(
-                                                        'z',
-                                                    ),
+                                        Func {
+                                            op: Mul,
+                                            args: [
+                                                Func {
+                                                    op: Sub,
+                                                    args: [
+                                                        Value(
+                                                            Attribute(
+                                                                AttributeDependency {
+                                                                    name: "vPos",
+                                                                    channel: Some(
+                                                                        'x',
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                        Value(
+                                                            Buffer(
+                                                                BufferDependency {
+                                                                    name: "U_Static",
+                                                                    field: "gCDep",
+                                                                    index: None,
+                                                                    channel: Some(
+                                                                        'y',
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                    ],
                                                 },
-                                            ),
-                                        ),
+                                                Value(
+                                                    Buffer(
+                                                        BufferDependency {
+                                                            name: "U_Static",
+                                                            field: "gCDep",
+                                                            index: None,
+                                                            channel: Some(
+                                                                'z',
+                                                            ),
+                                                        },
+                                                    ),
+                                                ),
+                                            ],
+                                        },
                                         Value(
                                             Constant(
                                                 8191.9995,
@@ -894,16 +1030,50 @@ ShaderProgram {
                                         Func {
                                             op: Min,
                                             args: [
-                                                Value(
-                                                    Attribute(
-                                                        AttributeDependency {
-                                                            name: "vPos",
-                                                            channel: Some(
-                                                                'z',
-                                                            ),
+                                                Func {
+                                                    op: Mul,
+                                                    args: [
+                                                        Func {
+                                                            op: Sub,
+                                                            args: [
+                                                                Value(
+                                                                    Attribute(
+                                                                        AttributeDependency {
+                                                                            name: "vPos",
+                                                                            channel: Some(
+                                                                                'x',
+                                                                            ),
+                                                                        },
+                                                                    ),
+                                                                ),
+                                                                Value(
+                                                                    Buffer(
+                                                                        BufferDependency {
+                                                                            name: "U_Static",
+                                                                            field: "gCDep",
+                                                                            index: None,
+                                                                            channel: Some(
+                                                                                'y',
+                                                                            ),
+                                                                        },
+                                                                    ),
+                                                                ),
+                                                            ],
                                                         },
-                                                    ),
-                                                ),
+                                                        Value(
+                                                            Buffer(
+                                                                BufferDependency {
+                                                                    name: "U_Static",
+                                                                    field: "gCDep",
+                                                                    index: None,
+                                                                    channel: Some(
+                                                                        'z',
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                    ],
+                                                },
                                                 Value(
                                                     Constant(
                                                         8191.9995,
@@ -930,16 +1100,50 @@ ShaderProgram {
                                 Func {
                                     op: Min,
                                     args: [
-                                        Value(
-                                            Attribute(
-                                                AttributeDependency {
-                                                    name: "vPos",
-                                                    channel: Some(
-                                                        'z',
-                                                    ),
+                                        Func {
+                                            op: Mul,
+                                            args: [
+                                                Func {
+                                                    op: Sub,
+                                                    args: [
+                                                        Value(
+                                                            Attribute(
+                                                                AttributeDependency {
+                                                                    name: "vPos",
+                                                                    channel: Some(
+                                                                        'x',
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                        Value(
+                                                            Buffer(
+                                                                BufferDependency {
+                                                                    name: "U_Static",
+                                                                    field: "gCDep",
+                                                                    index: None,
+                                                                    channel: Some(
+                                                                        'y',
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                    ],
                                                 },
-                                            ),
-                                        ),
+                                                Value(
+                                                    Buffer(
+                                                        BufferDependency {
+                                                            name: "U_Static",
+                                                            field: "gCDep",
+                                                            index: None,
+                                                            channel: Some(
+                                                                'z',
+                                                            ),
+                                                        },
+                                                    ),
+                                                ),
+                                            ],
+                                        },
                                         Value(
                                             Constant(
                                                 8191.9995,

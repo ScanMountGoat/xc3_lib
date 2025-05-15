@@ -100,8 +100,197 @@ ShaderProgram {
                     ),
                 ),
                 Func {
-                    op: Unk,
-                    args: [],
+                    op: Sqrt,
+                    args: [
+                        Func {
+                            op: Clamp,
+                            args: [
+                                Func {
+                                    op: Add,
+                                    args: [
+                                        Func {
+                                            op: Min,
+                                            args: [
+                                                Func {
+                                                    op: Mul,
+                                                    args: [
+                                                        Func {
+                                                            op: Add,
+                                                            args: [
+                                                                Func {
+                                                                    op: Fma,
+                                                                    args: [
+                                                                        Func {
+                                                                            op: Unk,
+                                                                            args: [],
+                                                                        },
+                                                                        Func {
+                                                                            op: Unk,
+                                                                            args: [],
+                                                                        },
+                                                                        Func {
+                                                                            op: Fma,
+                                                                            args: [
+                                                                                Func {
+                                                                                    op: Unk,
+                                                                                    args: [],
+                                                                                },
+                                                                                Func {
+                                                                                    op: Unk,
+                                                                                    args: [],
+                                                                                },
+                                                                                Func {
+                                                                                    op: Mul,
+                                                                                    args: [
+                                                                                        Func {
+                                                                                            op: Unk,
+                                                                                            args: [],
+                                                                                        },
+                                                                                        Func {
+                                                                                            op: Unk,
+                                                                                            args: [],
+                                                                                        },
+                                                                                    ],
+                                                                                },
+                                                                            ],
+                                                                        },
+                                                                    ],
+                                                                },
+                                                                Func {
+                                                                    op: Fma,
+                                                                    args: [
+                                                                        Func {
+                                                                            op: Mul,
+                                                                            args: [
+                                                                                Value(
+                                                                                    Constant(
+                                                                                        1.0,
+                                                                                    ),
+                                                                                ),
+                                                                                Func {
+                                                                                    op: Unk,
+                                                                                    args: [],
+                                                                                },
+                                                                            ],
+                                                                        },
+                                                                        Func {
+                                                                            op: Mul,
+                                                                            args: [
+                                                                                Value(
+                                                                                    Constant(
+                                                                                        1.0,
+                                                                                    ),
+                                                                                ),
+                                                                                Func {
+                                                                                    op: Unk,
+                                                                                    args: [],
+                                                                                },
+                                                                            ],
+                                                                        },
+                                                                        Func {
+                                                                            op: Fma,
+                                                                            args: [
+                                                                                Func {
+                                                                                    op: Mul,
+                                                                                    args: [
+                                                                                        Value(
+                                                                                            Constant(
+                                                                                                1.0,
+                                                                                            ),
+                                                                                        ),
+                                                                                        Func {
+                                                                                            op: Unk,
+                                                                                            args: [],
+                                                                                        },
+                                                                                    ],
+                                                                                },
+                                                                                Func {
+                                                                                    op: Mul,
+                                                                                    args: [
+                                                                                        Value(
+                                                                                            Constant(
+                                                                                                1.0,
+                                                                                            ),
+                                                                                        ),
+                                                                                        Func {
+                                                                                            op: Unk,
+                                                                                            args: [],
+                                                                                        },
+                                                                                    ],
+                                                                                },
+                                                                                Func {
+                                                                                    op: Mul,
+                                                                                    args: [
+                                                                                        Func {
+                                                                                            op: Mul,
+                                                                                            args: [
+                                                                                                Value(
+                                                                                                    Constant(
+                                                                                                        1.0,
+                                                                                                    ),
+                                                                                                ),
+                                                                                                Func {
+                                                                                                    op: Unk,
+                                                                                                    args: [],
+                                                                                                },
+                                                                                            ],
+                                                                                        },
+                                                                                        Func {
+                                                                                            op: Mul,
+                                                                                            args: [
+                                                                                                Value(
+                                                                                                    Constant(
+                                                                                                        1.0,
+                                                                                                    ),
+                                                                                                ),
+                                                                                                Func {
+                                                                                                    op: Unk,
+                                                                                                    args: [],
+                                                                                                },
+                                                                                            ],
+                                                                                        },
+                                                                                    ],
+                                                                                },
+                                                                            ],
+                                                                        },
+                                                                    ],
+                                                                },
+                                                            ],
+                                                        },
+                                                        Value(
+                                                            Constant(
+                                                                0.5,
+                                                            ),
+                                                        ),
+                                                    ],
+                                                },
+                                                Value(
+                                                    Constant(
+                                                        0.18,
+                                                    ),
+                                                ),
+                                            ],
+                                        },
+                                        Value(
+                                            Constant(
+                                                1.0,
+                                            ),
+                                        ),
+                                    ],
+                                },
+                                Value(
+                                    Constant(
+                                        0.0,
+                                    ),
+                                ),
+                                Value(
+                                    Constant(
+                                        1.0,
+                                    ),
+                                ),
+                            ],
+                        },
+                    ],
                 },
             ],
         },
@@ -206,16 +395,1142 @@ ShaderProgram {
                 Func {
                     op: Mul,
                     args: [
-                        Value(
-                            Attribute(
-                                AttributeDependency {
-                                    name: "vNormal",
-                                    channel: Some(
-                                        'z',
-                                    ),
+                        Func {
+                            op: Mul,
+                            args: [
+                                Func {
+                                    op: Sub,
+                                    args: [
+                                        Func {
+                                            op: Add,
+                                            args: [
+                                                Func {
+                                                    op: Fma,
+                                                    args: [
+                                                        Func {
+                                                            op: Fma,
+                                                            args: [
+                                                                Value(
+                                                                    Attribute(
+                                                                        AttributeDependency {
+                                                                            name: "vNormal",
+                                                                            channel: Some(
+                                                                                'x',
+                                                                            ),
+                                                                        },
+                                                                    ),
+                                                                ),
+                                                                Func {
+                                                                    op: Fma,
+                                                                    args: [
+                                                                        Func {
+                                                                            op: Mul,
+                                                                            args: [
+                                                                                Func {
+                                                                                    op: Mul,
+                                                                                    args: [
+                                                                                        Value(
+                                                                                            Attribute(
+                                                                                                AttributeDependency {
+                                                                                                    name: "vPos",
+                                                                                                    channel: Some(
+                                                                                                        'x',
+                                                                                                    ),
+                                                                                                },
+                                                                                            ),
+                                                                                        ),
+                                                                                        Func {
+                                                                                            op: Sub,
+                                                                                            args: [
+                                                                                                Value(
+                                                                                                    Constant(
+                                                                                                        0.0,
+                                                                                                    ),
+                                                                                                ),
+                                                                                                Func {
+                                                                                                    op: Mul,
+                                                                                                    args: [
+                                                                                                        Value(
+                                                                                                            Attribute(
+                                                                                                                AttributeDependency {
+                                                                                                                    name: "vColor",
+                                                                                                                    channel: Some(
+                                                                                                                        'w',
+                                                                                                                    ),
+                                                                                                                },
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                        Value(
+                                                                                                            Buffer(
+                                                                                                                BufferDependency {
+                                                                                                                    name: "U_Mate",
+                                                                                                                    field: "gWrkFl4",
+                                                                                                                    index: Some(
+                                                                                                                        0,
+                                                                                                                    ),
+                                                                                                                    channel: Some(
+                                                                                                                        'z',
+                                                                                                                    ),
+                                                                                                                },
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                },
+                                                                                            ],
+                                                                                        },
+                                                                                    ],
+                                                                                },
+                                                                                Func {
+                                                                                    op: Div,
+                                                                                    args: [
+                                                                                        Value(
+                                                                                            Constant(
+                                                                                                1.0,
+                                                                                            ),
+                                                                                        ),
+                                                                                        Value(
+                                                                                            Buffer(
+                                                                                                BufferDependency {
+                                                                                                    name: "U_Static",
+                                                                                                    field: "gmProj",
+                                                                                                    index: Some(
+                                                                                                        1,
+                                                                                                    ),
+                                                                                                    channel: Some(
+                                                                                                        'y',
+                                                                                                    ),
+                                                                                                },
+                                                                                            ),
+                                                                                        ),
+                                                                                    ],
+                                                                                },
+                                                                            ],
+                                                                        },
+                                                                        Func {
+                                                                            op: Mul,
+                                                                            args: [
+                                                                                Func {
+                                                                                    op: Clamp,
+                                                                                    args: [
+                                                                                        Func {
+                                                                                            op: Fma,
+                                                                                            args: [
+                                                                                                Func {
+                                                                                                    op: Fma,
+                                                                                                    args: [
+                                                                                                        Value(
+                                                                                                            Attribute(
+                                                                                                                AttributeDependency {
+                                                                                                                    name: "vNormal",
+                                                                                                                    channel: Some(
+                                                                                                                        'x',
+                                                                                                                    ),
+                                                                                                                },
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                        Value(
+                                                                                                            Buffer(
+                                                                                                                BufferDependency {
+                                                                                                                    name: "U_Toon2",
+                                                                                                                    field: "gToonParam",
+                                                                                                                    index: Some(
+                                                                                                                        2,
+                                                                                                                    ),
+                                                                                                                    channel: Some(
+                                                                                                                        'z',
+                                                                                                                    ),
+                                                                                                                },
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                        Func {
+                                                                                                            op: Fma,
+                                                                                                            args: [
+                                                                                                                Value(
+                                                                                                                    Attribute(
+                                                                                                                        AttributeDependency {
+                                                                                                                            name: "vNormal",
+                                                                                                                            channel: Some(
+                                                                                                                                'x',
+                                                                                                                            ),
+                                                                                                                        },
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                Value(
+                                                                                                                    Buffer(
+                                                                                                                        BufferDependency {
+                                                                                                                            name: "U_Toon2",
+                                                                                                                            field: "gToonParam",
+                                                                                                                            index: Some(
+                                                                                                                                2,
+                                                                                                                            ),
+                                                                                                                            channel: Some(
+                                                                                                                                'y',
+                                                                                                                            ),
+                                                                                                                        },
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                Func {
+                                                                                                                    op: Mul,
+                                                                                                                    args: [
+                                                                                                                        Value(
+                                                                                                                            Attribute(
+                                                                                                                                AttributeDependency {
+                                                                                                                                    name: "vNormal",
+                                                                                                                                    channel: Some(
+                                                                                                                                        'x',
+                                                                                                                                    ),
+                                                                                                                                },
+                                                                                                                            ),
+                                                                                                                        ),
+                                                                                                                        Value(
+                                                                                                                            Buffer(
+                                                                                                                                BufferDependency {
+                                                                                                                                    name: "U_Toon2",
+                                                                                                                                    field: "gToonParam",
+                                                                                                                                    index: Some(
+                                                                                                                                        2,
+                                                                                                                                    ),
+                                                                                                                                    channel: Some(
+                                                                                                                                        'x',
+                                                                                                                                    ),
+                                                                                                                                },
+                                                                                                                            ),
+                                                                                                                        ),
+                                                                                                                    ],
+                                                                                                                },
+                                                                                                            ],
+                                                                                                        },
+                                                                                                    ],
+                                                                                                },
+                                                                                                Value(
+                                                                                                    Constant(
+                                                                                                        0.5,
+                                                                                                    ),
+                                                                                                ),
+                                                                                                Value(
+                                                                                                    Constant(
+                                                                                                        0.5,
+                                                                                                    ),
+                                                                                                ),
+                                                                                            ],
+                                                                                        },
+                                                                                        Value(
+                                                                                            Constant(
+                                                                                                0.0,
+                                                                                            ),
+                                                                                        ),
+                                                                                        Value(
+                                                                                            Constant(
+                                                                                                1.0,
+                                                                                            ),
+                                                                                        ),
+                                                                                    ],
+                                                                                },
+                                                                                Func {
+                                                                                    op: Sub,
+                                                                                    args: [
+                                                                                        Value(
+                                                                                            Constant(
+                                                                                                0.0,
+                                                                                            ),
+                                                                                        ),
+                                                                                        Value(
+                                                                                            Buffer(
+                                                                                                BufferDependency {
+                                                                                                    name: "U_Toon2",
+                                                                                                    field: "gToonParam",
+                                                                                                    index: Some(
+                                                                                                        3,
+                                                                                                    ),
+                                                                                                    channel: Some(
+                                                                                                        'z',
+                                                                                                    ),
+                                                                                                },
+                                                                                            ),
+                                                                                        ),
+                                                                                    ],
+                                                                                },
+                                                                            ],
+                                                                        },
+                                                                        Func {
+                                                                            op: Mul,
+                                                                            args: [
+                                                                                Func {
+                                                                                    op: Mul,
+                                                                                    args: [
+                                                                                        Value(
+                                                                                            Attribute(
+                                                                                                AttributeDependency {
+                                                                                                    name: "vPos",
+                                                                                                    channel: Some(
+                                                                                                        'x',
+                                                                                                    ),
+                                                                                                },
+                                                                                            ),
+                                                                                        ),
+                                                                                        Func {
+                                                                                            op: Sub,
+                                                                                            args: [
+                                                                                                Value(
+                                                                                                    Constant(
+                                                                                                        0.0,
+                                                                                                    ),
+                                                                                                ),
+                                                                                                Func {
+                                                                                                    op: Mul,
+                                                                                                    args: [
+                                                                                                        Value(
+                                                                                                            Attribute(
+                                                                                                                AttributeDependency {
+                                                                                                                    name: "vColor",
+                                                                                                                    channel: Some(
+                                                                                                                        'w',
+                                                                                                                    ),
+                                                                                                                },
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                        Value(
+                                                                                                            Buffer(
+                                                                                                                BufferDependency {
+                                                                                                                    name: "U_Mate",
+                                                                                                                    field: "gWrkFl4",
+                                                                                                                    index: Some(
+                                                                                                                        0,
+                                                                                                                    ),
+                                                                                                                    channel: Some(
+                                                                                                                        'z',
+                                                                                                                    ),
+                                                                                                                },
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                },
+                                                                                            ],
+                                                                                        },
+                                                                                    ],
+                                                                                },
+                                                                                Func {
+                                                                                    op: Div,
+                                                                                    args: [
+                                                                                        Value(
+                                                                                            Constant(
+                                                                                                1.0,
+                                                                                            ),
+                                                                                        ),
+                                                                                        Value(
+                                                                                            Buffer(
+                                                                                                BufferDependency {
+                                                                                                    name: "U_Static",
+                                                                                                    field: "gmProj",
+                                                                                                    index: Some(
+                                                                                                        1,
+                                                                                                    ),
+                                                                                                    channel: Some(
+                                                                                                        'y',
+                                                                                                    ),
+                                                                                                },
+                                                                                            ),
+                                                                                        ),
+                                                                                    ],
+                                                                                },
+                                                                            ],
+                                                                        },
+                                                                    ],
+                                                                },
+                                                                Value(
+                                                                    Attribute(
+                                                                        AttributeDependency {
+                                                                            name: "vPos",
+                                                                            channel: Some(
+                                                                                'x',
+                                                                            ),
+                                                                        },
+                                                                    ),
+                                                                ),
+                                                            ],
+                                                        },
+                                                        Value(
+                                                            Buffer(
+                                                                BufferDependency {
+                                                                    name: "U_Static",
+                                                                    field: "gmProj",
+                                                                    index: Some(
+                                                                        2,
+                                                                    ),
+                                                                    channel: Some(
+                                                                        'z',
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                        Func {
+                                                            op: Fma,
+                                                            args: [
+                                                                Func {
+                                                                    op: Fma,
+                                                                    args: [
+                                                                        Value(
+                                                                            Attribute(
+                                                                                AttributeDependency {
+                                                                                    name: "vNormal",
+                                                                                    channel: Some(
+                                                                                        'x',
+                                                                                    ),
+                                                                                },
+                                                                            ),
+                                                                        ),
+                                                                        Func {
+                                                                            op: Fma,
+                                                                            args: [
+                                                                                Func {
+                                                                                    op: Mul,
+                                                                                    args: [
+                                                                                        Func {
+                                                                                            op: Mul,
+                                                                                            args: [
+                                                                                                Value(
+                                                                                                    Attribute(
+                                                                                                        AttributeDependency {
+                                                                                                            name: "vPos",
+                                                                                                            channel: Some(
+                                                                                                                'x',
+                                                                                                            ),
+                                                                                                        },
+                                                                                                    ),
+                                                                                                ),
+                                                                                                Func {
+                                                                                                    op: Sub,
+                                                                                                    args: [
+                                                                                                        Value(
+                                                                                                            Constant(
+                                                                                                                0.0,
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                        Func {
+                                                                                                            op: Mul,
+                                                                                                            args: [
+                                                                                                                Value(
+                                                                                                                    Attribute(
+                                                                                                                        AttributeDependency {
+                                                                                                                            name: "vColor",
+                                                                                                                            channel: Some(
+                                                                                                                                'w',
+                                                                                                                            ),
+                                                                                                                        },
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                Value(
+                                                                                                                    Buffer(
+                                                                                                                        BufferDependency {
+                                                                                                                            name: "U_Mate",
+                                                                                                                            field: "gWrkFl4",
+                                                                                                                            index: Some(
+                                                                                                                                0,
+                                                                                                                            ),
+                                                                                                                            channel: Some(
+                                                                                                                                'z',
+                                                                                                                            ),
+                                                                                                                        },
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                            ],
+                                                                                                        },
+                                                                                                    ],
+                                                                                                },
+                                                                                            ],
+                                                                                        },
+                                                                                        Func {
+                                                                                            op: Div,
+                                                                                            args: [
+                                                                                                Value(
+                                                                                                    Constant(
+                                                                                                        1.0,
+                                                                                                    ),
+                                                                                                ),
+                                                                                                Value(
+                                                                                                    Buffer(
+                                                                                                        BufferDependency {
+                                                                                                            name: "U_Static",
+                                                                                                            field: "gmProj",
+                                                                                                            index: Some(
+                                                                                                                1,
+                                                                                                            ),
+                                                                                                            channel: Some(
+                                                                                                                'y',
+                                                                                                            ),
+                                                                                                        },
+                                                                                                    ),
+                                                                                                ),
+                                                                                            ],
+                                                                                        },
+                                                                                    ],
+                                                                                },
+                                                                                Func {
+                                                                                    op: Mul,
+                                                                                    args: [
+                                                                                        Func {
+                                                                                            op: Clamp,
+                                                                                            args: [
+                                                                                                Func {
+                                                                                                    op: Fma,
+                                                                                                    args: [
+                                                                                                        Func {
+                                                                                                            op: Fma,
+                                                                                                            args: [
+                                                                                                                Value(
+                                                                                                                    Attribute(
+                                                                                                                        AttributeDependency {
+                                                                                                                            name: "vNormal",
+                                                                                                                            channel: Some(
+                                                                                                                                'x',
+                                                                                                                            ),
+                                                                                                                        },
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                Value(
+                                                                                                                    Buffer(
+                                                                                                                        BufferDependency {
+                                                                                                                            name: "U_Toon2",
+                                                                                                                            field: "gToonParam",
+                                                                                                                            index: Some(
+                                                                                                                                2,
+                                                                                                                            ),
+                                                                                                                            channel: Some(
+                                                                                                                                'z',
+                                                                                                                            ),
+                                                                                                                        },
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                Func {
+                                                                                                                    op: Fma,
+                                                                                                                    args: [
+                                                                                                                        Value(
+                                                                                                                            Attribute(
+                                                                                                                                AttributeDependency {
+                                                                                                                                    name: "vNormal",
+                                                                                                                                    channel: Some(
+                                                                                                                                        'x',
+                                                                                                                                    ),
+                                                                                                                                },
+                                                                                                                            ),
+                                                                                                                        ),
+                                                                                                                        Value(
+                                                                                                                            Buffer(
+                                                                                                                                BufferDependency {
+                                                                                                                                    name: "U_Toon2",
+                                                                                                                                    field: "gToonParam",
+                                                                                                                                    index: Some(
+                                                                                                                                        2,
+                                                                                                                                    ),
+                                                                                                                                    channel: Some(
+                                                                                                                                        'y',
+                                                                                                                                    ),
+                                                                                                                                },
+                                                                                                                            ),
+                                                                                                                        ),
+                                                                                                                        Func {
+                                                                                                                            op: Mul,
+                                                                                                                            args: [
+                                                                                                                                Value(
+                                                                                                                                    Attribute(
+                                                                                                                                        AttributeDependency {
+                                                                                                                                            name: "vNormal",
+                                                                                                                                            channel: Some(
+                                                                                                                                                'x',
+                                                                                                                                            ),
+                                                                                                                                        },
+                                                                                                                                    ),
+                                                                                                                                ),
+                                                                                                                                Value(
+                                                                                                                                    Buffer(
+                                                                                                                                        BufferDependency {
+                                                                                                                                            name: "U_Toon2",
+                                                                                                                                            field: "gToonParam",
+                                                                                                                                            index: Some(
+                                                                                                                                                2,
+                                                                                                                                            ),
+                                                                                                                                            channel: Some(
+                                                                                                                                                'x',
+                                                                                                                                            ),
+                                                                                                                                        },
+                                                                                                                                    ),
+                                                                                                                                ),
+                                                                                                                            ],
+                                                                                                                        },
+                                                                                                                    ],
+                                                                                                                },
+                                                                                                            ],
+                                                                                                        },
+                                                                                                        Value(
+                                                                                                            Constant(
+                                                                                                                0.5,
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                        Value(
+                                                                                                            Constant(
+                                                                                                                0.5,
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                },
+                                                                                                Value(
+                                                                                                    Constant(
+                                                                                                        0.0,
+                                                                                                    ),
+                                                                                                ),
+                                                                                                Value(
+                                                                                                    Constant(
+                                                                                                        1.0,
+                                                                                                    ),
+                                                                                                ),
+                                                                                            ],
+                                                                                        },
+                                                                                        Func {
+                                                                                            op: Sub,
+                                                                                            args: [
+                                                                                                Value(
+                                                                                                    Constant(
+                                                                                                        0.0,
+                                                                                                    ),
+                                                                                                ),
+                                                                                                Value(
+                                                                                                    Buffer(
+                                                                                                        BufferDependency {
+                                                                                                            name: "U_Toon2",
+                                                                                                            field: "gToonParam",
+                                                                                                            index: Some(
+                                                                                                                3,
+                                                                                                            ),
+                                                                                                            channel: Some(
+                                                                                                                'z',
+                                                                                                            ),
+                                                                                                        },
+                                                                                                    ),
+                                                                                                ),
+                                                                                            ],
+                                                                                        },
+                                                                                    ],
+                                                                                },
+                                                                                Func {
+                                                                                    op: Mul,
+                                                                                    args: [
+                                                                                        Func {
+                                                                                            op: Mul,
+                                                                                            args: [
+                                                                                                Value(
+                                                                                                    Attribute(
+                                                                                                        AttributeDependency {
+                                                                                                            name: "vPos",
+                                                                                                            channel: Some(
+                                                                                                                'x',
+                                                                                                            ),
+                                                                                                        },
+                                                                                                    ),
+                                                                                                ),
+                                                                                                Func {
+                                                                                                    op: Sub,
+                                                                                                    args: [
+                                                                                                        Value(
+                                                                                                            Constant(
+                                                                                                                0.0,
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                        Func {
+                                                                                                            op: Mul,
+                                                                                                            args: [
+                                                                                                                Value(
+                                                                                                                    Attribute(
+                                                                                                                        AttributeDependency {
+                                                                                                                            name: "vColor",
+                                                                                                                            channel: Some(
+                                                                                                                                'w',
+                                                                                                                            ),
+                                                                                                                        },
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                Value(
+                                                                                                                    Buffer(
+                                                                                                                        BufferDependency {
+                                                                                                                            name: "U_Mate",
+                                                                                                                            field: "gWrkFl4",
+                                                                                                                            index: Some(
+                                                                                                                                0,
+                                                                                                                            ),
+                                                                                                                            channel: Some(
+                                                                                                                                'z',
+                                                                                                                            ),
+                                                                                                                        },
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                            ],
+                                                                                                        },
+                                                                                                    ],
+                                                                                                },
+                                                                                            ],
+                                                                                        },
+                                                                                        Func {
+                                                                                            op: Div,
+                                                                                            args: [
+                                                                                                Value(
+                                                                                                    Constant(
+                                                                                                        1.0,
+                                                                                                    ),
+                                                                                                ),
+                                                                                                Value(
+                                                                                                    Buffer(
+                                                                                                        BufferDependency {
+                                                                                                            name: "U_Static",
+                                                                                                            field: "gmProj",
+                                                                                                            index: Some(
+                                                                                                                1,
+                                                                                                            ),
+                                                                                                            channel: Some(
+                                                                                                                'y',
+                                                                                                            ),
+                                                                                                        },
+                                                                                                    ),
+                                                                                                ),
+                                                                                            ],
+                                                                                        },
+                                                                                    ],
+                                                                                },
+                                                                            ],
+                                                                        },
+                                                                        Value(
+                                                                            Attribute(
+                                                                                AttributeDependency {
+                                                                                    name: "vPos",
+                                                                                    channel: Some(
+                                                                                        'x',
+                                                                                    ),
+                                                                                },
+                                                                            ),
+                                                                        ),
+                                                                    ],
+                                                                },
+                                                                Value(
+                                                                    Buffer(
+                                                                        BufferDependency {
+                                                                            name: "U_Static",
+                                                                            field: "gmProj",
+                                                                            index: Some(
+                                                                                2,
+                                                                            ),
+                                                                            channel: Some(
+                                                                                'y',
+                                                                            ),
+                                                                        },
+                                                                    ),
+                                                                ),
+                                                                Func {
+                                                                    op: Mul,
+                                                                    args: [
+                                                                        Func {
+                                                                            op: Fma,
+                                                                            args: [
+                                                                                Value(
+                                                                                    Attribute(
+                                                                                        AttributeDependency {
+                                                                                            name: "vNormal",
+                                                                                            channel: Some(
+                                                                                                'x',
+                                                                                            ),
+                                                                                        },
+                                                                                    ),
+                                                                                ),
+                                                                                Func {
+                                                                                    op: Fma,
+                                                                                    args: [
+                                                                                        Func {
+                                                                                            op: Mul,
+                                                                                            args: [
+                                                                                                Func {
+                                                                                                    op: Mul,
+                                                                                                    args: [
+                                                                                                        Value(
+                                                                                                            Attribute(
+                                                                                                                AttributeDependency {
+                                                                                                                    name: "vPos",
+                                                                                                                    channel: Some(
+                                                                                                                        'x',
+                                                                                                                    ),
+                                                                                                                },
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                        Func {
+                                                                                                            op: Sub,
+                                                                                                            args: [
+                                                                                                                Value(
+                                                                                                                    Constant(
+                                                                                                                        0.0,
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                Func {
+                                                                                                                    op: Mul,
+                                                                                                                    args: [
+                                                                                                                        Value(
+                                                                                                                            Attribute(
+                                                                                                                                AttributeDependency {
+                                                                                                                                    name: "vColor",
+                                                                                                                                    channel: Some(
+                                                                                                                                        'w',
+                                                                                                                                    ),
+                                                                                                                                },
+                                                                                                                            ),
+                                                                                                                        ),
+                                                                                                                        Value(
+                                                                                                                            Buffer(
+                                                                                                                                BufferDependency {
+                                                                                                                                    name: "U_Mate",
+                                                                                                                                    field: "gWrkFl4",
+                                                                                                                                    index: Some(
+                                                                                                                                        0,
+                                                                                                                                    ),
+                                                                                                                                    channel: Some(
+                                                                                                                                        'z',
+                                                                                                                                    ),
+                                                                                                                                },
+                                                                                                                            ),
+                                                                                                                        ),
+                                                                                                                    ],
+                                                                                                                },
+                                                                                                            ],
+                                                                                                        },
+                                                                                                    ],
+                                                                                                },
+                                                                                                Func {
+                                                                                                    op: Div,
+                                                                                                    args: [
+                                                                                                        Value(
+                                                                                                            Constant(
+                                                                                                                1.0,
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                        Value(
+                                                                                                            Buffer(
+                                                                                                                BufferDependency {
+                                                                                                                    name: "U_Static",
+                                                                                                                    field: "gmProj",
+                                                                                                                    index: Some(
+                                                                                                                        1,
+                                                                                                                    ),
+                                                                                                                    channel: Some(
+                                                                                                                        'y',
+                                                                                                                    ),
+                                                                                                                },
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                },
+                                                                                            ],
+                                                                                        },
+                                                                                        Func {
+                                                                                            op: Mul,
+                                                                                            args: [
+                                                                                                Func {
+                                                                                                    op: Clamp,
+                                                                                                    args: [
+                                                                                                        Func {
+                                                                                                            op: Fma,
+                                                                                                            args: [
+                                                                                                                Func {
+                                                                                                                    op: Fma,
+                                                                                                                    args: [
+                                                                                                                        Value(
+                                                                                                                            Attribute(
+                                                                                                                                AttributeDependency {
+                                                                                                                                    name: "vNormal",
+                                                                                                                                    channel: Some(
+                                                                                                                                        'x',
+                                                                                                                                    ),
+                                                                                                                                },
+                                                                                                                            ),
+                                                                                                                        ),
+                                                                                                                        Value(
+                                                                                                                            Buffer(
+                                                                                                                                BufferDependency {
+                                                                                                                                    name: "U_Toon2",
+                                                                                                                                    field: "gToonParam",
+                                                                                                                                    index: Some(
+                                                                                                                                        2,
+                                                                                                                                    ),
+                                                                                                                                    channel: Some(
+                                                                                                                                        'z',
+                                                                                                                                    ),
+                                                                                                                                },
+                                                                                                                            ),
+                                                                                                                        ),
+                                                                                                                        Func {
+                                                                                                                            op: Fma,
+                                                                                                                            args: [
+                                                                                                                                Value(
+                                                                                                                                    Attribute(
+                                                                                                                                        AttributeDependency {
+                                                                                                                                            name: "vNormal",
+                                                                                                                                            channel: Some(
+                                                                                                                                                'x',
+                                                                                                                                            ),
+                                                                                                                                        },
+                                                                                                                                    ),
+                                                                                                                                ),
+                                                                                                                                Value(
+                                                                                                                                    Buffer(
+                                                                                                                                        BufferDependency {
+                                                                                                                                            name: "U_Toon2",
+                                                                                                                                            field: "gToonParam",
+                                                                                                                                            index: Some(
+                                                                                                                                                2,
+                                                                                                                                            ),
+                                                                                                                                            channel: Some(
+                                                                                                                                                'y',
+                                                                                                                                            ),
+                                                                                                                                        },
+                                                                                                                                    ),
+                                                                                                                                ),
+                                                                                                                                Func {
+                                                                                                                                    op: Mul,
+                                                                                                                                    args: [
+                                                                                                                                        Value(
+                                                                                                                                            Attribute(
+                                                                                                                                                AttributeDependency {
+                                                                                                                                                    name: "vNormal",
+                                                                                                                                                    channel: Some(
+                                                                                                                                                        'x',
+                                                                                                                                                    ),
+                                                                                                                                                },
+                                                                                                                                            ),
+                                                                                                                                        ),
+                                                                                                                                        Value(
+                                                                                                                                            Buffer(
+                                                                                                                                                BufferDependency {
+                                                                                                                                                    name: "U_Toon2",
+                                                                                                                                                    field: "gToonParam",
+                                                                                                                                                    index: Some(
+                                                                                                                                                        2,
+                                                                                                                                                    ),
+                                                                                                                                                    channel: Some(
+                                                                                                                                                        'x',
+                                                                                                                                                    ),
+                                                                                                                                                },
+                                                                                                                                            ),
+                                                                                                                                        ),
+                                                                                                                                    ],
+                                                                                                                                },
+                                                                                                                            ],
+                                                                                                                        },
+                                                                                                                    ],
+                                                                                                                },
+                                                                                                                Value(
+                                                                                                                    Constant(
+                                                                                                                        0.5,
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                Value(
+                                                                                                                    Constant(
+                                                                                                                        0.5,
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                            ],
+                                                                                                        },
+                                                                                                        Value(
+                                                                                                            Constant(
+                                                                                                                0.0,
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                        Value(
+                                                                                                            Constant(
+                                                                                                                1.0,
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                },
+                                                                                                Func {
+                                                                                                    op: Sub,
+                                                                                                    args: [
+                                                                                                        Value(
+                                                                                                            Constant(
+                                                                                                                0.0,
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                        Value(
+                                                                                                            Buffer(
+                                                                                                                BufferDependency {
+                                                                                                                    name: "U_Toon2",
+                                                                                                                    field: "gToonParam",
+                                                                                                                    index: Some(
+                                                                                                                        3,
+                                                                                                                    ),
+                                                                                                                    channel: Some(
+                                                                                                                        'z',
+                                                                                                                    ),
+                                                                                                                },
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                },
+                                                                                            ],
+                                                                                        },
+                                                                                        Func {
+                                                                                            op: Mul,
+                                                                                            args: [
+                                                                                                Func {
+                                                                                                    op: Mul,
+                                                                                                    args: [
+                                                                                                        Value(
+                                                                                                            Attribute(
+                                                                                                                AttributeDependency {
+                                                                                                                    name: "vPos",
+                                                                                                                    channel: Some(
+                                                                                                                        'x',
+                                                                                                                    ),
+                                                                                                                },
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                        Func {
+                                                                                                            op: Sub,
+                                                                                                            args: [
+                                                                                                                Value(
+                                                                                                                    Constant(
+                                                                                                                        0.0,
+                                                                                                                    ),
+                                                                                                                ),
+                                                                                                                Func {
+                                                                                                                    op: Mul,
+                                                                                                                    args: [
+                                                                                                                        Value(
+                                                                                                                            Attribute(
+                                                                                                                                AttributeDependency {
+                                                                                                                                    name: "vColor",
+                                                                                                                                    channel: Some(
+                                                                                                                                        'w',
+                                                                                                                                    ),
+                                                                                                                                },
+                                                                                                                            ),
+                                                                                                                        ),
+                                                                                                                        Value(
+                                                                                                                            Buffer(
+                                                                                                                                BufferDependency {
+                                                                                                                                    name: "U_Mate",
+                                                                                                                                    field: "gWrkFl4",
+                                                                                                                                    index: Some(
+                                                                                                                                        0,
+                                                                                                                                    ),
+                                                                                                                                    channel: Some(
+                                                                                                                                        'z',
+                                                                                                                                    ),
+                                                                                                                                },
+                                                                                                                            ),
+                                                                                                                        ),
+                                                                                                                    ],
+                                                                                                                },
+                                                                                                            ],
+                                                                                                        },
+                                                                                                    ],
+                                                                                                },
+                                                                                                Func {
+                                                                                                    op: Div,
+                                                                                                    args: [
+                                                                                                        Value(
+                                                                                                            Constant(
+                                                                                                                1.0,
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                        Value(
+                                                                                                            Buffer(
+                                                                                                                BufferDependency {
+                                                                                                                    name: "U_Static",
+                                                                                                                    field: "gmProj",
+                                                                                                                    index: Some(
+                                                                                                                        1,
+                                                                                                                    ),
+                                                                                                                    channel: Some(
+                                                                                                                        'y',
+                                                                                                                    ),
+                                                                                                                },
+                                                                                                            ),
+                                                                                                        ),
+                                                                                                    ],
+                                                                                                },
+                                                                                            ],
+                                                                                        },
+                                                                                    ],
+                                                                                },
+                                                                                Value(
+                                                                                    Attribute(
+                                                                                        AttributeDependency {
+                                                                                            name: "vPos",
+                                                                                            channel: Some(
+                                                                                                'x',
+                                                                                            ),
+                                                                                        },
+                                                                                    ),
+                                                                                ),
+                                                                            ],
+                                                                        },
+                                                                        Value(
+                                                                            Buffer(
+                                                                                BufferDependency {
+                                                                                    name: "U_Static",
+                                                                                    field: "gmProj",
+                                                                                    index: Some(
+                                                                                        2,
+                                                                                    ),
+                                                                                    channel: Some(
+                                                                                        'x',
+                                                                                    ),
+                                                                                },
+                                                                            ),
+                                                                        ),
+                                                                    ],
+                                                                },
+                                                            ],
+                                                        },
+                                                    ],
+                                                },
+                                                Value(
+                                                    Buffer(
+                                                        BufferDependency {
+                                                            name: "U_Static",
+                                                            field: "gmProj",
+                                                            index: Some(
+                                                                2,
+                                                            ),
+                                                            channel: Some(
+                                                                'w',
+                                                            ),
+                                                        },
+                                                    ),
+                                                ),
+                                            ],
+                                        },
+                                        Value(
+                                            Buffer(
+                                                BufferDependency {
+                                                    name: "U_Static",
+                                                    field: "gCDep",
+                                                    index: None,
+                                                    channel: Some(
+                                                        'y',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
+                                    ],
                                 },
-                            ),
-                        ),
+                                Value(
+                                    Buffer(
+                                        BufferDependency {
+                                            name: "U_Static",
+                                            field: "gCDep",
+                                            index: None,
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
+                                ),
+                            ],
+                        },
                         Value(
                             Constant(
                                 8.0,

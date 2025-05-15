@@ -146,6 +146,7 @@ pub enum OperationIndexed {
     Clamp = 15,
     Abs = 16,
     Fresnel = 17,
+    Sqrt = 18,
 }
 
 impl From<Operation> for OperationIndexed {
@@ -168,6 +169,7 @@ impl From<Operation> for OperationIndexed {
             Operation::Clamp => Self::Clamp,
             Operation::Abs => Self::Abs,
             Operation::Fresnel => Self::Fresnel,
+            Operation::Sqrt => Self::Sqrt,
             Operation::Unk => Self::Unk,
         }
     }
@@ -193,6 +195,7 @@ impl From<OperationIndexed> for Operation {
             OperationIndexed::Clamp => Self::Clamp,
             OperationIndexed::Abs => Self::Abs,
             OperationIndexed::Fresnel => Self::Fresnel,
+            OperationIndexed::Sqrt => Self::Sqrt,
             OperationIndexed::Unk => Self::Unk,
         }
     }
@@ -557,7 +560,7 @@ impl ShaderDatabaseIndexed {
                 } => Some(TexCoordParams::Parallax {
                     mask_a: self.dependency_from_indexed(&self.dependencies[mask_a.0]),
                     mask_b: self.dependency_from_indexed(&self.dependencies[mask_b.0]),
-                    ratio: self.buffer_dependency_from_indexed(&self.buffer_dependencies[ratio.0]),
+                    ratio: self.dependency_from_indexed(&self.dependencies[ratio.0]),
                 }),
             },
         }
@@ -583,7 +586,7 @@ impl ShaderDatabaseIndexed {
                     } => TexCoordParamsIndexed::Parallax {
                         mask_a: self.add_dependency(mask_a),
                         mask_b: self.add_dependency(mask_b),
-                        ratio: self.add_buffer_dependency(ratio),
+                        ratio: self.add_dependency(ratio),
                     },
                 })
                 .unwrap_or(TexCoordParamsIndexed::None),

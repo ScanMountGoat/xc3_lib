@@ -51,16 +51,18 @@ ShaderProgram {
                                             ],
                                         },
                                     ),
-                                    ratio: BufferDependency {
-                                        name: "U_Mate",
-                                        field: "gWrkFl4",
-                                        index: Some(
-                                            0,
-                                        ),
-                                        channel: Some(
-                                            'z',
-                                        ),
-                                    },
+                                    ratio: Buffer(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
                                 },
                             ),
                         },
@@ -107,16 +109,18 @@ ShaderProgram {
                                             ],
                                         },
                                     ),
-                                    ratio: BufferDependency {
-                                        name: "U_Mate",
-                                        field: "gWrkFl4",
-                                        index: Some(
-                                            0,
-                                        ),
-                                        channel: Some(
-                                            'z',
-                                        ),
-                                    },
+                                    ratio: Buffer(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
                                 },
                             ),
                         },
@@ -175,16 +179,18 @@ ShaderProgram {
                                             ],
                                         },
                                     ),
-                                    ratio: BufferDependency {
-                                        name: "U_Mate",
-                                        field: "gWrkFl4",
-                                        index: Some(
-                                            0,
-                                        ),
-                                        channel: Some(
-                                            'z',
-                                        ),
-                                    },
+                                    ratio: Buffer(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
                                 },
                             ),
                         },
@@ -231,16 +237,18 @@ ShaderProgram {
                                             ],
                                         },
                                     ),
-                                    ratio: BufferDependency {
-                                        name: "U_Mate",
-                                        field: "gWrkFl4",
-                                        index: Some(
-                                            0,
-                                        ),
-                                        channel: Some(
-                                            'z',
-                                        ),
-                                    },
+                                    ratio: Buffer(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
                                 },
                             ),
                         },
@@ -299,16 +307,18 @@ ShaderProgram {
                                             ],
                                         },
                                     ),
-                                    ratio: BufferDependency {
-                                        name: "U_Mate",
-                                        field: "gWrkFl4",
-                                        index: Some(
-                                            0,
-                                        ),
-                                        channel: Some(
-                                            'z',
-                                        ),
-                                    },
+                                    ratio: Buffer(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
                                 },
                             ),
                         },
@@ -355,16 +365,18 @@ ShaderProgram {
                                             ],
                                         },
                                     ),
-                                    ratio: BufferDependency {
-                                        name: "U_Mate",
-                                        field: "gWrkFl4",
-                                        index: Some(
-                                            0,
-                                        ),
-                                        channel: Some(
-                                            'z',
-                                        ),
-                                    },
+                                    ratio: Buffer(
+                                        BufferDependency {
+                                            name: "U_Mate",
+                                            field: "gWrkFl4",
+                                            index: Some(
+                                                0,
+                                            ),
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
                                 },
                             ),
                         },
@@ -520,16 +532,50 @@ ShaderProgram {
                 Func {
                     op: Mul,
                     args: [
-                        Value(
-                            Attribute(
-                                AttributeDependency {
-                                    name: "vPos",
-                                    channel: Some(
-                                        'z',
-                                    ),
+                        Func {
+                            op: Mul,
+                            args: [
+                                Func {
+                                    op: Sub,
+                                    args: [
+                                        Value(
+                                            Attribute(
+                                                AttributeDependency {
+                                                    name: "vPos",
+                                                    channel: Some(
+                                                        'x',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
+                                        Value(
+                                            Buffer(
+                                                BufferDependency {
+                                                    name: "U_Static",
+                                                    field: "gCDep",
+                                                    index: None,
+                                                    channel: Some(
+                                                        'y',
+                                                    ),
+                                                },
+                                            ),
+                                        ),
+                                    ],
                                 },
-                            ),
-                        ),
+                                Value(
+                                    Buffer(
+                                        BufferDependency {
+                                            name: "U_Static",
+                                            field: "gCDep",
+                                            index: None,
+                                            channel: Some(
+                                                'z',
+                                            ),
+                                        },
+                                    ),
+                                ),
+                            ],
+                        },
                         Value(
                             Constant(
                                 8.0,
@@ -675,16 +721,18 @@ ShaderProgram {
                                                                                     ],
                                                                                 },
                                                                             ),
-                                                                            ratio: BufferDependency {
-                                                                                name: "U_Mate",
-                                                                                field: "gWrkFl4",
-                                                                                index: Some(
-                                                                                    0,
-                                                                                ),
-                                                                                channel: Some(
-                                                                                    'z',
-                                                                                ),
-                                                                            },
+                                                                            ratio: Buffer(
+                                                                                BufferDependency {
+                                                                                    name: "U_Mate",
+                                                                                    field: "gWrkFl4",
+                                                                                    index: Some(
+                                                                                        0,
+                                                                                    ),
+                                                                                    channel: Some(
+                                                                                        'z',
+                                                                                    ),
+                                                                                },
+                                                                            ),
                                                                         },
                                                                     ),
                                                                 },
@@ -731,16 +779,18 @@ ShaderProgram {
                                                                                     ],
                                                                                 },
                                                                             ),
-                                                                            ratio: BufferDependency {
-                                                                                name: "U_Mate",
-                                                                                field: "gWrkFl4",
-                                                                                index: Some(
-                                                                                    0,
-                                                                                ),
-                                                                                channel: Some(
-                                                                                    'z',
-                                                                                ),
-                                                                            },
+                                                                            ratio: Buffer(
+                                                                                BufferDependency {
+                                                                                    name: "U_Mate",
+                                                                                    field: "gWrkFl4",
+                                                                                    index: Some(
+                                                                                        0,
+                                                                                    ),
+                                                                                    channel: Some(
+                                                                                        'z',
+                                                                                    ),
+                                                                                },
+                                                                            ),
                                                                         },
                                                                     ),
                                                                 },
@@ -835,16 +885,18 @@ ShaderProgram {
                                                                                             ],
                                                                                         },
                                                                                     ),
-                                                                                    ratio: BufferDependency {
-                                                                                        name: "U_Mate",
-                                                                                        field: "gWrkFl4",
-                                                                                        index: Some(
-                                                                                            0,
-                                                                                        ),
-                                                                                        channel: Some(
-                                                                                            'z',
-                                                                                        ),
-                                                                                    },
+                                                                                    ratio: Buffer(
+                                                                                        BufferDependency {
+                                                                                            name: "U_Mate",
+                                                                                            field: "gWrkFl4",
+                                                                                            index: Some(
+                                                                                                0,
+                                                                                            ),
+                                                                                            channel: Some(
+                                                                                                'z',
+                                                                                            ),
+                                                                                        },
+                                                                                    ),
                                                                                 },
                                                                             ),
                                                                         },
@@ -891,16 +943,18 @@ ShaderProgram {
                                                                                             ],
                                                                                         },
                                                                                     ),
-                                                                                    ratio: BufferDependency {
-                                                                                        name: "U_Mate",
-                                                                                        field: "gWrkFl4",
-                                                                                        index: Some(
-                                                                                            0,
-                                                                                        ),
-                                                                                        channel: Some(
-                                                                                            'z',
-                                                                                        ),
-                                                                                    },
+                                                                                    ratio: Buffer(
+                                                                                        BufferDependency {
+                                                                                            name: "U_Mate",
+                                                                                            field: "gWrkFl4",
+                                                                                            index: Some(
+                                                                                                0,
+                                                                                            ),
+                                                                                            channel: Some(
+                                                                                                'z',
+                                                                                            ),
+                                                                                        },
+                                                                                    ),
                                                                                 },
                                                                             ),
                                                                         },
@@ -1000,16 +1054,18 @@ ShaderProgram {
                                                                                                     ],
                                                                                                 },
                                                                                             ),
-                                                                                            ratio: BufferDependency {
-                                                                                                name: "U_Mate",
-                                                                                                field: "gWrkFl4",
-                                                                                                index: Some(
-                                                                                                    0,
-                                                                                                ),
-                                                                                                channel: Some(
-                                                                                                    'z',
-                                                                                                ),
-                                                                                            },
+                                                                                            ratio: Buffer(
+                                                                                                BufferDependency {
+                                                                                                    name: "U_Mate",
+                                                                                                    field: "gWrkFl4",
+                                                                                                    index: Some(
+                                                                                                        0,
+                                                                                                    ),
+                                                                                                    channel: Some(
+                                                                                                        'z',
+                                                                                                    ),
+                                                                                                },
+                                                                                            ),
                                                                                         },
                                                                                     ),
                                                                                 },
@@ -1056,16 +1112,18 @@ ShaderProgram {
                                                                                                     ],
                                                                                                 },
                                                                                             ),
-                                                                                            ratio: BufferDependency {
-                                                                                                name: "U_Mate",
-                                                                                                field: "gWrkFl4",
-                                                                                                index: Some(
-                                                                                                    0,
-                                                                                                ),
-                                                                                                channel: Some(
-                                                                                                    'z',
-                                                                                                ),
-                                                                                            },
+                                                                                            ratio: Buffer(
+                                                                                                BufferDependency {
+                                                                                                    name: "U_Mate",
+                                                                                                    field: "gWrkFl4",
+                                                                                                    index: Some(
+                                                                                                        0,
+                                                                                                    ),
+                                                                                                    channel: Some(
+                                                                                                        'z',
+                                                                                                    ),
+                                                                                                },
+                                                                                            ),
                                                                                         },
                                                                                     ),
                                                                                 },
@@ -1165,16 +1223,18 @@ ShaderProgram {
                                                                                                             ],
                                                                                                         },
                                                                                                     ),
-                                                                                                    ratio: BufferDependency {
-                                                                                                        name: "U_Mate",
-                                                                                                        field: "gWrkFl4",
-                                                                                                        index: Some(
-                                                                                                            0,
-                                                                                                        ),
-                                                                                                        channel: Some(
-                                                                                                            'z',
-                                                                                                        ),
-                                                                                                    },
+                                                                                                    ratio: Buffer(
+                                                                                                        BufferDependency {
+                                                                                                            name: "U_Mate",
+                                                                                                            field: "gWrkFl4",
+                                                                                                            index: Some(
+                                                                                                                0,
+                                                                                                            ),
+                                                                                                            channel: Some(
+                                                                                                                'z',
+                                                                                                            ),
+                                                                                                        },
+                                                                                                    ),
                                                                                                 },
                                                                                             ),
                                                                                         },
@@ -1221,16 +1281,18 @@ ShaderProgram {
                                                                                                             ],
                                                                                                         },
                                                                                                     ),
-                                                                                                    ratio: BufferDependency {
-                                                                                                        name: "U_Mate",
-                                                                                                        field: "gWrkFl4",
-                                                                                                        index: Some(
-                                                                                                            0,
-                                                                                                        ),
-                                                                                                        channel: Some(
-                                                                                                            'z',
-                                                                                                        ),
-                                                                                                    },
+                                                                                                    ratio: Buffer(
+                                                                                                        BufferDependency {
+                                                                                                            name: "U_Mate",
+                                                                                                            field: "gWrkFl4",
+                                                                                                            index: Some(
+                                                                                                                0,
+                                                                                                            ),
+                                                                                                            channel: Some(
+                                                                                                                'z',
+                                                                                                            ),
+                                                                                                        },
+                                                                                                    ),
                                                                                                 },
                                                                                             ),
                                                                                         },
@@ -1398,16 +1460,18 @@ ShaderProgram {
                                                                                     ],
                                                                                 },
                                                                             ),
-                                                                            ratio: BufferDependency {
-                                                                                name: "U_Mate",
-                                                                                field: "gWrkFl4",
-                                                                                index: Some(
-                                                                                    0,
-                                                                                ),
-                                                                                channel: Some(
-                                                                                    'z',
-                                                                                ),
-                                                                            },
+                                                                            ratio: Buffer(
+                                                                                BufferDependency {
+                                                                                    name: "U_Mate",
+                                                                                    field: "gWrkFl4",
+                                                                                    index: Some(
+                                                                                        0,
+                                                                                    ),
+                                                                                    channel: Some(
+                                                                                        'z',
+                                                                                    ),
+                                                                                },
+                                                                            ),
                                                                         },
                                                                     ),
                                                                 },
@@ -1454,16 +1518,18 @@ ShaderProgram {
                                                                                     ],
                                                                                 },
                                                                             ),
-                                                                            ratio: BufferDependency {
-                                                                                name: "U_Mate",
-                                                                                field: "gWrkFl4",
-                                                                                index: Some(
-                                                                                    0,
-                                                                                ),
-                                                                                channel: Some(
-                                                                                    'z',
-                                                                                ),
-                                                                            },
+                                                                            ratio: Buffer(
+                                                                                BufferDependency {
+                                                                                    name: "U_Mate",
+                                                                                    field: "gWrkFl4",
+                                                                                    index: Some(
+                                                                                        0,
+                                                                                    ),
+                                                                                    channel: Some(
+                                                                                        'z',
+                                                                                    ),
+                                                                                },
+                                                                            ),
                                                                         },
                                                                     ),
                                                                 },
@@ -1558,16 +1624,18 @@ ShaderProgram {
                                                                                             ],
                                                                                         },
                                                                                     ),
-                                                                                    ratio: BufferDependency {
-                                                                                        name: "U_Mate",
-                                                                                        field: "gWrkFl4",
-                                                                                        index: Some(
-                                                                                            0,
-                                                                                        ),
-                                                                                        channel: Some(
-                                                                                            'z',
-                                                                                        ),
-                                                                                    },
+                                                                                    ratio: Buffer(
+                                                                                        BufferDependency {
+                                                                                            name: "U_Mate",
+                                                                                            field: "gWrkFl4",
+                                                                                            index: Some(
+                                                                                                0,
+                                                                                            ),
+                                                                                            channel: Some(
+                                                                                                'z',
+                                                                                            ),
+                                                                                        },
+                                                                                    ),
                                                                                 },
                                                                             ),
                                                                         },
@@ -1614,16 +1682,18 @@ ShaderProgram {
                                                                                             ],
                                                                                         },
                                                                                     ),
-                                                                                    ratio: BufferDependency {
-                                                                                        name: "U_Mate",
-                                                                                        field: "gWrkFl4",
-                                                                                        index: Some(
-                                                                                            0,
-                                                                                        ),
-                                                                                        channel: Some(
-                                                                                            'z',
-                                                                                        ),
-                                                                                    },
+                                                                                    ratio: Buffer(
+                                                                                        BufferDependency {
+                                                                                            name: "U_Mate",
+                                                                                            field: "gWrkFl4",
+                                                                                            index: Some(
+                                                                                                0,
+                                                                                            ),
+                                                                                            channel: Some(
+                                                                                                'z',
+                                                                                            ),
+                                                                                        },
+                                                                                    ),
                                                                                 },
                                                                             ),
                                                                         },
@@ -1723,16 +1793,18 @@ ShaderProgram {
                                                                                                     ],
                                                                                                 },
                                                                                             ),
-                                                                                            ratio: BufferDependency {
-                                                                                                name: "U_Mate",
-                                                                                                field: "gWrkFl4",
-                                                                                                index: Some(
-                                                                                                    0,
-                                                                                                ),
-                                                                                                channel: Some(
-                                                                                                    'z',
-                                                                                                ),
-                                                                                            },
+                                                                                            ratio: Buffer(
+                                                                                                BufferDependency {
+                                                                                                    name: "U_Mate",
+                                                                                                    field: "gWrkFl4",
+                                                                                                    index: Some(
+                                                                                                        0,
+                                                                                                    ),
+                                                                                                    channel: Some(
+                                                                                                        'z',
+                                                                                                    ),
+                                                                                                },
+                                                                                            ),
                                                                                         },
                                                                                     ),
                                                                                 },
@@ -1779,16 +1851,18 @@ ShaderProgram {
                                                                                                     ],
                                                                                                 },
                                                                                             ),
-                                                                                            ratio: BufferDependency {
-                                                                                                name: "U_Mate",
-                                                                                                field: "gWrkFl4",
-                                                                                                index: Some(
-                                                                                                    0,
-                                                                                                ),
-                                                                                                channel: Some(
-                                                                                                    'z',
-                                                                                                ),
-                                                                                            },
+                                                                                            ratio: Buffer(
+                                                                                                BufferDependency {
+                                                                                                    name: "U_Mate",
+                                                                                                    field: "gWrkFl4",
+                                                                                                    index: Some(
+                                                                                                        0,
+                                                                                                    ),
+                                                                                                    channel: Some(
+                                                                                                        'z',
+                                                                                                    ),
+                                                                                                },
+                                                                                            ),
                                                                                         },
                                                                                     ),
                                                                                 },
@@ -1888,16 +1962,18 @@ ShaderProgram {
                                                                                                             ],
                                                                                                         },
                                                                                                     ),
-                                                                                                    ratio: BufferDependency {
-                                                                                                        name: "U_Mate",
-                                                                                                        field: "gWrkFl4",
-                                                                                                        index: Some(
-                                                                                                            0,
-                                                                                                        ),
-                                                                                                        channel: Some(
-                                                                                                            'z',
-                                                                                                        ),
-                                                                                                    },
+                                                                                                    ratio: Buffer(
+                                                                                                        BufferDependency {
+                                                                                                            name: "U_Mate",
+                                                                                                            field: "gWrkFl4",
+                                                                                                            index: Some(
+                                                                                                                0,
+                                                                                                            ),
+                                                                                                            channel: Some(
+                                                                                                                'z',
+                                                                                                            ),
+                                                                                                        },
+                                                                                                    ),
                                                                                                 },
                                                                                             ),
                                                                                         },
@@ -1944,16 +2020,18 @@ ShaderProgram {
                                                                                                             ],
                                                                                                         },
                                                                                                     ),
-                                                                                                    ratio: BufferDependency {
-                                                                                                        name: "U_Mate",
-                                                                                                        field: "gWrkFl4",
-                                                                                                        index: Some(
-                                                                                                            0,
-                                                                                                        ),
-                                                                                                        channel: Some(
-                                                                                                            'z',
-                                                                                                        ),
-                                                                                                    },
+                                                                                                    ratio: Buffer(
+                                                                                                        BufferDependency {
+                                                                                                            name: "U_Mate",
+                                                                                                            field: "gWrkFl4",
+                                                                                                            index: Some(
+                                                                                                                0,
+                                                                                                            ),
+                                                                                                            channel: Some(
+                                                                                                                'z',
+                                                                                                            ),
+                                                                                                        },
+                                                                                                    ),
                                                                                                 },
                                                                                             ),
                                                                                         },
@@ -2121,16 +2199,18 @@ ShaderProgram {
                                                                                     ],
                                                                                 },
                                                                             ),
-                                                                            ratio: BufferDependency {
-                                                                                name: "U_Mate",
-                                                                                field: "gWrkFl4",
-                                                                                index: Some(
-                                                                                    0,
-                                                                                ),
-                                                                                channel: Some(
-                                                                                    'z',
-                                                                                ),
-                                                                            },
+                                                                            ratio: Buffer(
+                                                                                BufferDependency {
+                                                                                    name: "U_Mate",
+                                                                                    field: "gWrkFl4",
+                                                                                    index: Some(
+                                                                                        0,
+                                                                                    ),
+                                                                                    channel: Some(
+                                                                                        'z',
+                                                                                    ),
+                                                                                },
+                                                                            ),
                                                                         },
                                                                     ),
                                                                 },
@@ -2177,16 +2257,18 @@ ShaderProgram {
                                                                                     ],
                                                                                 },
                                                                             ),
-                                                                            ratio: BufferDependency {
-                                                                                name: "U_Mate",
-                                                                                field: "gWrkFl4",
-                                                                                index: Some(
-                                                                                    0,
-                                                                                ),
-                                                                                channel: Some(
-                                                                                    'z',
-                                                                                ),
-                                                                            },
+                                                                            ratio: Buffer(
+                                                                                BufferDependency {
+                                                                                    name: "U_Mate",
+                                                                                    field: "gWrkFl4",
+                                                                                    index: Some(
+                                                                                        0,
+                                                                                    ),
+                                                                                    channel: Some(
+                                                                                        'z',
+                                                                                    ),
+                                                                                },
+                                                                            ),
                                                                         },
                                                                     ),
                                                                 },
@@ -2281,16 +2363,18 @@ ShaderProgram {
                                                                                             ],
                                                                                         },
                                                                                     ),
-                                                                                    ratio: BufferDependency {
-                                                                                        name: "U_Mate",
-                                                                                        field: "gWrkFl4",
-                                                                                        index: Some(
-                                                                                            0,
-                                                                                        ),
-                                                                                        channel: Some(
-                                                                                            'z',
-                                                                                        ),
-                                                                                    },
+                                                                                    ratio: Buffer(
+                                                                                        BufferDependency {
+                                                                                            name: "U_Mate",
+                                                                                            field: "gWrkFl4",
+                                                                                            index: Some(
+                                                                                                0,
+                                                                                            ),
+                                                                                            channel: Some(
+                                                                                                'z',
+                                                                                            ),
+                                                                                        },
+                                                                                    ),
                                                                                 },
                                                                             ),
                                                                         },
@@ -2337,16 +2421,18 @@ ShaderProgram {
                                                                                             ],
                                                                                         },
                                                                                     ),
-                                                                                    ratio: BufferDependency {
-                                                                                        name: "U_Mate",
-                                                                                        field: "gWrkFl4",
-                                                                                        index: Some(
-                                                                                            0,
-                                                                                        ),
-                                                                                        channel: Some(
-                                                                                            'z',
-                                                                                        ),
-                                                                                    },
+                                                                                    ratio: Buffer(
+                                                                                        BufferDependency {
+                                                                                            name: "U_Mate",
+                                                                                            field: "gWrkFl4",
+                                                                                            index: Some(
+                                                                                                0,
+                                                                                            ),
+                                                                                            channel: Some(
+                                                                                                'z',
+                                                                                            ),
+                                                                                        },
+                                                                                    ),
                                                                                 },
                                                                             ),
                                                                         },
@@ -2446,16 +2532,18 @@ ShaderProgram {
                                                                                                     ],
                                                                                                 },
                                                                                             ),
-                                                                                            ratio: BufferDependency {
-                                                                                                name: "U_Mate",
-                                                                                                field: "gWrkFl4",
-                                                                                                index: Some(
-                                                                                                    0,
-                                                                                                ),
-                                                                                                channel: Some(
-                                                                                                    'z',
-                                                                                                ),
-                                                                                            },
+                                                                                            ratio: Buffer(
+                                                                                                BufferDependency {
+                                                                                                    name: "U_Mate",
+                                                                                                    field: "gWrkFl4",
+                                                                                                    index: Some(
+                                                                                                        0,
+                                                                                                    ),
+                                                                                                    channel: Some(
+                                                                                                        'z',
+                                                                                                    ),
+                                                                                                },
+                                                                                            ),
                                                                                         },
                                                                                     ),
                                                                                 },
@@ -2502,16 +2590,18 @@ ShaderProgram {
                                                                                                     ],
                                                                                                 },
                                                                                             ),
-                                                                                            ratio: BufferDependency {
-                                                                                                name: "U_Mate",
-                                                                                                field: "gWrkFl4",
-                                                                                                index: Some(
-                                                                                                    0,
-                                                                                                ),
-                                                                                                channel: Some(
-                                                                                                    'z',
-                                                                                                ),
-                                                                                            },
+                                                                                            ratio: Buffer(
+                                                                                                BufferDependency {
+                                                                                                    name: "U_Mate",
+                                                                                                    field: "gWrkFl4",
+                                                                                                    index: Some(
+                                                                                                        0,
+                                                                                                    ),
+                                                                                                    channel: Some(
+                                                                                                        'z',
+                                                                                                    ),
+                                                                                                },
+                                                                                            ),
                                                                                         },
                                                                                     ),
                                                                                 },
@@ -2611,16 +2701,18 @@ ShaderProgram {
                                                                                                             ],
                                                                                                         },
                                                                                                     ),
-                                                                                                    ratio: BufferDependency {
-                                                                                                        name: "U_Mate",
-                                                                                                        field: "gWrkFl4",
-                                                                                                        index: Some(
-                                                                                                            0,
-                                                                                                        ),
-                                                                                                        channel: Some(
-                                                                                                            'z',
-                                                                                                        ),
-                                                                                                    },
+                                                                                                    ratio: Buffer(
+                                                                                                        BufferDependency {
+                                                                                                            name: "U_Mate",
+                                                                                                            field: "gWrkFl4",
+                                                                                                            index: Some(
+                                                                                                                0,
+                                                                                                            ),
+                                                                                                            channel: Some(
+                                                                                                                'z',
+                                                                                                            ),
+                                                                                                        },
+                                                                                                    ),
                                                                                                 },
                                                                                             ),
                                                                                         },
@@ -2667,16 +2759,18 @@ ShaderProgram {
                                                                                                             ],
                                                                                                         },
                                                                                                     ),
-                                                                                                    ratio: BufferDependency {
-                                                                                                        name: "U_Mate",
-                                                                                                        field: "gWrkFl4",
-                                                                                                        index: Some(
-                                                                                                            0,
-                                                                                                        ),
-                                                                                                        channel: Some(
-                                                                                                            'z',
-                                                                                                        ),
-                                                                                                    },
+                                                                                                    ratio: Buffer(
+                                                                                                        BufferDependency {
+                                                                                                            name: "U_Mate",
+                                                                                                            field: "gWrkFl4",
+                                                                                                            index: Some(
+                                                                                                                0,
+                                                                                                            ),
+                                                                                                            channel: Some(
+                                                                                                                'z',
+                                                                                                            ),
+                                                                                                        },
+                                                                                                    ),
                                                                                                 },
                                                                                             ),
                                                                                         },

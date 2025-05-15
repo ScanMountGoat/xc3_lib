@@ -89,7 +89,7 @@ pub struct TextureAssignment {
 pub struct TexCoordParallax {
     pub mask_a: Box<AssignmentValue>,
     pub mask_b: Box<AssignmentValue>,
-    pub ratio: OrderedFloat<f32>,
+    pub ratio: Box<AssignmentValue>,
 }
 
 impl Default for Assignment {
@@ -204,12 +204,13 @@ fn texture_assignment(
             }) => {
                 let mask_a = AssignmentValue::from_dependency(mask_a, parameters);
                 let mask_b = AssignmentValue::from_dependency(mask_b, parameters);
+                let ratio = AssignmentValue::from_dependency(ratio, parameters);
                 // TODO: Why are these sometimes none for xcx de?
-                match (mask_a, mask_b) {
-                    (Some(mask_a), Some(mask_b)) => Some(TexCoordParallax {
+                match (mask_a, mask_b, ratio) {
+                    (Some(mask_a), Some(mask_b), Some(ratio)) => Some(TexCoordParallax {
                         mask_a: Box::new(mask_a),
                         mask_b: Box::new(mask_b),
-                        ratio: parameters.get_dependency(ratio).unwrap_or_default().into(),
+                        ratio: Box::new(ratio),
                     }),
                     _ => None,
                 }

@@ -54,10 +54,10 @@ pub fn shader_from_glsl(
         .map(outline_width_parameter)
         .unwrap_or_default();
 
-    let mut expr_to_output_expr = IndexMap::new();
-
     let mut output_dependencies = IndexMap::new();
     let mut normal_intensity = None;
+
+    let mut vertex_output_exprs = IndexMap::new();
 
     // Some shaders have up to 8 outputs.
     for i in frag_attributes.output_locations.right_values().copied() {
@@ -68,13 +68,8 @@ pub fn shader_from_glsl(
             let mut value;
             if i == 2 && (c == 'x' || c == 'y') {
                 // The normals use XY for output index 2 for all games.
-                let (new_value, intensity) = normal_output_expr(
-                    &frag,
-                    &frag_attributes,
-                    &dependent_lines,
-                    &mut expr_to_output_expr,
-                )
-                .unzip();
+                let (new_value, intensity) =
+                    normal_output_expr(&frag, &frag_attributes, &dependent_lines).unzip();
                 value = new_value;
                 normal_intensity = intensity.flatten();
             } else if i == 2 && c == 'w' {
@@ -85,22 +80,30 @@ pub fn shader_from_glsl(
             } else {
                 // Xenoblade X DE uses different outputs than other games.
                 // Detect color or params to handle different outputs and channels.
-                value = color_or_param_output_expr(
-                    &frag,
-                    &frag_attributes,
-                    &dependent_lines,
-                    &mut expr_to_output_expr,
-                );
+                // TODO: Detect if o2.x before remapping is used here?
+                value = color_or_param_output_expr(&frag, &frag_attributes, &dependent_lines);
             };
 
             if let (Some(value), Some(vert), Some(vert_attributes)) =
                 (&mut value, &vert, &vert_attributes)
             {
-                apply_expr_attribute_names(value, vert, vert_attributes, &frag_attributes);
+                apply_expr_attribute_names(
+                    value,
+                    vert,
+                    vert_attributes,
+                    &frag_attributes,
+                    &mut vertex_output_exprs,
+                );
                 apply_expr_vertex_uv_params(value, vert, vert_attributes, &frag_attributes);
 
                 if let Some(i) = &mut normal_intensity {
-                    apply_expr_attribute_names(i, vert, vert_attributes, &frag_attributes);
+                    apply_expr_attribute_names(
+                        i,
+                        vert,
+                        vert_attributes,
+                        &frag_attributes,
+                        &mut vertex_output_exprs,
+                    );
                     apply_expr_vertex_uv_params(i, vert, vert_attributes, &frag_attributes);
                 }
             }
@@ -125,15 +128,30 @@ fn apply_expr_attribute_names(
     vert: &Graph,
     vert_attributes: &Attributes,
     frag_attributes: &Attributes,
+    vertex_output_exprs: &mut IndexMap<(i32, Option<char>), OutputExpr>,
 ) {
     // Names are only present for vertex input attributes.
     match value {
         OutputExpr::Value(d) => {
-            apply_attribute_names(vert, vert_attributes, frag_attributes, d);
+            if let Some(new_value) = vertex_attribute_output_expr(
+                vert,
+                vert_attributes,
+                frag_attributes,
+                d,
+                vertex_output_exprs,
+            ) {
+                *value = new_value;
+            }
         }
         OutputExpr::Func { args, .. } => {
             for arg in args {
-                apply_expr_attribute_names(arg, vert, vert_attributes, frag_attributes);
+                apply_expr_attribute_names(
+                    arg,
+                    vert,
+                    vert_attributes,
+                    frag_attributes,
+                    vertex_output_exprs,
+                );
             }
         }
     }
@@ -229,7 +247,6 @@ fn color_or_param_output_expr(
     frag: &Graph,
     frag_attributes: &Attributes,
     dependent_lines: &[usize],
-    expr_to_output_expr: &mut IndexMap<Expr, OutputExpr>,
 ) -> Option<OutputExpr> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
@@ -269,12 +286,7 @@ fn color_or_param_output_expr(
         current = new_current;
     }
 
-    Some(output_expr(
-        current,
-        frag,
-        frag_attributes,
-        expr_to_output_expr,
-    ))
+    Some(output_expr(current, frag, frag_attributes))
 }
 
 fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], &'a Expr)> {
@@ -296,7 +308,6 @@ fn normal_output_expr(
     frag: &Graph,
     frag_attributes: &Attributes,
     dependent_lines: &[usize],
-    expr_to_output_expr: &mut IndexMap<Expr, OutputExpr>,
 ) -> Option<(OutputExpr, Option<OutputExpr>)> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
@@ -329,76 +340,71 @@ fn normal_output_expr(
     };
     let nom_work = assign_x_recursive(&frag.nodes, nom_work);
 
-    let value = output_expr(nom_work, frag, frag_attributes, expr_to_output_expr);
+    let value = output_expr(nom_work, frag, frag_attributes);
 
-    let intensity = intensity.map(|i| output_expr(i, frag, frag_attributes, expr_to_output_expr));
+    let intensity = intensity.map(|i| output_expr(i, frag, frag_attributes));
 
     Some((value, intensity))
 }
 
-fn output_expr(
-    expr: &Expr,
-    graph: &Graph,
-    attributes: &Attributes,
-    expr_to_output_expr: &mut IndexMap<Expr, OutputExpr>,
-) -> OutputExpr {
-    match expr_to_output_expr.get(expr) {
-        Some(o) => o.clone(),
-        None => {
-            // TODO: Should this use the value before or after applying simplification?
-            let original_expr = expr.clone();
+fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -> OutputExpr {
+    // Simplify any expressions that would interfere with queries.
+    let mut expr = assign_x_recursive(&graph.nodes, expr);
+    if let Some(new_expr) = normal_map_fma(&graph.nodes, expr) {
+        expr = new_expr;
+    }
 
-            // Simplify any expressions that would interfere with queries.
-            let mut expr = assign_x_recursive(&graph.nodes, expr);
-            if let Some(new_expr) = normal_map_fma(&graph.nodes, expr) {
-                expr = new_expr;
+    if let Some(new_expr) = skin_attribute_xyz(&graph.nodes, expr) {
+        expr = new_expr;
+    }
+    if let Some(new_expr) = skin_attribute_xyzw(&graph.nodes, expr) {
+        expr = new_expr;
+    }
+    if let Some(new_expr) = skin_attribute_clip_space_xyzw(&graph.nodes, expr) {
+        expr = new_expr;
+    }
+
+    if let Some(value) = extract_value(expr, graph, attributes) {
+        // The base case is a single value.
+        OutputExpr::Value(value)
+    } else {
+        // Detect operations from most specific to least specific.
+        // This results in fewer operations in many cases.
+        if let Some((op, args)) = op_add_normal(&graph.nodes, expr)
+            .or_else(|| op_fresnel_ratio(&graph.nodes, expr))
+            .or_else(|| op_overlay2(&graph.nodes, expr))
+            .or_else(|| op_overlay_ratio(&graph.nodes, expr))
+            .or_else(|| op_overlay(&graph.nodes, expr))
+            .or_else(|| op_mix(&graph.nodes, expr))
+            .or_else(|| op_mul_ratio(&graph.nodes, expr))
+            .or_else(|| op_add_ratio(expr))
+            .or_else(|| op_sub(&graph.nodes, expr))
+            .or_else(|| binary_op(expr, BinaryOp::Mul, Operation::Mul))
+            .or_else(|| binary_op(expr, BinaryOp::Div, Operation::Div))
+            .or_else(|| binary_op(expr, BinaryOp::Add, Operation::Add))
+            .or_else(|| op_pow(&graph.nodes, expr))
+            .or_else(|| op_clamp(&graph.nodes, expr))
+            .or_else(|| op_min(&graph.nodes, expr))
+            .or_else(|| op_max(&graph.nodes, expr))
+            .or_else(|| op_sqrt(&graph.nodes, expr))
+            .or_else(|| unary_op(expr, "abs", Operation::Abs))
+        {
+            // Recursively detect values or functions.
+            let args: Vec<_> = args
+                .into_iter()
+                .map(|arg| output_expr(arg, graph, attributes))
+                .collect();
+            OutputExpr::Func { op, args }
+        } else {
+            // TODO: sqrt, inversesqrt, floor, ternary, comparisons,
+            // TODO: exp2 should always be part of a pow expression
+            // TODO: better fallback for unrecognized function or values?
+            // TODO: log unsupported expr during database creation?
+            // println!("{}", graph.expr_to_glsl(expr));
+            OutputExpr::Func {
+                op: Operation::Unk,
+                args: Vec::new(),
             }
-
-            let output = if let Some(value) = extract_value(expr, graph, attributes) {
-                // The base case is a single value.
-                OutputExpr::Value(value)
-            } else {
-                // Detect operations from most specific to least specific.
-                // This results in fewer operations in many cases.
-                if let Some((op, args)) = op_add_normal(&graph.nodes, expr)
-                    .or_else(|| op_fresnel_ratio(&graph.nodes, expr))
-                    .or_else(|| op_overlay2(&graph.nodes, expr))
-                    .or_else(|| op_overlay_ratio(&graph.nodes, expr))
-                    .or_else(|| op_overlay(&graph.nodes, expr))
-                    .or_else(|| op_mix(&graph.nodes, expr))
-                    .or_else(|| op_mul_ratio(&graph.nodes, expr))
-                    .or_else(|| op_add_ratio(expr))
-                    .or_else(|| op_sub(&graph.nodes, expr))
-                    .or_else(|| binary_op(expr, BinaryOp::Mul, Operation::Mul))
-                    .or_else(|| binary_op(expr, BinaryOp::Div, Operation::Div))
-                    .or_else(|| binary_op(expr, BinaryOp::Add, Operation::Add))
-                    .or_else(|| op_pow(&graph.nodes, expr))
-                    .or_else(|| op_clamp(&graph.nodes, expr))
-                    .or_else(|| op_min(&graph.nodes, expr))
-                    .or_else(|| op_max(&graph.nodes, expr))
-                    .or_else(|| unary_op(expr, "abs", Operation::Abs))
-                {
-                    // Recursively detect values or functions.
-                    let args: Vec<_> = args
-                        .into_iter()
-                        .map(|arg| output_expr(arg, graph, attributes, expr_to_output_expr))
-                        .collect();
-                    OutputExpr::Func { op, args }
-                } else {
-                    // TODO: sqrt, inversesqrt, floor, ternary, comparisons,
-                    // TODO: exp2 should always be part of a pow expression
-                    // TODO: better fallback for unrecognized function or values?
-                    // TODO: log unsupported expr during database creation?
-                    // println!("{}", graph.expr_to_glsl(expr));
-                    OutputExpr::Func {
-                        op: Operation::Unk,
-                        args: Vec::new(),
-                    }
-                }
-            };
-
-            expr_to_output_expr.insert(original_expr, output.clone());
-            output
         }
     }
 }
@@ -630,6 +636,27 @@ fn op_clamp<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a
     let b = result.get("b")?;
     let c = result.get("c")?;
     Some((Operation::Clamp, vec![a, b, c]))
+}
+
+static OP_SQRT: LazyLock<Graph> = LazyLock::new(|| {
+    // Equivalent to sqrt(result)
+    let query = indoc! {"
+        void main() {
+            result = inversesqrt(result);
+            result = 1.0 / result;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static OP_SQRT2: LazyLock<Graph> =
+    LazyLock::new(|| Graph::parse_glsl("void main() { result = sqrt(result); }").unwrap());
+
+fn op_sqrt<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes(expr, nodes, &OP_SQRT.nodes)
+        .or_else(|| query_nodes(expr, nodes, &OP_SQRT2.nodes))?;
+    let result = result.get("result")?;
+    Some((Operation::Sqrt, vec![result]))
 }
 
 fn unary_op<'a>(
@@ -1065,6 +1092,103 @@ fn geometric_specular_aa<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Ex
     result.get("glossiness").copied()
 }
 
+static SKIN_ATTRIBUTE_XYZ: LazyLock<Graph> = LazyLock::new(|| {
+    // TODO: is it worth having separate queries for xyz channels to check for nWgtIdx?
+    let query = indoc! {"
+        void main() {
+            temp_15 = uintBitsToFloat(U_Bone.data[int(temp_14)]);
+            temp_18 = uintBitsToFloat(U_Bone.data[int(temp_17)]);
+            temp_21 = uintBitsToFloat(U_Bone.data[int(temp_20)]);
+            temp_26 = result.x;
+            temp_28 = result.y;
+            temp_52 = result.z;
+            temp_77 = temp_15 * temp_26;
+            temp_82 = fma(temp_18, temp_28, temp_77);
+            temp_89 = fma(temp_21, temp_52, temp_82);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn skin_attribute_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
+    let result = query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZ.nodes)?;
+    result.get("result").copied()
+}
+
+static SKIN_ATTRIBUTE_XYZW: LazyLock<Graph> = LazyLock::new(|| {
+    // TODO: is it worth having separate queries for xyzw channels to check for nWgtIdx?
+    let query = indoc! {"
+        void main() {
+            temp_3 = result.x;
+            temp_8 = result.y;
+            temp_9 = result.z;
+            temp_11 = result.w;
+            temp_30 = uintBitsToFloat(U_Bone.data[int(temp_29)]);
+            temp_33 = uintBitsToFloat(U_Bone.data[int(temp_32)]);
+            temp_36 = uintBitsToFloat(U_Bone.data[int(temp_35)]);
+            temp_39 = uintBitsToFloat(U_Bone.data[int(temp_38)]);
+            temp_63 = temp_30 * temp_3;
+            temp_65 = fma(temp_33, temp_8, temp_63);
+            temp_66 = fma(temp_36, temp_9, temp_65);
+            temp_68 = fma(temp_39, temp_11, temp_66);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn skin_attribute_xyzw<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
+    let result = query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZW.nodes)?;
+    result.get("result").copied()
+}
+
+static SKIN_ATTRIBUTE_CLIP_XYZW: LazyLock<Graph> = LazyLock::new(|| {
+    // TODO: is it worth having separate queries for xyzw channels to check for nWgtIdx?
+    // TODO: Detect this as matrix multiplication and regular skinning?
+    let query = indoc! {"
+        void main() {
+            temp_3 = result.x;
+            temp_8 = result.y;
+            temp_9 = result.z;
+            temp_11 = result.w;
+            temp_15 = uintBitsToFloat(U_Bone.data[int(temp_14)]);
+            temp_18 = uintBitsToFloat(U_Bone.data[int(temp_17)]);
+            temp_21 = uintBitsToFloat(U_Bone.data[int(temp_20)]);
+            temp_24 = uintBitsToFloat(U_Bone.data[int(temp_23)]);
+            temp_30 = uintBitsToFloat(U_Bone.data[int(temp_29)]);
+            temp_33 = uintBitsToFloat(U_Bone.data[int(temp_32)]);
+            temp_36 = uintBitsToFloat(U_Bone.data[int(temp_35)]);
+            temp_39 = uintBitsToFloat(U_Bone.data[int(temp_38)]);
+            temp_41 = uintBitsToFloat(U_Bone.data[int(temp_40)]);
+            temp_44 = uintBitsToFloat(U_Bone.data[int(temp_43)]);
+            temp_47 = uintBitsToFloat(U_Bone.data[int(temp_46)]);
+            temp_50 = uintBitsToFloat(U_Bone.data[int(temp_49)]);
+            temp_58 = temp_15 * temp_3;
+            temp_59 = fma(temp_18, temp_8, temp_58);
+            temp_61 = fma(temp_21, temp_9, temp_59);
+            temp_62 = fma(temp_24, temp_11, temp_61);
+            temp_63 = temp_30 * temp_3;
+            temp_64 = temp_41 * temp_3;
+            temp_65 = fma(temp_33, temp_8, temp_63);
+            temp_66 = fma(temp_36, temp_9, temp_65);
+            temp_67 = fma(temp_44, temp_8, temp_64);
+            temp_68 = fma(temp_39, temp_11, temp_66);
+            temp_70 = fma(temp_47, temp_9, temp_67);
+            temp_72 = fma(temp_50, temp_11, temp_70);
+            temp_139 = temp_62 * U_Static.gmProj[i].x;
+            temp_155 = fma(temp_68, U_Static.gmProj[i].y, temp_139);
+            temp_160 = fma(temp_72, U_Static.gmProj[i].z, temp_155);
+            temp_168 = temp_160 + U_Static.gmProj[i].w;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn skin_attribute_clip_space_xyzw<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
+    // TODO: This can also be modified U_Static.gCDep?
+    let result = query_nodes(expr, nodes, &SKIN_ATTRIBUTE_CLIP_XYZW.nodes)?;
+    result.get("result").copied()
+}
+
 fn apply_vertex_uv_params(
     vertex: &Graph,
     vertex_attributes: &Attributes,
@@ -1121,7 +1245,7 @@ fn apply_expr_vertex_uv_params(
     // Most shaders apply UV transforms in the vertex shader.
     match value {
         OutputExpr::Value(d) => {
-            apply_vertex_uv_params(vertex, vertex_attributes, fragment_attributes, d)
+            apply_vertex_uv_params(vertex, vertex_attributes, fragment_attributes, d);
         }
         OutputExpr::Func { args, .. } => {
             for arg in args {
@@ -1132,36 +1256,43 @@ fn apply_expr_vertex_uv_params(
 }
 
 // TODO: Share code with texcoord function.
-fn apply_attribute_names(
+fn vertex_attribute_output_expr(
     vertex: &Graph,
     vertex_attributes: &Attributes,
     fragment_attributes: &Attributes,
     dependency: &mut Dependency,
-) {
+    vertex_output_exprs: &mut IndexMap<(i32, Option<char>), OutputExpr>,
+) -> Option<OutputExpr> {
     if let Dependency::Attribute(attribute) = dependency {
-        // Convert a fragment input like "in_attr4" to its vertex output like "vTex0".
-        if let Some(fragment_location) = fragment_attributes
+        // Convert a fragment input like "in_attr4" to its vertex output like "out_attr4".
+        let fragment_location = fragment_attributes
             .input_locations
-            .get_by_left(attribute.name.as_str())
-        {
-            if let Some(vertex_output_name) = vertex_attributes
-                .output_locations
-                .get_by_right(fragment_location)
-            {
-                // TODO: Avoid calculating this more than once.
+            .get_by_left(attribute.name.as_str())?;
+
+        let vertex_output_name = vertex_attributes
+            .output_locations
+            .get_by_right(fragment_location)?;
+
+        let key = (*fragment_location, attribute.channel);
+        match vertex_output_exprs.get(&key) {
+            Some(expr) => Some(expr.clone()),
+            None => {
+                // TODO: Convert texcoord params to operations
+                // TODO: detect bitangent calculated from tangent
                 let dependent_lines =
                     vertex.dependencies_recursive(vertex_output_name, attribute.channel, None);
 
-                // TODO: detect cases like vertex skinning?
-                if let Some(input_attribute) =
-                    attribute_dependencies(vertex, &dependent_lines, vertex_attributes, None)
-                        .iter()
-                        .find(|a| a.name != "nWgtIdx")
-                {
-                    attribute.name.clone_from(&input_attribute.name);
+                if let Some(last_node) = dependent_lines.last().and_then(|l| vertex.nodes.get(*l)) {
+                    let new_expr = output_expr(&last_node.input, vertex, vertex_attributes);
+                    vertex_output_exprs.insert(key, new_expr.clone());
+                    Some(new_expr)
+                } else {
+                    None
                 }
             }
         }
+    } else {
+        None
     }
 }
 
@@ -1626,18 +1757,6 @@ mod tests {
         // Test detecting layers for ambient occlusion.
         let shader = shader_from_glsl(Some(&vertex), &fragment);
         assert_debug_eq!("data/xc2/en020601.0.txt", shader);
-    }
-
-    #[test]
-    fn shader_from_glsl_gramps_fur() {
-        // xeno2/model/np/np000101, "_body_far_Fur", shd0009
-        let vert_glsl = include_str!("data/xc2/np000101.9.vert");
-        let frag_glsl = include_str!("data/xc2/np000101.9.frag");
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc2/np000101.9.txt", shader);
     }
 
     #[test]

@@ -161,7 +161,7 @@ pub enum TexCoordParams {
     Parallax {
         mask_a: Dependency,
         mask_b: Dependency,
-        ratio: BufferDependency,
+        ratio: Dependency,
     },
 }
 
@@ -210,6 +210,9 @@ pub enum Operation {
     Abs,
     /// `pow(1.0 - n_dot_v, arg0 * 5.0)`
     Fresnel,
+    /// `sqrt(arg0)`
+    Sqrt,
+    /// An unsupported operation or function call.
     Unk,
 }
 

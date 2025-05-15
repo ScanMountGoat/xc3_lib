@@ -153,6 +153,7 @@ impl Nodes {
                     Operation::MulRatio => {
                         Some(format!("mix({0}, {0} * {1}, {2})", arg0?, arg1?, arg2?))
                     }
+                    Operation::Sqrt => Some(format!("sqrt({})", arg0?)),
                     Operation::Unk => None,
                 }
             }
@@ -498,7 +499,7 @@ fn parallax_wgsl(
 ) -> Option<String> {
     let mask_a = channel_assignment_wgsl(name_to_index, &parallax.mask_a)?;
     let mask_b = channel_assignment_wgsl(name_to_index, &parallax.mask_b)?;
-    let ratio = format!("{:?}", parallax.ratio);
+    let ratio = channel_assignment_wgsl(name_to_index, &parallax.ratio)?;
 
     Some(format!("uv_parallax(in, {mask_a}, {mask_b}, {ratio})"))
 }

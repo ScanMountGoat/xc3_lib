@@ -173,9 +173,11 @@ fn texcoord_args(args: &[Expr], graph: &Graph, attributes: &Attributes) -> Vec<T
 }
 
 pub fn texcoord_params(graph: &Graph, input: &Expr, attributes: &Attributes) -> Option<TexCoord> {
-    let (params, name, channel) = scale_parameter(graph, input)
+    // Detect operations from most specific to least specific.
+    let (params, name, channel) = tex_parallax(graph, input, attributes)
+        .or_else(|| tex_parallax_xcx_de(graph, input, attributes))
         .or_else(|| tex_matrix(graph, input))
-        .or_else(|| tex_parallax(graph, input, attributes))?;
+        .or_else(|| scale_parameter(graph, input))?;
 
     Some(TexCoord {
         name,
@@ -323,10 +325,10 @@ fn tex_parallax(
         std::mem::swap(&mut mask_a, &mut mask_b);
     }
 
-    let param_ratio = result
-        .get("param_ratio")
-        .copied()
-        .and_then(buffer_dependency)?;
+    let ratio = result.get("param_ratio").copied().and_then(|e| {
+        texture_dependency(e, graph, attributes)
+            .or_else(|| buffer_dependency(e).map(Dependency::Buffer))
+    })?;
 
     let (coord, channel) = match result.get("coord")? {
         Expr::Global { name, channel } => Some((name.clone(), *channel)),
@@ -337,7 +339,49 @@ fn tex_parallax(
         TexCoordParams::Parallax {
             mask_a,
             mask_b,
-            ratio: param_ratio,
+            ratio,
+        },
+        coord,
+        channel,
+    ))
+}
+
+static TEX_PARALLAX_XCX_DE: LazyLock<Graph> = LazyLock::new(|| {
+    // uv = ratio * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
+    let query = indoc! {"
+        void main() {
+            nrm_result = fma(temp1, 0.7, temp2);
+            result = fma(nrm_result, ratio, coord);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn tex_parallax_xcx_de(
+    graph: &Graph,
+    expr: &Expr,
+    attributes: &Attributes,
+) -> Option<(TexCoordParams, SmolStr, Option<char>)> {
+    let expr = assign_x_recursive(&graph.nodes, expr);
+
+    // Some eye shaders use some form of parallax mapping.
+    let result = query_nodes(expr, &graph.nodes, &TEX_PARALLAX_XCX_DE.nodes)?;
+
+    let ratio = assign_x_recursive(&graph.nodes, result.get("ratio")?);
+    let ratio = texture_dependency(ratio, graph, attributes)
+        .or_else(|| buffer_dependency(ratio).map(Dependency::Buffer))?;
+
+    let coord = assign_x_recursive(&graph.nodes, result.get("coord")?);
+    let (coord, channel) = match coord {
+        Expr::Global { name, channel } => Some((name.clone(), *channel)),
+        _ => None,
+    }?;
+
+    Some((
+        TexCoordParams::Parallax {
+            mask_a: ratio,
+            mask_b: Dependency::Constant(0.0.into()),
+            ratio: Dependency::Constant(0.0.into()),
         },
         coord,
         channel,
