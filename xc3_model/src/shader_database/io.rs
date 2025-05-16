@@ -374,13 +374,13 @@ impl ShaderDatabaseIndexed {
                 })
                 .collect();
 
-            for (hash, program) in &other.programs {
-                let mut program = program.clone();
+            for (hash, program) in other.programs {
+                let mut program = program;
                 for (k, v) in &mut program.output_dependencies {
                     *k = output_indices[k.0];
                     *v = output_expr_indices[v.0];
                 }
-                merged.programs.insert(*hash, program);
+                merged.programs.insert(hash, program);
             }
         }
 
@@ -441,14 +441,14 @@ impl ShaderDatabaseIndexed {
     }
 
     fn add_dependency(&mut self, d: Dependency) -> VarInt {
-        let dependency = self.dependency_indexed(d.clone());
+        let dependency = self.dependency_indexed(d);
         let (index, _) = self.dependencies.insert_full(dependency);
 
         VarInt(index)
     }
 
     fn add_buffer_dependency(&mut self, b: BufferDependency) -> VarInt {
-        let dependency = self.buffer_dependency_indexed(b.clone());
+        let dependency = self.buffer_dependency_indexed(b);
         let (index, _) = self.buffer_dependencies.insert_full(dependency);
 
         VarInt(index)
@@ -554,11 +554,7 @@ impl ShaderDatabaseIndexed {
 }
 
 fn add_string(strings: &mut IndexSet<SmolStr>, str: SmolStr) -> VarInt {
-    VarInt(strings.get_index_of(&str).unwrap_or_else(|| {
-        let index = strings.len();
-        strings.insert(str);
-        index
-    }))
+    VarInt(strings.insert_full(str).0)
 }
 
 // Variable length ints are slightly slower to parse but take up much less space.

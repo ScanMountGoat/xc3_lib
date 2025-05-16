@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, path::Path, sync::LazyLock};
+use std::{collections::BTreeMap, sync::LazyLock};
 
 use approx::AbsDiffEq;
 use bimap::BiBTreeMap;
@@ -1453,22 +1453,17 @@ fn vertex_attribute_output_expr(
 pub fn create_shader_database(input: &str) -> ShaderDatabase {
     // Collect unique programs.
     let mut programs = BTreeMap::new();
-    for folder in std::fs::read_dir(input).unwrap().map(|e| e.unwrap().path()) {
-        // TODO: Find a better way to detect maps.
-        if !folder.join("map").exists()
-            && !folder.join("prop").exists()
-            && !folder.join("env").exists()
-        {
-            add_programs(&mut programs, &folder);
-        } else {
-            add_map_programs(&mut programs, &folder.join("map"));
-            add_map_programs(&mut programs, &folder.join("prop"));
-            add_map_programs(&mut programs, &folder.join("env"));
-        }
+
+    for path in globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wishp"])
+        .build()
+        .unwrap()
+        .filter_map(|e| e.map(|e| e.path().to_owned()).ok())
+    {
+        add_programs(&mut programs, path);
     }
 
     // Process programs in parallel since this is CPU heavy.
-    let programs = programs
+    programs
         .into_par_iter()
         .map(|(hash, (vert, frag))| {
             let vertex = vert.and_then(|s| {
@@ -1495,31 +1490,21 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
                 })
                 .unwrap_or_default();
 
-            (hash, shader_program)
+            // Index each program individually to greatly reduce memory usage.
+            // This is faster than indexing all programs at the end.
+            ShaderDatabase::from_programs([(hash, shader_program)].into())
         })
-        .collect();
-
-    ShaderDatabase::from_programs(programs)
-}
-
-fn add_map_programs(
-    programs: &mut BTreeMap<ProgramHash, (Option<String>, Option<String>)>,
-    folder: &Path,
-) {
-    // TODO: Not all maps have env or prop models?
-    if let Ok(dir) = std::fs::read_dir(folder) {
-        // Folders are generated like "ma01a/prop/4".
-        for path in dir.into_iter().map(|e| e.unwrap().path()) {
-            add_programs(programs, &path);
-        }
-    }
+        .reduce(
+            || ShaderDatabase::from_programs(BTreeMap::new()),
+            |a, b| a.merge(std::iter::once(b)),
+        )
 }
 
 fn add_programs(
     programs: &mut BTreeMap<ProgramHash, (Option<String>, Option<String>)>,
-    folder: &Path,
+    spch_path: std::path::PathBuf,
 ) {
-    if let Ok(spch) = Spch::from_file(folder.join("shaders.wishp")) {
+    if let Ok(spch) = Spch::from_file(&spch_path) {
         for (i, slct_offset) in spch.slct_offsets.iter().enumerate() {
             let slct = slct_offset.read_slct(&spch.slct_section).unwrap();
 
@@ -1530,8 +1515,8 @@ fn add_programs(
                 let hash = ProgramHash::from_spch_program(p, vert, frag);
 
                 programs.entry(hash).or_insert_with(|| {
-                    let path = &folder
-                        .join(nvsd_glsl_name(&spch, i, 0))
+                    let path = spch_path
+                        .with_file_name(nvsd_glsl_name(&spch, i, 0))
                         .with_extension("frag");
 
                     // TODO: Should the vertex shader be mandatory?
@@ -1548,33 +1533,34 @@ pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
     let mut programs = BTreeMap::new();
 
     // TODO: Run this in parallel?
-    for folder in std::fs::read_dir(input).unwrap().map(|e| e.unwrap().path()) {
-        add_programs_legacy(&mut programs, &folder);
+    // Only check the first shader for now.
+    // TODO: What do additional nvsd shader entries do?
+    for path in globwalk::GlobWalkerBuilder::from_patterns(input, &["*.cashd"])
+        .build()
+        .unwrap()
+        .filter_map(|e| e.map(|e| e.path().to_owned()).ok())
+    {
+        add_programs_legacy(&mut programs, path);
     }
 
     ShaderDatabase::from_programs(programs)
 }
 
-fn add_programs_legacy(programs: &mut BTreeMap<ProgramHash, ShaderProgram>, folder: &Path) {
-    // Only check the first shader for now.
-    // TODO: What do additional nvsd shader entries do?
-    for path in globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.cashd"])
-        .build()
-        .unwrap()
-        .filter_map(|e| e.map(|e| e.path().to_owned()).ok())
-    {
-        let mths = Mths::from_file(&path).unwrap();
+fn add_programs_legacy(
+    programs: &mut BTreeMap<ProgramHash, ShaderProgram>,
+    path: std::path::PathBuf,
+) {
+    let mths = Mths::from_file(&path).unwrap();
 
-        let hash = ProgramHash::from_mths(&mths);
-        // Avoid processing the same program more than once.
-        programs.entry(hash).or_insert_with(|| {
-            // TODO: Should both shaders be mandatory?
-            let vertex_source = std::fs::read_to_string(path.with_extension("vert.txt")).unwrap();
-            let frag_source = std::fs::read_to_string(path.with_extension("frag.txt")).unwrap();
-            let fragment_shader = mths.fragment_shader().unwrap();
-            shader_from_latte_asm(&vertex_source, &frag_source, &fragment_shader)
-        });
-    }
+    let hash = ProgramHash::from_mths(&mths);
+    // Avoid processing the same program more than once.
+    programs.entry(hash).or_insert_with(|| {
+        // TODO: Should both shaders be mandatory?
+        let vertex_source = std::fs::read_to_string(path.with_extension("vert.txt")).unwrap();
+        let frag_source = std::fs::read_to_string(path.with_extension("frag.txt")).unwrap();
+        let fragment_shader = mths.fragment_shader().unwrap();
+        shader_from_latte_asm(&vertex_source, &frag_source, &fragment_shader)
+    });
 }
 
 // TODO: module for this?
