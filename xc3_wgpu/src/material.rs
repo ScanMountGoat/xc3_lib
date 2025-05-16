@@ -115,7 +115,7 @@ pub fn create_material(
                 texture_views[*i] = Some(texture.create_view(&Default::default()));
             }
         } else {
-            warn!("Missing texture for {name:?}. Assigning default black texture.");
+            error!("Unable to assign texture {name:?} for {:?}", &material.name);
         }
     }
 
@@ -143,7 +143,11 @@ pub fn create_material(
     // TODO: This is normally done using a depth prepass.
     // TODO: Is it ok to combine the prepass alpha in the main pass like this?
     let per_material = device.create_uniform_buffer(
-        "PerMaterial",
+        // TODO: include model name?
+        &format!(
+            "PerMaterial {:?} shd{:04}",
+            &material.name, material.technique_index
+        ),
         &[crate::shader::model::PerMaterial {
             assignments,
             outline_width,

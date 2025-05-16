@@ -95,11 +95,11 @@ impl ShaderTextures {
                 ("gTToonGrad", tex(path, "toon_grad.witex")),
                 ("gTToonDarkGrad", tex(path, "toon_grad_night.witex")),
                 // Defaults for global textures not in monolib/shader
-                ("gTLightShaft", default_texture([0; 4])),
-                ("texAO", default_texture([128; 4])),
-                ("texShadow", default_texture([255; 4])),
-                ("texLgt", default_texture([0; 4])),
-                ("gIBL", default_texture([255; 4])),
+                ("gTLightShaft", default_texture("gTLightShaft", [0; 4])),
+                ("texAO", default_texture("texAO", [128; 4])),
+                ("texShadow", default_texture("texShadow", [255; 4])),
+                ("texLgt", default_texture("texLgt", [0; 4])),
+                ("gIBL", default_texture("gIBL", [255, 255, 255, 0])),
             ]
             .into(),
         }
@@ -117,9 +117,9 @@ fn tex(path: &Path, name: &str) -> Option<ImageTexture> {
     Some(ImageTexture::from_mibl(&mibl, Some(name.to_string()), None).unwrap())
 }
 
-fn default_texture(rgba: [u8; 4]) -> Option<ImageTexture> {
+fn default_texture(name: &str, rgba: [u8; 4]) -> Option<ImageTexture> {
     Some(ImageTexture {
-        name: None,
+        name: Some(name.to_string()),
         usage: None,
         width: 4,
         height: 4,

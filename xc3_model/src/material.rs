@@ -154,8 +154,9 @@ impl MaterialParameters {
             ("U_Mate", "gMdlParm") => self.mdl_param.as_ref()?.get(index)?.get(c),
             ("U_CHR", "gAvaSkin") => self.ava_skin.as_ref()?.get(c),
             // TODO: Is it worth using in game values for these?
-            ("U_Static", "gLgtPreDir") => [[0.0, 0.0, 1.0, 0.0]; 2].get(index)?.get(c),
+            ("U_Static", "gLgtPreDir") => [[1.0, 1.0, 1.0, 1.0]; 2].get(index)?.get(c),
             ("U_Static", "gLgtPreCol") => [[1.0; 4]; 2].get(index)?.get(c),
+            ("U_Static", "gLgtPreSpe") => [[1.0; 4]; 2].get(index)?.get(c),
             _ => None,
         };
         if value.is_none() {
