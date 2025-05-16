@@ -1520,10 +1520,11 @@ mod tests {
     }
 
     fn shader_str(s: &ShaderProgram) -> String {
+        // Use a condensed representation similar to GLSL for nicer diffs.
         let outputs: Vec<_> = s
             .output_dependencies
             .iter()
-            .map(|(o, v)| format!("{o}: {}", expr_str(v)))
+            .map(|(o, v)| format!("{o}: {v}"))
             .collect();
         let mut output = String::new();
         writeln!(&mut output, "{}", outputs.join("\n")).unwrap();
@@ -1532,7 +1533,7 @@ mod tests {
             "outline_width: {}",
             s.outline_width
                 .as_ref()
-                .map(value_str)
+                .map(|d| d.to_string())
                 .unwrap_or("None".to_string())
         )
         .unwrap();
@@ -1541,75 +1542,11 @@ mod tests {
             "normal_intensity: {}",
             s.normal_intensity
                 .as_ref()
-                .map(expr_str)
+                .map(|o| o.to_string())
                 .unwrap_or("None".to_string())
         )
         .unwrap();
         output
-    }
-
-    fn channels(c: Option<char>) -> String {
-        c.map(|c| format!(".{c}")).unwrap_or_default()
-    }
-
-    fn expr_str(o: &OutputExpr) -> String {
-        match o {
-            OutputExpr::Value(d) => value_str(d),
-            OutputExpr::Func { op, args } => {
-                let name = match op {
-                    Operation::Mix => "Mix",
-                    Operation::Mul => "Mul",
-                    Operation::Div => "Div",
-                    Operation::Add => "Add",
-                    Operation::Sub => "Sub",
-                    Operation::Fma => "Fma",
-                    Operation::MulRatio => "MulRatio",
-                    Operation::AddNormal => "AddNormal",
-                    Operation::Overlay => "Overlay",
-                    Operation::Overlay2 => "Overlay2",
-                    Operation::OverlayRatio => "OverlayRatio",
-                    Operation::Power => "Power",
-                    Operation::Min => "Min",
-                    Operation::Max => "Max",
-                    Operation::Clamp => "Clamp",
-                    Operation::Abs => "Abs",
-                    Operation::Fresnel => "Fresnel",
-                    Operation::Sqrt => "Sqrt",
-                    Operation::TexMatrix => "TexMatrix",
-                    Operation::TexParallax => "TexParallax",
-                    Operation::Unk => "Unk",
-                };
-                let args: Vec<_> = args.iter().map(expr_str).collect();
-                format!("{name}({})", args.join(", "))
-            }
-        }
-    }
-
-    fn value_str(d: &Dependency) -> String {
-        match d {
-            Dependency::Constant(f) => format!("{f:?}"),
-            Dependency::Buffer(b) => format!(
-                "{}{}{}{}",
-                &b.name,
-                if b.field.is_empty() {
-                    String::new()
-                } else {
-                    format!(".{}", &b.field)
-                },
-                b.index.map(|i| format!("[{i}]")).unwrap_or_default(),
-                channels(b.channel)
-            ),
-            Dependency::Texture(t) => {
-                let args: Vec<_> = t.texcoords.iter().map(expr_str).collect();
-                format!(
-                    "Texture({}, {}){}",
-                    &t.name,
-                    args.join(", "),
-                    channels(t.channel)
-                )
-            }
-            Dependency::Attribute(a) => format!("{}{}", &a.name, channels(a.channel)),
-        }
     }
 
     #[test]

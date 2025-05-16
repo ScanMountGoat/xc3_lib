@@ -8,7 +8,7 @@ xc3_lib = { path = "../xc3_lib", features = ["image"] }
 image_dds = { workspace = true, default-features = true, features = ["strum"] }
 clap = { workspace = true, features = ["derive", "string"] }
 binrw.workspace = true
-strum = "0.26.1"
+strum.workspace = true
 anyhow.workspace = true
 log.workspace = true
 simple_logger.workspace = true

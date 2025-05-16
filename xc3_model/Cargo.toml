@@ -27,6 +27,7 @@ smol_str.workspace = true
 varint-rs = "=2.2.0"
 crc32fast = "1.4.2"
 ahash = "0.8.11"
+strum.workspace = true
 
 [dev-dependencies]
 hexlit = "0.5.5"

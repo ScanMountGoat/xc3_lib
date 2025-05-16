@@ -13,6 +13,7 @@ use std::{collections::BTreeMap, path::Path};
 use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
+use strum::Display;
 
 use crate::error::{LoadShaderDatabaseError, SaveShaderDatabaseError};
 
@@ -143,7 +144,7 @@ pub struct AttributeDependency {
 
 /// A function or operation applied to one or more [OutputExpr].
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Display)]
 pub enum Operation {
     /// `mix(arg0, arg1, arg2)`
     Mix,
@@ -223,6 +224,69 @@ impl Default for OutputExpr {
             args: Vec::new(),
         }
     }
+}
+
+impl std::fmt::Display for OutputExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OutputExpr::Value(d) => write!(f, "{d}"),
+            OutputExpr::Func { op, args } => {
+                let args: Vec<_> = args.iter().map(|a| a.to_string()).collect();
+                write!(f, "{op}({})", args.join(", "))
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for AttributeDependency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", &self.name, channels(self.channel))
+    }
+}
+
+impl std::fmt::Display for BufferDependency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}{}{}{}",
+            &self.name,
+            if self.field.is_empty() {
+                String::new()
+            } else {
+                format!(".{}", &self.field)
+            },
+            self.index.map(|i| format!("[{i}]")).unwrap_or_default(),
+            channels(self.channel)
+        )
+    }
+}
+
+impl std::fmt::Display for TextureDependency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let args: Vec<_> = self.texcoords.iter().map(|t| t.to_string()).collect();
+        write!(
+            f,
+            "Texture({}, {}){}",
+            &self.name,
+            args.join(", "),
+            channels(self.channel)
+        )
+    }
+}
+
+impl std::fmt::Display for Dependency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Dependency::Constant(c) => write!(f, "{c:?}"),
+            Dependency::Buffer(b) => write!(f, "{b}"),
+            Dependency::Texture(t) => write!(f, "{t}"),
+            Dependency::Attribute(a) => write!(f, "{a}"),
+        }
+    }
+}
+
+fn channels(c: Option<char>) -> String {
+    c.map(|c| format!(".{c}")).unwrap_or_default()
 }
 
 #[cfg(feature = "arbitrary")]

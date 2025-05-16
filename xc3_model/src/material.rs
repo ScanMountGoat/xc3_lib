@@ -159,13 +159,7 @@ impl MaterialParameters {
             _ => None,
         };
         if value.is_none() {
-            warn!(
-                "Unable to assign parameter {}.{}{}{}",
-                p.name,
-                p.field,
-                p.index.map(|i| format!("[{i}]")).unwrap_or_default(),
-                p.channel.map(|c| format!(".{c}")).unwrap_or_default()
-            );
+            warn!("Unable to assign parameter {p}");
         }
 
         value.copied()
