@@ -315,6 +315,7 @@ pub(crate) fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -
         expr = new_expr;
     }
 
+    // Detect attributes.
     if let Some(new_expr) = skin_attribute_xyz(&graph.nodes, expr) {
         expr = new_expr;
     }
@@ -323,6 +324,13 @@ pub(crate) fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -
     }
     if let Some(new_expr) = skin_attribute_clip_space_xyzw(&graph.nodes, expr) {
         expr = new_expr;
+    }
+    let bitan = Expr::Global {
+        name: "vBitan".into(),
+        channel: expr.channel(),
+    };
+    if let Some(_) = attribute_bitangent(&graph.nodes, expr) {
+        expr = &bitan;
     }
 
     if let Some(value) = extract_value(expr, graph, attributes) {
@@ -336,6 +344,7 @@ pub(crate) fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -
             .or_else(|| op_overlay2(&graph.nodes, expr))
             .or_else(|| op_overlay_ratio(&graph.nodes, expr))
             .or_else(|| op_overlay(&graph.nodes, expr))
+            .or_else(|| tex_parallax2(graph, expr))
             .or_else(|| tex_parallax(graph, expr))
             .or_else(|| tex_matrix(graph, expr))
             .or_else(|| op_mix(&graph.nodes, expr))
@@ -1152,11 +1161,53 @@ fn skin_attribute_clip_space_xyzw<'a>(nodes: &'a [Node], expr: &'a Expr) -> Opti
     result.get("result").copied()
 }
 
+static SKIN_ATTRIBUTE_BITANGENT: LazyLock<Graph> = LazyLock::new(|| {
+    // TODO: is it worth having separate queries for xyzw channels to check for nWgtIdx?
+    let query = indoc! {"
+        void main() {
+            temp_15 = vNormal.x;
+            temp_18 = uintBitsToFloat(U_Bone.data[int(temp_17)]);
+            temp_21 = uintBitsToFloat(U_Bone.data[int(temp_20)]);
+            temp_24 = uintBitsToFloat(U_Bone.data[int(temp_23)]);
+            temp_41 = uintBitsToFloat(U_Bone.data[int(temp_40)]);
+            temp_44 = uintBitsToFloat(U_Bone.data[int(temp_43)]);
+            temp_47 = uintBitsToFloat(U_Bone.data[int(temp_46)]);
+            temp_64 = vTan.x;
+            temp_70 = vNormal.y;
+            temp_72 = vTan.y;
+            temp_74 = vTan.z;
+            temp_80 = vNormal.z;
+            temp_83 = vTan.w;
+            temp_103 = temp_18 * temp_64;
+            temp_104 = temp_41 * temp_15;
+            temp_105 = temp_41 * temp_64;
+            temp_112 = temp_18 * temp_15;
+            temp_115 = fma(temp_21, temp_72, temp_103);
+            temp_118 = fma(temp_21, temp_70, temp_112);
+            temp_119 = fma(temp_44, temp_72, temp_105);
+            temp_121 = fma(temp_44, temp_70, temp_104);
+            temp_122 = fma(temp_24, temp_74, temp_115);
+            temp_123 = fma(temp_24, temp_80, temp_118);
+            temp_124 = fma(temp_47, temp_74, temp_119);
+            temp_129 = fma(temp_47, temp_80, temp_121);
+            temp_132 = temp_123 * temp_124;
+            temp_138 = 0.0 - temp_132;
+            temp_139 = fma(temp_122, temp_129, temp_138);
+            temp_146 = temp_139 * temp_83;
+            out_attr2.x = temp_146;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn attribute_bitangent<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
+    let result = query_nodes(expr, nodes, &SKIN_ATTRIBUTE_BITANGENT.nodes)?;
+    result.get("vTan").copied()
+}
+
 static TEX_MATRIX: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
-            u = coord.x;
-            v = coord.y;
             result = u * param_x;
             result = fma(v, param_y, result);
             result = fma(0.0, param_z, result);
@@ -1167,18 +1218,17 @@ static TEX_MATRIX: LazyLock<Graph> = LazyLock::new(|| {
 });
 
 fn tex_matrix<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    // TODO: Also check that the attribute name matches?
     // Detect matrix multiplication for the mat4x2 "gTexMat * vec4(u, v, 0.0, 1.0)".
     // U and V have the same pattern but use a different row of the matrix.
-    // TODO: How to differentiate between u and v?
     let result = query_nodes(expr, &graph.nodes, &TEX_MATRIX.nodes)?;
-    let coord = result.get("coord")?;
+    let u = result.get("u")?;
+    let v = result.get("v")?;
     let x = result.get("param_x")?;
     let y = result.get("param_y")?;
     let z = result.get("param_z")?;
     let w = result.get("param_w")?;
 
-    Some((Operation::TexMatrix, vec![coord, x, y, z, w]))
+    Some((Operation::TexMatrix, vec![u, v, x, y, z, w]))
 }
 
 static TEX_PARALLAX: LazyLock<Graph> = LazyLock::new(|| {
@@ -1218,6 +1268,100 @@ fn tex_parallax<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<
     let ratio = result.get("ratio")?;
     let coord = result.get("coord")?;
 
+    Some((Operation::TexParallax, vec![coord, ratio]))
+}
+
+static TEX_PARALLAX3_X: LazyLock<Graph> = LazyLock::new(|| {
+    // u = ratio * (2 * normal.y * bitangent.x - 2 * normal.x * tangent.x) + vTex0.x
+    let query = indoc! {"
+        void main() {
+            temp_30 = vNormal.x;
+            temp_31 = vBitan.x;
+            temp_32 = vTan.x;
+            temp_33 = vNormal.y;
+            temp_34 = vBitan.y;
+            temp_35 = vTan.y;
+            temp_36 = vNormal.z;
+            temp_37 = vBitan.z;
+            temp_38 = vTan.z;
+            temp_39 = temp_30 * temp_30;
+            temp_40 = temp_31 * temp_31;
+            temp_41 = temp_32 * temp_32;
+            temp_42 = fma(temp_33, temp_33, temp_39);
+            temp_43 = fma(temp_34, temp_34, temp_40);
+            temp_44 = fma(temp_35, temp_35, temp_41);
+            temp_45 = fma(temp_36, temp_36, temp_42);
+            temp_46 = fma(temp_37, temp_37, temp_43);
+            temp_47 = inversesqrt(temp_45);
+            temp_48 = fma(temp_38, temp_38, temp_44);
+            temp_49 = inversesqrt(temp_46);
+            temp_50 = inversesqrt(temp_48);
+            temp_51 = temp_30 * temp_47;
+            temp_52 = temp_33 * temp_47;
+            temp_53 = temp_31 * temp_49;
+            temp_55 = temp_32 * temp_50;
+            temp_71 = temp_51 * 2.0;
+            temp_77 = temp_52 * -2.0;
+            temp_79 = temp_55 * temp_71;
+            temp_84 = fma(temp_53, temp_77, temp_79);
+            temp_89 = temp_84 * ratio;
+            temp_92 = fma(temp_89, 2.0, coord);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static TEX_PARALLAX3_Y: LazyLock<Graph> = LazyLock::new(|| {
+    // v = ratio * (2 * normal.y * bitangent.y - 2 * normal.x * tangent.y) + vTex0.x
+    let query = indoc! {"
+        void main() {
+            temp_30 = vNormal.x;
+            temp_31 = vBitan.x;
+            temp_32 = vTan.x;
+            temp_33 = vNormal.y;
+            temp_34 = vBitan.y;
+            temp_35 = vTan.y;
+            temp_36 = vNormal.z;
+            temp_37 = vBitan.z;
+            temp_38 = vTan.z;
+            temp_39 = temp_30 * temp_30;
+            temp_40 = temp_31 * temp_31;
+            temp_41 = temp_32 * temp_32;
+            temp_42 = fma(temp_33, temp_33, temp_39);
+            temp_43 = fma(temp_34, temp_34, temp_40);
+            temp_44 = fma(temp_35, temp_35, temp_41);
+            temp_45 = fma(temp_36, temp_36, temp_42);
+            temp_46 = fma(temp_37, temp_37, temp_43);
+            temp_47 = inversesqrt(temp_45);
+            temp_48 = fma(temp_38, temp_38, temp_44);
+            temp_49 = inversesqrt(temp_46);
+            temp_50 = inversesqrt(temp_48);
+            temp_51 = temp_30 * temp_47;
+            temp_52 = temp_33 * temp_47;
+            temp_65 = temp_34 * temp_49;
+            temp_66 = temp_35 * temp_50;
+            temp_71 = temp_51 * 2.0;
+            temp_77 = temp_52 * -2.0;
+            temp_82 = temp_66 * temp_71;
+            temp_87 = fma(temp_65, temp_77, temp_82);
+            temp_91 = temp_87 * ratio;
+            temp_100 = fma(temp_91, 2.0, coord);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn tex_parallax2<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let expr = assign_x_recursive(&graph.nodes, expr);
+
+    // Some eye shaders use some form of parallax mapping.
+    let result = query_nodes(expr, &graph.nodes, &TEX_PARALLAX3_X.nodes)
+        .or_else(|| query_nodes(expr, &graph.nodes, &TEX_PARALLAX3_Y.nodes))?;
+
+    let ratio = result.get("ratio")?;
+    let coord = result.get("coord")?;
+
+    // TODO: New operation for this since the math is different.
     Some((Operation::TexParallax, vec![coord, ratio]))
 }
 

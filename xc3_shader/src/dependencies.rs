@@ -278,6 +278,10 @@ mod tests {
                                 name: "in_attr4".into(),
                                 channel: Some('x')
                             })),
+                            OutputExpr::Value(Dependency::Attribute(AttributeDependency {
+                                name: "in_attr4".into(),
+                                channel: Some('y')
+                            })),
                             OutputExpr::Value(Dependency::Buffer(BufferDependency {
                                 name: "U_Mate".into(),
                                 field: "gTexMat".into(),
@@ -307,6 +311,10 @@ mod tests {
                     OutputExpr::Func {
                         op: Operation::TexMatrix,
                         args: vec![
+                            OutputExpr::Value(Dependency::Attribute(AttributeDependency {
+                                name: "in_attr4".into(),
+                                channel: Some('x')
+                            })),
                             OutputExpr::Value(Dependency::Attribute(AttributeDependency {
                                 name: "in_attr4".into(),
                                 channel: Some('y')

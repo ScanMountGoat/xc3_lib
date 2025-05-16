@@ -144,6 +144,9 @@ impl Nodes {
                 let arg0 = arg(args, 0, node_prefix);
                 let arg1 = arg(args, 1, node_prefix);
                 let arg2 = arg(args, 2, node_prefix);
+                let arg3 = arg(args, 3, node_prefix);
+                let arg4 = arg(args, 4, node_prefix);
+                let arg5 = arg(args, 5, node_prefix);
 
                 match op {
                     Operation::Mix => Some(format!("mix({}, {}, {})", arg0?, arg1?, arg2?)),
@@ -174,10 +177,10 @@ impl Nodes {
                         Some(format!("mix({0}, {0} * {1}, {2})", arg0?, arg1?, arg2?))
                     }
                     Operation::Sqrt => Some(format!("sqrt({})", arg0?)),
-                    Operation::TexMatrix => {
-                        // TODO: how to handle multiple channels like this?
-                        Some(format!("{}", arg0?))
-                    }
+                    Operation::TexMatrix => Some(format!(
+                        "dot(vec4({}, {}, 0.0, 1.0), vec4({}, {}, {}, {}))",
+                        arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
+                    )),
                     Operation::TexParallax => {
                         // TODO: how to handle multiple channels like this?
                         Some(format!("{} + uv_parallax(in, {}).x", arg0?, arg1?))

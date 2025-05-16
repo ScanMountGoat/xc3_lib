@@ -182,10 +182,7 @@ pub enum Operation {
     Fresnel,
     /// `sqrt(arg0)`
     Sqrt,
-    /// ```text
-    /// u = dot(vec4(arg0, arg1, 0.0, 1.0), (arg2, arg3, arg4, arg5)
-    /// v = dot(vec4(arg0, arg1, 0.0, 1.0), (arg2, arg3, arg4, arg5)
-    /// ```
+    /// `dot(vec4(arg0, arg1, 0.0, 1.0), (arg2, arg3, arg4, arg5))`
     TexMatrix,
     /// ```text
     /// u = arg0 + arg1 * 0.7 * (normal.x * tangent.x - normal.x * bitangent.x)
