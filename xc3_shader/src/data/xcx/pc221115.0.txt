@@ -1,17 +1,18 @@
-o0.x: Texture(s2, R6.x, R6.y).x
-o0.y: Texture(s2, R6.x, R6.y).x
-o0.z: Texture(s2, R6.x, R6.y).x
-o0.w: Texture(s2, R6.x, R6.y).x
-o1.x: Texture(s2, R6.x, R6.y).x
-o1.y: Texture(s2, R6.x, R6.y).x
-o1.z: Texture(s2, R6.x, R6.y).x
+o0.x: Div(Mul(Texture(s1, R6.x, R6.y).y, Fma(KC0[2].x, Unk(), Fma(KC0[0].x, Texture(gIBL, Min(Max(Add(Mul(Fma(Unk(), Mul(Unk(), Add(Unk(), 1.0)), Mul(Fma(Mul(R0.x, Unk()), Texture(s2, R6.x, R6.y).y, Fma(Mul(R3.x, Unk()), Texture(s2, R6.x, R6.y).x, Mul(Mul(R5.x, Unk()), Max(Sqrt(Add(Unk(), 1.0)), 0.0)))), Unk())), Unk()), 1.0), 0.0), 1.0), Min(Max(Add(Unk(), 1.0), 0.0), 1.0)).x, 0.0))), 2.0)
+o0.y: Div(Mul(Texture(s1, R6.x, R6.y).y, Fma(KC0[2].y, Unk(), Fma(KC0[0].y, Texture(gIBL, Min(Max(Add(Mul(Fma(Unk(), Mul(Unk(), Add(Unk(), 1.0)), Mul(Fma(Mul(R0.x, Unk()), Texture(s2, R6.x, R6.y).y, Fma(Mul(R3.x, Unk()), Texture(s2, R6.x, R6.y).x, Mul(Mul(R5.x, Unk()), Max(Sqrt(Add(Unk(), 1.0)), 0.0)))), Unk())), Unk()), 1.0), 0.0), 1.0), Min(Max(Add(Unk(), 1.0), 0.0), 1.0)).y, 0.0))), 2.0)
+o0.z: Div(Mul(Texture(s1, R6.x, R6.y).y, Fma(KC0[2].z, Unk(), Fma(KC0[0].z, Texture(gIBL, Min(Max(Add(Mul(Fma(Unk(), Mul(Unk(), Add(Unk(), 1.0)), Mul(Fma(Mul(R0.x, Unk()), Texture(s2, R6.x, R6.y).y, Fma(Mul(R3.x, Unk()), Texture(s2, R6.x, R6.y).x, Mul(Mul(R5.x, Unk()), Max(Sqrt(Add(Unk(), 1.0)), 0.0)))), Unk())), Unk()), 1.0), 0.0), 1.0), Min(Max(Add(Unk(), 1.0), 0.0), 1.0)).z, 0.0))), 2.0)
+o0.w: Div(Fma(KC0[0].w, Texture(gIBL, Min(Max(Add(Mul(Fma(Unk(), Mul(Unk(), Add(Unk(), 1.0)), Mul(Fma(Mul(R0.x, Unk()), Texture(s2, R6.x, R6.y).y, Fma(Mul(R3.x, Unk()), Texture(s2, R6.x, R6.y).x, Mul(Mul(R5.x, Unk()), Max(Sqrt(Add(Unk(), 1.0)), 0.0)))), Unk())), Unk()), 1.0), 0.0), 1.0), Min(Max(Add(Unk(), 1.0), 0.0), 1.0)).w, 0.0), 2.0)
+o1.x: Fma(Texture(s1, R6.x, R6.y).x, Texture(texRef, Add(Fma(Unk(), Mul(Fma(Unk(), Mul(Unk(), Add(Unk(), 1.0)), Mul(Fma(Mul(R0.x, Unk()), Texture(s2, R6.x, R6.y).y, Fma(Mul(R3.x, Unk()), Texture(s2, R6.x, R6.y).x, Mul(Mul(R5.x, Unk()), Max(Sqrt(Add(Unk(), 1.0)), 0.0)))), Unk())), Unk()), Unk()), 0.5), Add(Fma(Unk(), Mul(Fma(Unk(), Mul(Unk(), Add(Unk(), 1.0)), Mul(Fma(Mul(R0.y, Unk()), Texture(s2, R6.x, R6.y).y, Fma(Mul(R3.y, Unk()), Texture(s2, R6.x, R6.y).x, Mul(Mul(R5.y, Unk()), Max(Sqrt(Add(Unk(), 1.0)), 0.0)))), Unk())), Unk()), Unk()), 0.5)).x, Texture(s0, R6.x, R6.y).x)
+o1.y: Fma(Texture(s1, R6.x, R6.y).x, Texture(texRef, Add(Fma(Unk(), Mul(Fma(Unk(), Mul(Unk(), Add(Unk(), 1.0)), Mul(Fma(Mul(R0.x, Unk()), Texture(s2, R6.x, R6.y).y, Fma(Mul(R3.x, Unk()), Texture(s2, R6.x, R6.y).x, Mul(Mul(R5.x, Unk()), Max(Sqrt(Add(Unk(), 1.0)), 0.0)))), Unk())), Unk()), Unk()), 0.5), Add(Fma(Unk(), Mul(Fma(Unk(), Mul(Unk(), Add(Unk(), 1.0)), Mul(Fma(Mul(R0.y, Unk()), Texture(s2, R6.x, R6.y).y, Fma(Mul(R3.y, Unk()), Texture(s2, R6.x, R6.y).x, Mul(Mul(R5.y, Unk()), Max(Sqrt(Add(Unk(), 1.0)), 0.0)))), Unk())), Unk()), Unk()), 0.5)).y, Texture(s0, R6.x, R6.y).y)
+o1.z: Fma(Texture(s1, R6.x, R6.y).x, Texture(texRef, Add(Fma(Unk(), Mul(Fma(Unk(), Mul(Unk(), Add(Unk(), 1.0)), Mul(Fma(Mul(R0.x, Unk()), Texture(s2, R6.x, R6.y).y, Fma(Mul(R3.x, Unk()), Texture(s2, R6.x, R6.y).x, Mul(Mul(R5.x, Unk()), Max(Sqrt(Add(Unk(), 1.0)), 0.0)))), Unk())), Unk()), Unk()), 0.5), Add(Fma(Unk(), Mul(Fma(Unk(), Mul(Unk(), Add(Unk(), 1.0)), Mul(Fma(Mul(R0.y, Unk()), Texture(s2, R6.x, R6.y).y, Fma(Mul(R3.y, Unk()), Texture(s2, R6.x, R6.y).x, Mul(Mul(R5.y, Unk()), Max(Sqrt(Add(Unk(), 1.0)), 0.0)))), Unk())), Unk()), Unk()), 0.5)).z, Texture(s0, R6.x, R6.y).z)
 o1.w: 0.0
-o2.x: Texture(s2, R6.x, R6.y).x
-o2.y: Texture(s2, R6.x, R6.y).x
 o3.x: Texture(s3, R6.x, R6.y).x
 o3.y: Texture(s3, R6.x, R6.y).y
 o3.z: Texture(s3, R6.x, R6.y).z
 o3.w: KC0[1].x
+o4.x: Sub(Mul(R2.z, 8.0), Unk())
+o4.y: Sub(Mul(Unk(), 0.003921569), Unk())
+o4.z: Mul(Unk(), 0.003921569)
 o4.w: Texture(s1, R6.x, R6.y).z
 outline_width: None
 normal_intensity: None

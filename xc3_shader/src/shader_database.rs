@@ -24,7 +24,7 @@ use xc3_model::shader_database::{
 };
 
 use crate::{
-    dependencies::{buffer_dependency, input_dependencies, texture_dependency},
+    dependencies::{buffer_dependency, texture_dependency},
     extract::nvsd_glsl_name,
     graph::{
         glsl::shader_source_no_extensions,
@@ -167,53 +167,69 @@ fn shader_from_latte_asm(
     let frag = Graph::from_latte_asm(fragment);
     let frag_attributes = Attributes::default();
 
+    // Cache graph expr -> output expr index to visit nodes only once.
     let mut exprs = IndexSet::new();
+    let mut expr_to_index = IndexMap::new();
+
+    let mut normal_intensity = None;
 
     // TODO: What is the largest number of outputs?
+    // TODO: get output count from the graph itself?
     let mut output_dependencies = IndexMap::new();
     for i in 0..=5 {
         for c in "xyzw".chars() {
             let name = format!("PIX{i}");
 
-            let assignments = frag.assignments_recursive(&name, Some(c), None);
+            // TODO: share code with glsl?
             let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
 
-            let mut expr_to_index = IndexMap::new();
-
-            let mut dependencies = input_dependencies(
-                &frag,
-                &frag_attributes,
-                &assignments,
-                &dependent_lines,
-                &mut exprs,
-                &mut expr_to_index,
-            );
-
-            // TODO: Add texture parameters used for the corresponding vertex output.
-
-            // Apply annotations from the shader metadata.
-            // We don't annotate the assembly itself to avoid parsing errors.
-            for d in &mut dependencies {
-                match d {
-                    Dependency::Constant(_) => (),
-                    Dependency::Buffer(_) => (),
-                    Dependency::Texture(t) => {
-                        for sampler in &fragment_shader.samplers {
-                            if t.name == format!("t{}", sampler.location) {
-                                t.name = (&sampler.name).into();
-                            }
-                        }
-                    }
-                    Dependency::Attribute(_) => (),
+            let value;
+            if i == 2 {
+                if c == 'x' || c == 'y' {
+                    // XCX only has 2 components.
+                    let (new_value, intensity) = normal_output_expr(
+                        &frag,
+                        &frag_attributes,
+                        &dependent_lines,
+                        &mut exprs,
+                        &mut expr_to_index,
+                    )
+                    .unzip();
+                    value = new_value;
+                    normal_intensity = intensity.flatten();
+                } else {
+                    value = None;
                 }
-            }
+            } else {
+                // Xenoblade X DE uses different outputs than other games.
+                // Detect color or params to handle different outputs and channels.
+                value = color_or_param_output_expr(
+                    &frag,
+                    &frag_attributes,
+                    &dependent_lines,
+                    &mut exprs,
+                    &mut expr_to_index,
+                );
+            };
 
-            // TODO: How much of the query code can be reused for Wii U?
-            if let Some(d) = dependencies.first() {
+            if let Some(value) = value {
                 // Simplify the output name to save space.
                 let output_name = format!("o{i}.{c}");
-                let i = exprs.insert_full(OutputExpr::Value(d.clone())).0;
-                output_dependencies.insert(output_name.into(), i);
+                output_dependencies.insert(output_name.into(), value);
+            }
+        }
+    }
+
+    let mut exprs: Vec<_> = exprs.into_iter().collect();
+
+    // Apply annotations from the shader metadata.
+    // We don't annotate the assembly itself to avoid parsing errors.
+    for e in &mut exprs {
+        if let OutputExpr::Value(Dependency::Texture(t)) = e {
+            for sampler in &fragment_shader.samplers {
+                if t.name == format!("t{}", sampler.location) {
+                    t.name = (&sampler.name).into();
+                }
             }
         }
     }
@@ -221,7 +237,7 @@ fn shader_from_latte_asm(
     ShaderProgram {
         output_dependencies,
         outline_width: None,
-        normal_intensity: None,
+        normal_intensity,
         exprs: exprs.into_iter().collect(),
     }
 }
@@ -1682,7 +1698,7 @@ mod tests {
 
     use indoc::indoc;
     use pretty_assertions::{assert_eq, assert_str_eq};
-    use std::{collections::BTreeSet, fmt::Write};
+    use std::fmt::Write;
 
     macro_rules! assert_debug_eq {
         ($path:expr, $shader:expr) => {
