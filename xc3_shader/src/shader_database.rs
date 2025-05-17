@@ -10,7 +10,7 @@ use glsl_lang::{
     parse::DefaultParse,
     visitor::{Host, Visit, Visitor},
 };
-use indexmap::IndexMap;
+use indexmap::{set::MutableValues, IndexMap, IndexSet};
 use indoc::indoc;
 use log::error;
 use rayon::prelude::*;
@@ -54,7 +54,9 @@ pub fn shader_from_glsl(
     let mut output_dependencies = IndexMap::new();
     let mut normal_intensity = None;
 
-    let mut vertex_output_exprs = IndexMap::new();
+    // Cache graph expr -> output expr index to visit nodes only once.
+    let mut exprs = IndexSet::new();
+    let mut expr_to_index = IndexMap::new();
 
     // Some shaders have up to 8 outputs.
     for i in frag_attributes.output_locations.right_values().copied() {
@@ -62,11 +64,17 @@ pub fn shader_from_glsl(
             let name = format!("out_attr{i}");
             let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
 
-            let mut value;
+            let value;
             if i == 2 && (c == 'x' || c == 'y') {
                 // The normals use XY for output index 2 for all games.
-                let (new_value, intensity) =
-                    normal_output_expr(&frag, &frag_attributes, &dependent_lines).unzip();
+                let (new_value, intensity) = normal_output_expr(
+                    &frag,
+                    &frag_attributes,
+                    &dependent_lines,
+                    &mut exprs,
+                    &mut expr_to_index,
+                )
+                .unzip();
                 value = new_value;
                 normal_intensity = intensity.flatten();
             } else if i == 2 && c == 'w' {
@@ -78,36 +86,37 @@ pub fn shader_from_glsl(
                 // Xenoblade X DE uses different outputs than other games.
                 // Detect color or params to handle different outputs and channels.
                 // TODO: Detect if o2.x before remapping is used here?
-                value = color_or_param_output_expr(&frag, &frag_attributes, &dependent_lines);
+                value = color_or_param_output_expr(
+                    &frag,
+                    &frag_attributes,
+                    &dependent_lines,
+                    &mut exprs,
+                    &mut expr_to_index,
+                );
             };
 
-            if let (Some(value), Some(vert), Some(vert_attributes)) =
-                (&mut value, &vert, &vert_attributes)
-            {
-                apply_expr_vertex_outputs(
-                    value,
-                    vert,
-                    vert_attributes,
-                    &frag_attributes,
-                    &mut vertex_output_exprs,
-                );
-
-                if let Some(i) = &mut normal_intensity {
-                    apply_expr_vertex_outputs(
-                        i,
-                        vert,
-                        vert_attributes,
-                        &frag_attributes,
-                        &mut vertex_output_exprs,
-                    );
-                }
-            }
-
-            // Simplify the output name to save space.
             if let Some(value) = value {
+                // Simplify the output name to save space.
                 let output_name = format!("o{i}.{c}");
                 output_dependencies.insert(output_name.into(), value);
             }
+        }
+    }
+
+    // Replace fragment inputs with the appropriate vertex output.
+    if let (Some(vert), Some(vert_attributes)) = (&vert, &vert_attributes) {
+        // Use a new cache since we're using the vertex graph now.
+        let mut vert_expr_to_index = IndexMap::new();
+
+        for i in 0..exprs.len() {
+            apply_expr_vertex_outputs(
+                i,
+                vert,
+                vert_attributes,
+                &frag_attributes,
+                &mut exprs,
+                &mut vert_expr_to_index,
+            );
         }
     }
 
@@ -115,6 +124,7 @@ pub fn shader_from_glsl(
         output_dependencies,
         outline_width,
         normal_intensity,
+        exprs: exprs.into_iter().collect(),
     }
 }
 
@@ -157,6 +167,8 @@ fn shader_from_latte_asm(
     let frag = Graph::from_latte_asm(fragment);
     let frag_attributes = Attributes::default();
 
+    let mut exprs = IndexSet::new();
+
     // TODO: What is the largest number of outputs?
     let mut output_dependencies = IndexMap::new();
     for i in 0..=5 {
@@ -166,8 +178,16 @@ fn shader_from_latte_asm(
             let assignments = frag.assignments_recursive(&name, Some(c), None);
             let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
 
-            let mut dependencies =
-                input_dependencies(&frag, &frag_attributes, &assignments, &dependent_lines);
+            let mut expr_to_index = IndexMap::new();
+
+            let mut dependencies = input_dependencies(
+                &frag,
+                &frag_attributes,
+                &assignments,
+                &dependent_lines,
+                &mut exprs,
+                &mut expr_to_index,
+            );
 
             // TODO: Add texture parameters used for the corresponding vertex output.
 
@@ -192,7 +212,8 @@ fn shader_from_latte_asm(
             if let Some(d) = dependencies.first() {
                 // Simplify the output name to save space.
                 let output_name = format!("o{i}.{c}");
-                output_dependencies.insert(output_name.into(), OutputExpr::Value(d.clone()));
+                let i = exprs.insert_full(OutputExpr::Value(d.clone())).0;
+                output_dependencies.insert(output_name.into(), i);
             }
         }
     }
@@ -201,6 +222,7 @@ fn shader_from_latte_asm(
         output_dependencies,
         outline_width: None,
         normal_intensity: None,
+        exprs: exprs.into_iter().collect(),
     }
 }
 
@@ -208,7 +230,9 @@ fn color_or_param_output_expr(
     frag: &Graph,
     frag_attributes: &Attributes,
     dependent_lines: &[usize],
-) -> Option<OutputExpr> {
+    exprs: &mut IndexSet<OutputExpr>,
+    expr_to_index: &mut IndexMap<Expr, usize>,
+) -> Option<usize> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
@@ -247,7 +271,13 @@ fn color_or_param_output_expr(
         current = new_current;
     }
 
-    Some(output_expr(current, frag, frag_attributes))
+    Some(output_expr(
+        current,
+        frag,
+        frag_attributes,
+        exprs,
+        expr_to_index,
+    ))
 }
 
 fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], &'a Expr)> {
@@ -269,7 +299,9 @@ fn normal_output_expr(
     frag: &Graph,
     frag_attributes: &Attributes,
     dependent_lines: &[usize],
-) -> Option<(OutputExpr, Option<OutputExpr>)> {
+    exprs: &mut IndexSet<OutputExpr>,
+    expr_to_index: &mut IndexMap<Expr, usize>,
+) -> Option<(usize, Option<usize>)> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
@@ -301,39 +333,66 @@ fn normal_output_expr(
     };
     let nom_work = assign_x_recursive(&frag.nodes, nom_work);
 
-    let value = output_expr(nom_work, frag, frag_attributes);
+    let value = output_expr(nom_work, frag, frag_attributes, exprs, expr_to_index);
 
-    let intensity = intensity.map(|i| output_expr(i, frag, frag_attributes));
+    let intensity = intensity.map(|i| output_expr(i, frag, frag_attributes, exprs, expr_to_index));
 
     Some((value, intensity))
 }
 
-pub(crate) fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -> OutputExpr {
-    // Simplify any expressions that would interfere with queries.
-    let mut expr = assign_x_recursive(&graph.nodes, expr);
-    if let Some(new_expr) = normal_map_fma(&graph.nodes, expr) {
-        expr = new_expr;
-    }
+pub(crate) fn output_expr(
+    expr: &Expr,
+    graph: &Graph,
+    attributes: &Attributes,
+    exprs: &mut IndexSet<OutputExpr>,
+    expr_to_index: &mut IndexMap<Expr, usize>,
+) -> usize {
+    // Cache graph input expressions to avoid processing nodes more than once while recursing.
+    match expr_to_index.get(expr) {
+        Some(i) => *i,
+        None => {
+            // Simplify any expressions that would interfere with queries.
+            let mut expr = assign_x_recursive(&graph.nodes, expr);
+            if let Some(new_expr) = normal_map_fma(&graph.nodes, expr) {
+                expr = new_expr;
+            }
 
-    // Detect attributes.
-    if let Some(new_expr) = skin_attribute_xyz(&graph.nodes, expr) {
-        expr = new_expr;
-    }
-    if let Some(new_expr) = skin_attribute_xyzw(&graph.nodes, expr) {
-        expr = new_expr;
-    }
-    if let Some(new_expr) = skin_attribute_clip_space_xyzw(&graph.nodes, expr) {
-        expr = new_expr;
-    }
-    let bitan = Expr::Global {
-        name: "vBitan".into(),
-        channel: expr.channel(),
-    };
-    if let Some(_) = attribute_bitangent(&graph.nodes, expr) {
-        expr = &bitan;
-    }
+            // Detect attributes.
+            if let Some(new_expr) = skin_attribute_xyz(&graph.nodes, expr) {
+                expr = new_expr;
+            }
+            if let Some(new_expr) = skin_attribute_xyzw(&graph.nodes, expr) {
+                expr = new_expr;
+            }
+            if let Some(new_expr) = skin_attribute_clip_space_xyzw(&graph.nodes, expr) {
+                expr = new_expr;
+            }
+            let bitan = Expr::Global {
+                name: "vBitan".into(),
+                channel: expr.channel(),
+            };
+            if attribute_bitangent(&graph.nodes, expr).is_some() {
+                expr = &bitan;
+            }
 
-    if let Some(value) = extract_value(expr, graph, attributes) {
+            let output = output_expr_inner(expr, graph, attributes, exprs, expr_to_index);
+
+            let index = exprs.insert_full(output).0;
+            expr_to_index.insert(expr.clone(), index);
+
+            index
+        }
+    }
+}
+
+fn output_expr_inner(
+    expr: &Expr,
+    graph: &Graph,
+    attributes: &Attributes,
+    exprs: &mut IndexSet<OutputExpr>,
+    expr_to_index: &mut IndexMap<Expr, usize>,
+) -> OutputExpr {
+    if let Some(value) = extract_value(expr, graph, attributes, exprs, expr_to_index) {
         // The base case is a single value.
         OutputExpr::Value(value)
     } else {
@@ -364,7 +423,7 @@ pub(crate) fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -
             // Recursively detect values or functions.
             let args: Vec<_> = args
                 .into_iter()
-                .map(|arg| output_expr(arg, graph, attributes))
+                .map(|arg| output_expr(arg, graph, attributes, exprs, expr_to_index))
                 .collect();
             OutputExpr::Func { op, args }
         } else {
@@ -381,7 +440,13 @@ pub(crate) fn output_expr(expr: &Expr, graph: &Graph, attributes: &Attributes) -
     }
 }
 
-fn extract_value(expr: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
+fn extract_value(
+    expr: &Expr,
+    graph: &Graph,
+    attributes: &Attributes,
+    exprs: &mut IndexSet<OutputExpr>,
+    expr_to_index: &mut IndexMap<Expr, usize>,
+) -> Option<Dependency> {
     let mut expr = assign_x_recursive(&graph.nodes, expr);
     if let Some(new_expr) = normalize(&graph.nodes, expr) {
         expr = new_expr;
@@ -395,7 +460,7 @@ fn extract_value(expr: &Expr, graph: &Graph, attributes: &Attributes) -> Option<
         expr = new_expr;
     }
 
-    dependency_expr(expr, graph, attributes)
+    dependency_expr(expr, graph, attributes, exprs, expr_to_index)
 }
 
 static OP_OVER: LazyLock<Graph> = LazyLock::new(|| {
@@ -679,8 +744,14 @@ fn binary_op(
     None
 }
 
-fn dependency_expr(e: &Expr, graph: &Graph, attributes: &Attributes) -> Option<Dependency> {
-    texture_dependency(e, graph, attributes).or_else(|| {
+fn dependency_expr(
+    e: &Expr,
+    graph: &Graph,
+    attributes: &Attributes,
+    exprs: &mut IndexSet<OutputExpr>,
+    expr_to_index: &mut IndexMap<Expr, usize>,
+) -> Option<Dependency> {
+    texture_dependency(e, graph, attributes, exprs, expr_to_index).or_else(|| {
         buffer_dependency(e)
             .map(Dependency::Buffer)
             .or_else(|| match e {
@@ -1366,50 +1437,24 @@ fn tex_parallax2<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec
 }
 
 fn apply_expr_vertex_outputs(
-    value: &mut OutputExpr,
+    i: usize,
     vert: &Graph,
     vert_attributes: &Attributes,
     frag_attributes: &Attributes,
-    vertex_output_exprs: &mut IndexMap<(i32, Option<char>), OutputExpr>,
+    exprs: &mut IndexSet<OutputExpr>,
+    expr_to_index: &mut IndexMap<Expr, usize>,
 ) {
     // Replace fragment inputs with the corresponding vertex output expr.
-    match value {
-        OutputExpr::Value(d) => match d {
-            Dependency::Constant(_) => (),
-            Dependency::Buffer(_) => (),
-            Dependency::Texture(texture) => {
-                for arg in &mut texture.texcoords {
-                    apply_expr_vertex_outputs(
-                        arg,
-                        vert,
-                        vert_attributes,
-                        frag_attributes,
-                        vertex_output_exprs,
-                    );
-                }
-            }
-            Dependency::Attribute(attribute) => {
-                if let Some(new_value) = vertex_attribute_output_expr(
-                    attribute,
-                    vert,
-                    vert_attributes,
-                    frag_attributes,
-                    vertex_output_exprs,
-                ) {
-                    *value = new_value;
-                }
-            }
-        },
-        OutputExpr::Func { args, .. } => {
-            for arg in args {
-                apply_expr_vertex_outputs(
-                    arg,
-                    vert,
-                    vert_attributes,
-                    frag_attributes,
-                    vertex_output_exprs,
-                );
-            }
+    if let Some(OutputExpr::Value(Dependency::Attribute(attribute))) = exprs.get_index(i).cloned() {
+        if let Some(new_value) = vertex_attribute_output_expr(
+            &attribute,
+            vert,
+            vert_attributes,
+            frag_attributes,
+            exprs,
+            expr_to_index,
+        ) {
+            *exprs.get_index_mut2(i).unwrap() = new_value;
         }
     }
 }
@@ -1419,7 +1464,8 @@ fn vertex_attribute_output_expr(
     vertex: &Graph,
     vertex_attributes: &Attributes,
     fragment_attributes: &Attributes,
-    vertex_output_exprs: &mut IndexMap<(i32, Option<char>), OutputExpr>,
+    exprs: &mut IndexSet<OutputExpr>,
+    expr_to_index: &mut IndexMap<Expr, usize>,
 ) -> Option<OutputExpr> {
     // Convert a fragment input like "in_attr4" to its vertex output like "out_attr4".
     let fragment_location = fragment_attributes
@@ -1430,23 +1476,21 @@ fn vertex_attribute_output_expr(
         .output_locations
         .get_by_right(fragment_location)?;
 
-    let key = (*fragment_location, attribute.channel);
-    match vertex_output_exprs.get(&key) {
-        Some(expr) => Some(expr.clone()),
-        None => {
-            // TODO: Convert texcoord params to operations
-            // TODO: detect bitangent calculated from tangent
-            let dependent_lines =
-                vertex.dependencies_recursive(vertex_output_name, attribute.channel, None);
+    let dependent_lines =
+        vertex.dependencies_recursive(vertex_output_name, attribute.channel, None);
 
-            if let Some(last_node) = dependent_lines.last().and_then(|l| vertex.nodes.get(*l)) {
-                let new_expr = output_expr(&last_node.input, vertex, vertex_attributes);
-                vertex_output_exprs.insert(key, new_expr.clone());
-                Some(new_expr)
-            } else {
-                None
-            }
-        }
+    if let Some(last_node) = dependent_lines.last().and_then(|l| vertex.nodes.get(*l)) {
+        let new_expr = output_expr(
+            &last_node.input,
+            vertex,
+            vertex_attributes,
+            exprs,
+            expr_to_index,
+        );
+        let new_expr = exprs.get_index(new_expr).cloned().unwrap();
+        Some(new_expr)
+    } else {
+        None
     }
 }
 
@@ -1463,7 +1507,7 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
     }
 
     // Process programs in parallel since this is CPU heavy.
-    programs
+    let programs = programs
         .into_par_iter()
         .map(|(hash, (vert, frag))| {
             let vertex = vert.and_then(|s| {
@@ -1490,14 +1534,11 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
                 })
                 .unwrap_or_default();
 
-            // Index each program individually to greatly reduce memory usage.
-            // This is faster than indexing all programs at the end.
-            ShaderDatabase::from_programs([(hash, shader_program)].into())
+            (hash, shader_program)
         })
-        .reduce(
-            || ShaderDatabase::from_programs(BTreeMap::new()),
-            |a, b| a.merge(std::iter::once(b)),
-        )
+        .collect();
+
+    ShaderDatabase::from_programs(programs)
 }
 
 fn add_programs(
@@ -1641,7 +1682,7 @@ mod tests {
 
     use indoc::indoc;
     use pretty_assertions::{assert_eq, assert_str_eq};
-    use std::fmt::Write;
+    use std::{collections::BTreeSet, fmt::Write};
 
     macro_rules! assert_debug_eq {
         ($path:expr, $shader:expr) => {
@@ -1651,13 +1692,10 @@ mod tests {
 
     fn shader_str(s: &ShaderProgram) -> String {
         // Use a condensed representation similar to GLSL for nicer diffs.
-        let outputs: Vec<_> = s
-            .output_dependencies
-            .iter()
-            .map(|(o, v)| format!("{o}: {v}"))
-            .collect();
         let mut output = String::new();
-        writeln!(&mut output, "{}", outputs.join("\n")).unwrap();
+        for (k, v) in &s.output_dependencies {
+            writeln!(&mut output, "{k}: {}", expr_str(s, *v)).unwrap();
+        }
         writeln!(
             &mut output,
             "outline_width: {}",
@@ -1667,16 +1705,34 @@ mod tests {
                 .unwrap_or("None".to_string())
         )
         .unwrap();
-        writeln!(
-            &mut output,
-            "normal_intensity: {}",
-            s.normal_intensity
-                .as_ref()
-                .map(|o| o.to_string())
-                .unwrap_or("None".to_string())
-        )
-        .unwrap();
+        match s.normal_intensity {
+            Some(i) => {
+                writeln!(&mut output, "normal_intensity: {}", expr_str(s, i)).unwrap();
+            }
+            None => writeln!(&mut output, "normal_intensity: None").unwrap(),
+        }
+
         output
+    }
+
+    fn expr_str(s: &ShaderProgram, v: usize) -> String {
+        // Substitute all args to produce a single line of condensed output.
+        match &s.exprs[v] {
+            OutputExpr::Value(Dependency::Texture(t)) => {
+                let args: Vec<_> = t.texcoords.iter().map(|a| expr_str(s, *a)).collect();
+                format!(
+                    "Texture({}, {}){}",
+                    t.name,
+                    args.join(", "),
+                    t.channel.map(|c| format!(".{c}")).unwrap_or_default()
+                )
+            }
+            OutputExpr::Func { op, args } => {
+                let args: Vec<_> = args.iter().map(|a| expr_str(s, *a)).collect();
+                format!("{op}({})", args.join(", "))
+            }
+            OutputExpr::Value(v) => v.to_string(),
+        }
     }
 
     #[test]

@@ -92,19 +92,23 @@ impl ProgramHash {
 /// A single shader program with a vertex and fragment shader.
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct ShaderProgram {
-    /// A tree of values assigned to a fragment output.
+    /// Indices into [exprs](#structfield.exprs) for values assigned to a fragment output.
     ///
     /// This assignment information is needed to accurately recreate the G-Buffer texture values.
     /// Renderers can generate unique shaders for each model like xc3_wgpu.
     /// Node based editors like Blender's shader editor should use these values
     /// to determine how to construct node groups.
-    pub output_dependencies: IndexMap<SmolStr, OutputExpr>,
+    pub output_dependencies: IndexMap<SmolStr, usize>,
 
+    // TODO: Index into exprs as well
     /// The parameter multiplied by vertex alpha to determine outline width.
     pub outline_width: Option<Dependency>,
 
-    /// The intensity map for normal mapping.
-    pub normal_intensity: Option<OutputExpr>,
+    /// Index into [exprs](#structfield.exprs) for the normal map intensity.
+    pub normal_intensity: Option<usize>,
+
+    /// Unique exprs used for this program.
+    pub exprs: Vec<OutputExpr>,
 }
 
 /// A single access to a constant or global resource like a texture.
@@ -131,8 +135,9 @@ pub struct BufferDependency {
 pub struct TextureDependency {
     pub name: SmolStr,
     pub channel: Option<char>,
-    /// Texture coordinate values used for the texture function call.
-    pub texcoords: Vec<OutputExpr>,
+    /// Indices into [exprs](struct.ShaderProgram.html#structfield.exprs)
+    /// for texture coordinate values used for the texture function call.
+    pub texcoords: Vec<usize>,
 }
 
 /// A single input attribute like `in_attr0.x` in GLSL.
@@ -209,8 +214,8 @@ pub enum OutputExpr {
     Func {
         /// The operation this function performs.
         op: Operation,
-        /// The function argument list `[arg0, arg1, ...]`.
-        args: Vec<OutputExpr>,
+        /// Indices into [exprs](struct.ShaderProgram.html#structfield.exprs) for the function argument list `[arg0, arg1, ...]`.
+        args: Vec<usize>,
     },
 }
 
@@ -228,7 +233,7 @@ impl std::fmt::Display for OutputExpr {
         match self {
             OutputExpr::Value(d) => write!(f, "{d}"),
             OutputExpr::Func { op, args } => {
-                let args: Vec<_> = args.iter().map(|a| a.to_string()).collect();
+                let args: Vec<_> = args.iter().map(|a| format!("var{a}")).collect();
                 write!(f, "{op}({})", args.join(", "))
             }
         }
@@ -260,7 +265,7 @@ impl std::fmt::Display for BufferDependency {
 
 impl std::fmt::Display for TextureDependency {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let args: Vec<_> = self.texcoords.iter().map(|t| t.to_string()).collect();
+        let args: Vec<_> = self.texcoords.iter().map(|t| format!("var{t}")).collect();
         write!(
             f,
             "Texture({}, {}){}",

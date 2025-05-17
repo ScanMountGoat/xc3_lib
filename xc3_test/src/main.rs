@@ -1418,7 +1418,7 @@ fn check_shader_dependencies(root: &ModelRoot, path: &Path) {
     for m in &root.models.materials {
         if let Some(shader) = &m.shader {
             for (k, v) in &shader.output_dependencies {
-                if has_unsupported_values(v) {
+                if has_unsupported_values(&shader.exprs, *v) {
                     println!(
                         "Empty layers for {:?}, {k:?}, technique {}, {path:?}",
                         &m.name, m.technique_index
@@ -1429,12 +1429,12 @@ fn check_shader_dependencies(root: &ModelRoot, path: &Path) {
     }
 }
 
-fn has_unsupported_values(v: &xc3_model::shader_database::OutputExpr) -> bool {
-    match v {
+fn has_unsupported_values(exprs: &[xc3_model::shader_database::OutputExpr], i: usize) -> bool {
+    match &exprs[i] {
         xc3_model::shader_database::OutputExpr::Value(_) => false,
         xc3_model::shader_database::OutputExpr::Func { op, args } => {
             *op == xc3_model::shader_database::Operation::Unk
-                || args.iter().any(has_unsupported_values)
+                || args.iter().any(|a| has_unsupported_values(exprs, *a))
         }
     }
 }

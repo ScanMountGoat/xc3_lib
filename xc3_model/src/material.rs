@@ -437,26 +437,26 @@ fn get_shader_legacy<S: GetProgramHash>(
             .iter()
             .filter_map(|(k, v)| match k.as_str() {
                 // Ambient Occlusion
-                "o0.x" => Some(("o2.z".into(), v.clone())),
+                "o0.x" => Some(("o2.z".into(), *v)),
                 // Color
-                "o1.x" => Some(("o0.x".into(), v.clone())),
-                "o1.y" => Some(("o0.y".into(), v.clone())),
-                "o1.z" => Some(("o0.z".into(), v.clone())),
-                "o1.w" => Some(("o0.w".into(), v.clone())),
+                "o1.x" => Some(("o0.x".into(), *v)),
+                "o1.y" => Some(("o0.y".into(), *v)),
+                "o1.z" => Some(("o0.z".into(), *v)),
+                "o1.w" => Some(("o0.w".into(), *v)),
                 // The normal output has only XY channels.
-                "o2.x" => Some(("o2.x".into(), v.clone())),
-                "o2.y" => Some(("o2.y".into(), v.clone())),
+                "o2.x" => Some(("o2.x".into(), *v)),
+                "o2.y" => Some(("o2.y".into(), *v)),
                 // Specular
-                "o3.x" => Some(("o5.x".into(), v.clone())),
-                "o3.y" => Some(("o5.y".into(), v.clone())),
-                "o3.z" => Some(("o5.z".into(), v.clone())),
-                "o3.w" => Some(("o5.w".into(), v.clone())),
+                "o3.x" => Some(("o5.x".into(), *v)),
+                "o3.y" => Some(("o5.y".into(), *v)),
+                "o3.z" => Some(("o5.z".into(), *v)),
+                "o3.w" => Some(("o5.w".into(), *v)),
                 // Depth
-                "o4.x" => Some(("o4.x".into(), v.clone())),
-                "o4.y" => Some(("o4.y".into(), v.clone())),
-                "o4.z" => Some(("o4.z".into(), v.clone())),
+                "o4.x" => Some(("o4.x".into(), *v)),
+                "o4.y" => Some(("o4.y".into(), *v)),
+                "o4.z" => Some(("o4.z".into(), *v)),
                 // Glossiness
-                "o4.w" => Some(("o1.y".into(), v.clone())),
+                "o4.w" => Some(("o1.y".into(), *v)),
                 _ => None,
             })
             .collect()
@@ -467,8 +467,7 @@ fn get_shader_legacy<S: GetProgramHash>(
 
     Some(ShaderProgram {
         output_dependencies,
-        outline_width: None,
-        normal_intensity: None,
+        ..program
     })
 }
 

@@ -99,6 +99,7 @@ impl Default for Assignment {
 impl AssignmentValue {
     pub fn from_dependency(
         d: &Dependency,
+        shader: &ShaderProgram,
         parameters: &MaterialParameters,
         assignments: &mut IndexSet<Assignment>,
     ) -> Option<Self> {
@@ -107,6 +108,7 @@ impl AssignmentValue {
             Dependency::Buffer(b) => parameters.get_dependency(b).map(|f| Self::Float(f.into())),
             Dependency::Texture(texture) => Some(Self::Texture(texture_assignment(
                 texture,
+                shader,
                 parameters,
                 assignments,
             ))),
@@ -127,14 +129,13 @@ pub(crate) fn output_assignments(
     OutputAssignments {
         output_assignments: [0, 1, 2, 3, 4, 5]
             .map(|i| output_assignment(shader, parameters, &mut assignments, i)),
-        outline_width: shader
-            .outline_width
-            .as_ref()
-            .and_then(|d| AssignmentValue::from_dependency(d, parameters, &mut assignments)),
+        outline_width: shader.outline_width.as_ref().and_then(|d| {
+            AssignmentValue::from_dependency(d, shader, parameters, &mut assignments)
+        }),
         normal_intensity: shader
             .normal_intensity
             .as_ref()
-            .map(|l| assignment_value(parameters, l, &mut assignments)),
+            .map(|i| assignment_value(shader, parameters, &shader.exprs[*i], &mut assignments)),
         assignments: assignments.into_iter().collect(),
     }
 }
@@ -164,23 +165,24 @@ fn output_channel_assignment(
     shader
         .output_dependencies
         .get(&SmolStr::from(output))
-        .map(|v| assignment_value(parameters, v, assignments))
+        .map(|v| assignment_value(shader, parameters, &shader.exprs[*v], assignments))
 }
 
 fn assignment_value(
+    shader: &ShaderProgram,
     parameters: &MaterialParameters,
     value: &OutputExpr,
     assignments: &mut IndexSet<Assignment>,
 ) -> usize {
     let value = match value {
-        crate::shader_database::OutputExpr::Value(d) => {
-            Assignment::Value(AssignmentValue::from_dependency(d, parameters, assignments))
-        }
+        crate::shader_database::OutputExpr::Value(d) => Assignment::Value(
+            AssignmentValue::from_dependency(d, shader, parameters, assignments),
+        ),
         crate::shader_database::OutputExpr::Func { op, args } => Assignment::Func {
             op: *op,
             args: args
                 .iter()
-                .map(|a| assignment_value(parameters, a, assignments))
+                .map(|a| assignment_value(shader, parameters, &shader.exprs[*a], assignments))
                 .collect(),
         },
     };
@@ -190,6 +192,7 @@ fn assignment_value(
 
 fn texture_assignment(
     texture: &TextureDependency,
+    shader: &ShaderProgram,
     parameters: &MaterialParameters,
     assignments: &mut IndexSet<Assignment>,
 ) -> TextureAssignment {
@@ -199,7 +202,7 @@ fn texture_assignment(
         texcoords: texture
             .texcoords
             .iter()
-            .map(|c| assignment_value(parameters, c, assignments))
+            .map(|c| assignment_value(shader, parameters, &shader.exprs[*c], assignments))
             .collect(),
     }
 }
