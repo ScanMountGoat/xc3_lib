@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::{collections::BTreeMap, sync::LazyLock};
 
 use approx::AbsDiffEq;
@@ -618,9 +619,27 @@ static FRESNEL_RATIO: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
+static FRESNEL_RATIO2: LazyLock<Graph> = LazyLock::new(|| {
+    // Variant for XCX DE shaders with log2(abs()) instead of log2().
+    // pow(1.0 - n_dot_v, ratio * 5.0)
+    let query = indoc! {"
+        void main() {
+            n_dot_v = abs(n_dot_v);
+            neg_n_dot_v = 0.0 - n_dot_v;
+            one_minus_n_dot_v = neg_n_dot_v + 1.0;
+            one_minus_n_dot_v = abs(one_minus_n_dot_v);
+            result = log2(one_minus_n_dot_v);
+            ratio = ratio * 5.0;
+            result = ratio * result;
+            result = exp2(result);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
 fn op_fresnel_ratio<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    // TODO: Blend mode for this?
-    let result = query_nodes(expr, nodes, &FRESNEL_RATIO.nodes)?;
+    let result = query_nodes(expr, nodes, &FRESNEL_RATIO.nodes)
+        .or_else(|| query_nodes(expr, nodes, &FRESNEL_RATIO2.nodes))?;
     let a = result.get("ratio")?;
     Some((Operation::Fresnel, vec![a]))
 }
@@ -682,8 +701,6 @@ static OP_CLAMP: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = clamp(a, b, c); }").unwrap());
 
 fn op_clamp<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    // TODO: also detect min -> max and max -> min.
-    // TODO: convert to max and min?
     let result = query_nodes(expr, nodes, &OP_CLAMP.nodes)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
@@ -1692,63 +1709,62 @@ pub fn find_attribute_locations(translation_unit: &TranslationUnit) -> Attribute
     visitor.attributes
 }
 
+pub fn shader_str(s: &ShaderProgram) -> String {
+    // Use a condensed representation similar to GLSL for nicer diffs.
+    let mut output = String::new();
+    for (k, v) in &s.output_dependencies {
+        writeln!(&mut output, "{k}: {}", expr_str(s, *v)).unwrap();
+    }
+    writeln!(
+        &mut output,
+        "outline_width: {}",
+        s.outline_width
+            .as_ref()
+            .map(|d| d.to_string())
+            .unwrap_or("None".to_string())
+    )
+    .unwrap();
+    match s.normal_intensity {
+        Some(i) => {
+            writeln!(&mut output, "normal_intensity: {}", expr_str(s, i)).unwrap();
+        }
+        None => writeln!(&mut output, "normal_intensity: None").unwrap(),
+    }
+
+    output
+}
+
+fn expr_str(s: &ShaderProgram, v: usize) -> String {
+    // Substitute all args to produce a single line of condensed output.
+    match &s.exprs[v] {
+        OutputExpr::Value(Dependency::Texture(t)) => {
+            let args: Vec<_> = t.texcoords.iter().map(|a| expr_str(s, *a)).collect();
+            format!(
+                "Texture({}, {}){}",
+                t.name,
+                args.join(", "),
+                t.channel.map(|c| format!(".{c}")).unwrap_or_default()
+            )
+        }
+        OutputExpr::Func { op, args } => {
+            let args: Vec<_> = args.iter().map(|a| expr_str(s, *a)).collect();
+            format!("{op}({})", args.join(", "))
+        }
+        OutputExpr::Value(v) => v.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     use indoc::indoc;
     use pretty_assertions::{assert_eq, assert_str_eq};
-    use std::fmt::Write;
 
     macro_rules! assert_debug_eq {
         ($path:expr, $shader:expr) => {
             assert_str_eq!(include_str!($path), shader_str(&$shader))
         };
-    }
-
-    fn shader_str(s: &ShaderProgram) -> String {
-        // Use a condensed representation similar to GLSL for nicer diffs.
-        let mut output = String::new();
-        for (k, v) in &s.output_dependencies {
-            writeln!(&mut output, "{k}: {}", expr_str(s, *v)).unwrap();
-        }
-        writeln!(
-            &mut output,
-            "outline_width: {}",
-            s.outline_width
-                .as_ref()
-                .map(|d| d.to_string())
-                .unwrap_or("None".to_string())
-        )
-        .unwrap();
-        match s.normal_intensity {
-            Some(i) => {
-                writeln!(&mut output, "normal_intensity: {}", expr_str(s, i)).unwrap();
-            }
-            None => writeln!(&mut output, "normal_intensity: None").unwrap(),
-        }
-
-        output
-    }
-
-    fn expr_str(s: &ShaderProgram, v: usize) -> String {
-        // Substitute all args to produce a single line of condensed output.
-        match &s.exprs[v] {
-            OutputExpr::Value(Dependency::Texture(t)) => {
-                let args: Vec<_> = t.texcoords.iter().map(|a| expr_str(s, *a)).collect();
-                format!(
-                    "Texture({}, {}){}",
-                    t.name,
-                    args.join(", "),
-                    t.channel.map(|c| format!(".{c}")).unwrap_or_default()
-                )
-            }
-            OutputExpr::Func { op, args } => {
-                let args: Vec<_> = args.iter().map(|a| expr_str(s, *a)).collect();
-                format!("{op}({})", args.join(", "))
-            }
-            OutputExpr::Value(v) => v.to_string(),
-        }
     }
 
     #[test]

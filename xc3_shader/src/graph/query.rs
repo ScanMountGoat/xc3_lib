@@ -152,6 +152,12 @@ fn check_exprs<'a>(
                     let q2 = &[&args1[1], &args1[0], &args1[2]];
                     let i = &[&args2[0], &args2[1], &args2[2]];
                     check(q1, i) || check(q2, i)
+                } else if name1 == "max" || name1 == "min" {
+                    // The order does not matter for max/min.
+                    let q1 = &[&args1[0], &args1[1]];
+                    let q2 = &[&args1[1], &args1[0]];
+                    let i = &[&args2[0], &args2[1]];
+                    check(q1, i) || check(q2, i)
                 } else {
                     check(
                         &args1.iter().collect::<Vec<_>>(),
@@ -168,7 +174,10 @@ fn check_exprs<'a>(
                 node_index: n2,
                 channel: c2,
             },
-        ) => c1 == c2 && check(&[&query_nodes[*n1].input], &[&input_nodes[*n2].input]),
+        ) => {
+            check_channels(*c1, *c2)
+                && check(&[&query_nodes[*n1].input], &[&input_nodes[*n2].input])
+        }
         (
             Expr::Parameter {
                 name: n1,
@@ -194,11 +203,7 @@ fn check_exprs<'a>(
             // TODO: Special case to check name if query and input are both Expr::Global?
             vars.insert(name.to_string(), i);
 
-            // Treat unspecified channels as allowing all channels.
-            match channel {
-                Some(c) => i.channel() == Some(*c),
-                None => true,
-            }
+            check_channels(*channel, i.channel())
         }
         (Expr::Unary(UnaryOp::Negate, a1), Expr::Binary(BinaryOp::Sub, a2, b2)) => {
             // 0.0 - x == -x
@@ -210,6 +215,11 @@ fn check_exprs<'a>(
         }
         _ => query == input,
     }
+}
+
+fn check_channels(query: Option<char>, input: Option<char>) -> bool {
+    // Treat unspecified channels as allowing all channels.
+    query.is_none() || query == input
 }
 
 fn check_args<'a>(
@@ -396,6 +406,18 @@ mod tests {
     }
 
     #[test]
+    fn query_min() {
+        assert!(query_glsl("a = min(1.0, GLOBAL.x);", "d = min(b, GLOBAL.x);").is_some());
+        assert!(query_glsl("a = min(GLOBAL.x, 1.0);", "d = min(b, GLOBAL.x);").is_some());
+    }
+
+    #[test]
+    fn query_max() {
+        assert!(query_glsl("a = max(1.0, GLOBAL.x);", "d = max(b, GLOBAL.x);").is_some());
+        assert!(query_glsl("a = max(GLOBAL.x, 1.0);", "d = max(b, GLOBAL.x);").is_some());
+    }
+
+    #[test]
     fn query_single_binary_variable_expr() {
         assert!(query_glsl("c = a * b;", "d = b * c;").is_some());
     }
@@ -425,6 +447,23 @@ mod tests {
                 temp_6 = texture(texture1, vec2(temp_5 + 2.0, 1.0)).x;
                 temp_7 = data[int(temp_6)];
             "}
+        )
+        .is_some());
+    }
+
+    #[test]
+    fn query_parameters() {
+        assert!(query_glsl(
+            indoc! {"
+                PS32 = log2(R4.z);
+                PV33.w = KC0[2].w * PS32;
+                PS34 = exp2(PV33.w);
+            "},
+            indoc! {"
+                result = log2(a);
+                result = result * b;
+                result = exp2(result);
+            "},
         )
         .is_some());
     }
