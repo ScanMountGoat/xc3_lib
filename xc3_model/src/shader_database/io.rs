@@ -146,6 +146,7 @@ pub enum OperationIndexed {
     Sqrt = 18,
     TexMatrix = 19,
     TexParallax = 20,
+    Reflect = 21,
 }
 
 impl From<Operation> for OperationIndexed {
@@ -171,6 +172,7 @@ impl From<Operation> for OperationIndexed {
             Operation::Sqrt => Self::Sqrt,
             Operation::TexMatrix => Self::TexMatrix,
             Operation::TexParallax => Self::TexParallax,
+            Operation::Reflect => Self::Reflect,
             Operation::Unk => Self::Unk,
         }
     }
@@ -199,6 +201,7 @@ impl From<OperationIndexed> for Operation {
             OperationIndexed::Sqrt => Self::Sqrt,
             OperationIndexed::TexMatrix => Self::TexMatrix,
             OperationIndexed::TexParallax => Self::TexParallax,
+            OperationIndexed::Reflect => Self::Reflect,
             OperationIndexed::Unk => Self::Unk,
         }
     }

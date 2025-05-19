@@ -194,6 +194,8 @@ pub enum Operation {
     /// v = arg0 + arg1 * 0.7 * (normal.x * tangent.y - normal.x * bitangent.y)
     /// ```
     TexParallax,
+    /// `reflect(vec3(arg0, arg1, arg2), vec3(arg3, arg4, arg5))`
+    Reflect,
     /// An unsupported operation or function call.
     Unk,
 }

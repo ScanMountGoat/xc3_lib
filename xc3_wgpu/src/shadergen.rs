@@ -185,6 +185,11 @@ impl Nodes {
                         // TODO: how to handle multiple channels like this?
                         Some(format!("{} + uv_parallax(in, {}).x", arg0?, arg1?))
                     }
+                    Operation::Reflect => Some(format!(
+                        // TODO: how to handle multiple channels like this?
+                        "reflect(vec3({}, {}, {}), vec3({}, {}, {})).x",
+                        arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
+                    )),
                     Operation::Unk => None,
                 }
             }
@@ -478,6 +483,8 @@ fn channel_assignment_wgsl(value: &AssignmentValue) -> Option<String> {
                 "vTex6" => Some(format!("tex6{c}")),
                 "vTex7" => Some(format!("tex7{c}")),
                 "vTex8" => Some(format!("tex8{c}")),
+                // Generated during database creation for convenience.
+                "vBitan" => Some(format!("bitangent{c}")),
                 _ => {
                     warn!("Unsupported attribute {name}{c}");
                     None

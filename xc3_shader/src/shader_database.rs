@@ -15,6 +15,7 @@ use indexmap::{set::MutableValues, IndexMap, IndexSet};
 use indoc::indoc;
 use log::error;
 use rayon::prelude::*;
+use smol_str::SmolStr;
 use xc3_lib::{
     mths::{FragmentShader, Mths},
     spch::Spch,
@@ -384,18 +385,16 @@ pub(crate) fn output_expr(
             if let Some(new_expr) = skin_attribute_clip_space_xyzw(&graph.nodes, expr) {
                 expr = new_expr;
             }
-            let bitan = Expr::Global {
-                name: "vBitan".into(),
-                channel: expr.channel(),
-            };
-            if attribute_bitangent(&graph.nodes, expr).is_some() {
-                expr = &bitan;
+
+            let mut expr = expr.clone();
+            if let Some(new_expr) = skin_attribute_bitangent(&graph.nodes, &expr) {
+                expr = new_expr;
             }
 
-            let output = output_expr_inner(expr, graph, attributes, exprs, expr_to_index);
+            let output = output_expr_inner(&expr, graph, attributes, exprs, expr_to_index);
 
             let index = exprs.insert_full(output).0;
-            expr_to_index.insert(expr.clone(), index);
+            expr_to_index.insert(expr, index);
 
             index
         }
@@ -420,9 +419,10 @@ fn output_expr_inner(
             .or_else(|| op_overlay2(&graph.nodes, expr))
             .or_else(|| op_overlay_ratio(&graph.nodes, expr))
             .or_else(|| op_overlay(&graph.nodes, expr))
-            .or_else(|| tex_parallax2(graph, expr))
-            .or_else(|| tex_parallax(graph, expr))
-            .or_else(|| tex_matrix(graph, expr))
+            .or_else(|| tex_parallax2(&graph.nodes, expr))
+            .or_else(|| tex_parallax(&graph.nodes, expr))
+            .or_else(|| tex_matrix(&graph.nodes, expr))
+            .or_else(|| op_reflect(&graph.nodes, expr))
             .or_else(|| op_mix(&graph.nodes, expr))
             .or_else(|| op_mul_ratio(&graph.nodes, expr))
             .or_else(|| op_add_ratio(expr))
@@ -1168,57 +1168,226 @@ fn geometric_specular_aa<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Ex
     result.get("glossiness").copied()
 }
 
-static SKIN_ATTRIBUTE_XYZ: LazyLock<Graph> = LazyLock::new(|| {
-    // TODO: is it worth having separate queries for xyz channels to check for nWgtIdx?
+static SKIN_ATTRIBUTE_XYZ_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
-            temp_15 = uintBitsToFloat(U_Bone.data[int(temp_14)]);
-            temp_18 = uintBitsToFloat(U_Bone.data[int(temp_17)]);
-            temp_21 = uintBitsToFloat(U_Bone.data[int(temp_20)]);
-            temp_26 = result.x;
-            temp_28 = result.y;
-            temp_52 = result.z;
-            temp_77 = temp_15 * temp_26;
-            temp_82 = fma(temp_18, temp_28, temp_77);
-            temp_89 = fma(temp_21, temp_52, temp_82);
+            temp_0 = nWgtIdx.x;
+            temp_1 = floatBitsToInt(temp_0) & 65535;
+            temp_2 = temp_1 * 48;
+            temp_3 = result_x;
+            temp_4 = floatBitsToUint(temp_0) >> 16;
+            temp_5 = int(temp_4) * 48;
+            temp_6 = temp_5 << 16;
+            temp_7 = temp_6 + temp_2;
+            temp_14 = result_y;
+            temp_17 = result_z;
+            temp_30 = uint(temp_7) >> 2;
+            temp_31 = uintBitsToFloat(U_Bone.data[int(temp_30)]);
+            temp_32 = temp_7 + 4;
+            temp_33 = uint(temp_32) >> 2;
+            temp_34 = uintBitsToFloat(U_Bone.data[int(temp_33)]);
+            temp_35 = temp_7 + 8;
+            temp_36 = uint(temp_35) >> 2;
+            temp_37 = uintBitsToFloat(U_Bone.data[int(temp_36)]);
+            temp_59 = temp_31 * temp_3;
+            temp_69 = fma(temp_34, temp_14, temp_59);
+            temp_73 = fma(temp_37, temp_17, temp_69);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static SKIN_ATTRIBUTE_XYZ_Y: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = nWgtIdx.x;
+            temp_1 = floatBitsToInt(temp_0) & 65535;
+            temp_2 = temp_1 * 48;
+            temp_3 = result_x;
+            temp_4 = floatBitsToUint(temp_0) >> 16;
+            temp_5 = int(temp_4) * 48;
+            temp_6 = temp_5 << 16;
+            temp_7 = temp_6 + temp_2;
+            temp_13 = temp_7 + 16;
+            temp_14 = result_y;
+            temp_17 = result_z;
+            temp_41 = uint(temp_13) >> 2;
+            temp_42 = uintBitsToFloat(U_Bone.data[int(temp_41)]);
+            temp_43 = temp_13 + 4;
+            temp_44 = uint(temp_43) >> 2;
+            temp_45 = uintBitsToFloat(U_Bone.data[int(temp_44)]);
+            temp_46 = temp_13 + 8;
+            temp_47 = uint(temp_46) >> 2;
+            temp_48 = uintBitsToFloat(U_Bone.data[int(temp_47)]);
+            temp_64 = temp_42 * temp_3;
+            temp_80 = fma(temp_45, temp_14, temp_64);
+            temp_88 = fma(temp_48, temp_17, temp_80);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static SKIN_ATTRIBUTE_XYZ_Z: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = nWgtIdx.x;
+            temp_1 = floatBitsToInt(temp_0) & 65535;
+            temp_2 = temp_1 * 48;
+            temp_3 = result_x;
+            temp_4 = floatBitsToUint(temp_0) >> 16;
+            temp_5 = int(temp_4) * 48;
+            temp_6 = temp_5 << 16;
+            temp_7 = temp_6 + temp_2;
+            temp_10 = temp_7 + 32;
+            temp_14 = result_y;
+            temp_17 = result_z;
+            temp_18 = uint(temp_10) >> 2;
+            temp_19 = uintBitsToFloat(U_Bone.data[int(temp_18)]);
+            temp_20 = temp_10 + 4;
+            temp_21 = uint(temp_20) >> 2;
+            temp_22 = uintBitsToFloat(U_Bone.data[int(temp_21)]);
+            temp_23 = temp_10 + 8;
+            temp_24 = uint(temp_23) >> 2;
+            temp_25 = uintBitsToFloat(U_Bone.data[int(temp_24)]);
+            temp_62 = temp_19 * temp_3;
+            temp_68 = fma(temp_22, temp_14, temp_62);
+            temp_83 = fma(temp_25, temp_17, temp_68);
         }
     "};
     Graph::parse_glsl(query).unwrap()
 });
 
 fn skin_attribute_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
-    let result = query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZ.nodes)?;
-    result.get("result").copied()
+    query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZ_X.nodes)
+        .and_then(|r| r.get("result_x").copied())
+        .or_else(|| {
+            query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZ_Y.nodes)
+                .and_then(|r| r.get("result_y").copied())
+        })
+        .or_else(|| {
+            query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZ_Z.nodes)
+                .and_then(|r| r.get("result_z").copied())
+        })
 }
 
-static SKIN_ATTRIBUTE_XYZW: LazyLock<Graph> = LazyLock::new(|| {
-    // TODO: is it worth having separate queries for xyzw channels to check for nWgtIdx?
+static SKIN_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
-            temp_3 = result.x;
-            temp_8 = result.y;
-            temp_9 = result.z;
-            temp_11 = result.w;
-            temp_30 = uintBitsToFloat(U_Bone.data[int(temp_29)]);
-            temp_33 = uintBitsToFloat(U_Bone.data[int(temp_32)]);
-            temp_36 = uintBitsToFloat(U_Bone.data[int(temp_35)]);
-            temp_39 = uintBitsToFloat(U_Bone.data[int(temp_38)]);
-            temp_63 = temp_30 * temp_3;
-            temp_65 = fma(temp_33, temp_8, temp_63);
-            temp_66 = fma(temp_36, temp_9, temp_65);
-            temp_68 = fma(temp_39, temp_11, temp_66);
+            temp_0 = nWgtIdx.x;
+            temp_1 = floatBitsToInt(temp_0) & 65535;
+            temp_2 = temp_1 * 48;
+            temp_4 = floatBitsToUint(temp_0) >> 16;
+            temp_5 = int(temp_4) * 48;
+            temp_6 = temp_5 << 16;
+            temp_7 = temp_6 + temp_2;
+            temp_9 = result_x;
+            temp_16 = result_y;
+            temp_30 = uint(temp_7) >> 2;
+            temp_31 = uintBitsToFloat(U_Bone.data[int(temp_30)]);
+            temp_32 = temp_7 + 4;
+            temp_33 = uint(temp_32) >> 2;
+            temp_34 = uintBitsToFloat(U_Bone.data[int(temp_33)]);
+            temp_35 = temp_7 + 8;
+            temp_36 = uint(temp_35) >> 2;
+            temp_37 = uintBitsToFloat(U_Bone.data[int(temp_36)]);
+            temp_38 = temp_7 + 12;
+            temp_39 = uint(temp_38) >> 2;
+            temp_40 = uintBitsToFloat(U_Bone.data[int(temp_39)]);
+            temp_52 = result_z;
+            temp_53 = result_w;
+            temp_61 = temp_31 * temp_9;
+            temp_70 = fma(temp_34, temp_16, temp_61);
+            temp_75 = fma(temp_37, temp_52, temp_70);
+            temp_79 = fma(temp_40, temp_53, temp_75);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static SKIN_ATTRIBUTE_XYZW_Y: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = nWgtIdx.x;
+            temp_1 = floatBitsToInt(temp_0) & 65535;
+            temp_2 = temp_1 * 48;
+            temp_4 = floatBitsToUint(temp_0) >> 16;
+            temp_5 = int(temp_4) * 48;
+            temp_6 = temp_5 << 16;
+            temp_7 = temp_6 + temp_2;
+            temp_9 = result_x;
+            temp_13 = temp_7 + 16;
+            temp_16 = result_y;
+            temp_41 = uint(temp_13) >> 2;
+            temp_42 = uintBitsToFloat(U_Bone.data[int(temp_41)]);
+            temp_43 = temp_13 + 4;
+            temp_44 = uint(temp_43) >> 2;
+            temp_45 = uintBitsToFloat(U_Bone.data[int(temp_44)]);
+            temp_46 = temp_13 + 8;
+            temp_47 = uint(temp_46) >> 2;
+            temp_48 = uintBitsToFloat(U_Bone.data[int(temp_47)]);
+            temp_49 = temp_13 + 12;
+            temp_50 = uint(temp_49) >> 2;
+            temp_51 = uintBitsToFloat(U_Bone.data[int(temp_50)]);
+            temp_52 = result_z;
+            temp_53 = result_w;
+            temp_63 = temp_42 * temp_9;
+            temp_72 = fma(temp_45, temp_16, temp_63);
+            temp_78 = fma(temp_48, temp_52, temp_72);
+            temp_84 = fma(temp_51, temp_53, temp_78);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static SKIN_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = nWgtIdx.x;
+            temp_1 = floatBitsToInt(temp_0) & 65535;
+            temp_2 = temp_1 * 48;
+            temp_4 = floatBitsToUint(temp_0) >> 16;
+            temp_5 = int(temp_4) * 48;
+            temp_6 = temp_5 << 16;
+            temp_7 = temp_6 + temp_2;
+            temp_9 = result_x;
+            temp_10 = temp_7 + 32;
+            temp_16 = result_y;
+            temp_18 = uint(temp_10) >> 2;
+            temp_19 = uintBitsToFloat(U_Bone.data[int(temp_18)]);
+            temp_20 = temp_10 + 4;
+            temp_21 = uint(temp_20) >> 2;
+            temp_22 = uintBitsToFloat(U_Bone.data[int(temp_21)]);
+            temp_23 = temp_10 + 8;
+            temp_24 = uint(temp_23) >> 2;
+            temp_25 = uintBitsToFloat(U_Bone.data[int(temp_24)]);
+            temp_26 = temp_10 + 12;
+            temp_27 = uint(temp_26) >> 2;
+            temp_28 = uintBitsToFloat(U_Bone.data[int(temp_27)]);
+            temp_52 = result_z;
+            temp_53 = result_w;
+            temp_58 = temp_19 * temp_9;
+            temp_76 = fma(temp_22, temp_16, temp_58);
+            temp_85 = fma(temp_25, temp_52, temp_76);
+            temp_89 = fma(temp_28, temp_53, temp_85);
         }
     "};
     Graph::parse_glsl(query).unwrap()
 });
 
 fn skin_attribute_xyzw<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
-    let result = query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZW.nodes)?;
-    result.get("result").copied()
+    query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZW_X.nodes)
+        .and_then(|r| r.get("result_x").copied())
+        .or_else(|| {
+            query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZW_Y.nodes)
+                .and_then(|r| r.get("result_y").copied())
+        })
+        .or_else(|| {
+            query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZW_Z.nodes)
+                .and_then(|r| r.get("result_z").copied())
+        })
 }
 
 static SKIN_ATTRIBUTE_CLIP_XYZW: LazyLock<Graph> = LazyLock::new(|| {
-    // TODO: is it worth having separate queries for xyzw channels to check for nWgtIdx?
     // TODO: Detect this as matrix multiplication and regular skinning?
     let query = indoc! {"
         void main() {
@@ -1265,48 +1434,181 @@ fn skin_attribute_clip_space_xyzw<'a>(nodes: &'a [Node], expr: &'a Expr) -> Opti
     result.get("result").copied()
 }
 
-static SKIN_ATTRIBUTE_BITANGENT: LazyLock<Graph> = LazyLock::new(|| {
-    // TODO: is it worth having separate queries for xyzw channels to check for nWgtIdx?
+static SKIN_ATTRIBUTE_BITANGENT_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
-            temp_15 = vNormal.x;
-            temp_18 = uintBitsToFloat(U_Bone.data[int(temp_17)]);
-            temp_21 = uintBitsToFloat(U_Bone.data[int(temp_20)]);
-            temp_24 = uintBitsToFloat(U_Bone.data[int(temp_23)]);
-            temp_41 = uintBitsToFloat(U_Bone.data[int(temp_40)]);
-            temp_44 = uintBitsToFloat(U_Bone.data[int(temp_43)]);
-            temp_47 = uintBitsToFloat(U_Bone.data[int(temp_46)]);
-            temp_64 = vTan.x;
-            temp_70 = vNormal.y;
-            temp_72 = vTan.y;
-            temp_74 = vTan.z;
-            temp_80 = vNormal.z;
-            temp_83 = vTan.w;
-            temp_103 = temp_18 * temp_64;
-            temp_104 = temp_41 * temp_15;
-            temp_105 = temp_41 * temp_64;
-            temp_112 = temp_18 * temp_15;
-            temp_115 = fma(temp_21, temp_72, temp_103);
-            temp_118 = fma(temp_21, temp_70, temp_112);
-            temp_119 = fma(temp_44, temp_72, temp_105);
-            temp_121 = fma(temp_44, temp_70, temp_104);
-            temp_122 = fma(temp_24, temp_74, temp_115);
-            temp_123 = fma(temp_24, temp_80, temp_118);
-            temp_124 = fma(temp_47, temp_74, temp_119);
-            temp_129 = fma(temp_47, temp_80, temp_121);
-            temp_132 = temp_123 * temp_124;
-            temp_138 = 0.0 - temp_132;
-            temp_139 = fma(temp_122, temp_129, temp_138);
-            temp_146 = temp_139 * temp_83;
-            out_attr2.x = temp_146;
+            temp_0 = nWgtIdx.x;
+            temp_1 = floatBitsToInt(temp_0) & 65535;
+            temp_2 = temp_1 * 48;
+            temp_3 = vNormal.x;
+            temp_4 = floatBitsToUint(temp_0) >> 16;
+            temp_5 = int(temp_4) * 48;
+            temp_6 = temp_5 << 16;
+            temp_7 = temp_6 + temp_2;
+            temp_8 = vTan.x;
+            temp_10 = temp_7 + 32;
+            temp_13 = temp_7 + 16;
+            temp_14 = vNormal.y;
+            temp_15 = vTan.y;
+            temp_17 = vNormal.z;
+            temp_18 = uint(temp_10) >> 2;
+            temp_19 = uintBitsToFloat(U_Bone.data[int(temp_18)]);
+            temp_20 = temp_10 + 4;
+            temp_21 = uint(temp_20) >> 2;
+            temp_22 = uintBitsToFloat(U_Bone.data[int(temp_21)]);
+            temp_23 = temp_10 + 8;
+            temp_24 = uint(temp_23) >> 2;
+            temp_25 = uintBitsToFloat(U_Bone.data[int(temp_24)]);
+            temp_29 = vTan.z;
+            temp_41 = uint(temp_13) >> 2;
+            temp_42 = uintBitsToFloat(U_Bone.data[int(temp_41)]);
+            temp_43 = temp_13 + 4;
+            temp_44 = uint(temp_43) >> 2;
+            temp_45 = uintBitsToFloat(U_Bone.data[int(temp_44)]);
+            temp_46 = temp_13 + 8;
+            temp_47 = uint(temp_46) >> 2;
+            temp_48 = uintBitsToFloat(U_Bone.data[int(temp_47)]);
+            temp_54 = vTan.w;
+            temp_62 = temp_19 * temp_3;
+            temp_64 = temp_42 * temp_3;
+            temp_65 = temp_19 * temp_8;
+            temp_66 = temp_42 * temp_8;
+            temp_68 = fma(temp_22, temp_14, temp_62);
+            temp_77 = fma(temp_22, temp_15, temp_65);
+            temp_80 = fma(temp_45, temp_14, temp_64);
+            temp_81 = fma(temp_45, temp_15, temp_66);
+            temp_82 = fma(temp_25, temp_29, temp_77);
+            temp_83 = fma(temp_25, temp_17, temp_68);
+            temp_87 = fma(temp_48, temp_29, temp_81);
+            temp_88 = fma(temp_48, temp_17, temp_80);
+            temp_92 = temp_83 * temp_87;
+            temp_97 = 0.0 - temp_92;
+            temp_98 = fma(temp_82, temp_88, temp_97);
+            temp_101 = temp_98 * temp_54;
         }
     "};
     Graph::parse_glsl(query).unwrap()
 });
 
-fn attribute_bitangent<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
-    let result = query_nodes(expr, nodes, &SKIN_ATTRIBUTE_BITANGENT.nodes)?;
-    result.get("vTan").copied()
+static SKIN_ATTRIBUTE_BITANGENT_Y: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = nWgtIdx.x;
+            temp_1 = floatBitsToInt(temp_0) & 65535;
+            temp_2 = temp_1 * 48;
+            temp_3 = vNormal.x;
+            temp_4 = floatBitsToUint(temp_0) >> 16;
+            temp_5 = int(temp_4) * 48;
+            temp_6 = temp_5 << 16;
+            temp_7 = temp_6 + temp_2;
+            temp_8 = vTan.x;
+            temp_10 = temp_7 + 32;
+            temp_14 = vNormal.y;
+            temp_15 = vTan.y;
+            temp_17 = vNormal.z;
+            temp_18 = uint(temp_10) >> 2;
+            temp_19 = uintBitsToFloat(U_Bone.data[int(temp_18)]);
+            temp_20 = temp_10 + 4;
+            temp_21 = uint(temp_20) >> 2;
+            temp_22 = uintBitsToFloat(U_Bone.data[int(temp_21)]);
+            temp_23 = temp_10 + 8;
+            temp_24 = uint(temp_23) >> 2;
+            temp_25 = uintBitsToFloat(U_Bone.data[int(temp_24)]);
+            temp_29 = vTan.z;
+            temp_30 = uint(temp_7) >> 2;
+            temp_31 = uintBitsToFloat(U_Bone.data[int(temp_30)]);
+            temp_32 = temp_7 + 4;
+            temp_33 = uint(temp_32) >> 2;
+            temp_34 = uintBitsToFloat(U_Bone.data[int(temp_33)]);
+            temp_35 = temp_7 + 8;
+            temp_36 = uint(temp_35) >> 2;
+            temp_37 = uintBitsToFloat(U_Bone.data[int(temp_36)]);
+            temp_54 = vTan.w;
+            temp_59 = temp_31 * temp_3;
+            temp_60 = temp_31 * temp_8;
+            temp_62 = temp_19 * temp_3;
+            temp_65 = temp_19 * temp_8;
+            temp_68 = fma(temp_22, temp_14, temp_62);
+            temp_69 = fma(temp_34, temp_14, temp_59);
+            temp_71 = fma(temp_34, temp_15, temp_60);
+            temp_73 = fma(temp_37, temp_17, temp_69);
+            temp_74 = fma(temp_37, temp_29, temp_71);
+            temp_77 = fma(temp_22, temp_15, temp_65);
+            temp_82 = fma(temp_25, temp_29, temp_77);
+            temp_83 = fma(temp_25, temp_17, temp_68);
+            temp_94 = temp_73 * temp_82;
+            temp_104 = 0.0 - temp_94;
+            temp_105 = fma(temp_74, temp_83, temp_104);
+            temp_109 = temp_105 * temp_54;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static SKIN_ATTRIBUTE_BITANGENT_Z: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = nWgtIdx.x;
+            temp_1 = floatBitsToInt(temp_0) & 65535;
+            temp_2 = temp_1 * 48;
+            temp_3 = vNormal.x;
+            temp_4 = floatBitsToUint(temp_0) >> 16;
+            temp_5 = int(temp_4) * 48;
+            temp_6 = temp_5 << 16;
+            temp_7 = temp_6 + temp_2;
+            temp_8 = vTan.x;
+            temp_13 = temp_7 + 16;
+            temp_14 = vNormal.y;
+            temp_15 = vTan.y;
+            temp_17 = vNormal.z;
+            temp_29 = vTan.z;
+            temp_30 = uint(temp_7) >> 2;
+            temp_31 = uintBitsToFloat(U_Bone.data[int(temp_30)]);
+            temp_32 = temp_7 + 4;
+            temp_33 = uint(temp_32) >> 2;
+            temp_34 = uintBitsToFloat(U_Bone.data[int(temp_33)]);
+            temp_35 = temp_7 + 8;
+            temp_36 = uint(temp_35) >> 2;
+            temp_37 = uintBitsToFloat(U_Bone.data[int(temp_36)]);
+            temp_41 = uint(temp_13) >> 2;
+            temp_42 = uintBitsToFloat(U_Bone.data[int(temp_41)]);
+            temp_43 = temp_13 + 4;
+            temp_44 = uint(temp_43) >> 2;
+            temp_45 = uintBitsToFloat(U_Bone.data[int(temp_44)]);
+            temp_46 = temp_13 + 8;
+            temp_47 = uint(temp_46) >> 2;
+            temp_48 = uintBitsToFloat(U_Bone.data[int(temp_47)]);
+            temp_54 = vTan.w;
+            temp_59 = temp_31 * temp_3;
+            temp_60 = temp_31 * temp_8;
+            temp_64 = temp_42 * temp_3;
+            temp_66 = temp_42 * temp_8;
+            temp_69 = fma(temp_34, temp_14, temp_59);
+            temp_71 = fma(temp_34, temp_15, temp_60);
+            temp_73 = fma(temp_37, temp_17, temp_69);
+            temp_74 = fma(temp_37, temp_29, temp_71);
+            temp_80 = fma(temp_45, temp_14, temp_64);
+            temp_81 = fma(temp_45, temp_15, temp_66);
+            temp_87 = fma(temp_48, temp_29, temp_81);
+            temp_88 = fma(temp_48, temp_17, temp_80);
+            temp_91 = temp_74 * temp_88;
+            temp_95 = 0.0 - temp_91;
+            temp_96 = fma(temp_73, temp_87, temp_95);
+            temp_116 = temp_96 * temp_54;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn skin_attribute_bitangent<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<Expr> {
+    let channel = query_nodes(expr, nodes, &SKIN_ATTRIBUTE_BITANGENT_X.nodes)
+        .map(|_| 'x')
+        .or_else(|| query_nodes(expr, nodes, &SKIN_ATTRIBUTE_BITANGENT_Y.nodes).map(|_| 'y'))
+        .or_else(|| query_nodes(expr, nodes, &SKIN_ATTRIBUTE_BITANGENT_Z.nodes).map(|_| 'z'))?;
+    Some(Expr::Global {
+        name: "vBitan".into(),
+        channel: Some(channel),
+    })
 }
 
 static TEX_MATRIX: LazyLock<Graph> = LazyLock::new(|| {
@@ -1321,10 +1623,10 @@ static TEX_MATRIX: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn tex_matrix<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+fn tex_matrix<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // Detect matrix multiplication for the mat4x2 "gTexMat * vec4(u, v, 0.0, 1.0)".
     // U and V have the same pattern but use a different row of the matrix.
-    let result = query_nodes(expr, &graph.nodes, &TEX_MATRIX.nodes)?;
+    let result = query_nodes(expr, nodes, &TEX_MATRIX.nodes)?;
     let u = result.get("u")?;
     let v = result.get("v")?;
     let x = result.get("param_x")?;
@@ -1362,12 +1664,12 @@ static TEX_PARALLAX2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn tex_parallax<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let expr = assign_x_recursive(&graph.nodes, expr);
+fn tex_parallax<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let expr = assign_x_recursive(nodes, expr);
 
     // Some eye shaders use some form of parallax mapping.
-    let result = query_nodes(expr, &graph.nodes, &TEX_PARALLAX.nodes)
-        .or_else(|| query_nodes(expr, &graph.nodes, &TEX_PARALLAX2.nodes))?;
+    let result = query_nodes(expr, nodes, &TEX_PARALLAX.nodes)
+        .or_else(|| query_nodes(expr, nodes, &TEX_PARALLAX2.nodes))?;
 
     let ratio = result.get("ratio")?;
     let coord = result.get("coord")?;
@@ -1455,18 +1757,73 @@ static TEX_PARALLAX3_Y: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn tex_parallax2<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let expr = assign_x_recursive(&graph.nodes, expr);
-
+fn tex_parallax2<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // Some eye shaders use some form of parallax mapping.
-    let result = query_nodes(expr, &graph.nodes, &TEX_PARALLAX3_X.nodes)
-        .or_else(|| query_nodes(expr, &graph.nodes, &TEX_PARALLAX3_Y.nodes))?;
+    let result = query_nodes(expr, nodes, &TEX_PARALLAX3_X.nodes)
+        .or_else(|| query_nodes(expr, nodes, &TEX_PARALLAX3_Y.nodes))?;
 
     let ratio = result.get("ratio")?;
     let coord = result.get("coord")?;
 
     // TODO: New operation for this since the math is different.
     Some((Operation::TexParallax, vec![coord, ratio]))
+}
+
+static REFLECT_X: LazyLock<Graph> = LazyLock::new(|| {
+    // reflect(I, N) = I - 2.0 * dot(N, I) * N
+    let query = indoc! {"
+        void main() {
+            dot_n_i = n_x * i_x;
+            dot_n_i = fma(n_y, i_y, dot_n_i);
+            dot_n_i = fma(n_z, i_z, dot_n_i);
+            temp_127 = n_x * dot_n_i;
+            temp_129 = fma(temp_127, -2.0, i_x);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static REFLECT_Y: LazyLock<Graph> = LazyLock::new(|| {
+    // reflect(I, N) = I - 2.0 * dot(N, I) * N
+    let query = indoc! {"
+        void main() {
+            dot_n_i = n_x * i_x;
+            dot_n_i = fma(n_y, i_y, dot_n_i);
+            dot_n_i = fma(n_z, i_z, dot_n_i);
+            temp_127 = n_y * dot_n_i;
+            temp_129 = fma(temp_127, -2.0, i_y);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static REFLECT_Z: LazyLock<Graph> = LazyLock::new(|| {
+    // reflect(I, N) = I - 2.0 * dot(N, I) * N
+    let query = indoc! {"
+        void main() {
+            dot_n_i = n_x * i_x;
+            dot_n_i = fma(n_y, i_y, dot_n_i);
+            dot_n_i = fma(n_z, i_z, dot_n_i);
+            temp_127 = n_z * dot_n_i;
+            temp_129 = fma(temp_127, -2.0, i_z);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn op_reflect<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes(expr, nodes, &REFLECT_X.nodes)
+        .or_else(|| query_nodes(expr, nodes, &REFLECT_Y.nodes))
+        .or_else(|| query_nodes(expr, nodes, &REFLECT_Z.nodes))?;
+
+    let n_x = result.get("n_x")?;
+    let n_y = result.get("n_y")?;
+    let n_z = result.get("n_z")?;
+    let i_x = result.get("i_x")?;
+    let i_y = result.get("i_y")?;
+    let i_z = result.get("i_z")?;
+
+    Some((Operation::Reflect, vec![i_x, i_y, i_z, n_x, n_y, n_z]))
 }
 
 fn apply_expr_vertex_outputs(
