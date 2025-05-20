@@ -114,97 +114,15 @@ enum OutputExprIndexed {
 
     #[brw(magic(1u8))]
     Func {
-        op: OperationIndexed,
+        // TODO: Avoid unwrap
+        #[br(map(|x: u8| Operation::from_repr(x as usize).unwrap()))]
+        #[bw(map(|x| *x as u8))]
+        op: Operation,
 
         #[br(parse_with = parse_vec)]
         #[bw(write_with = write_vec)]
         args: Vec<VarInt>,
     },
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, BinRead, BinWrite)]
-#[brw(repr(u8))]
-pub enum OperationIndexed {
-    Unk = 0,
-    Mix = 1,
-    Mul = 2,
-    Div = 3,
-    Add = 4,
-    Sub = 5,
-    Fma = 6,
-    MulRatio = 7,
-    AddNormal = 8,
-    Overlay = 9,
-    Overlay2 = 10,
-    OverlayRatio = 11,
-    Power = 12,
-    Min = 13,
-    Max = 14,
-    Clamp = 15,
-    Abs = 16,
-    Fresnel = 17,
-    Sqrt = 18,
-    TexMatrix = 19,
-    TexParallax = 20,
-    Reflect = 21,
-}
-
-impl From<Operation> for OperationIndexed {
-    fn from(value: Operation) -> Self {
-        match value {
-            Operation::Mix => Self::Mix,
-            Operation::Mul => Self::Mul,
-            Operation::Div => Self::Div,
-            Operation::Add => Self::Add,
-            Operation::Sub => Self::Sub,
-            Operation::Fma => Self::Fma,
-            Operation::MulRatio => Self::MulRatio,
-            Operation::AddNormal => Self::AddNormal,
-            Operation::Overlay => Self::Overlay,
-            Operation::Overlay2 => Self::Overlay2,
-            Operation::OverlayRatio => Self::OverlayRatio,
-            Operation::Power => Self::Power,
-            Operation::Min => Self::Min,
-            Operation::Max => Self::Max,
-            Operation::Clamp => Self::Clamp,
-            Operation::Abs => Self::Abs,
-            Operation::Fresnel => Self::Fresnel,
-            Operation::Sqrt => Self::Sqrt,
-            Operation::TexMatrix => Self::TexMatrix,
-            Operation::TexParallax => Self::TexParallax,
-            Operation::Reflect => Self::Reflect,
-            Operation::Unk => Self::Unk,
-        }
-    }
-}
-
-impl From<OperationIndexed> for Operation {
-    fn from(value: OperationIndexed) -> Self {
-        match value {
-            OperationIndexed::Mix => Self::Mix,
-            OperationIndexed::Mul => Self::Mul,
-            OperationIndexed::Div => Self::Div,
-            OperationIndexed::Add => Self::Add,
-            OperationIndexed::Sub => Self::Sub,
-            OperationIndexed::Fma => Self::Fma,
-            OperationIndexed::MulRatio => Self::MulRatio,
-            OperationIndexed::AddNormal => Self::AddNormal,
-            OperationIndexed::Overlay => Self::Overlay,
-            OperationIndexed::Overlay2 => Self::Overlay2,
-            OperationIndexed::OverlayRatio => Self::OverlayRatio,
-            OperationIndexed::Power => Self::Power,
-            OperationIndexed::Min => Self::Min,
-            OperationIndexed::Max => Self::Max,
-            OperationIndexed::Clamp => Self::Clamp,
-            OperationIndexed::Abs => Self::Abs,
-            OperationIndexed::Fresnel => Self::Fresnel,
-            OperationIndexed::Sqrt => Self::Sqrt,
-            OperationIndexed::TexMatrix => Self::TexMatrix,
-            OperationIndexed::TexParallax => Self::TexParallax,
-            OperationIndexed::Reflect => Self::Reflect,
-            OperationIndexed::Unk => Self::Unk,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, BinRead, BinWrite)]
@@ -407,7 +325,7 @@ impl ShaderDatabaseIndexed {
                         expr_indices,
                     )),
                     OutputExpr::Func { op, args } => OutputExprIndexed::Func {
-                        op: (*op).into(),
+                        op: *op,
                         args: args
                             .iter()
                             .map(|a| self.add_output_expr(&exprs[*a], exprs, expr_indices))
@@ -485,7 +403,7 @@ impl ShaderDatabaseIndexed {
                         expr_to_index,
                     )),
                     OutputExprIndexed::Func { op, args } => OutputExpr::Func {
-                        op: (*op).into(),
+                        op: *op,
                         args: args
                             .iter()
                             .map(|a| self.output_expr_from_indexed(a.0, exprs, expr_to_index))

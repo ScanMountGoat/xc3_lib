@@ -26,6 +26,8 @@ pub struct PipelineKey {
     pub is_outline: bool,
     pub output5_type: Output5Type,
     pub is_instanced_static: bool,
+    // TODO: group these
+    pub assignments_wgsl: String,
     pub output_layers_wgsl: Vec<String>,
     pub alpha_test_wgsl: String,
     pub normal_intensity_wgsl: String,
@@ -187,6 +189,9 @@ fn model_pipeline_inner<const M: usize, const N: usize>(
     key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
     let source = create_model_shader(key);
+
+    // TODO: Is it even worth caching these?
+    // TODO: Better to add technique index and material name?
     let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: None,
         source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(source)),

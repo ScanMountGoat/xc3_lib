@@ -11,8 +11,8 @@ use xc3_model::{
 use crate::{
     pipeline::{Output5Type, PipelineKey},
     shadergen::{
-        generate_alpha_test_wgsl, generate_layering_wgsl, generate_normal_intensity_wgsl,
-        generate_normal_layering_wgsl,
+        generate_alpha_test_wgsl, generate_assignments_wgsl, generate_layering_wgsl,
+        generate_normal_intensity_wgsl,
     },
     texture::create_default_black_texture,
     DeviceBufferExt, MonolibShaderTextures,
@@ -69,24 +69,8 @@ pub fn create_material(
         name_to_index.entry_index(format!("s{}", a.texture_index).into());
     }
 
-    // Don't generate code for velocity or depth.
-    let output_layers_wgsl: Vec<_> = material_assignments
-        .output_assignments
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| *i != 3 && *i != 4)
-        .map(|(i, a)| {
-            if i == 2 {
-                generate_normal_layering_wgsl(
-                    a,
-                    &material_assignments.assignments,
-                    &mut name_to_index,
-                )
-            } else {
-                generate_layering_wgsl(a, &material_assignments.assignments, &mut name_to_index)
-            }
-        })
-        .collect();
+    let assignments_wgsl = generate_assignments_wgsl(&material_assignments, &mut name_to_index);
+    let output_layers_wgsl = generate_layering_wgsl(&material_assignments);
 
     // Generate empty code if alpha testing is disabled.
     let alpha_test_wgsl = material
@@ -98,13 +82,7 @@ pub fn create_material(
     let normal_intensity_wgsl = material_assignments
         .normal_intensity
         .as_ref()
-        .map(|i| {
-            generate_normal_intensity_wgsl(
-                *i,
-                &material_assignments.assignments,
-                &mut name_to_index,
-            )
-        })
+        .map(|i| generate_normal_intensity_wgsl(*i))
         .unwrap_or_default();
 
     let mut texture_views: [Option<_>; 16] = std::array::from_fn(|_| None);
@@ -232,6 +210,7 @@ pub fn create_material(
         is_outline: material.name.ends_with("_outline"),
         output5_type,
         is_instanced_static,
+        assignments_wgsl,
         output_layers_wgsl,
         alpha_test_wgsl,
         normal_intensity_wgsl,

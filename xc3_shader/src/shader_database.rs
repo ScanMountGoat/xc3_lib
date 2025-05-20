@@ -15,7 +15,6 @@ use indexmap::{set::MutableValues, IndexMap, IndexSet};
 use indoc::indoc;
 use log::error;
 use rayon::prelude::*;
-use smol_str::SmolStr;
 use xc3_lib::{
     mths::{FragmentShader, Mths},
     spch::Spch,
@@ -332,6 +331,7 @@ fn normal_output_expr(
     }
     view_normal = assign_x_recursive(&frag.nodes, view_normal);
     view_normal = normalize(&frag.nodes, view_normal)?;
+    view_normal = assign_x_recursive(&frag.nodes, view_normal);
 
     // TODO: front facing in calcNormalZAbs in pcmdo?
 
@@ -809,44 +809,92 @@ fn dependency_expr(
 }
 
 static OP_ADD_NORMAL: LazyLock<Graph> = LazyLock::new(|| {
+    // t = n1.xyz + vec3(0.0, 0.0, 1.0);
+    // u = n2.xyz * vec3(-1.0, -1.0, 1.0);
+    // r = t * dot(t, u) - u * t.z;
+    // result = normalize(mix(n1, normalize(r), ratio));
     let query = indoc! {"
         void main() {
-            n = n2 * temp1;
-            neg_n = 0.0 - n;
-            n = fma(temp2, temp3, neg_n);
-            n_inv_sqrt = inversesqrt(temp4);
-            neg_n1 = 0.0 - n1;
-            r = fma(n, n_inv_sqrt, neg_n1);
+            n1_x = 0.0 + n1_x;
+            neg_n1_x = 0.0 - n1_x;
+            dot_t_u = n2_x * neg_n1_x;
+            n1_y = 0.0 + n1_y;
+            neg_n1_y = 0.0 - n1_y;
+            dot_t_u = fma(n2_y, neg_n1_y, dot_t_u);
+            one_plus_n1_z = n1_z + 1.0;
+            dot_t_u = fma(n2_z, one_plus_n1_z, dot_t_u);
+            temp6 = fma(temp2, dot_t_u, neg_n2);
 
-            nom_work = nom_work;
+            n_inv_sqrt = inversesqrt(temp4);
+            r = fma(temp6, n_inv_sqrt, neg_n1);
+
             nom_work = fma(r, ratio, nom_work);
-            inv_sqrt = inversesqrt(temp5);
-            nom_work = nom_work * inv_sqrt;
         }
     "};
     Graph::parse_glsl(query).unwrap()
 });
 
-fn op_add_normal<'a>(nodes: &'a [Node], nom_work: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+static OP_ADD_NORMAL_OUTER: LazyLock<Graph> = LazyLock::new(|| {
+    // Slightly different version of dot(t, u) for the outermost call.
+    let query = indoc! {"
+        void main() {
+            n1_x = fma(n1_x, n1_inverse_sqrt, 0.0);
+            n1_y = fma(n1_y, n1_inverse_sqrt, 0.0);
+            n1_z_plus_one = fma(n1_z, n1_inverse_sqrt, 1.0);
+            neg_n1_x = 0.0 - n1_x;
+            dot_t_u = n2_x * neg_n1_x;
+            neg_n1_y = 0.0 - n1_y;
+            dot_t_u = fma(n2_y, neg_n1_y, dot_t_u);
+            dot_t_u = fma(n2_z, n1_z_plus_one, dot_t_u);
+            temp6 = fma(n1_x, dot_t_u, neg_n2);
+
+            n_inv_sqrt = inversesqrt(temp4);
+            r = fma(temp6, n_inv_sqrt, neg_n1);
+
+            nom_work = fma(r, ratio, nom_work);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn op_add_normal<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // getPixelCalcAddNormal in pcmdo shaders.
     // normalize(mix(nomWork, normalize(r), ratio))
     // XC2: ratio * (normalize(r) - nomWork) + nomWork
     // XC3: (normalize(r) - nomWork) * ratio + nomWork
-    // TODO: Is it worth detecting the textures used for r?
-    // TODO: nom_work and n1 are the same?
-    // TODO: Reduce assignments to allow combining lines?
-    // TODO: Allow 0.0 - x or -x
-    let result = query_nodes(nom_work, nodes, &OP_ADD_NORMAL.nodes)?;
-    let mut nom_work = *result.get("nom_work")?;
-    let ratio = result.get("ratio")?;
-    let n2 = result.get("n2")?;
 
-    // Remove normal map channel remapping to avoid detecting this as a function.
-    if let Some(new_nom_work) = normal_map_fma(nodes, nom_work) {
-        nom_work = new_nom_work;
+    // The normalize is baked into the outer query and might not be present.
+    let mut expr = expr;
+    if let Some(new_expr) = normalize(nodes, expr) {
+        expr = assign_x_recursive(nodes, new_expr);
     }
 
-    Some((Operation::AddNormal, vec![nom_work, n2, ratio]))
+    let result = query_nodes(expr, nodes, &OP_ADD_NORMAL_OUTER.nodes)
+        .or_else(|| query_nodes(expr, nodes, &OP_ADD_NORMAL.nodes))?;
+
+    let n1_x = result.get("n1_x")?;
+    let n1_y = result.get("n1_y")?;
+
+    let n2_x = result.get("n2_x")?;
+    let n2_y = result.get("n2_y")?;
+
+    let ratio = result.get("ratio")?;
+
+    let mut nom_work = *result.get("nom_work")?;
+    nom_work = assign_x_recursive(nodes, nom_work);
+    if let Some(new_expr) = normalize(nodes, nom_work) {
+        nom_work = assign_x_recursive(nodes, new_expr);
+    }
+
+    let op = if nom_work == assign_x_recursive(nodes, n1_x) {
+        Operation::AddNormalX
+    } else if nom_work == assign_x_recursive(nodes, n1_y) {
+        Operation::AddNormalY
+    } else {
+        Operation::Unk
+    };
+
+    Some((op, vec![n1_x, n1_y, n2_x, n2_y, ratio]))
 }
 
 static OP_OVERLAY2: LazyLock<Graph> = LazyLock::new(|| {
@@ -1674,7 +1722,8 @@ fn tex_parallax<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec
     let ratio = result.get("ratio")?;
     let coord = result.get("coord")?;
 
-    Some((Operation::TexParallax, vec![coord, ratio]))
+    // TODO: Detect x vs y
+    Some((Operation::TexParallaxX, vec![coord, ratio]))
 }
 
 static TEX_PARALLAX3_X: LazyLock<Graph> = LazyLock::new(|| {
@@ -1766,7 +1815,7 @@ fn tex_parallax2<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Ve
     let coord = result.get("coord")?;
 
     // TODO: New operation for this since the math is different.
-    Some((Operation::TexParallax, vec![coord, ratio]))
+    Some((Operation::TexParallaxX, vec![coord, ratio]))
 }
 
 static REFLECT_X: LazyLock<Graph> = LazyLock::new(|| {
@@ -1812,18 +1861,20 @@ static REFLECT_Z: LazyLock<Graph> = LazyLock::new(|| {
 });
 
 fn op_reflect<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(expr, nodes, &REFLECT_X.nodes)
-        .or_else(|| query_nodes(expr, nodes, &REFLECT_Y.nodes))
-        .or_else(|| query_nodes(expr, nodes, &REFLECT_Z.nodes))?;
+    let (op, result) = query_nodes(expr, nodes, &REFLECT_X.nodes)
+        .map(|r| (Operation::ReflectX, r))
+        .or_else(|| query_nodes(expr, nodes, &REFLECT_Y.nodes).map(|r| (Operation::ReflectY, r)))
+        .or_else(|| query_nodes(expr, nodes, &REFLECT_Z.nodes).map(|r| (Operation::ReflectZ, r)))?;
 
     let n_x = result.get("n_x")?;
     let n_y = result.get("n_y")?;
     let n_z = result.get("n_z")?;
+
     let i_x = result.get("i_x")?;
     let i_y = result.get("i_y")?;
     let i_z = result.get("i_z")?;
 
-    Some((Operation::Reflect, vec![i_x, i_y, i_z, n_x, n_y, n_z]))
+    Some((op, vec![i_x, i_y, i_z, n_x, n_y, n_z]))
 }
 
 fn apply_expr_vertex_outputs(

@@ -1,7 +1,7 @@
-o0.x: Texture(s0, TexParallax(vTex0.x, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w)), TexParallax(vTex0.y, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w))).x
-o0.y: Texture(s0, TexParallax(vTex0.x, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w)), TexParallax(vTex0.y, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w))).y
-o0.z: Texture(s0, TexParallax(vTex0.x, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w)), TexParallax(vTex0.y, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w))).z
-o0.w: Mix(Texture(s1, TexParallax(vTex0.x, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w)), TexParallax(vTex0.y, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w))).y, U_Mate.gWrkFl4[0].x, U_Mate.gWrkFl4[0].z)
+o0.x: Texture(s0, TexParallaxX(vTex0.x, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w)), TexParallaxX(vTex0.y, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w))).x
+o0.y: Texture(s0, TexParallaxX(vTex0.x, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w)), TexParallaxX(vTex0.y, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w))).y
+o0.z: Texture(s0, TexParallaxX(vTex0.x, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w)), TexParallaxX(vTex0.y, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w))).z
+o0.w: Mix(Texture(s1, TexParallaxX(vTex0.x, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w)), TexParallaxX(vTex0.y, Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w))).y, U_Mate.gWrkFl4[0].x, U_Mate.gWrkFl4[0].z)
 o1.x: Texture(s2, vTex0.x, vTex0.y).y
 o1.y: Texture(s2, vTex0.x, vTex0.y).x
 o1.z: 0.0

@@ -338,7 +338,6 @@ pub fn fma_half_half<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> 
 static NORMALIZE: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
-            result = result;
             inv_length = inversesqrt(length);
             result = result * inv_length;
         }

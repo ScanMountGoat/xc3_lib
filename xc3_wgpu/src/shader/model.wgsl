@@ -435,6 +435,7 @@ fn transform_uv(uv: vec2<f32>, transform_u: vec4<f32>, transform_v: vec4<f32>) -
     return vec2(dot(v, transform_u), dot(v, transform_v));
 }
 
+// TODO: This is slightly different for both Xenoblade X DE variants?
 fn uv_parallax(vert: VertexOutput, ratio: f32) -> vec2<f32> {
     // TODO: How similar is this to traditional parallax mapping with a height map?
     let bitangent = cross(vert.normal.xyz, vert.tangent.xyz) * vert.tangent.w;
@@ -521,6 +522,8 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     // Normal layers never use fresnel blending, so just use a default for dot(N, V).
     // This avoids needing to define N before layering normal maps.
     var n_dot_v = 1.0;
+
+    // ASSIGN_VARS
 
     // ASSIGN_NORMAL_GENERATED
     

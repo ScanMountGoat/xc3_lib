@@ -23,6 +23,7 @@ pub struct OutputAssignments {
     /// Index into [assignments](#structfield.assignments] for the intensity map for normal mapping.
     pub normal_intensity: Option<usize>,
 
+    /// Unique values shared between all outputs.
     pub assignments: Vec<Assignment>,
 }
 

@@ -13,7 +13,7 @@ use std::{collections::BTreeMap, path::Path};
 use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
-use strum::Display;
+use strum::{Display, FromRepr};
 
 use crate::error::{LoadShaderDatabaseError, SaveShaderDatabaseError};
 
@@ -149,7 +149,7 @@ pub struct AttributeDependency {
 
 /// A function or operation applied to one or more [OutputExpr].
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Display)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Display, FromRepr)]
 pub enum Operation {
     /// `mix(arg0, arg1, arg2)`
     Mix,
@@ -165,8 +165,10 @@ pub enum Operation {
     Fma,
     /// `mix(arg0, arg0 * arg1, arg2)`
     MulRatio,
-    /// Normal blend mode similar to "Reoriented Normal Mapping" (RNM).
-    AddNormal,
+    /// Blend mode `add_normal(n1_x, n1_y, n2_x, n2_y, ratio).x` similar to "Reoriented Normal Mapping" (RNM).
+    AddNormalX,
+    /// Blend mode `add_normal(n1_x, n1_y, n2_x, n2_y, ratio).y` similar to "Reoriented Normal Mapping" (RNM).
+    AddNormalY,
     /// `overlay(arg0, arg1)`.
     Overlay,
     /// `overlay2(arg0, arg1)`.
@@ -189,13 +191,16 @@ pub enum Operation {
     Sqrt,
     /// `dot(vec4(arg0, arg1, 0.0, 1.0), (arg2, arg3, arg4, arg5))`
     TexMatrix,
-    /// ```text
-    /// u = arg0 + arg1 * 0.7 * (normal.x * tangent.x - normal.x * bitangent.x)
-    /// v = arg0 + arg1 * 0.7 * (normal.x * tangent.y - normal.x * bitangent.y)
-    /// ```
-    TexParallax,
-    /// `reflect(vec3(arg0, arg1, arg2), vec3(arg3, arg4, arg5))`
-    Reflect,
+    /// `arg0 + arg1 * 0.7 * (normal.x * tangent.x - normal.x * bitangent.x)`
+    TexParallaxX,
+    /// `arg0 + arg1 * 0.7 * (normal.x * tangent.y - normal.x * bitangent.y)`
+    TexParallaxY,
+    /// `reflect(vec3(arg0, arg1, arg2), vec3(arg3, arg4, arg5)).x`
+    ReflectX,
+    /// `reflect(vec3(arg0, arg1, arg2), vec3(arg3, arg4, arg5)).y`
+    ReflectY,
+    /// `reflect(vec3(arg0, arg1, arg2), vec3(arg3, arg4, arg5)).z`
+    ReflectZ,
     /// An unsupported operation or function call.
     Unk,
 }
