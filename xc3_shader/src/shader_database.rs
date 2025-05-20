@@ -2014,9 +2014,6 @@ fn add_programs(
 pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
     let mut programs = BTreeMap::new();
 
-    // TODO: Run this in parallel?
-    // Only check the first shader for now.
-    // TODO: What do additional nvsd shader entries do?
     for path in globwalk::GlobWalkerBuilder::from_patterns(input, &["*.cashd"])
         .build()
         .unwrap()
@@ -2025,11 +2022,32 @@ pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
         add_programs_legacy(&mut programs, path);
     }
 
+    // Process programs in parallel since this is CPU heavy.
+    let programs = programs
+        .into_par_iter()
+        .map(|(hash, shader)| {
+            (
+                hash,
+                shader_from_latte_asm(
+                    &shader.vertex_source,
+                    &shader.fragment_source,
+                    &shader.fragment_shader,
+                ),
+            )
+        })
+        .collect();
+
     ShaderDatabase::from_programs(programs)
 }
 
+struct LegacyProgram {
+    vertex_source: String,
+    fragment_source: String,
+    fragment_shader: FragmentShader,
+}
+
 fn add_programs_legacy(
-    programs: &mut BTreeMap<ProgramHash, ShaderProgram>,
+    programs: &mut BTreeMap<ProgramHash, LegacyProgram>,
     path: std::path::PathBuf,
 ) {
     let mths = Mths::from_file(&path).unwrap();
@@ -2039,9 +2057,14 @@ fn add_programs_legacy(
     programs.entry(hash).or_insert_with(|| {
         // TODO: Should both shaders be mandatory?
         let vertex_source = std::fs::read_to_string(path.with_extension("vert.txt")).unwrap();
-        let frag_source = std::fs::read_to_string(path.with_extension("frag.txt")).unwrap();
+        let fragment_source = std::fs::read_to_string(path.with_extension("frag.txt")).unwrap();
         let fragment_shader = mths.fragment_shader().unwrap();
-        shader_from_latte_asm(&vertex_source, &frag_source, &fragment_shader)
+
+        LegacyProgram {
+            vertex_source,
+            fragment_source,
+            fragment_shader,
+        }
     });
 }
 
