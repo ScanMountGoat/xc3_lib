@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Adjusted shader database to define outputs with recursive expressions to more accurately represent in game shaders.
 * Improved accuracy, code size, and generation time for xc3_wgpu shader generation.
 
+### Fixed
+* Fixed an issue where Xenoblade X DE wimdo models would have incorrect vertex data after editing with xc3_tex in some cases.
+
 ### Removed
 * Removed dependency list from `xc3_model::shader_database` and associated methods.
 

@@ -855,6 +855,7 @@ pub struct VertexData {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct VertexBufferDescriptor {
+    #[xc3(save_position)]
     pub data_offset: u32,
     pub vertex_count: u32,
     /// The size or stride of the vertex in bytes.
@@ -881,6 +882,7 @@ pub struct VertexBufferDescriptor {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct IndexBufferDescriptor {
+    #[xc3(save_position)]
     pub data_offset: u32,
     pub index_count: u32,
     pub unk1: u16, // TODO: primitive type?
@@ -1261,9 +1263,11 @@ impl Xc3WriteOffsets for VertexDataOffsets<'_> {
         // TODO: Store a shared buffer section and don't assume offset ordering?
         writer.seek(SeekFrom::Start(base_offset + 4096))?;
         for b in vertex_buffers.0 {
+            writer.seek(SeekFrom::Start(base_offset + *b.data_offset.data as u64))?;
             writer.write_all(b.data.data)?;
         }
         for b in index_buffers.0 {
+            writer.seek(SeekFrom::Start(base_offset + *b.data_offset.data as u64))?;
             writer.write_all(b.data.data)?;
         }
         *data_ptr = writer.stream_position()?;
