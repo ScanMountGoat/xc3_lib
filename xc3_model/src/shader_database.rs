@@ -205,7 +205,7 @@ pub enum Operation {
     ReflectZ,
     /// `floor(arg0)`
     Floor,
-    /// `if arg0 { arg1 } else { arg2 }`
+    /// `if arg0 { arg1 } else { arg2 }` or `mix(arg2, arg1, arg0)`
     Select,
     /// `arg0 == arg1`
     Equal,

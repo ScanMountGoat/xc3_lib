@@ -96,7 +96,7 @@ fn func_wgsl(op: &Operation, args: &[usize]) -> Option<String> {
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
         )),
         Operation::Floor => Some(format!("floor({})", arg0?)),
-        Operation::Select => Some(format!("select({}, {}, {})", arg2?, arg1?, arg0?)),
+        Operation::Select => Some(format!("mix({}, {}, f32({}))", arg2?, arg1?, arg0?)),
         Operation::Equal => Some(format!("{} == {}", arg0?, arg1?)),
         Operation::NotEqual => Some(format!("{} != {}", arg0?, arg1?)),
         Operation::Less => Some(format!("{} < {}", arg0?, arg1?)),
