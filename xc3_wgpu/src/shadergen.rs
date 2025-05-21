@@ -42,6 +42,7 @@ fn func_wgsl(op: &Operation, args: &[usize]) -> Option<String> {
     let arg5 = arg(args, 5);
 
     match op {
+        Operation::Unk => None,
         Operation::Mix => Some(format!("mix({}, {}, {})", arg0?, arg1?, arg2?)),
         Operation::Mul => Some(format!("{} * {}", arg0?, arg1?)),
         Operation::Div => Some(format!("{} / {}", arg0?, arg1?)),
@@ -94,7 +95,14 @@ fn func_wgsl(op: &Operation, args: &[usize]) -> Option<String> {
             "reflect(vec3({}, {}, {}), vec3({}, {}, {})).z",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
         )),
-        Operation::Unk => None,
+        Operation::Floor => Some(format!("floor({})", arg0?)),
+        Operation::Select => Some(format!("select({}, {}, {})", arg2?, arg1?, arg0?)),
+        Operation::Equal => Some(format!("{} == {}", arg0?, arg1?)),
+        Operation::NotEqual => Some(format!("{} != {}", arg0?, arg1?)),
+        Operation::Less => Some(format!("{} < {}", arg0?, arg1?)),
+        Operation::Greater => Some(format!("{} > {}", arg0?, arg1?)),
+        Operation::LessEqual => Some(format!("{} <= {}", arg0?, arg1?)),
+        Operation::GreaterEqual => Some(format!("{} >= {}", arg0?, arg1?)),
     }
 }
 

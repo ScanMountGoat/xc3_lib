@@ -13,9 +13,9 @@ o3.x: Mul(Texture(s2, vTex0.x, vTex0.y).z, U_CHR.gAvaSkin.w)
 o3.y: Mul(Texture(s2, vTex0.x, vTex0.y).z, U_CHR.gAvaSkin.w)
 o3.z: Mul(Texture(s2, vTex0.x, vTex0.y).z, U_CHR.gAvaSkin.w)
 o3.w: U_Mate.gWrkFl4.x
-o4.x: Mul(Fma(0.0, Sub(0.0, Sub(Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 8.0), Unk())), Sub(Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 8.0), Unk())), 1.0039216)
-o4.y: Mul(Mix(Sub(Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 0.03125), Unk()), Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 8.0), -0.00390625), 1.0039216)
-o4.z: Mul(Mix(Sub(Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 0.00012207031), Unk()), Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 0.03125), -0.00390625), 1.0039216)
+o4.x: Mul(Fma(0.0, Sub(0.0, Sub(Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 8.0), Floor(Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 8.0)))), Sub(Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 8.0), Floor(Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 8.0)))), 1.0039216)
+o4.y: Mul(Mix(Sub(Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 0.03125), Floor(Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 0.03125))), Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 8.0), -0.00390625), 1.0039216)
+o4.z: Mul(Mix(Sub(Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 0.00012207031), Floor(Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 0.00012207031))), Mul(Min(Mul(Sub(vPos.x, U_Static.gCDep.y), U_Static.gCDep.z), 8191.9995), 0.03125), -0.00390625), 1.0039216)
 o4.w: Texture(s2, vTex0.x, vTex0.y).x
 o6.x: 1.0
 o6.y: Texture(s3, vTex0.x, vTex0.y).x

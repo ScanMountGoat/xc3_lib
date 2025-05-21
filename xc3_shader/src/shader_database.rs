@@ -376,13 +376,23 @@ pub(crate) fn output_expr(
             }
 
             // Detect attributes.
-            if let Some(new_expr) = skin_attribute_xyz(&graph.nodes, expr) {
-                expr = new_expr;
-            }
+            // TODO: preserve the space for attributes like clip or view?
             if let Some(new_expr) = skin_attribute_xyzw(&graph.nodes, expr) {
                 expr = new_expr;
             }
+            if let Some(new_expr) = skin_attribute_xyz(&graph.nodes, expr) {
+                expr = new_expr;
+            }
             if let Some(new_expr) = skin_attribute_clip_space_xyzw(&graph.nodes, expr) {
+                expr = new_expr;
+            }
+            if let Some(new_expr) = u_mdl_clip_attribute_xyzw(&graph.nodes, expr) {
+                expr = new_expr;
+            }
+            if let Some(new_expr) = u_mdl_view_attribute_xyzw(&graph.nodes, expr) {
+                expr = new_expr;
+            }
+            if let Some(new_expr) = u_mdl_attribute_xyz(&graph.nodes, expr) {
                 expr = new_expr;
             }
 
@@ -436,6 +446,14 @@ fn output_expr_inner(
             .or_else(|| op_max(&graph.nodes, expr))
             .or_else(|| op_sqrt(&graph.nodes, expr))
             .or_else(|| unary_op(expr, "abs", Operation::Abs))
+            .or_else(|| unary_op(expr, "floor", Operation::Floor))
+            .or_else(|| binary_op(expr, BinaryOp::Equal, Operation::Equal))
+            .or_else(|| binary_op(expr, BinaryOp::NotEqual, Operation::NotEqual))
+            .or_else(|| binary_op(expr, BinaryOp::Less, Operation::Less))
+            .or_else(|| binary_op(expr, BinaryOp::Greater, Operation::Greater))
+            .or_else(|| binary_op(expr, BinaryOp::LessEqual, Operation::LessEqual))
+            .or_else(|| binary_op(expr, BinaryOp::GreaterEqual, Operation::GreaterEqual))
+            .or_else(|| ternary(expr))
         {
             // Recursively detect values or functions.
             let args: Vec<_> = args
@@ -444,7 +462,7 @@ fn output_expr_inner(
                 .collect();
             OutputExpr::Func { op, args }
         } else {
-            // TODO: sqrt, inversesqrt, floor, ternary, comparisons,
+            // TODO: inversesqrt
             // TODO: exp2 should always be part of a pow expression
             // TODO: better fallback for unrecognized function or values?
             // TODO: log unsupported expr during database creation?
@@ -740,6 +758,14 @@ fn unary_op<'a>(
         }
     }
     None
+}
+
+fn ternary<'a>(expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    if let Expr::Ternary(cond, a, b) = expr {
+        Some((Operation::Select, vec![cond, a, b]))
+    } else {
+        None
+    }
 }
 
 static OP_SUB: LazyLock<Graph> =
@@ -1657,6 +1683,186 @@ fn skin_attribute_bitangent<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<Exp
         name: "vBitan".into(),
         channel: Some(channel),
     })
+}
+
+static U_MDL_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = result_x;
+            temp_1 = result_y;
+            temp_2 = result_z;
+            temp_3 = result_w;
+            temp_24 = temp_0 * U_Mdl.gmWorldView[0].x;
+            temp_28 = fma(temp_1, U_Mdl.gmWorldView[0].y, temp_24);
+            temp_34 = fma(temp_2, U_Mdl.gmWorldView[0].z, temp_28);
+            temp_40 = fma(temp_3, U_Mdl.gmWorldView[0].w, temp_34);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static U_MDL_ATTRIBUTE_XYZW_Y: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = result_x;
+            temp_1 = result_y;
+            temp_2 = result_z;
+            temp_3 = result_w;
+            temp_23 = temp_0 * U_Mdl.gmWorldView[1].x;
+            temp_27 = fma(temp_1, U_Mdl.gmWorldView[1].y, temp_23);
+            temp_33 = fma(temp_2, U_Mdl.gmWorldView[1].z, temp_27);
+            temp_39 = fma(temp_3, U_Mdl.gmWorldView[1].w, temp_33);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static U_MDL_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = result_x;
+            temp_1 = result_y;
+            temp_2 = result_z;
+            temp_3 = result_w;
+            temp_22 = temp_0 * U_Mdl.gmWorldView[2].x;
+            temp_26 = fma(temp_1, U_Mdl.gmWorldView[2].y, temp_22);
+            temp_31 = fma(temp_2, U_Mdl.gmWorldView[2].z, temp_26);
+            temp_37 = fma(temp_3, U_Mdl.gmWorldView[2].w, temp_31);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn u_mdl_view_attribute_xyzw<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
+    query_nodes(expr, nodes, &U_MDL_ATTRIBUTE_XYZW_X.nodes)
+        .and_then(|r| r.get("result_x").copied())
+        .or_else(|| {
+            query_nodes(expr, nodes, &U_MDL_ATTRIBUTE_XYZW_Y.nodes)
+                .and_then(|r| r.get("result_y").copied())
+        })
+        .or_else(|| {
+            query_nodes(expr, nodes, &U_MDL_ATTRIBUTE_XYZW_Z.nodes)
+                .and_then(|r| r.get("result_z").copied())
+        })
+}
+
+static U_MDL_CLIP_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = result_x;
+            temp_1 = result_y;
+            temp_2 = result_z;
+            temp_3 = result_w;
+            temp_8 = temp_0 * U_Mdl.gmWVP[0].x;
+            temp_16 = fma(temp_1, U_Mdl.gmWVP[0].y, temp_8);
+            temp_29 = fma(temp_2, U_Mdl.gmWVP[0].z, temp_16);
+            temp_36 = fma(temp_3, U_Mdl.gmWVP[0].w, temp_29);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static U_MDL_CLIP_ATTRIBUTE_XYZW_Y: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = result_x;
+            temp_1 = result_y;
+            temp_2 = result_z;
+            temp_3 = result_w;
+            temp_12 = temp_0 * U_Mdl.gmWVP[1].x;
+            temp_21 = fma(temp_1, U_Mdl.gmWVP[1].y, temp_12);
+            temp_32 = fma(temp_2, U_Mdl.gmWVP[1].z, temp_21);
+            temp_38 = fma(temp_3, U_Mdl.gmWVP[1].w, temp_32);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static U_MDL_CLIP_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = result_x;
+            temp_1 = result_y;
+            temp_2 = result_z;
+            temp_3 = result_w;
+            temp_20 = temp_0 * U_Mdl.gmWVP[2].x;
+            temp_25 = fma(temp_1, U_Mdl.gmWVP[2].y, temp_20);
+            temp_30 = fma(temp_2, U_Mdl.gmWVP[2].z, temp_25);
+            temp_35 = fma(temp_3, U_Mdl.gmWVP[2].w, temp_30);
+            temp_42 = 0.0 - U_Static.gCDep.y;
+            temp_43 = temp_35 + temp_42;
+            temp_49 = temp_43 * U_Static.gCDep.z;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn u_mdl_clip_attribute_xyzw<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
+    query_nodes(expr, nodes, &U_MDL_CLIP_ATTRIBUTE_XYZW_X.nodes)
+        .and_then(|r| r.get("result_x").copied())
+        .or_else(|| {
+            query_nodes(expr, nodes, &U_MDL_CLIP_ATTRIBUTE_XYZW_Y.nodes)
+                .and_then(|r| r.get("result_y").copied())
+        })
+        .or_else(|| {
+            query_nodes(expr, nodes, &U_MDL_CLIP_ATTRIBUTE_XYZW_Z.nodes)
+                .and_then(|r| r.get("result_z").copied())
+        })
+}
+
+static U_MDL_ATTRIBUTE_XYZ_X: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = result_x;
+            temp_1 = result_y;
+            temp_2 = result_z;
+            temp_24 = temp_0 * U_Mdl.gmWorldView[0].x;
+            temp_28 = fma(temp_1, U_Mdl.gmWorldView[0].y, temp_24);
+            temp_34 = fma(temp_2, U_Mdl.gmWorldView[0].z, temp_28);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static U_MDL_ATTRIBUTE_XYZ_Y: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = result_x;
+            temp_1 = result_y;
+            temp_2 = result_z;
+            temp_23 = temp_0 * U_Mdl.gmWorldView[1].x;
+            temp_27 = fma(temp_1, U_Mdl.gmWorldView[1].y, temp_23);
+            temp_33 = fma(temp_2, U_Mdl.gmWorldView[1].z, temp_27);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static U_MDL_ATTRIBUTE_XYZ_Z: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = result_x;
+            temp_1 = result_y;
+            temp_2 = result_z;
+            temp_22 = temp_0 * U_Mdl.gmWorldView[2].x;
+            temp_26 = fma(temp_1, U_Mdl.gmWorldView[2].y, temp_22);
+            temp_31 = fma(temp_2, U_Mdl.gmWorldView[2].z, temp_26);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn u_mdl_attribute_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
+    query_nodes(expr, nodes, &U_MDL_ATTRIBUTE_XYZ_X.nodes)
+        .and_then(|r| r.get("result_x").copied())
+        .or_else(|| {
+            query_nodes(expr, nodes, &U_MDL_ATTRIBUTE_XYZ_Y.nodes)
+                .and_then(|r| r.get("result_y").copied())
+        })
+        .or_else(|| {
+            query_nodes(expr, nodes, &U_MDL_ATTRIBUTE_XYZ_Z.nodes)
+                .and_then(|r| r.get("result_z").copied())
+        })
 }
 
 static TEX_MATRIX: LazyLock<Graph> = LazyLock::new(|| {

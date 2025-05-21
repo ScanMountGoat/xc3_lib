@@ -10,9 +10,9 @@ o3.x: Texture(s3, R6.x, R6.y).x
 o3.y: Texture(s3, R6.x, R6.y).y
 o3.z: Texture(s3, R6.x, R6.y).z
 o3.w: KC0[1].x
-o4.x: Sub(Mul(R2.z, 8.0), Unk())
-o4.y: Sub(Mul(Unk(), 0.003921569), Unk())
-o4.z: Mul(Unk(), 0.003921569)
+o4.x: Sub(Mul(R2.z, 8.0), Floor(Mul(R2.z, 8.0)))
+o4.y: Sub(Mul(Floor(Mul(R2.z, 8.0)), 0.003921569), Floor(Mul(Floor(Mul(R2.z, 8.0)), 0.003921569)))
+o4.z: Mul(Floor(Mul(Floor(Mul(R2.z, 8.0)), 0.003921569)), 0.003921569)
 o4.w: Texture(s1, R6.x, R6.y).z
 outline_width: None
 normal_intensity: None

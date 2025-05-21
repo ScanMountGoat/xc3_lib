@@ -151,6 +151,8 @@ pub struct AttributeDependency {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Display, FromRepr)]
 pub enum Operation {
+    /// An unsupported operation or function call.
+    Unk,
     /// `mix(arg0, arg1, arg2)`
     Mix,
     /// `arg0 * arg1`
@@ -201,8 +203,22 @@ pub enum Operation {
     ReflectY,
     /// `reflect(vec3(arg0, arg1, arg2), vec3(arg3, arg4, arg5)).z`
     ReflectZ,
-    /// An unsupported operation or function call.
-    Unk,
+    /// `floor(arg0)`
+    Floor,
+    /// `if arg0 { arg1 } else { arg2 }`
+    Select,
+    /// `arg0 == arg1`
+    Equal,
+    /// `arg0 != arg1`
+    NotEqual,
+    /// `arg0 < arg1`
+    Less,
+    /// `arg0 > arg1`
+    Greater,
+    /// `arg0 <= arg1`
+    LessEqual,
+    /// `arg0 >= arg1`
+    GreaterEqual,
 }
 
 impl Default for Operation {
