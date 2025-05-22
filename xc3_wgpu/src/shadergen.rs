@@ -40,6 +40,8 @@ fn func_wgsl(op: &Operation, args: &[usize]) -> Option<String> {
     let arg3 = arg(args, 3);
     let arg4 = arg(args, 4);
     let arg5 = arg(args, 5);
+    let arg6 = arg(args, 6);
+    let arg7 = arg(args, 7);
 
     match op {
         Operation::Unk => None,
@@ -103,6 +105,10 @@ fn func_wgsl(op: &Operation, args: &[usize]) -> Option<String> {
         Operation::Greater => Some(format!("{} > {}", arg0?, arg1?)),
         Operation::LessEqual => Some(format!("{} <= {}", arg0?, arg1?)),
         Operation::GreaterEqual => Some(format!("{} >= {}", arg0?, arg1?)),
+        Operation::Dot4 => Some(format!(
+            "dot(vec4({}, {}, {}, {}), vec4({}, {}, {}, {}))",
+            arg0?, arg1?, arg2?, arg3?, arg4?, arg5?, arg6?, arg7?
+        )),
     }
 }
 

@@ -219,6 +219,8 @@ pub enum Operation {
     LessEqual,
     /// `arg0 >= arg1`
     GreaterEqual,
+    /// `dot(vec4(arg0, arg1, arg2, arg3), vec4(arg4, arg5, arg6, arg7))`
+    Dot4,
 }
 
 impl Default for Operation {

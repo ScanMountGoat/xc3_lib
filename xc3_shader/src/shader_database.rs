@@ -445,6 +445,7 @@ fn output_expr_inner(
             .or_else(|| op_min(&graph.nodes, expr))
             .or_else(|| op_max(&graph.nodes, expr))
             .or_else(|| op_sqrt(&graph.nodes, expr))
+            .or_else(|| op_dot(&graph.nodes, expr))
             .or_else(|| unary_op(expr, "abs", Operation::Abs))
             .or_else(|| unary_op(expr, "floor", Operation::Floor))
             .or_else(|| binary_op(expr, BinaryOp::Equal, Operation::Equal))
@@ -745,6 +746,31 @@ fn op_sqrt<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a 
         .or_else(|| query_nodes(expr, nodes, &OP_SQRT2.nodes))?;
     let result = result.get("result")?;
     Some((Operation::Sqrt, vec![result]))
+}
+
+static OP_DOT4: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            result = dot(vec4(ax, ay, az, aw), vec4(bx, by, bz, bw));
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn op_dot<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes(expr, nodes, &OP_DOT4.nodes)?;
+
+    let ax = result.get("ax")?;
+    let ay = result.get("ay")?;
+    let az = result.get("az")?;
+    let aw = result.get("aw")?;
+
+    let bx = result.get("bx")?;
+    let by = result.get("by")?;
+    let bz = result.get("bz")?;
+    let bw = result.get("bw")?;
+
+    Some((Operation::Dot4, vec![ax, ay, az, aw, bx, by, bz, bw]))
 }
 
 fn unary_op<'a>(
@@ -2396,11 +2422,11 @@ mod tests {
     use super::*;
 
     use indoc::indoc;
-    use pretty_assertions::{assert_eq, assert_str_eq};
+    use pretty_assertions::assert_eq;
 
     macro_rules! assert_debug_eq {
         ($path:expr, $shader:expr) => {
-            assert_str_eq!(include_str!($path), shader_str(&$shader))
+            assert!(include_str!($path) == shader_str(&$shader))
         };
     }
 
