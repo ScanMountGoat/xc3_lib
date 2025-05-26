@@ -23,3 +23,8 @@ anyhow = "1.0.0"
 indoc = "2.0.0"
 ordered-float = "5.0.0"
 strum = { version = "0.26.3", features = ["derive"] }
+insta = "1.43.1"
+
+[profile.dev.package]
+insta.opt-level = 3
+similar.opt-level = 3

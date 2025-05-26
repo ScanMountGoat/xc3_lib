@@ -29,6 +29,8 @@ The rendering can be tested by batch rendering files to PNG. This tests xc3_lib,
 `cargo run -p xc3_wgpu_batch --release "root/model/bl" wimdo xc2.bin`  
 `cargo run -p xc3_wgpu_batch --release "root/map" wismhd xc3.bin`  
 
+Shader database tests use [insta](https://crates.io/crates/insta) and [cargo-insta](https://crates.io/crates/cargo-insta) for snapshot testing. Tests write shader types to a custom string format stored in `.snap` files. Running tests with `cargo test` will generate `.snap.new` files with any changes. Review changes with `cargo insta review`. Accept changes with `cargo insta accept`.
+
 ## CPU Profiling
 For Linux and MacOS, an easy way to identify performance bottlenecks is by using [cargo-flamegraph](https://github.com/flamegraph-rs/flamegraph) or [samply](https://github.com/mstange/samply). Windows users can install the latest version of Visual Studio and use its builtin performance profiler. Visual Studio can profile the generated Rust executable and even view the data as a flamegraph. Make sure to profile in release mode with debug info enabled by temporarily adding the following lines to the `Cargo.toml` in the root directory.  
 

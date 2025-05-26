@@ -27,6 +27,7 @@ indoc.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true
+insta.workspace = true
 
 [features]
 default = ["xc3"]

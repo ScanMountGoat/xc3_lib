@@ -65,6 +65,8 @@ pub fn shader_from_glsl(
             let name = format!("out_attr{i}");
             let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
 
+            // TODO: Skip o3.xyw (depth) and o4.xyz (velocity)
+            // TODO: skip using queries or use separate CLI command?
             let value;
             if i == 2 && (c == 'x' || c == 'y') {
                 // The normals use XY for output index 2 for all games.
@@ -373,6 +375,9 @@ pub(crate) fn output_expr(
             let mut expr = assign_x_recursive(&graph.nodes, expr);
             if let Some(new_expr) = normal_map_fma(&graph.nodes, expr) {
                 expr = new_expr;
+            }
+            if let Some(new_expr) = normalize(&graph.nodes, expr) {
+                expr = assign_x_recursive(&graph.nodes, new_expr);
             }
 
             // Detect attributes.
@@ -2376,7 +2381,7 @@ pub fn shader_str(s: &ShaderProgram) -> String {
     // Use a condensed representation similar to GLSL for nicer diffs.
     let mut output = String::new();
     for (k, v) in &s.output_dependencies {
-        writeln!(&mut output, "{k}: {}", expr_str(s, *v)).unwrap();
+        writeln!(&mut output, "{k:?}: {:?}", expr_str(s, *v)).unwrap();
     }
     writeln!(
         &mut output,
@@ -2389,7 +2394,7 @@ pub fn shader_str(s: &ShaderProgram) -> String {
     .unwrap();
     match s.normal_intensity {
         Some(i) => {
-            writeln!(&mut output, "normal_intensity: {}", expr_str(s, i)).unwrap();
+            writeln!(&mut output, "normal_intensity: {:?}", expr_str(s, i)).unwrap();
         }
         None => writeln!(&mut output, "normal_intensity: None").unwrap(),
     }
@@ -2422,11 +2427,40 @@ mod tests {
     use super::*;
 
     use indoc::indoc;
+    use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
 
     macro_rules! assert_debug_eq {
         ($path:expr, $shader:expr) => {
-            assert!(include_str!($path) == shader_str(&$shader))
+            let path = std::path::Path::new(std::env!("CARGO_MANIFEST_DIR"))
+                .join("src")
+                .join($path);
+            std::fs::write(path, shader_str(&$shader)).unwrap();
+            // assert!(include_str!($path) == shader_str(&$shader))
+        };
+    }
+
+    macro_rules! assert_shader_snapshot {
+        ($folder:expr, $name: expr, $index:expr) => {
+            let vert_glsl =
+                include_str!(concat!("data/", $folder, "/", $name, ".", $index, ".vert"));
+            let frag_glsl =
+                include_str!(concat!("data/", $folder, "/", $name, ".", $index, ".frag"));
+            let vertex = TranslationUnit::parse(vert_glsl).unwrap();
+            let fragment = TranslationUnit::parse(frag_glsl).unwrap();
+
+            let shader = shader_from_glsl(Some(&vertex), &fragment);
+
+            let mut settings = insta::Settings::new();
+            settings.set_prepend_module_to_snapshot(false);
+            settings.set_omit_expression(true);
+            settings.bind(|| {
+                // Use names like "xc2 bl000101.22"
+                assert_snapshot!(
+                    concat!($folder, " ", $name, ".", $index),
+                    shader_str(&shader)
+                );
+            });
         };
     }
 
@@ -2470,237 +2504,129 @@ mod tests {
     fn shader_from_glsl_pyra_body() {
         // Test shaders from Pyra's metallic chest material.
         // xeno2/model/bl/bl000101, "ho_BL_TS2", shd0022
-        let vert_glsl = include_str!("data/xc2/bl000101.22.vert");
-        let frag_glsl = include_str!("data/xc2/bl000101.22.frag");
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc2/bl000101.22.txt", shader);
+        assert_shader_snapshot!("xc2", "bl000101", "22");
     }
 
     #[test]
     fn shader_from_glsl_pyra_hair() {
         // xeno2/model/bl/bl000101, "_ho_hair_new", shd0008
-        let vert_glsl = include_str!("data/xc2/bl000101.8.vert");
-        let frag_glsl = include_str!("data/xc2/bl000101.8.frag");
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-
         // Check that the color texture is multiplied by vertex color.
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc2/bl000101.8.txt", shader);
+        assert_shader_snapshot!("xc2", "bl000101", "8");
     }
 
     #[test]
     fn shader_from_glsl_mio_skirt() {
         // xeno3/chr/ch/ch11021013, "body_skert2", shd0028
-        let vert_glsl = include_str!("data/xc3/ch11021013.28.vert");
-        let frag_glsl = include_str!("data/xc3/ch11021013.28.frag");
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-
         // The pcmdo calcGeometricSpecularAA function compiles to the expression
         // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2 0.0, 1.0))
         // Consuming applications only care about the glossiness input.
         // This also avoids considering normal maps as a dependency.
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc3/ch11021013.28.txt", shader);
+        assert_shader_snapshot!("xc3", "ch11021013", "28");
     }
 
     #[test]
     fn shader_from_glsl_mio_metal() {
         // xeno3/chr/ch/ch11021013, "tlent_mio_metal1", shd0031
-        let vert_glsl = include_str!("data/xc3/ch11021013.31.vert");
-        let frag_glsl = include_str!("data/xc3/ch11021013.31.frag");
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-
         // Test multiple calls to getPixelCalcAddNormal.
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc3/ch11021013.31.txt", shader);
+        assert_shader_snapshot!("xc3", "ch11021013", "31");
     }
 
     #[test]
     fn shader_from_glsl_mio_legs() {
         // xeno3/chr/ch/ch11021013, "body_stking1", shd0016
-        let vert_glsl = include_str!("data/xc3/ch11021013.16.vert");
-        let frag_glsl = include_str!("data/xc3/ch11021013.16.frag");
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-
         // Test that color layers use the appropriate fresnel operation.
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc3/ch11021013.16.txt", shader);
+        assert_shader_snapshot!("xc3", "ch11021013", "16");
     }
 
     #[test]
     fn shader_from_glsl_mio_eyes() {
         // xeno3/chr/ch/ch01021011, "eye4", shd0063
-        let vert_glsl = include_str!("data/xc3/ch01021011.63.vert");
-        let frag_glsl = include_str!("data/xc3/ch01021011.63.frag");
-
         // Detect parallax mapping for texture coordinates.
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc3/ch01021011.63.txt", shader);
+        assert_shader_snapshot!("xc3", "ch01021011", "63");
     }
 
     #[test]
     fn shader_from_glsl_mio_ribbon() {
         // xeno3/chr/ch/ch01027000, "phong4", shd0044
-        let vert_glsl = include_str!("data/xc3/ch01027000.44.vert");
-        let frag_glsl = include_str!("data/xc3/ch01027000.44.frag");
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-
         // Detect handling of gMatCol.
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc3/ch01027000.44.txt", shader);
+        assert_shader_snapshot!("xc3", "ch01027000", "44");
     }
 
     #[test]
     fn shader_from_glsl_wild_ride_body() {
         // xeno3/chr/ch/ch02010110, "body_m", shd0028
-        let vert_glsl = include_str!("data/xc3/ch02010110.28.vert");
-        let frag_glsl = include_str!("data/xc3/ch02010110.28.frag");
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-
         // Some shaders use a simple mix() for normal blending.
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc3/ch02010110.28.txt", shader);
+        assert_shader_snapshot!("xc3", "ch02010110", "28");
     }
 
     #[test]
     fn shader_from_glsl_sena_body() {
         // xeno3/chr/ch/ch11061013, "bodydenim_toon", shd0009
-        let vert_glsl = include_str!("data/xc3/ch11061013.9.vert");
-        let frag_glsl = include_str!("data/xc3/ch11061013.9.frag");
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-
         // Some shaders use multiple color blending modes.
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc3/ch11061013.9.txt", shader);
+        assert_shader_snapshot!("xc3", "ch11061013", "9");
     }
 
     #[test]
     fn shader_from_glsl_platform() {
         // xeno1/model/obj/oj110006, "ma14toride03", shd0003
-        let vert_glsl = include_str!("data/xc1/oj110006.3.vert");
-        let frag_glsl = include_str!("data/xc1/oj110006.3.frag");
-
         // Test detecting multiple normal layers with different blend modes.
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc1/oj110006.3.txt", shader);
+        assert_shader_snapshot!("xc1", "oj110006", "3");
     }
 
     #[test]
     fn shader_from_glsl_xc1_normal_w_intensity() {
         // xeno1/model/pc/pc078702, "pc070702_body", shd0001
-        let vert_glsl = include_str!("data/xc1/pc078702.1.vert");
-        let frag_glsl = include_str!("data/xc1/pc078702.1.frag");
-
         // Test detecting xyz normal maps with vNormal.w intensity.
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc1/pc078702.1.txt", shader);
+        assert_shader_snapshot!("xc1", "pc078702", "1");
     }
 
     #[test]
     fn shader_from_glsl_haze_body() {
         // xeno2/model/np/np001101, "body", shd0013
-        let vert_glsl = include_str!("data/xc2/np001101.13.vert");
-        let frag_glsl = include_str!("data/xc2/np001101.13.frag");
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-
         // Test multiple normal layers with texture masks.
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc2/np001101.13.txt", shader);
+        assert_shader_snapshot!("xc2", "np001101", "13");
     }
 
     #[test]
     fn shader_from_glsl_pneuma_chest() {
         // xeno2/model/bl/bl000301, "tights_TS", shd0021
-        let vert_glsl = include_str!("data/xc2/bl000301.21.vert");
-        let frag_glsl = include_str!("data/xc2/bl000301.21.frag");
-
         // Test detecting the "PNEUMA" color layer.
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc2/bl000301.21.txt", shader);
+        assert_shader_snapshot!("xc2", "bl000301", "21");
     }
 
     #[test]
     fn shader_from_glsl_tirkin_weapon() {
         // xeno2/model/we/we010402, "body_MT", shd0000
-        let vert_glsl = include_str!("data/xc2/we010402.0.vert");
-        let frag_glsl = include_str!("data/xc2/we010402.0.frag");
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-
         // Test detecting layers for metalness.
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc2/we010402.0.txt", shader);
+        assert_shader_snapshot!("xc2", "we010402", "0");
     }
 
     #[test]
     fn shader_from_glsl_behemoth_fins() {
         // xeno2/model/en/en020601, "hire_a", shd0000
-        let vert_glsl = include_str!("data/xc2/en020601.0.vert");
-        let frag_glsl = include_str!("data/xc2/en020601.0.frag");
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-
         // Test detecting layers for ambient occlusion.
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc2/en020601.0.txt", shader);
+        assert_shader_snapshot!("xc2", "en020601", "0");
     }
 
     #[test]
     fn shader_from_glsl_lysaat_eyes() {
         // xeno2/model/en/en030601, "phong3", shd0009
-        let vert_glsl = include_str!("data/xc2/en030601.2.vert");
-        let frag_glsl = include_str!("data/xc2/en030601.2.frag");
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-
         // Detect parallax mapping for texture coordinates.
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc2/en030601.2.txt", shader);
+        assert_shader_snapshot!("xc2", "en030601", "2");
     }
 
     #[test]
     fn shader_from_glsl_noah_body_outline() {
         // xeno3/chr/ch/ch01011013, "body_outline", shd0000
-        let vert_glsl = include_str!("data/xc3/ch01011013.0.vert");
-        let frag_glsl = include_str!("data/xc3/ch01011013.0.frag");
-
         // Check for outline data.
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc3/ch01011013.0.txt", shader);
+        assert_shader_snapshot!("xc3", "ch01011013", "0");
     }
 
     #[test]
     fn shader_from_glsl_panacea_body() {
         // xeno3/chr/ch/ch44000210, "ch45133501_body", shd0029
-        let vert_glsl = include_str!("data/xc3/ch44000210.29.vert");
-        let frag_glsl = include_str!("data/xc3/ch44000210.29.frag");
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-
         // Check for correct color layers
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xc3/ch44000210.29.txt", shader);
+        assert_shader_snapshot!("xc3", "ch44000210", "29");
     }
 
     #[test]
@@ -2784,39 +2710,21 @@ mod tests {
     #[test]
     fn shader_from_glsl_l_face() {
         // xenoxde/chr/fc/fc181020, "facemat", shd0008
-        let vert_glsl = include_str!("data/xcxde/fc181020.8.vert");
-        let frag_glsl = include_str!("data/xcxde/fc181020.8.frag");
-
         // Check for overlay blending to make the face blue.
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xcxde/fc181020.8.txt", shader);
+        assert_shader_snapshot!("xcxde", "fc181020", "8");
     }
 
     #[test]
     fn shader_from_glsl_elma_eye() {
         // xenoxde/chr/fc/fc281010, "eye_re", shd0002
-        let vert_glsl = include_str!("data/xcxde/fc281010.2.vert");
-        let frag_glsl = include_str!("data/xcxde/fc281010.2.frag");
-
         // Check reflection layers for the iris.
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xcxde/fc281010.2.txt", shader);
+        assert_shader_snapshot!("xcxde", "fc281010", "2");
     }
 
     #[test]
     fn shader_from_glsl_elma_leg() {
         // xenoxde/chr/pc/pc221115, "leg_mat", shd0000
-        let vert_glsl = include_str!("data/xcxde/pc221115.0.vert");
-        let frag_glsl = include_str!("data/xcxde/pc221115.0.frag");
-
         // Check Xenoblade X specific normals and layering.
-        let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-        let fragment = TranslationUnit::parse(frag_glsl).unwrap();
-        let shader = shader_from_glsl(Some(&vertex), &fragment);
-        assert_debug_eq!("data/xcxde/pc221115.0.txt", shader);
+        assert_shader_snapshot!("xcxde", "pc221115", "0");
     }
 }
