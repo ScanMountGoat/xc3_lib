@@ -118,6 +118,8 @@ pub struct MaterialParameters {
 
 impl MaterialParameters {
     pub fn get_dependency(&self, p: &BufferDependency) -> Option<f32> {
+        // TODO: camera parameters like U_Mdl.gmWorldView and U_Mdl.gmWVP?
+
         // TODO: How to handle the case where the input has no channels?
         let c = "xyzw".find(p.channel?).unwrap();
         let index = p.index.unwrap_or_default();
@@ -148,8 +150,20 @@ impl MaterialParameters {
             .get(index)?
             .get(c),
             // Xenoblade X DE
-            ("U_Mate", "gMatAmb") => self.material_ambient.as_ref()?.get(index)?.get(c),
-            ("U_Mate", "gMatSpec") => self.material_specular.as_ref()?.get(index)?.get(c),
+            // TODO: Some materials have no work values but still have values set?
+            // TODO: Are these default values always the same?
+            ("U_Mate", "gMatAmb") => self
+                .material_ambient
+                .as_ref()?
+                .get(index)
+                .unwrap_or(&[1.0; 4])
+                .get(c),
+            ("U_Mate", "gMatSpec") => self
+                .material_specular
+                .as_ref()?
+                .get(index)
+                .unwrap_or(&[0.0, 0.0, 0.0, 0.02])
+                .get(c),
             ("U_Mate", "gDTWrk") => self.dt_work.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gMdlParm") => self.mdl_param.as_ref()?.get(index)?.get(c),
             ("U_CHR", "gAvaSkin") => self.ava_skin.as_ref()?.get(c),
