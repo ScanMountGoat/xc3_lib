@@ -151,7 +151,7 @@ impl MaterialParameters {
             .get(c),
             // Xenoblade X DE
             // TODO: Some materials have no work values but still have values set?
-            // TODO: Are these default values always the same?
+            // TODO: these default values aren't always the same?
             ("U_Mate", "gMatAmb") => self
                 .material_ambient
                 .as_ref()?
@@ -162,7 +162,7 @@ impl MaterialParameters {
                 .material_specular
                 .as_ref()?
                 .get(index)
-                .unwrap_or(&[0.0, 0.0, 0.0, 0.02])
+                .unwrap_or(&[0.0, 0.0, 0.0, 0.1])
                 .get(c),
             ("U_Mate", "gDTWrk") => self.dt_work.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gMdlParm") => self.mdl_param.as_ref()?.get(index)?.get(c),
@@ -677,9 +677,9 @@ fn read_param<const N: usize>(
         .map(|values| {
             values
                 .chunks(N)
+                .take(param.count as usize)
                 .map(|v| {
                     // TODO: Just keep indices to reference values instead?
-                    // TODO: The param count field doesn't work here for Pyra ho_BL_TS2?
                     let mut output = [0.0; N];
                     for (o, v) in output.iter_mut().zip(v) {
                         *o = *v;
@@ -701,9 +701,9 @@ fn read_param_legacy<const N: usize>(
         .map(|values| {
             values
                 .chunks(N)
+                .take(param.count as usize)
                 .map(|v| {
                     // TODO: Just keep indices to reference values instead?
-                    // TODO: The param count field doesn't work here for Pyra ho_BL_TS2?
                     let mut output = [0.0; N];
                     for (o, v) in output.iter_mut().zip(v) {
                         *o = *v;

@@ -330,6 +330,8 @@ pub struct MaterialParameter {
     pub param_type: ParamType,
     pub work_value_index: u16, // added to work value start index?
     pub unk: u16,
+    /// The number of elements for an array or `1` for a single element
+    /// or `0` for values initialized without work values.
     pub count: u16, // actual number of bytes depends on type?
 }
 
