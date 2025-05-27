@@ -1,10 +1,15 @@
 use std::{
+    collections::BTreeSet,
     error::Error,
+    fmt::Write,
     io::BufReader,
     path::{Path, PathBuf},
 };
 
-use crate::annotation::{annotate_fragment, annotate_vertex};
+use crate::{
+    annotation::{annotate_fragment, annotate_vertex},
+    graph::{Expr, Graph},
+};
 use log::error;
 use rayon::prelude::*;
 use xc3_lib::{
@@ -186,21 +191,26 @@ pub fn extract_and_disassemble_shaders(input: &str, output: &str, gfd_tool: &str
             std::fs::create_dir_all(&output_folder).unwrap();
 
             // Shaders are embedded in the camdo file.
+            // TODO: Also get the corresponding technique
             match MxmdLegacy::from_file(path) {
                 Ok(mxmd) => {
                     mxmd.shaders
                         .shaders
                         .iter()
+                        .zip(&mxmd.materials.techniques)
                         .enumerate()
-                        .for_each(|(i, shader)| match Mths::from_bytes(&shader.mths_data) {
-                            Ok(mths) => extract_legacy_shaders(
-                                &mths,
-                                &shader.mths_data,
-                                &output_folder,
-                                gfd_tool,
-                                i,
-                            ),
-                            Err(e) => println!("Error extracting Mths from {path:?}: {e}"),
+                        .for_each(|(i, (shader, technique))| {
+                            match Mths::from_bytes(&shader.mths_data) {
+                                Ok(mths) => extract_legacy_shaders(
+                                    &mths,
+                                    &shader.mths_data,
+                                    &output_folder,
+                                    gfd_tool,
+                                    i,
+                                    Some(technique),
+                                ),
+                                Err(e) => println!("Error extracting Mths from {path:?}: {e}"),
+                            }
                         });
                 }
                 Err(e) => println!("Error reading {path:?}: {e}"),
@@ -222,7 +232,9 @@ pub fn extract_and_disassemble_shaders(input: &str, output: &str, gfd_tool: &str
 
             let bytes = std::fs::read(path).unwrap();
             match Mths::from_bytes(&bytes) {
-                Ok(mths) => extract_legacy_shaders(&mths, &bytes, &output_folder, gfd_tool, 0),
+                Ok(mths) => {
+                    extract_legacy_shaders(&mths, &bytes, &output_folder, gfd_tool, 0, None)
+                }
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
@@ -374,24 +386,50 @@ fn extract_legacy_shaders<P: AsRef<Path>>(
     output_folder: P,
     gfd_tool: &str,
     index: usize,
+    technique: Option<&xc3_lib::mxmd::legacy::Technique>,
 ) {
     let output_folder = output_folder.as_ref();
 
     // Save the binary for creating the database later.
     std::fs::write(output_folder.join(format!("{index}.cashd")), mths_bytes).unwrap();
 
+    let mut vertex_outputs = BTreeSet::new();
+
     if let Ok(vert) = mths.vertex_shader() {
         let binary_path = output_folder.join(format!("{index}.vert.bin"));
-        dissassemble_shader(&binary_path, &vert.inner.program_binary, gfd_tool);
+        dissassemble_vertex_shader(
+            &binary_path,
+            &vert.inner.program_binary,
+            gfd_tool,
+            &vert,
+            technique,
+            &mut vertex_outputs,
+        );
     }
 
     if let Ok(frag) = mths.fragment_shader() {
         let binary_path = output_folder.join(format!("{index}.frag.bin"));
-        dissassemble_shader(&binary_path, &frag.program_binary, gfd_tool);
+        dissassemble_fragment_shader(
+            &binary_path,
+            &frag.program_binary,
+            gfd_tool,
+            &frag,
+            technique,
+            &vertex_outputs,
+        );
     }
 }
 
-fn dissassemble_shader(binary_path: &Path, binary: &[u8], gfd_tool: &str) {
+// TODO: Share code with fragment.
+// TODO: Tests for annotation
+fn dissassemble_vertex_shader(
+    binary_path: &Path,
+    binary: &[u8],
+    gfd_tool: &str,
+    shader: &xc3_lib::mths::VertexShader,
+    technique: Option<&xc3_lib::mxmd::legacy::Technique>,
+    vertex_outputs: &mut BTreeSet<usize>,
+) {
     std::fs::write(binary_path, binary).unwrap();
 
     let output = std::process::Command::new(gfd_tool)
@@ -402,7 +440,198 @@ fn dissassemble_shader(binary_path: &Path, binary: &[u8], gfd_tool: &str) {
         .stdout;
     let text = String::from_utf8(output).unwrap();
 
-    std::fs::write(binary_path.with_extension("txt"), text).unwrap();
+    std::fs::write(binary_path.with_extension("txt"), &text).unwrap();
+
+    // TODO: perform annotation here and output glsl?
+    // TODO: annotation will require the technique since attributes and params are just "Q"?
+    // TODO: Construct syntatically valid GLSL for parsing later?
+    let mut graph = Graph::from_latte_asm(&text);
+
+    for node in &mut graph.nodes {
+        if node.output.name.starts_with("PARAM") {
+            let index = node
+                .output
+                .name
+                .trim_start_matches("PARAM")
+                .parse()
+                .unwrap();
+            vertex_outputs.insert(index);
+
+            node.output.name = format!("out_attr{index}").into();
+        }
+    }
+    let glsl = graph.to_glsl();
+
+    let mut annotated = String::new();
+
+    // TODO: Create metadata and annotate the GLSL instead?
+    let mut attribute_names = Vec::new();
+    if let Some(technique) = technique {
+        for attribute in &shader.attributes {
+            let technique_attribute = technique
+                .attributes
+                .get(attribute.location as usize)
+                .unwrap();
+
+            let name = attribute_name(technique_attribute.data_type);
+
+            // TODO: var type isn't always vec4?
+            writeln!(
+                &mut annotated,
+                "layout(location = {}) in vec4 {};",
+                attribute.location, name
+            )
+            .unwrap();
+
+            attribute_names.push(name)
+        }
+    }
+
+    for i in vertex_outputs.iter() {
+        // TODO: is the type always vec4?
+        writeln!(
+            &mut annotated,
+            "layout(location = {i}) out vec4 out_attr{i};"
+        )
+        .unwrap();
+    }
+
+    writeln!(&mut annotated, "void main() {{").unwrap();
+
+    // Attributes initialize R1, R2, ...?
+    for (i, name) in attribute_names.iter().enumerate() {
+        writeln!(&mut annotated, "    R{} = {name};", i + 1).unwrap();
+    }
+
+    for line in glsl.lines() {
+        writeln!(&mut annotated, "    {line}").unwrap();
+    }
+
+    writeln!(&mut annotated, "}}").unwrap();
+
+    std::fs::write(binary_path.with_extension(""), annotated).unwrap();
+
+    // TODO: add an option to preserve binaries?
+    std::fs::remove_file(binary_path).unwrap();
+}
+
+fn attribute_name(d: xc3_lib::vertex::DataType) -> &'static str {
+    match d {
+        xc3_lib::vertex::DataType::Position => "vPos",
+        xc3_lib::vertex::DataType::SkinWeights2 => "fWeight",
+        xc3_lib::vertex::DataType::BoneIndices2 => todo!(),
+        xc3_lib::vertex::DataType::WeightIndex => "nWgtIdx",
+        xc3_lib::vertex::DataType::WeightIndex2 => "nWgtIdx",
+        xc3_lib::vertex::DataType::TexCoord0 => "vTex0",
+        xc3_lib::vertex::DataType::TexCoord1 => "vTex1",
+        xc3_lib::vertex::DataType::TexCoord2 => "vTex2",
+        xc3_lib::vertex::DataType::TexCoord3 => "vTex3",
+        xc3_lib::vertex::DataType::TexCoord4 => "vTex4",
+        xc3_lib::vertex::DataType::TexCoord5 => "vTex5",
+        xc3_lib::vertex::DataType::TexCoord6 => "vTex6",
+        xc3_lib::vertex::DataType::TexCoord7 => "vTex7",
+        xc3_lib::vertex::DataType::TexCoord8 => "vTex8",
+        xc3_lib::vertex::DataType::Blend => "vBlend",
+        xc3_lib::vertex::DataType::Unk15 => "Unk15",
+        xc3_lib::vertex::DataType::Unk16 => "Unk16",
+        xc3_lib::vertex::DataType::VertexColor => "vColor",
+        xc3_lib::vertex::DataType::Unk18 => "Unk18",
+        xc3_lib::vertex::DataType::Unk24 => "vGmCal1",
+        xc3_lib::vertex::DataType::Unk25 => "vGmCal2",
+        xc3_lib::vertex::DataType::Unk26 => "vGmCal3",
+        xc3_lib::vertex::DataType::Normal => "vNormal",
+        xc3_lib::vertex::DataType::Tangent => "vTan",
+        xc3_lib::vertex::DataType::Unk30 => "fGmAL",
+        xc3_lib::vertex::DataType::Unk31 => "Unk31",
+        xc3_lib::vertex::DataType::Normal2 => "vNormal",
+        xc3_lib::vertex::DataType::ValInf => "vValInf",
+        xc3_lib::vertex::DataType::Normal3 => "vNormal",
+        xc3_lib::vertex::DataType::VertexColor3 => "vColor",
+        xc3_lib::vertex::DataType::Position2 => "vPos",
+        xc3_lib::vertex::DataType::Normal4 => "vNormal",
+        xc3_lib::vertex::DataType::OldPosition => "vOldPos",
+        xc3_lib::vertex::DataType::Tangent2 => "vTan",
+        xc3_lib::vertex::DataType::SkinWeights => todo!(),
+        xc3_lib::vertex::DataType::BoneIndices => todo!(),
+        xc3_lib::vertex::DataType::Flow => "vFlow",
+    }
+}
+
+fn dissassemble_fragment_shader(
+    binary_path: &Path,
+    binary: &[u8],
+    gfd_tool: &str,
+    shader: &xc3_lib::mths::FragmentShader,
+    technique: Option<&xc3_lib::mxmd::legacy::Technique>,
+    vertex_outputs: &BTreeSet<usize>,
+) {
+    std::fs::write(binary_path, binary).unwrap();
+
+    let output = std::process::Command::new(gfd_tool)
+        .arg("disassemble")
+        .arg(binary_path)
+        .output()
+        .unwrap()
+        .stdout;
+    let text = String::from_utf8(output).unwrap();
+
+    std::fs::write(binary_path.with_extension("txt"), &text).unwrap();
+
+    // TODO: perform annotation here and output glsl?
+    // TODO: annotation will require the technique since attributes and params are just "Q"?
+    // TODO: Construct syntatically valid GLSL for parsing later?
+    let mut graph = Graph::from_latte_asm(&text);
+
+    for node in &mut graph.nodes {
+        if let Expr::Func { name, args, .. } = &mut node.input {
+            if name.starts_with("texture") {
+                if let Some(Expr::Global { name, .. }) = args.first_mut() {
+                    // texture(t1, ...) -> texture(s1, ...)
+                    *name = name.replace("t", "s").into();
+                }
+            }
+        }
+    }
+
+    let mut fragment_outputs = BTreeSet::new();
+    for node in &mut graph.nodes {
+        if node.output.name.starts_with("PIX") {
+            let index: usize = node.output.name.trim_start_matches("PIX").parse().unwrap();
+            fragment_outputs.insert(index);
+
+            node.output.name = format!("out_attr{index}").into();
+        }
+    }
+
+    let glsl = graph.to_glsl();
+
+    let mut annotated = String::new();
+
+    for i in vertex_outputs.iter() {
+        writeln!(&mut annotated, "layout(location = {i}) in vec4 in_attr{i};").unwrap();
+    }
+    for i in fragment_outputs.iter() {
+        writeln!(
+            &mut annotated,
+            "layout(location = {i}) out vec4 out_attr{i};"
+        )
+        .unwrap();
+    }
+
+    writeln!(&mut annotated, "void main() {{").unwrap();
+
+    // Fragment input attributes initialize R1, R2, ...?
+    for i in vertex_outputs.iter() {
+        writeln!(&mut annotated, "    R{} = in_attr{};", i + 1, i).unwrap();
+    }
+
+    for line in glsl.lines() {
+        writeln!(&mut annotated, "    {line}").unwrap();
+    }
+
+    writeln!(&mut annotated, "}}").unwrap();
+
+    std::fs::write(binary_path.with_extension(""), annotated).unwrap();
 
     // TODO: add an option to preserve binaries?
     std::fs::remove_file(binary_path).unwrap();

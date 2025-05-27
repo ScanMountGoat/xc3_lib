@@ -15,6 +15,7 @@ use indexmap::{set::MutableValues, IndexMap, IndexSet};
 use indoc::indoc;
 use log::error;
 use rayon::prelude::*;
+use xc3_lib::mths::VertexShader;
 use xc3_lib::{
     mths::{FragmentShader, Mths},
     spch::Spch,
@@ -162,6 +163,7 @@ fn outline_width_parameter(vert: &Graph) -> Option<Dependency> {
 fn shader_from_latte_asm(
     vertex: &str,
     fragment: &str,
+    vertex_shader: &VertexShader,
     fragment_shader: &FragmentShader,
 ) -> ShaderProgram {
     let _vert = Graph::from_latte_asm(vertex);
@@ -791,7 +793,7 @@ fn unary_op<'a>(
     None
 }
 
-fn ternary<'a>(expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+fn ternary(expr: &Expr) -> Option<(Operation, Vec<&Expr>)> {
     if let Expr::Ternary(cond, a, b) = expr {
         Some((Operation::Select, vec![cond, a, b]))
     } else {
@@ -2263,14 +2265,27 @@ pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
     let programs = programs
         .into_par_iter()
         .map(|(hash, shader)| {
-            (
-                hash,
-                shader_from_latte_asm(
-                    &shader.vertex_source,
-                    &shader.fragment_source,
-                    &shader.fragment_shader,
-                ),
-            )
+            let vertex = match TranslationUnit::parse(&shader.vertex_source) {
+                Ok(vertex) => Some(vertex),
+                Err(e) => {
+                    error!("Error parsing shader: {e}");
+                    None
+                }
+            };
+
+            let fragment = match TranslationUnit::parse(&shader.fragment_source) {
+                Ok(vertex) => Some(vertex),
+                Err(e) => {
+                    error!("Error parsing shader: {e}");
+                    None
+                }
+            };
+
+            let shader_program = fragment
+                .map(|fragment| shader_from_glsl(vertex.as_ref(), &fragment))
+                .unwrap_or_default();
+
+            (hash, shader_program)
         })
         .collect();
 
@@ -2280,27 +2295,22 @@ pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
 struct LegacyProgram {
     vertex_source: String,
     fragment_source: String,
-    fragment_shader: FragmentShader,
 }
 
 fn add_programs_legacy(
     programs: &mut BTreeMap<ProgramHash, LegacyProgram>,
     path: std::path::PathBuf,
 ) {
-    let mths = Mths::from_file(&path).unwrap();
-
-    let hash = ProgramHash::from_mths(&mths);
     // Avoid processing the same program more than once.
+    let mths = Mths::from_file(&path).unwrap();
+    let hash = ProgramHash::from_mths(&mths);
     programs.entry(hash).or_insert_with(|| {
         // TODO: Should both shaders be mandatory?
-        let vertex_source = std::fs::read_to_string(path.with_extension("vert.txt")).unwrap();
-        let fragment_source = std::fs::read_to_string(path.with_extension("frag.txt")).unwrap();
-        let fragment_shader = mths.fragment_shader().unwrap();
-
+        let vertex_source = std::fs::read_to_string(path.with_extension("vert")).unwrap();
+        let fragment_source = std::fs::read_to_string(path.with_extension("frag")).unwrap();
         LegacyProgram {
             vertex_source,
             fragment_source,
-            fragment_shader,
         }
     });
 }
@@ -2436,7 +2446,7 @@ mod tests {
                 .join("src")
                 .join($path);
             std::fs::write(path, shader_str(&$shader)).unwrap();
-            // assert!(include_str!($path) == shader_str(&$shader))
+            assert!(include_str!($path) == shader_str(&$shader))
         };
     }
 
@@ -2703,7 +2713,50 @@ mod tests {
                 },
             ],
         };
-        let shader = shader_from_latte_asm(vert_asm, frag_asm, &fragment_shader);
+        let vertex_shader = xc3_lib::mths::VertexShader {
+            inner: fragment_shader.clone(),
+            attributes: vec![
+                xc3_lib::mths::Attribute {
+                    name: "Q".to_string(),
+                    data_type: xc3_lib::mths::VarType::IVec2,
+                    count: 0,
+                    location: 1,
+                },
+                xc3_lib::mths::Attribute {
+                    name: "Q".to_string(),
+                    data_type: xc3_lib::mths::VarType::Vec4,
+                    count: 0,
+                    location: 4,
+                },
+                xc3_lib::mths::Attribute {
+                    name: "Q".to_string(),
+                    data_type: xc3_lib::mths::VarType::Vec4,
+                    count: 0,
+                    location: 0,
+                },
+                xc3_lib::mths::Attribute {
+                    name: "Q".to_string(),
+                    data_type: xc3_lib::mths::VarType::Vec4,
+                    count: 0,
+                    location: 3,
+                },
+                xc3_lib::mths::Attribute {
+                    name: "Q".to_string(),
+                    data_type: xc3_lib::mths::VarType::Vec2,
+                    count: 0,
+                    location: 2,
+                },
+                xc3_lib::mths::Attribute {
+                    name: "Q".to_string(),
+                    data_type: xc3_lib::mths::VarType::Vec4,
+                    count: 0,
+                    location: 5,
+                },
+            ],
+            unks: [0; 6],
+        };
+        let shader = shader_from_latte_asm(vert_asm, frag_asm, &vertex_shader, &fragment_shader);
+        // TODO: use snapshot.
         assert_debug_eq!("data/xcx/pc221115.0.txt", shader);
     }
 

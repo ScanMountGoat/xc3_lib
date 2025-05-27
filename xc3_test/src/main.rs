@@ -1420,7 +1420,7 @@ fn check_shader_dependencies(root: &ModelRoot, path: &Path) {
             for (k, v) in &shader.output_dependencies {
                 if has_unsupported_values(&shader.exprs, *v) {
                     println!(
-                        "Empty layers for {:?}, {k:?}, technique {}, {path:?}",
+                        "Unsupported operations for {:?}, {k:?}, technique {}, {path:?}",
                         &m.name, m.technique_index
                     );
                 }
