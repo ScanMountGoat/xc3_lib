@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     error::Error,
     fmt::Write,
     io::BufReader,
@@ -465,7 +465,7 @@ fn dissassemble_vertex_shader(
     let mut annotated = String::new();
 
     // TODO: Create metadata and annotate the GLSL instead?
-    let mut attribute_names = Vec::new();
+    let mut attribute_names = BTreeMap::new();
     if let Some(technique) = technique {
         for attribute in &shader.attributes {
             let technique_attribute = technique
@@ -483,7 +483,7 @@ fn dissassemble_vertex_shader(
             )
             .unwrap();
 
-            attribute_names.push(name)
+            attribute_names.insert(attribute.location, name);
         }
     }
 
@@ -499,8 +499,8 @@ fn dissassemble_vertex_shader(
     writeln!(&mut annotated, "void main() {{").unwrap();
 
     // Attributes initialize R1, R2, ...?
-    for (i, name) in attribute_names.iter().enumerate() {
-        writeln!(&mut annotated, "    R{} = {name};", i + 1).unwrap();
+    for (location, name) in attribute_names {
+        writeln!(&mut annotated, "    R{} = {name};", location + 1).unwrap();
     }
 
     for line in glsl.lines() {
@@ -620,9 +620,9 @@ fn dissassemble_fragment_shader(
 
     writeln!(&mut annotated, "void main() {{").unwrap();
 
-    // Fragment input attributes initialize R1, R2, ...?
+    // Fragment input attributes initialize R0, R1, ...?
     for i in vertex_outputs.iter() {
-        writeln!(&mut annotated, "    R{} = in_attr{};", i + 1, i).unwrap();
+        writeln!(&mut annotated, "    R{i} = in_attr{i};").unwrap();
     }
 
     for line in glsl.lines() {
