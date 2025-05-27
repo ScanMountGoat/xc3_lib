@@ -1,4 +1,5 @@
 use from_pest::{ConversionError, FromPest, Void};
+use log::error;
 use pest::{iterators::Pairs, Parser, Span};
 use pest_ast::FromPest;
 use pest_derive::Parser;
@@ -790,6 +791,7 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
     for group in clause.groups {
         let inst_count = group.inst_count.0 .0;
 
+        // TODO: backup values if assigned value is used for another channel
         let scalars: Vec<_> = group
             .scalars
             .into_iter()
@@ -908,6 +910,7 @@ fn dot_product_node_index(
     }
 }
 
+// https://www.techpowerup.com/gpu-specs/docs/ati-r600-isa.pdf
 fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
     let output = scalar.output.clone();
     let node_index = match scalar.op_code.as_str() {
@@ -917,10 +920,10 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
                 output,
                 input: scalar.sources[0].clone(),
             };
-            nodes.add_node(node, Some(scalar.alu_unit), inst_count)
+            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
-        "FLOOR" => add_func("floor", 1, &scalar, output, inst_count, nodes),
-        "SQRT_IEEE" => add_func("sqrt", 1, &scalar, output, inst_count, nodes),
+        "FLOOR" => Some(add_func("floor", 1, &scalar, output, inst_count, nodes)),
+        "SQRT_IEEE" => Some(add_func("sqrt", 1, &scalar, output, inst_count, nodes)),
         "RECIP_IEEE" => {
             let node = Node {
                 output,
@@ -930,13 +933,20 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
                     Box::new(scalar.sources[0].clone()),
                 ),
             };
-            nodes.add_node(node, Some(scalar.alu_unit), inst_count)
+            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
-        "RECIPSQRT_IEEE" => add_func("inversesqrt", 1, &scalar, output, inst_count, nodes),
-        "EXP_IEEE" => add_func("exp2", 1, &scalar, output, inst_count, nodes),
-        "LOG_CLAMPED" => add_func("log2", 1, &scalar, output, inst_count, nodes),
+        "RECIPSQRT_IEEE" => Some(add_func(
+            "inversesqrt",
+            1,
+            &scalar,
+            output,
+            inst_count,
+            nodes,
+        )),
+        "EXP_IEEE" => Some(add_func("exp2", 1, &scalar, output, inst_count, nodes)),
+        "LOG_CLAMPED" => Some(add_func("log2", 1, &scalar, output, inst_count, nodes)),
         // scalar2
-        "ADD" => {
+        "ADD" | "ADD_INT" => {
             let node = Node {
                 output,
                 input: Expr::Binary(
@@ -945,11 +955,12 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
                     Box::new(scalar.sources[1].clone()),
                 ),
             };
-            nodes.add_node(node, Some(scalar.alu_unit), inst_count)
+            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
-        "MIN" | "MIN_DX10" => add_func("min", 2, &scalar, output, inst_count, nodes),
-        "MAX" | "MAX_DX10" => add_func("max", 2, &scalar, output, inst_count, nodes),
-        "MUL" | "MUL_IEEE" => {
+        "MIN" | "MIN_DX10" => Some(add_func("min", 2, &scalar, output, inst_count, nodes)),
+        "MAX" | "MAX_DX10" => Some(add_func("max", 2, &scalar, output, inst_count, nodes)),
+        "MUL" | "MUL_IEEE" | "MULLO_INT" => {
+            // TODO: _INT shouldn't interpret the bits as float.
             let node = Node {
                 output,
                 input: Expr::Binary(
@@ -958,29 +969,48 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
                     Box::new(scalar.sources[1].clone()),
                 ),
             };
-            nodes.add_node(node, Some(scalar.alu_unit), inst_count)
+            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
         "DOT4" | "DOT4_IEEE" => {
             // Handled in a previous check.
             unreachable!()
         }
         // scalar3
-        "MULADD" | "MULADD_IEEE" => add_func("fma", 3, &scalar, output, inst_count, nodes),
-        "MULADD_D2" => {
-            let input = Expr::Func {
-                name: "fma".into(),
-                args: vec![
-                    scalar.sources[0].clone(),
-                    scalar.sources[1].clone(),
-                    scalar.sources[2].clone(),
-                ],
-                channel: None,
-            };
+        "MULADD" | "MULADD_IEEE" => Some(add_func("fma", 3, &scalar, output, inst_count, nodes)),
+        "MULADD_M2" => {
+            let node_index = add_func("fma", 3, &scalar, output.clone(), inst_count, nodes);
+
             let node = Node {
-                output: output.clone(),
-                input,
+                output,
+                input: Expr::Binary(
+                    BinaryOp::Mul,
+                    Box::new(Expr::Node {
+                        node_index,
+                        channel: scalar.output.channel,
+                    }),
+                    Box::new(Expr::Float(2.0.into())),
+                ),
             };
-            let node_index = nodes.add_node(node, Some(scalar.alu_unit), inst_count);
+            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+        }
+        "MULADD_M4" => {
+            let node_index = add_func("fma", 3, &scalar, output.clone(), inst_count, nodes);
+
+            let node = Node {
+                output,
+                input: Expr::Binary(
+                    BinaryOp::Mul,
+                    Box::new(Expr::Node {
+                        node_index,
+                        channel: scalar.output.channel,
+                    }),
+                    Box::new(Expr::Float(4.0.into())),
+                ),
+            };
+            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+        }
+        "MULADD_D2" => {
+            let node_index = add_func("fma", 3, &scalar, output.clone(), inst_count, nodes);
 
             let node = Node {
                 output,
@@ -993,16 +1023,42 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
                     Box::new(Expr::Float(2.0.into())),
                 ),
             };
-            nodes.add_node(node, Some(scalar.alu_unit), inst_count)
+            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
-        "NOP" => 0,
-        // TODO: Handle additional opcodes?
-        _ => 0,
+        "MULADD_D4" => {
+            let node_index = add_func("fma", 3, &scalar, output.clone(), inst_count, nodes);
+
+            let node = Node {
+                output,
+                input: Expr::Binary(
+                    BinaryOp::Div,
+                    Box::new(Expr::Node {
+                        node_index,
+                        channel: scalar.output.channel,
+                    }),
+                    Box::new(Expr::Float(4.0.into())),
+                ),
+            };
+            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+        }
+        "NOP" => None,
+        // TODO: handle conversions.
+        "FLT_TO_INT" => None,
+        "INT_TO_FLT" => None,
+        // TODO: Cube maps
+        "CUBE" => None,
+        opcode => {
+            // TODO: Handle additional opcodes?
+            error!("Unsupported opcode {opcode}");
+            None
+        }
     };
 
     if let Some(modifier) = scalar.output_modifier {
-        let node = alu_output_modifier(&modifier, scalar.output, node_index);
-        nodes.add_node(node, Some(scalar.alu_unit), inst_count);
+        if let Some(node_index) = node_index {
+            let node = alu_output_modifier(&modifier, scalar.output, node_index);
+            nodes.add_node(node, Some(scalar.alu_unit), inst_count);
+        }
     }
 }
 
