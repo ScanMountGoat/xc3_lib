@@ -61,8 +61,8 @@ pub struct Models {
     animation_morph_names: Vec<String>,
 }
 
-#[allow(clippy::too_many_arguments)]
 impl Models {
+    #[allow(clippy::too_many_arguments)]
     fn from_models(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -130,6 +130,10 @@ impl Models {
             animation_morph_names,
             bounds,
         }
+    }
+
+    pub fn bounds_min_max_xyz(&self) -> (Vec3, Vec3) {
+        (self.bounds.min_xyz, self.bounds.max_xyz)
     }
 }
 

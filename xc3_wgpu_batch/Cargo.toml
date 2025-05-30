@@ -16,3 +16,4 @@ image = "0.25.2"
 glam.workspace = true
 clap = { workspace = true, features = ["derive"] }
 anyhow.workspace = true
+rayon.workspace = true

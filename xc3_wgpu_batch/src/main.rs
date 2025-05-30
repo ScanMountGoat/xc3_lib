@@ -1,9 +1,10 @@
-use std::path::Path;
+use std::{path::Path, sync::Mutex};
 
 use clap::{Parser, ValueEnum};
 use futures::executor::block_on;
 use glam::{vec3, Mat4, Vec3};
 use image::ImageBuffer;
+use rayon::prelude::*;
 use xc3_model::{load_animations, shader_database::ShaderDatabase};
 use xc3_wgpu::{CameraData, MonolibShaderTextures, Renderer};
 
@@ -53,6 +54,8 @@ enum FileExtension {
 
 fn main() {
     let cli = Cli::parse();
+
+    let start = std::time::Instant::now();
 
     // Ignore most logs to avoid flooding the console.
     simple_logger::SimpleLogger::new()
@@ -114,27 +117,20 @@ fn main() {
     let output = device.create_texture(&texture_desc);
     let output_view = output.create_view(&Default::default());
 
-    let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        size: WIDTH as u64 * HEIGHT as u64 * 4,
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-        label: None,
-        mapped_at_creation: false,
-    });
-
-    let mut renderer = Renderer::new(
+    let renderer = Mutex::new(Renderer::new(
         &device,
         &queue,
         WIDTH,
         HEIGHT,
         texture_desc.format,
         monolib_shader,
-    );
+    ));
 
     // Initialize the camera transform.
     let translation = vec3(0.0, -1.0, -10.0);
     let rotation = vec3(0.0, -20f32.to_radians(), 0.0);
     let camera_data = calculate_camera_data(WIDTH, HEIGHT, translation, rotation);
-    renderer.update_camera(&queue, &camera_data);
+    renderer.lock().unwrap().update_camera(&queue, &camera_data);
 
     let database = cli
         .shader_database
@@ -149,21 +145,29 @@ fn main() {
         FileExtension::Wismhd => "wismhd",
         FileExtension::Camdo => "camdo",
     };
+
+    // TODO: Output which model fails if there is a panic?
     globwalk::GlobWalkerBuilder::from_patterns(&cli.root_folder, &[format!("*.{ext}")])
         .build()
         .unwrap()
+        .par_bridge()
         .for_each(|entry| {
+            // Create a unique buffer to avoid mapping a buffer from multiple threads.
+            let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                size: WIDTH as u64 * HEIGHT as u64 * 4,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                label: None,
+                mapped_at_creation: false,
+            });
+
             let path = entry.as_ref().unwrap().path();
             let model_path = path.to_string_lossy().to_string();
-
-            println!("{:?}", model_path);
 
             let groups = load_groups(
                 &device,
                 &queue,
                 &model_path,
                 cli.extension,
-                &mut renderer,
                 monolib_shader,
                 database.as_ref(),
             );
@@ -188,6 +192,13 @@ fn main() {
                             label: Some("Render Encoder"),
                         });
 
+                    // Each model updates the renderer's internal buffers for camera framing.
+                    // We need to hold the lock until the output image has been copied to the buffer.
+                    // Rendering is cheap, so this has little performance impact in practice.
+                    let mut renderer = renderer.lock().unwrap();
+
+                    frame_group_bounds(&queue, &groups, &mut renderer);
+
                     renderer.render_models(
                         &output_view,
                         &mut encoder,
@@ -197,16 +208,30 @@ fn main() {
                         cli.bones,
                     );
 
-                    let output_path = path.with_extension("png");
-                    save_screenshot(
-                        &device,
-                        &queue,
-                        encoder,
-                        &output,
-                        &output_buffer,
+                    encoder.copy_texture_to_buffer(
+                        wgpu::TexelCopyTextureInfo {
+                            aspect: wgpu::TextureAspect::All,
+                            texture: &output,
+                            mip_level: 0,
+                            origin: wgpu::Origin3d::ZERO,
+                        },
+                        wgpu::TexelCopyBufferInfo {
+                            buffer: &output_buffer,
+                            layout: wgpu::TexelCopyBufferLayout {
+                                offset: 0,
+                                bytes_per_row: Some(WIDTH * 4),
+                                rows_per_image: Some(HEIGHT),
+                            },
+                        },
                         size,
-                        output_path,
                     );
+                    queue.submit([encoder.finish()]);
+
+                    drop(renderer);
+
+                    // TODO: channels to send images to save to worker threads
+                    let output_path = path.with_extension("png");
+                    save_screenshot(&device, &output_buffer, output_path);
 
                     // Clean up resources.
                     queue.submit(std::iter::empty());
@@ -215,6 +240,8 @@ fn main() {
                 Err(e) => println!("Error loading {model_path:?}: {e:?}"),
             }
         });
+
+    println!("Finished in {:?}", start.elapsed());
 }
 
 fn load_groups(
@@ -222,24 +249,20 @@ fn load_groups(
     queue: &wgpu::Queue,
     model_path: &str,
     ext: FileExtension,
-    renderer: &mut Renderer,
     monolib_shader: &MonolibShaderTextures,
     database: Option<&ShaderDatabase>,
 ) -> anyhow::Result<Vec<xc3_wgpu::ModelGroup>> {
     match ext {
         FileExtension::Wimdo | FileExtension::Pcmdo => {
             let root = xc3_model::load_model(model_path, database)?;
-            frame_model_bounds(queue, &root, renderer);
             Ok(xc3_wgpu::load_model(device, queue, &[root], monolib_shader))
         }
         FileExtension::Wismhd => {
             let roots = xc3_model::load_map(model_path, database)?;
-            frame_map_bounds(queue, &roots, renderer);
             Ok(xc3_wgpu::load_map(device, queue, &roots, monolib_shader))
         }
         FileExtension::Camdo => {
             let root = xc3_model::load_model_legacy(model_path, database)?;
-            frame_model_bounds(queue, &root, renderer);
             Ok(xc3_wgpu::load_model(device, queue, &[root], monolib_shader))
         }
     }
@@ -264,28 +287,20 @@ fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &Path)
     }
 }
 
-fn frame_model_bounds(queue: &wgpu::Queue, root: &xc3_model::ModelRoot, renderer: &mut Renderer) {
-    frame_bounds(queue, renderer, root.models.min_xyz, root.models.max_xyz);
-}
-
-fn frame_map_bounds(queue: &wgpu::Queue, roots: &[xc3_model::MapRoot], renderer: &mut Renderer) {
-    let min_xyz = roots
+fn frame_group_bounds(
+    queue: &wgpu::Queue,
+    groups: &[xc3_wgpu::ModelGroup],
+    renderer: &mut Renderer,
+) {
+    let min_xyz = groups
         .iter()
-        .flat_map(|r| {
-            r.groups
-                .iter()
-                .flat_map(|g| g.models.iter().map(|m| m.min_xyz))
-        })
+        .flat_map(|g| g.models.iter().map(|m| m.bounds_min_max_xyz().0))
         .reduce(Vec3::min)
         .unwrap();
 
-    let max_xyz = roots
+    let max_xyz = groups
         .iter()
-        .flat_map(|r| {
-            r.groups
-                .iter()
-                .flat_map(|g| g.models.iter().map(|m| m.max_xyz))
-        })
+        .flat_map(|g| g.models.iter().map(|m| m.bounds_min_max_xyz().1))
         .reduce(Vec3::max)
         .unwrap();
 
@@ -314,32 +329,9 @@ fn frame_bounds(queue: &wgpu::Queue, renderer: &mut Renderer, min_xyz: Vec3, max
 
 fn save_screenshot(
     device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    mut encoder: wgpu::CommandEncoder,
-    output: &wgpu::Texture,
     output_buffer: &wgpu::Buffer,
-    size: wgpu::Extent3d,
     output_path: std::path::PathBuf,
 ) {
-    encoder.copy_texture_to_buffer(
-        wgpu::TexelCopyTextureInfo {
-            aspect: wgpu::TextureAspect::All,
-            texture: output,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-        },
-        wgpu::TexelCopyBufferInfo {
-            buffer: output_buffer,
-            layout: wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(WIDTH * 4),
-                rows_per_image: Some(HEIGHT),
-            },
-        },
-        size,
-    );
-    queue.submit([encoder.finish()]);
-
     // Save the output texture.
     // Adapted from WGPU Example https://github.com/gfx-rs/wgpu/tree/master/wgpu/examples/capture
     {
