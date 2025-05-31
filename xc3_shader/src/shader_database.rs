@@ -2432,6 +2432,45 @@ fn expr_str(s: &ShaderProgram, v: usize) -> String {
     }
 }
 
+pub fn shader_graphviz(shader: &ShaderProgram) -> String {
+    let mut text = String::new();
+    writeln!(&mut text, "digraph {{").unwrap();
+    for (i, expr) in shader.exprs.iter().enumerate() {
+        let label = match expr {
+            OutputExpr::Func { op, .. } => op.to_string(),
+            OutputExpr::Value(Dependency::Texture(t)) => {
+                format!(
+                    "{}{}",
+                    &t.name,
+                    t.channel.map(|c| format!(".{c}")).unwrap_or_default()
+                )
+            }
+            OutputExpr::Value(d) => d.to_string(),
+        };
+        writeln!(&mut text, "    {i} [label={:?}]", label).unwrap();
+    }
+    for (i, expr) in shader.exprs.iter().enumerate() {
+        match expr {
+            OutputExpr::Func { args, .. } => {
+                for arg in args {
+                    writeln!(&mut text, "    {arg} -> {i}").unwrap();
+                }
+            }
+            OutputExpr::Value(Dependency::Texture(t)) => {
+                for arg in &t.texcoords {
+                    writeln!(&mut text, "    {arg} -> {i}").unwrap();
+                }
+            }
+            _ => (),
+        }
+    }
+    for (name, i) in &shader.output_dependencies {
+        writeln!(&mut text, "    {i} -> {name:?}").unwrap();
+    }
+    writeln!(&mut text, "}}").unwrap();
+    text
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -9,7 +9,8 @@ use xc3_shader::dependencies::latte_dependencies;
 use xc3_shader::extract::{extract_and_decompile_shaders, extract_and_disassemble_shaders};
 use xc3_shader::graph::Graph;
 use xc3_shader::shader_database::{
-    create_shader_database, create_shader_database_legacy, shader_from_glsl, shader_str,
+    create_shader_database, create_shader_database_legacy, shader_from_glsl, shader_graphviz,
+    shader_str,
 };
 
 use xc3_shader::graph::glsl::glsl_dependencies;
@@ -93,7 +94,7 @@ enum Commands {
     GlslOutputDependencies {
         /// The input fragment GLSL file.
         frag: String,
-        /// The output text file.
+        /// The output txt or Graphviz dot file.
         output: String,
     },
 }
@@ -174,7 +175,11 @@ fn main() {
                 .map(|v| TranslationUnit::parse(&v).unwrap());
 
             let shader = shader_from_glsl(vert.as_ref(), &fragment);
-            std::fs::write(output, shader_str(&shader)).unwrap();
+            if output.ends_with(".dot") {
+                std::fs::write(output, shader_graphviz(&shader)).unwrap();
+            } else {
+                std::fs::write(output, shader_str(&shader)).unwrap();
+            }
         }
     }
     println!("Finished in {:?}", start.elapsed());
