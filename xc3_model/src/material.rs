@@ -129,7 +129,12 @@ impl MaterialParameters {
             ("U_Mate", "gWrkFl4") => self.work_float4.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gWrkCol") => self.work_color.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gTexMat") => self.tex_matrix.as_ref()?.get(index)?.get(c),
-            ("U_Mate", "gAlInf") => self.alpha_info.as_ref()?.get(index)?.get(c),
+            ("U_Mate", "gAlInf") => self
+                .alpha_info
+                .as_ref()?
+                .get(index)
+                .unwrap_or(&[1.0, 0.999, 1.0, 1.0])
+                .get(c),
             ("U_Mate", "gDpRat") => self.dp_rat.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gProjTexMat") => self.projection_tex_matrix.as_ref()?.get(index)?.get(c),
             // U_Static uniform buffer values taken from XC3 in RenderDoc.
@@ -167,9 +172,18 @@ impl MaterialParameters {
             ("U_Mate", "gDTWrk") => self.dt_work.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gMdlParm") => self.mdl_param.as_ref()?.get(index)?.get(c),
             ("U_CHR", "gAvaSkin") => self.ava_skin.as_ref()?.get(c),
+            // TODO: initialized somewhere else?
+            ("U_CHR", "gAvaHair") => [
+                [0.40392, 0.24314, 0.16078, 1.14844],
+                [0.40392, 0.24314, 0.16078, 0.1875],
+            ]
+            .get(index)?
+            .get(c),
             // TODO: Is it worth using in game values for these?
             ("U_Static", "gLgtPreDir") => [[1.0, 1.0, 1.0, 1.0]; 2].get(index)?.get(c),
             ("U_Static", "gLgtPreCol") => [[1.0; 4]; 2].get(index)?.get(c),
+            ("U_Static", "gNewRimLgtPreDir") => [[1.0, 1.0, 1.0, 1.0]; 2].get(index)?.get(c),
+            ("U_Static", "gNewRimLgtPreCol") => [[1.0; 4]; 2].get(index)?.get(c),
             ("U_Static", "gLgtPreSpe") => [[1.0; 4]; 2].get(index)?.get(c),
             _ => None,
         };
@@ -610,6 +624,7 @@ fn assign_parameters(
         ..Default::default()
     };
 
+    // TODO: Some parameters always have count 0 and aren't part of the work values?
     if let Some(technique) = get_technique(material, &materials.techniques) {
         for param in &technique.parameters {
             match param.param_type {
@@ -617,7 +632,12 @@ fn assign_parameters(
                     parameters.dp_rat = Some(read_param(param, &work_values));
                 }
                 xc3_lib::mxmd::ParamType::TexMatrix => {
-                    parameters.tex_matrix = Some(read_param(param, &work_values));
+                    // TODO: Is there a better way of handling tex matrix counts?
+                    let param = xc3_lib::mxmd::MaterialParameter {
+                        count: param.count * 2,
+                        ..param.clone()
+                    };
+                    parameters.tex_matrix = Some(read_param(&param, &work_values));
                 }
                 xc3_lib::mxmd::ParamType::WorkFloat4 => {
                     parameters.work_float4 = Some(read_param(param, &work_values));
@@ -626,7 +646,12 @@ fn assign_parameters(
                     parameters.work_color = Some(read_param(param, &work_values));
                 }
                 xc3_lib::mxmd::ParamType::ProjectionTexMatrix => {
-                    parameters.projection_tex_matrix = Some(read_param(param, &work_values));
+                    // TODO: Is there a better way of handling tex matrix counts?
+                    let param = xc3_lib::mxmd::MaterialParameter {
+                        count: param.count * 2,
+                        ..param.clone()
+                    };
+                    parameters.projection_tex_matrix = Some(read_param(&param, &work_values));
                 }
                 xc3_lib::mxmd::ParamType::AlphaInfo => {
                     parameters.alpha_info = Some(read_param(param, &work_values));
@@ -726,6 +751,7 @@ fn assign_parameters_legacy(
         ..Default::default()
     };
 
+    // TODO: Some parameters always have count 0 and aren't part of the work values?
     if let Some(technique) = get_technique_legacy(material, &materials.techniques) {
         for param in &technique.parameters {
             match param.param_type {
@@ -739,7 +765,12 @@ fn assign_parameters_legacy(
                     parameters.dp_rat = Some(read_param_legacy(param, work_values));
                 }
                 xc3_lib::mxmd::legacy::ParamType::TexMatrix => {
-                    parameters.tex_matrix = Some(read_param_legacy(param, work_values));
+                    // TODO: Is there a better way of handling tex matrix counts?
+                    let param = xc3_lib::mxmd::legacy::MaterialParameter {
+                        count: param.count * 2,
+                        ..param.clone()
+                    };
+                    parameters.tex_matrix = Some(read_param_legacy(&param, work_values));
                 }
                 xc3_lib::mxmd::legacy::ParamType::WorkFloat4 => {
                     parameters.work_float4 = Some(read_param_legacy(param, work_values));
@@ -748,7 +779,12 @@ fn assign_parameters_legacy(
                     parameters.work_color = Some(read_param_legacy(param, work_values));
                 }
                 xc3_lib::mxmd::legacy::ParamType::ProjectionTexMatrix => {
-                    parameters.projection_tex_matrix = Some(read_param_legacy(param, work_values));
+                    // TODO: Is there a better way of handling tex matrix counts?
+                    let param = xc3_lib::mxmd::legacy::MaterialParameter {
+                        count: param.count * 2,
+                        ..param.clone()
+                    };
+                    parameters.projection_tex_matrix = Some(read_param_legacy(&param, work_values));
                 }
                 xc3_lib::mxmd::legacy::ParamType::AlphaInfo => {
                     parameters.alpha_info = Some(read_param_legacy(param, work_values));
