@@ -25,6 +25,7 @@ use super::{BinaryOp, Expr, Graph, Node};
 use indexmap::IndexMap;
 use indoc::indoc;
 use ordered_float::OrderedFloat;
+use smol_str::SmolStr;
 use std::{collections::BTreeMap, ops::Deref, sync::LazyLock};
 
 impl Graph {
@@ -36,7 +37,7 @@ impl Graph {
     ///
     /// This uses a structural match that allows for differences in variable names
     /// and implements basic algebraic identities like `a*b == b*a`.
-    pub fn query(&self, query: &Graph) -> Option<BTreeMap<String, &Expr>> {
+    pub fn query(&self, query: &Graph) -> Option<BTreeMap<SmolStr, &Expr>> {
         // TODO: Should this always be the last node?
         query_nodes(&self.nodes.last()?.input, &self.nodes, &query.nodes)
     }
@@ -50,7 +51,7 @@ pub fn query_nodes_glsl<'a>(
     input: &'a Expr,
     input_nodes: &'a [Node],
     query: &str,
-) -> Option<BTreeMap<String, &'a Expr>> {
+) -> Option<BTreeMap<SmolStr, &'a Expr>> {
     // TODO: simplify both query and graph to a single expr?
     let query = Graph::parse_glsl(&format!("void main() {{ {query} }}")).unwrap();
     query_nodes(input, input_nodes, &query.nodes)
@@ -69,7 +70,7 @@ pub fn query_nodes<'a>(
     input: &'a Expr,
     input_nodes: &'a [Node],
     query_nodes: &[Node],
-) -> Option<BTreeMap<String, &'a Expr>> {
+) -> Option<BTreeMap<SmolStr, &'a Expr>> {
     // Keep track of corresponding input exprs for global vars in query.
     let mut vars = BTreeMap::new();
 
@@ -90,7 +91,7 @@ fn check_exprs<'a>(
     input: &'a Expr,
     query_nodes: &[Node],
     input_nodes: &'a [Node],
-    vars: &mut BTreeMap<String, &'a Expr>,
+    vars: &mut BTreeMap<SmolStr, &'a Expr>,
 ) -> bool {
     let mut check = |a, b| check_args(a, b, query_nodes, input_nodes, vars);
 
@@ -201,7 +202,7 @@ fn check_exprs<'a>(
         (Expr::Global { name, channel }, i) => {
             // TODO: What happens if the var is already in the map?
             // TODO: Special case to check name if query and input are both Expr::Global?
-            vars.insert(name.to_string(), i);
+            vars.insert(name.clone(), i);
 
             check_channels(*channel, i.channel())
         }
@@ -227,7 +228,7 @@ fn check_args<'a>(
     input: &[&'a Expr],
     query_nodes: &[Node],
     input_nodes: &'a [Node],
-    vars: &mut BTreeMap<String, &'a Expr>,
+    vars: &mut BTreeMap<SmolStr, &'a Expr>,
 ) -> bool {
     // Track values for query variables used in this expr.
     // fma(a, b, a) should not match fma(0.0, 1.0, 2.0).
@@ -236,7 +237,7 @@ fn check_args<'a>(
     query.len() == input.len()
         && query.iter().zip(input).all(|(q, i)| {
             if let Expr::Global { name, .. } = q {
-                if let Some(i_prev) = local_vars.insert(name.to_string(), i) {
+                if let Some(i_prev) = local_vars.insert(name.clone(), i) {
                     // TODO: Should this check equivalent exprs?
                     if i_prev != i {
                         return false;
@@ -360,9 +361,11 @@ mod tests {
         let query = Graph::parse_glsl(&format!("void main() {{ {query_glsl} }}")).unwrap();
 
         // TODO: Check vars?
-        graph
-            .query(&query)
-            .map(|v| v.into_iter().map(|(k, v)| (k, v.clone())).collect())
+        graph.query(&query).map(|v| {
+            v.into_iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect()
+        })
     }
 
     fn query_glsl_simplified(graph_glsl: &str, query_glsl: &str) -> Option<BTreeMap<String, Expr>> {
@@ -373,9 +376,11 @@ mod tests {
         let query = query.simplify(query.nodes.last().unwrap());
 
         // TODO: Check vars?
-        graph
-            .query(&query)
-            .map(|v| v.into_iter().map(|(k, v)| (k, v.clone())).collect())
+        graph.query(&query).map(|v| {
+            v.into_iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect()
+        })
     }
 
     #[test]

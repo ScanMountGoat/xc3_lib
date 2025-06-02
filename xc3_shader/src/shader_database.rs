@@ -341,6 +341,8 @@ pub(crate) fn output_expr(
     match expr_to_index.get(expr) {
         Some(i) => *i,
         None => {
+            let original_expr = expr.clone();
+
             // Simplify any expressions that would interfere with queries.
             let mut expr = assign_x_recursive(&graph.nodes, expr);
             if let Some(new_expr) = normal_map_fma(&graph.nodes, expr) {
@@ -379,7 +381,7 @@ pub(crate) fn output_expr(
             let output = output_expr_inner(&expr, graph, exprs, expr_to_index);
 
             let index = exprs.insert_full(output).0;
-            expr_to_index.insert(expr, index);
+            expr_to_index.insert(original_expr, index);
 
             index
         }
@@ -2326,6 +2328,7 @@ fn merge_vertex_fragment(
                     .output_locations
                     .get_by_right(fragment_location)
                 {
+                    // This will search vertex nodes first even if a fragment output has the same name.
                     if let Some(node_index) = graph.nodes.iter().position(|n| {
                         n.output.name == vertex_output_name && n.output.channel == *channel
                     }) {
