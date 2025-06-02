@@ -11,7 +11,7 @@ source: xc3_shader/src/shader_database.rs
 "o1.w": "0.07098039"
 "o2.x": "Texture(s3, vTex0.x, vTex0.y).x"
 "o2.y": "Texture(s3, vTex0.x, vTex0.y).y"
-"o2.z": "Mul(Texture(s4, vTex0.x, vTex0.y).x, vColor.y)"
+"o2.z": "Mul(Texture(s4, vTex0.x, vTex0.y).x, Max(vColor.z, Max(vColor.x, vColor.y)))"
 "o3.x": "Div(1.0, Unk())"
 "o3.y": "Div(1.0, Unk())"
 "o3.z": "0.0"

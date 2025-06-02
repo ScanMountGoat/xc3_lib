@@ -11,7 +11,7 @@ use glsl_lang::{
     parse::DefaultParse,
     visitor::{Host, Visit, Visitor},
 };
-use indexmap::{set::MutableValues, IndexMap, IndexSet};
+use indexmap::{IndexMap, IndexSet};
 use indoc::indoc;
 use log::error;
 use rayon::prelude::*;
@@ -53,6 +53,15 @@ pub fn shader_from_glsl(
         .map(outline_width_parameter)
         .unwrap_or_default();
 
+    // Create a combined graph that links vertex outputs to fragment inputs.
+    // This effectively moves all shader logic to the fragment shader.
+    // This simplifies generating shader code or material nodes in 3D applications.
+    let graph = if let (Some(vert), Some(vert_attributes)) = (vert, vert_attributes) {
+        merge_vertex_fragment(vert, &vert_attributes, frag, &frag_attributes)
+    } else {
+        frag
+    };
+
     let mut output_dependencies = IndexMap::new();
     let mut normal_intensity = None;
 
@@ -64,21 +73,16 @@ pub fn shader_from_glsl(
     for i in frag_attributes.output_locations.right_values().copied() {
         for c in "xyzw".chars() {
             let name = format!("out_attr{i}");
-            let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
+            let dependent_lines = graph.dependencies_recursive(&name, Some(c), None);
 
             // TODO: Skip o3.xyw (depth) and o4.xyz (velocity)
             // TODO: skip using queries or use separate CLI command?
             let value;
             if i == 2 && (c == 'x' || c == 'y') {
                 // The normals use XY for output index 2 for all games.
-                let (new_value, intensity) = normal_output_expr(
-                    &frag,
-                    &frag_attributes,
-                    &dependent_lines,
-                    &mut exprs,
-                    &mut expr_to_index,
-                )
-                .unzip();
+                let (new_value, intensity) =
+                    normal_output_expr(&graph, &dependent_lines, &mut exprs, &mut expr_to_index)
+                        .unzip();
                 value = new_value;
                 normal_intensity = intensity.flatten();
             } else if i == 2 && c == 'w' {
@@ -91,8 +95,7 @@ pub fn shader_from_glsl(
                 // Detect color or params to handle different outputs and channels.
                 // TODO: Detect if o2.x before remapping is used here?
                 value = color_or_param_output_expr(
-                    &frag,
-                    &frag_attributes,
+                    &graph,
                     &dependent_lines,
                     &mut exprs,
                     &mut expr_to_index,
@@ -104,23 +107,6 @@ pub fn shader_from_glsl(
                 let output_name = format!("o{i}.{c}");
                 output_dependencies.insert(output_name.into(), value);
             }
-        }
-    }
-
-    // Replace fragment inputs with the appropriate vertex output.
-    if let (Some(vert), Some(vert_attributes)) = (&vert, &vert_attributes) {
-        // Use a new cache since we're using the vertex graph now.
-        let mut vert_expr_to_index = IndexMap::new();
-
-        for i in 0..exprs.len() {
-            apply_expr_vertex_outputs(
-                i,
-                vert,
-                vert_attributes,
-                &frag_attributes,
-                &mut exprs,
-                &mut vert_expr_to_index,
-            );
         }
     }
 
@@ -163,14 +149,11 @@ fn outline_width_parameter(vert: &Graph) -> Option<Dependency> {
 fn shader_from_latte_asm(
     vertex: &str,
     fragment: &str,
-    vertex_shader: &VertexShader,
+    _vertex_shader: &VertexShader,
     fragment_shader: &FragmentShader,
 ) -> ShaderProgram {
     let _vert = Graph::from_latte_asm(vertex);
-    let _vert_attributes = Attributes::default();
-
     let frag = Graph::from_latte_asm(fragment);
-    let frag_attributes = Attributes::default();
 
     // Cache graph expr -> output expr index to visit nodes only once.
     let mut exprs = IndexSet::new();
@@ -192,14 +175,9 @@ fn shader_from_latte_asm(
             if i == 2 {
                 if c == 'x' || c == 'y' {
                     // XCX only has 2 components.
-                    let (new_value, intensity) = normal_output_expr(
-                        &frag,
-                        &frag_attributes,
-                        &dependent_lines,
-                        &mut exprs,
-                        &mut expr_to_index,
-                    )
-                    .unzip();
+                    let (new_value, intensity) =
+                        normal_output_expr(&frag, &dependent_lines, &mut exprs, &mut expr_to_index)
+                            .unzip();
                     value = new_value;
                     normal_intensity = intensity.flatten();
                 } else {
@@ -210,7 +188,6 @@ fn shader_from_latte_asm(
                 // Detect color or params to handle different outputs and channels.
                 value = color_or_param_output_expr(
                     &frag,
-                    &frag_attributes,
                     &dependent_lines,
                     &mut exprs,
                     &mut expr_to_index,
@@ -249,7 +226,6 @@ fn shader_from_latte_asm(
 
 fn color_or_param_output_expr(
     frag: &Graph,
-    frag_attributes: &Attributes,
     dependent_lines: &[usize],
     exprs: &mut IndexSet<OutputExpr>,
     expr_to_index: &mut IndexMap<Expr, usize>,
@@ -292,13 +268,7 @@ fn color_or_param_output_expr(
         current = new_current;
     }
 
-    Some(output_expr(
-        current,
-        frag,
-        frag_attributes,
-        exprs,
-        expr_to_index,
-    ))
+    Some(output_expr(current, frag, exprs, expr_to_index))
 }
 
 fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], &'a Expr)> {
@@ -318,7 +288,6 @@ fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 
 
 fn normal_output_expr(
     frag: &Graph,
-    frag_attributes: &Attributes,
     dependent_lines: &[usize],
     exprs: &mut IndexSet<OutputExpr>,
     expr_to_index: &mut IndexMap<Expr, usize>,
@@ -355,9 +324,9 @@ fn normal_output_expr(
     };
     let nom_work = assign_x_recursive(&frag.nodes, nom_work);
 
-    let value = output_expr(nom_work, frag, frag_attributes, exprs, expr_to_index);
+    let value = output_expr(nom_work, frag, exprs, expr_to_index);
 
-    let intensity = intensity.map(|i| output_expr(i, frag, frag_attributes, exprs, expr_to_index));
+    let intensity = intensity.map(|i| output_expr(i, frag, exprs, expr_to_index));
 
     Some((value, intensity))
 }
@@ -365,7 +334,6 @@ fn normal_output_expr(
 pub(crate) fn output_expr(
     expr: &Expr,
     graph: &Graph,
-    attributes: &Attributes,
     exprs: &mut IndexSet<OutputExpr>,
     expr_to_index: &mut IndexMap<Expr, usize>,
 ) -> usize {
@@ -408,7 +376,7 @@ pub(crate) fn output_expr(
                 expr = new_expr;
             }
 
-            let output = output_expr_inner(&expr, graph, attributes, exprs, expr_to_index);
+            let output = output_expr_inner(&expr, graph, exprs, expr_to_index);
 
             let index = exprs.insert_full(output).0;
             expr_to_index.insert(expr, index);
@@ -421,11 +389,10 @@ pub(crate) fn output_expr(
 fn output_expr_inner(
     expr: &Expr,
     graph: &Graph,
-    attributes: &Attributes,
     exprs: &mut IndexSet<OutputExpr>,
     expr_to_index: &mut IndexMap<Expr, usize>,
 ) -> OutputExpr {
-    if let Some(value) = extract_value(expr, graph, attributes, exprs, expr_to_index) {
+    if let Some(value) = extract_value(expr, graph, exprs, expr_to_index) {
         // The base case is a single value.
         OutputExpr::Value(value)
     } else {
@@ -463,10 +430,10 @@ fn output_expr_inner(
             .or_else(|| binary_op(expr, BinaryOp::GreaterEqual, Operation::GreaterEqual))
             .or_else(|| ternary(expr))
         {
-            // Recursively detect values or functions.
+            // Insert values that this operation depends on first.
             let args: Vec<_> = args
                 .into_iter()
-                .map(|arg| output_expr(arg, graph, attributes, exprs, expr_to_index))
+                .map(|arg| output_expr(arg, graph, exprs, expr_to_index))
                 .collect();
             OutputExpr::Func { op, args }
         } else {
@@ -486,7 +453,6 @@ fn output_expr_inner(
 fn extract_value(
     expr: &Expr,
     graph: &Graph,
-    attributes: &Attributes,
     exprs: &mut IndexSet<OutputExpr>,
     expr_to_index: &mut IndexMap<Expr, usize>,
 ) -> Option<Dependency> {
@@ -498,12 +464,7 @@ fn extract_value(
         expr = new_expr;
     }
 
-    // TODO: Is it worth storing information about component max?
-    if let Some(new_expr) = component_max_xyz(&graph.nodes, expr) {
-        expr = new_expr;
-    }
-
-    dependency_expr(expr, graph, attributes, exprs, expr_to_index)
+    dependency_expr(expr, graph, exprs, expr_to_index)
 }
 
 static OP_OVER: LazyLock<Graph> = LazyLock::new(|| {
@@ -839,11 +800,10 @@ fn binary_op(
 fn dependency_expr(
     e: &Expr,
     graph: &Graph,
-    attributes: &Attributes,
     exprs: &mut IndexSet<OutputExpr>,
     expr_to_index: &mut IndexMap<Expr, usize>,
 ) -> Option<Dependency> {
-    texture_dependency(e, graph, attributes, exprs, expr_to_index).or_else(|| {
+    texture_dependency(e, graph, exprs, expr_to_index).or_else(|| {
         buffer_dependency(e)
             .map(Dependency::Buffer)
             .or_else(|| match e {
@@ -1019,24 +979,6 @@ fn normal_map_fma<'a>(nodes: &'a [Node], nom_work: &'a Expr) -> Option<&'a Expr>
         }
         _ => None,
     }
-}
-
-static COMPONENT_MAX_XYZ: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        void main() {
-            y = value.y;
-            z = value.z;
-            x = value.x;
-            result = max(x, y);
-            result = max(z, result);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
-});
-
-fn component_max_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
-    let result = query_nodes(expr, nodes, &COMPONENT_MAX_XYZ.nodes)?;
-    result.get("value").copied()
 }
 
 static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
@@ -1254,8 +1196,6 @@ fn calc_normal_map_xcx<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Exp
 static GEOMETRIC_SPECULAR_AA: LazyLock<Graph> = LazyLock::new(|| {
     // calcGeometricSpecularAA in pcmdo shaders.
     // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2, 0.0, 1.0))
-    // TODO: reduce assignments to allow combining lines
-    // TODO: Allow 0.0 - x or -x
     let query = indoc! {"
         void main() {
             result = 0.0 - glossiness;
@@ -2116,64 +2056,6 @@ fn op_reflect<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&
     Some((op, vec![i_x, i_y, i_z, n_x, n_y, n_z]))
 }
 
-fn apply_expr_vertex_outputs(
-    i: usize,
-    vert: &Graph,
-    vert_attributes: &Attributes,
-    frag_attributes: &Attributes,
-    exprs: &mut IndexSet<OutputExpr>,
-    expr_to_index: &mut IndexMap<Expr, usize>,
-) {
-    // Replace fragment inputs with the corresponding vertex output expr.
-    if let Some(OutputExpr::Value(Dependency::Attribute(attribute))) = exprs.get_index(i).cloned() {
-        if let Some(new_value) = vertex_attribute_output_expr(
-            &attribute,
-            vert,
-            vert_attributes,
-            frag_attributes,
-            exprs,
-            expr_to_index,
-        ) {
-            *exprs.get_index_mut2(i).unwrap() = new_value;
-        }
-    }
-}
-
-fn vertex_attribute_output_expr(
-    attribute: &AttributeDependency,
-    vertex: &Graph,
-    vertex_attributes: &Attributes,
-    fragment_attributes: &Attributes,
-    exprs: &mut IndexSet<OutputExpr>,
-    expr_to_index: &mut IndexMap<Expr, usize>,
-) -> Option<OutputExpr> {
-    // Convert a fragment input like "in_attr4" to its vertex output like "out_attr4".
-    let fragment_location = fragment_attributes
-        .input_locations
-        .get_by_left(attribute.name.as_str())?;
-
-    let vertex_output_name = vertex_attributes
-        .output_locations
-        .get_by_right(fragment_location)?;
-
-    let dependent_lines =
-        vertex.dependencies_recursive(vertex_output_name, attribute.channel, None);
-
-    if let Some(last_node) = dependent_lines.last().and_then(|l| vertex.nodes.get(*l)) {
-        let new_expr = output_expr(
-            &last_node.input,
-            vertex,
-            vertex_attributes,
-            exprs,
-            expr_to_index,
-        );
-        let new_expr = exprs.get_index(new_expr).cloned().unwrap();
-        Some(new_expr)
-    } else {
-        None
-    }
-}
-
 pub fn create_shader_database(input: &str) -> ShaderDatabase {
     // Collect unique programs.
     let mut programs = BTreeMap::new();
@@ -2385,6 +2267,82 @@ pub fn find_attribute_locations(translation_unit: &TranslationUnit) -> Attribute
     let mut visitor = AttributeVisitor::default();
     translation_unit.visit(&mut visitor);
     visitor.attributes
+}
+
+fn remap_expr_node_indices(input: &mut Expr, start_index: usize) {
+    // Recursively shift node indices to match their new position.
+    match input {
+        Expr::Node { node_index, .. } => *node_index += start_index,
+        Expr::Float(_) => (),
+        Expr::Int(_) => (),
+        Expr::Uint(_) => (),
+        Expr::Bool(_) => (),
+        Expr::Parameter { index, .. } => {
+            if let Some(index) = index {
+                remap_expr_node_indices(index, start_index);
+            }
+        }
+        Expr::Global { .. } => (),
+        Expr::Unary(_, a) => {
+            remap_expr_node_indices(a, start_index);
+        }
+        Expr::Binary(_, lh, rh) => {
+            remap_expr_node_indices(lh, start_index);
+            remap_expr_node_indices(rh, start_index);
+        }
+        Expr::Ternary(a, b, c) => {
+            remap_expr_node_indices(a, start_index);
+            remap_expr_node_indices(b, start_index);
+            remap_expr_node_indices(c, start_index);
+        }
+        Expr::Func { args, .. } => {
+            for arg in args {
+                remap_expr_node_indices(arg, start_index);
+            }
+        }
+    }
+}
+
+fn merge_vertex_fragment(
+    vert: Graph,
+    vert_attributes: &Attributes,
+    frag: Graph,
+    frag_attributes: &Attributes,
+) -> Graph {
+    let mut graph = vert;
+
+    // Make sure fragment nodes only refer to other fragment nodes.
+    let start = graph.nodes.len();
+    for n in frag.nodes {
+        let mut new_node = n;
+        remap_expr_node_indices(&mut new_node.input, start);
+
+        if let Expr::Global { name, channel } = &mut new_node.input {
+            // Convert a fragment input like "in_attr4" to its vertex output like "out_attr4".
+            if let Some(fragment_location) =
+                frag_attributes.input_locations.get_by_left(name.as_str())
+            {
+                if let Some(vertex_output_name) = vert_attributes
+                    .output_locations
+                    .get_by_right(fragment_location)
+                {
+                    if let Some(node_index) = graph.nodes.iter().position(|n| {
+                        n.output.name == vertex_output_name && n.output.channel == *channel
+                    }) {
+                        // Link fragment inputs to vertex outputs.
+                        new_node.input = Expr::Node {
+                            node_index,
+                            channel: *channel,
+                        };
+                    }
+                }
+            }
+        }
+
+        graph.nodes.push(new_node);
+    }
+
+    graph
 }
 
 pub fn shader_str(s: &ShaderProgram) -> String {

@@ -1,6 +1,6 @@
 use crate::{
     graph::{Expr, Graph},
-    shader_database::{output_expr, Attributes},
+    shader_database::output_expr,
 };
 
 use indexmap::{IndexMap, IndexSet};
@@ -9,7 +9,6 @@ use xc3_model::shader_database::{BufferDependency, Dependency, OutputExpr, Textu
 pub fn texture_dependency(
     e: &Expr,
     graph: &Graph,
-    attributes: &Attributes,
     exprs: &mut IndexSet<OutputExpr>,
     expr_to_index: &mut IndexMap<Expr, usize>,
 ) -> Option<Dependency> {
@@ -21,7 +20,7 @@ pub fn texture_dependency(
     {
         if name.starts_with("texture") {
             if let Some(Expr::Global { name, .. }) = args.first() {
-                let texcoords = texcoord_args(args, graph, attributes, exprs, expr_to_index);
+                let texcoords = texcoord_args(args, graph, exprs, expr_to_index);
 
                 Some(Dependency::Texture(TextureDependency {
                     name: name.clone(),
@@ -42,7 +41,6 @@ pub fn texture_dependency(
 fn texcoord_args(
     args: &[Expr],
     graph: &Graph,
-    attributes: &Attributes,
     exprs: &mut IndexSet<OutputExpr>,
     expr_to_index: &mut IndexMap<Expr, usize>,
 ) -> Vec<usize> {
@@ -55,7 +53,7 @@ fn texcoord_args(
             a.exprs_recursive()
                 .iter()
                 .skip(1)
-                .map(|e| output_expr(e, graph, attributes, exprs, expr_to_index))
+                .map(|e| output_expr(e, graph, exprs, expr_to_index))
                 .collect::<Vec<_>>()
         })
         .collect()
