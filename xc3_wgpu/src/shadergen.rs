@@ -109,6 +109,14 @@ fn func_wgsl(op: &Operation, args: &[usize]) -> Option<String> {
             "dot(vec4({}, {}, {}, {}), vec4({}, {}, {}, {}))",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?, arg6?, arg7?
         )),
+        Operation::NormalMapX => Some(format!(
+            "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).x",
+            arg0?, arg1?
+        )),
+        Operation::NormalMapY => Some(format!(
+            "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).y",
+            arg0?, arg1?
+        )),
     }
 }
 

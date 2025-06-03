@@ -409,6 +409,7 @@ fn output_expr_inner(
             .or_else(|| tex_parallax(&graph.nodes, expr))
             .or_else(|| tex_matrix(&graph.nodes, expr))
             .or_else(|| op_reflect(&graph.nodes, expr))
+            .or_else(|| op_calc_normal_map(&graph.nodes, expr))
             .or_else(|| op_mix(&graph.nodes, expr))
             .or_else(|| op_mul_ratio(&graph.nodes, expr))
             .or_else(|| op_add_ratio(expr))
@@ -1127,7 +1128,7 @@ fn calc_normal_map_w_intensity<'a>(
     ))
 }
 
-static CALC_NORMAL_MAP_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
+static CALC_NORMAL_MAP_VAL_INF_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
             inverse_length_tangent = inversesqrt(tangent_length);
@@ -1156,7 +1157,7 @@ static CALC_NORMAL_MAP_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-static CALC_NORMAL_MAP_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
+static CALC_NORMAL_MAP_VAL_INF_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
             inverse_length_tangent = inversesqrt(tangent_length);
@@ -1186,13 +1187,76 @@ static CALC_NORMAL_MAP_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
 });
 
 fn calc_normal_map_xcx<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Expr; 3]> {
-    let result = query_nodes(expr, nodes, &CALC_NORMAL_MAP_XCX_X.nodes)
-        .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_XCX_Y.nodes))?;
+    let result = query_nodes(expr, nodes, &CALC_NORMAL_MAP_VAL_INF_XCX_X.nodes)
+        .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_VAL_INF_XCX_Y.nodes))?;
     Some([
         result.get("result_x")?,
         result.get("result_y")?,
         result.get("result_z")?,
     ])
+}
+
+static CALC_NORMAL_MAP_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            inverse_length_tangent = inversesqrt(tangent_length);
+            tangent = tangent.x;
+            normalize_tangent = tangent * inverse_length_tangent;
+            result_x = result_x;
+            result = result_x * normalize_tangent;
+
+            inverse_length_normal = inversesqrt(normal_length);
+            normal = normal.x;
+            normalize_normal = normal * inverse_length_normal;
+            result_z = result_z;
+            result = fma(result_z, normalize_normal, result);
+
+            inverse_length_bitangent = inversesqrt(bitangent_length);
+            bitangent = bitangent.x;
+            normalize_bitangent = bitangent * inverse_length_bitangent;
+            result_y = result_y;
+            result = fma(result_y, normalize_bitangent, result);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static CALC_NORMAL_MAP_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            inverse_length_tangent = inversesqrt(tangent_length);
+            tangent = tangent.y;
+            normalize_tangent = tangent * inverse_length_tangent;
+            result_x = result_x;
+            result = result_x * normalize_tangent;
+
+            inverse_length_normal = inversesqrt(normal_length);
+            normal = normal.y;
+            normalize_normal = normal * inverse_length_normal;
+            result_z = result_z;
+            result = fma(result_z, normalize_normal, result);
+
+            inverse_length_bitangent = inversesqrt(bitangent_length);
+            bitangent = bitangent.y;
+            normalize_bitangent = bitangent * inverse_length_bitangent;
+            result_y = result_y;
+            result = fma(result_y, normalize_bitangent, result);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn op_calc_normal_map<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    // TODO: Detect normal mapping from other games.
+    let (op, result) = query_nodes(expr, nodes, &CALC_NORMAL_MAP_XCX_X.nodes)
+        .map(|r| (Operation::NormalMapX, r))
+        .or_else(|| {
+            query_nodes(expr, nodes, &CALC_NORMAL_MAP_XCX_Y.nodes)
+                .map(|r| (Operation::NormalMapY, r))
+        })?;
+
+    // Don't store result_z since it can be calculated from result_x and result_y.
+    Some((op, vec![result.get("result_x")?, result.get("result_y")?]))
 }
 
 static GEOMETRIC_SPECULAR_AA: LazyLock<Graph> = LazyLock::new(|| {
@@ -2779,5 +2843,12 @@ mod tests {
         // xenoxde/chr/pc/pc221115, "leg_mat", shd0000
         // Check Xenoblade X specific normals and layering.
         assert_shader_snapshot!("xcxde", "pc221115", "0");
+    }
+
+    #[test]
+    fn shader_from_glsl_elma_hair() {
+        // xenoxde/chr/fc/fc282010, "fc282010hair", shd0001
+        // Check Xenoblade X hair forward shading.
+        assert_shader_snapshot!("xcxde", "fc282010", "1");
     }
 }

@@ -221,6 +221,10 @@ pub enum Operation {
     GreaterEqual,
     /// `dot(vec4(arg0, arg1, arg2, arg3), vec4(arg4, arg5, arg6, arg7))`
     Dot4,
+    /// `apply_normal_map(create_normal_map(arg0, arg1), tangent.xyz, bitangent.xyz, normal.xyz).x`
+    NormalMapX,
+    /// `apply_normal_map(create_normal_map(arg0, arg1), tangent.xyz, bitangent.xyz, normal.xyz).y`
+    NormalMapY,
 }
 
 impl Default for Operation {
