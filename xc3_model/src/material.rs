@@ -135,7 +135,12 @@ impl MaterialParameters {
                 .get(index)
                 .unwrap_or(&[1.0, 0.999, 1.0, 1.0])
                 .get(c),
-            ("U_Mate", "gDpRat") => self.dp_rat.as_ref()?.get(index)?.get(c),
+            ("U_Mate", "gDpRat") => self
+                .dp_rat
+                .as_ref()?
+                .get(index)
+                .unwrap_or(&[1.0, 1.0, 1.0, 0.0])
+                .get(c),
             ("U_Mate", "gProjTexMat") => self.projection_tex_matrix.as_ref()?.get(index)?.get(c),
             // U_Static uniform buffer values taken from XC3 in RenderDoc.
             // These appear to be constant across models.
@@ -685,6 +690,10 @@ fn apply_callbacks(work_values: &[f32], callbacks: &[WorkCallback]) -> Vec<f32> 
                     // Only editing the second value in the pair seems to matter in game.
                     work_values[start] = work_values[start + 1] / 255.0;
                 }
+            }
+            36 => {
+                // TODO: DpRat values are set from callbacks?
+                // TODO: set value to previous value?
             }
             _ => (),
         }
