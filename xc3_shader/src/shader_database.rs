@@ -414,8 +414,8 @@ fn output_expr_inner(
             .or_else(|| op_mul_ratio(&graph.nodes, expr))
             .or_else(|| op_add_ratio(expr))
             .or_else(|| op_sub(&graph.nodes, expr))
+            .or_else(|| op_div(&graph.nodes, expr))
             .or_else(|| binary_op(expr, BinaryOp::Mul, Operation::Mul))
-            .or_else(|| binary_op(expr, BinaryOp::Div, Operation::Div))
             .or_else(|| binary_op(expr, BinaryOp::Add, Operation::Add))
             .or_else(|| op_pow(&graph.nodes, expr))
             .or_else(|| op_clamp(&graph.nodes, expr))
@@ -785,6 +785,27 @@ fn op_sub<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a E
     let a = result.get("a")?;
     let b = result.get("b")?;
     Some((Operation::Sub, vec![a, b]))
+}
+
+static OP_DIV: LazyLock<Graph> =
+    LazyLock::new(|| Graph::parse_glsl("void main() { result = a / b; }").unwrap());
+
+static OP_DIV2: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+            void main() {
+                one_over_b = 1.0 / b;
+                result = a * one_over_b;
+            }
+        "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn op_div<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes(expr, nodes, &OP_DIV.nodes)
+        .or_else(|| query_nodes(expr, nodes, &OP_DIV2.nodes))?;
+    let a = result.get("a")?;
+    let b = result.get("b")?;
+    Some((Operation::Div, vec![a, b]))
 }
 
 fn binary_op(
@@ -1504,10 +1525,10 @@ static SKIN_ATTRIBUTE_CLIP_XYZW: LazyLock<Graph> = LazyLock::new(|| {
     // TODO: Detect this as matrix multiplication and regular skinning?
     let query = indoc! {"
         void main() {
-            temp_3 = result.x;
-            temp_8 = result.y;
-            temp_9 = result.z;
-            temp_11 = result.w;
+            temp_3 = result_x;
+            temp_8 = result_y;
+            temp_9 = result_z;
+            temp_11 = result_w;
             temp_15 = uintBitsToFloat(U_Bone.data[int(temp_14)]);
             temp_18 = uintBitsToFloat(U_Bone.data[int(temp_17)]);
             temp_21 = uintBitsToFloat(U_Bone.data[int(temp_20)]);
@@ -1541,10 +1562,61 @@ static SKIN_ATTRIBUTE_CLIP_XYZW: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
+static SKIN_ATTRIBUTE_CLIP_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
+    // TODO: Detect this as matrix multiplication and regular skinning?
+    let query = indoc! {"
+        void main() {
+            temp_1 = result_x;
+            temp_2 = result_y;
+            temp_3 = result_z;
+            temp_4 = result_w;
+            temp_17 = uintBitsToFloat(U_Bone.data[int(temp_16)]);
+            temp_20 = uintBitsToFloat(U_Bone.data[int(temp_19)]);
+            temp_23 = uintBitsToFloat(U_Bone.data[int(temp_22)]);
+            temp_26 = uintBitsToFloat(U_Bone.data[int(temp_25)]);
+            temp_28 = uintBitsToFloat(U_Bone.data[int(temp_27)]);
+            temp_31 = uintBitsToFloat(U_Bone.data[int(temp_30)]);
+            temp_34 = uintBitsToFloat(U_Bone.data[int(temp_33)]);
+            temp_37 = uintBitsToFloat(U_Bone.data[int(temp_36)]);
+            temp_39 = uintBitsToFloat(U_Bone.data[int(temp_38)]);
+            temp_42 = uintBitsToFloat(U_Bone.data[int(temp_41)]);
+            temp_45 = uintBitsToFloat(U_Bone.data[int(temp_44)]);
+            temp_48 = uintBitsToFloat(U_Bone.data[int(temp_47)]);
+            temp_49 = temp_17 * temp_1;
+            temp_51 = temp_28 * temp_1;
+            temp_52 = fma(temp_20, temp_2, temp_49);
+            temp_53 = temp_39 * temp_1;
+            temp_56 = fma(temp_31, temp_2, temp_51);
+            temp_57 = fma(temp_23, temp_3, temp_52);
+            temp_58 = fma(temp_42, temp_2, temp_53);
+            temp_59 = fma(temp_34, temp_3, temp_56);
+            temp_60 = fma(temp_26, temp_4, temp_57);
+            temp_61 = fma(temp_45, temp_3, temp_58);
+            temp_63 = fma(temp_37, temp_4, temp_59);
+            temp_65 = fma(temp_48, temp_4, temp_61);
+            temp_128 = temp_60 * U_Static.gmProj[i].x;
+            temp_143 = fma(temp_63, U_Static.gmProj[i].y, temp_128);
+            temp_152 = fma(temp_65, U_Static.gmProj[i].z, temp_143);
+            temp_160 = temp_152 + U_Static.gmProj[i].w;
+            temp_165 = 0.0 - U_Static.gCDep.y;
+            temp_166 = temp_160 + temp_165;
+            temp_177 = temp_166 * U_Static.gCDep.z;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
 fn skin_attribute_clip_space_xyzw<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
-    // TODO: This can also be modified U_Static.gCDep?
-    let result = query_nodes(expr, nodes, &SKIN_ATTRIBUTE_CLIP_XYZW.nodes)?;
-    result.get("result").copied()
+    let result = query_nodes(expr, nodes, &SKIN_ATTRIBUTE_CLIP_XYZW.nodes)
+        .or_else(|| query_nodes(expr, nodes, &SKIN_ATTRIBUTE_CLIP_XYZW_Z.nodes))?;
+    let index = result.get("i")?;
+    match index {
+        Expr::Int(0) => result.get("result_x").copied(),
+        Expr::Int(1) => result.get("result_y").copied(),
+        Expr::Int(2) => result.get("result_z").copied(),
+        Expr::Int(3) => result.get("result_w").copied(),
+        _ => None,
+    }
 }
 
 static SKIN_ATTRIBUTE_BITANGENT_X: LazyLock<Graph> = LazyLock::new(|| {
