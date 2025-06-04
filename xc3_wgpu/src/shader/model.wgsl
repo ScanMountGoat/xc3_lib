@@ -533,7 +533,7 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
         var intensity = 1.0;
         // ASSIGN_NORMAL_INTENSITY_GENERATED
         intensity = pow(intensity, 0.7);
-        let normal_map = create_normal_map(g_normal.x * intensity, g_normal.y * intensity);
+        let normal_map = create_normal_map(g_normal.x, g_normal.y) * vec3(intensity, intensity, 1.0);
         normal = apply_normal_map(normal_map, tangent, bitangent, vertex_normal);
     }
     let ao = g_normal.z;
