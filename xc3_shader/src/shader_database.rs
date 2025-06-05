@@ -12,7 +12,7 @@ use glsl_lang::{
     visitor::{Host, Visit, Visitor},
 };
 use indexmap::{IndexMap, IndexSet};
-use indoc::indoc;
+use indoc::{formatdoc, indoc};
 use log::error;
 use rayon::prelude::*;
 use xc3_lib::mths::VertexShader;
@@ -354,27 +354,20 @@ pub(crate) fn output_expr(
 
             // Detect attributes.
             // TODO: preserve the space for attributes like clip or view?
-            if let Some(new_expr) = skin_attribute_xyzw(&graph.nodes, expr) {
-                expr = new_expr;
-            }
-            if let Some(new_expr) = skin_attribute_xyz(&graph.nodes, expr) {
-                expr = new_expr;
-            }
-            if let Some(new_expr) = skin_attribute_clip_space_xyzw(&graph.nodes, expr) {
-                expr = new_expr;
-            }
-            if let Some(new_expr) = u_mdl_clip_attribute_xyzw(&graph.nodes, expr) {
-                expr = new_expr;
-            }
-            if let Some(new_expr) = u_mdl_view_attribute_xyzw(&graph.nodes, expr) {
-                expr = new_expr;
-            }
-            if let Some(new_expr) = u_mdl_attribute_xyz(&graph.nodes, expr) {
+            if let Some(new_expr) = skin_attribute_xyzw(&graph.nodes, expr)
+                .or_else(|| skin_attribute_xyz(&graph.nodes, expr))
+                .or_else(|| skin_attribute_clip_space_xyzw(&graph.nodes, expr))
+                .or_else(|| u_mdl_clip_attribute_xyzw(&graph.nodes, expr))
+                .or_else(|| u_mdl_view_attribute_xyzw(&graph.nodes, expr))
+                .or_else(|| u_mdl_attribute_xyz(&graph.nodes, expr))
+            {
                 expr = new_expr;
             }
 
             let mut expr = expr.clone();
-            if let Some(new_expr) = skin_attribute_bitangent(&graph.nodes, &expr) {
+            if let Some(new_expr) = skin_attribute_bitangent(&graph.nodes, &expr)
+                .or_else(|| u_mdl_view_bitangent_xyz(&graph.nodes, &expr))
+            {
                 expr = new_expr;
             }
 
@@ -1065,72 +1058,49 @@ fn calc_normal_map<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Expr; 3
     ])
 }
 
-static CALC_NORMAL_MAP_W_INTENSITY_X: LazyLock<Graph> = LazyLock::new(|| {
-    // normal.x with normal.w as normal map intensity.
-    // TODO: Does intensity always use pow(intensity, 0.7)?
-    let query = indoc! {"
-        void main() {
+fn calc_normal_map_w_intensity_query(c: char) -> String {
+    formatdoc! {"
+        void main() {{
             intensity = intensity;
             intensity = log2(intensity);
             intensity = intensity * 0.7;
             intensity = exp2(intensity);
 
             inverse_length_tangent = inversesqrt(tangent_length);
-            tangent = tangent.x;
+            tangent = tangent.{c};
             normalize_tangent = tangent * inverse_length_tangent;
             result_x = result_x;
             result_x = result_x * normalize_tangent;
             result = result_x * intensity;
 
             inverse_length_normal = inversesqrt(normal_length);
-            normal = normal.x;
+            normal = normal.{c};
             normalize_normal = normal * inverse_length_normal;
             result_z = result_z;
             result = fma(result_z, normalize_normal, result);
 
             inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent.x;
+            bitangent = bitangent.{c};
             normalize_bitangent = bitangent * inverse_length_bitangent;
             result_y = result_y;
             result_y = normalize_bitangent * result_y;
             result = fma(intensity, result_y, result);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
+        }}
+    "}
+}
+
+static CALC_NORMAL_MAP_W_INTENSITY_X: LazyLock<Graph> = LazyLock::new(|| {
+    // normal.x with normal.w as normal map intensity.
+    // TODO: Does intensity always use pow(intensity, 0.7)?
+    let query = calc_normal_map_w_intensity_query('x');
+    Graph::parse_glsl(&query).unwrap()
 });
 
 static CALC_NORMAL_MAP_W_INTENSITY_Y: LazyLock<Graph> = LazyLock::new(|| {
     // normal.y with normal.w as normal map intensity.
     // TODO: Does intensity always use pow(intensity, 0.7)?
-    let query = indoc! {"
-        void main() {
-            intensity = intensity;
-            intensity = log2(intensity);
-            intensity = intensity * 0.7;
-            intensity = exp2(intensity);
-
-            inverse_length_tangent = inversesqrt(tangent_length);
-            tangent = tangent.y;
-            normalize_tangent = tangent * inverse_length_tangent;
-            result_x = result_x;
-            result_x = result_x * normalize_tangent;
-            result = result_x * intensity;
-
-            inverse_length_normal = inversesqrt(normal_length);
-            normal = normal.y;
-            normalize_normal = normal * inverse_length_normal;
-            result_z = result_z;
-            result = fma(result_z, normalize_normal, result);
-
-            inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent.y;
-            normalize_bitangent = bitangent * inverse_length_bitangent;
-            result_y = result_y;
-            result_y = normalize_bitangent * result_y;
-            result = fma(intensity, result_y, result);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
+    let query = calc_normal_map_w_intensity_query('y');
+    Graph::parse_glsl(&query).unwrap()
 });
 
 fn calc_normal_map_w_intensity<'a>(
@@ -1149,23 +1119,23 @@ fn calc_normal_map_w_intensity<'a>(
     ))
 }
 
-static CALC_NORMAL_MAP_VAL_INF_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        void main() {
+fn calc_normal_map_val_inf_xcx_query(c: char) -> String {
+    formatdoc! {"
+        void main() {{
             inverse_length_tangent = inversesqrt(tangent_length);
-            tangent = tangent.x;
+            tangent = tangent.{c};
             normalize_tangent = tangent * inverse_length_tangent;
             result_x = result_x;
             result = result_x * normalize_tangent;
 
             inverse_length_normal = inversesqrt(normal_length);
-            normal = normal.x;
+            normal = normal.{c};
             normalize_normal = normal * inverse_length_normal;
             result_z = result_z;
             result = fma(result_z, normalize_normal, result);
 
             inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent.x;
+            bitangent = bitangent.{c};
             normalize_bitangent = bitangent * inverse_length_bitangent;
             result_y = result_y;
             result = fma(result_y, normalize_bitangent, result);
@@ -1173,38 +1143,23 @@ static CALC_NORMAL_MAP_VAL_INF_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
             inverse_length_normal = inversesqrt(normal_length);
             result = result * inverse_length_normal;
             result = fma(normalize_val_inf, neg_dot_val_inf_normal, result);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
+        }}
+    "}
+}
+
+static CALC_NORMAL_MAP_VAL_INF_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
+    let query = calc_normal_map_val_inf_xcx_query('x');
+    Graph::parse_glsl(&query).unwrap()
 });
 
 static CALC_NORMAL_MAP_VAL_INF_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        void main() {
-            inverse_length_tangent = inversesqrt(tangent_length);
-            tangent = tangent.y;
-            normalize_tangent = tangent * inverse_length_tangent;
-            result_x = result_x;
-            result = result_x * normalize_tangent;
+    let query = calc_normal_map_val_inf_xcx_query('y');
+    Graph::parse_glsl(&query).unwrap()
+});
 
-            inverse_length_normal = inversesqrt(normal_length);
-            normal = normal.y;
-            normalize_normal = normal * inverse_length_normal;
-            result_z = result_z;
-            result = fma(result_z, normalize_normal, result);
-
-            inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent.y;
-            normalize_bitangent = bitangent * inverse_length_bitangent;
-            result_y = result_y;
-            result = fma(result_y, normalize_bitangent, result);
-
-            inverse_length_normal = inversesqrt(normal_length);
-            result = result * inverse_length_normal;
-            result = fma(normalize_val_inf, neg_dot_val_inf_normal, result);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
+static CALC_NORMAL_MAP_VAL_INF_XCX_Z: LazyLock<Graph> = LazyLock::new(|| {
+    let query = calc_normal_map_val_inf_xcx_query('z');
+    Graph::parse_glsl(&query).unwrap()
 });
 
 fn calc_normal_map_xcx<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Expr; 3]> {
@@ -1217,63 +1172,59 @@ fn calc_normal_map_xcx<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Exp
     ])
 }
 
-static CALC_NORMAL_MAP_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        void main() {
+fn calc_normal_map_xcx_query(c: char) -> String {
+    formatdoc! {"
+        void main() {{
             inverse_length_tangent = inversesqrt(tangent_length);
-            tangent = tangent.x;
+            tangent = tangent.{c};
             normalize_tangent = tangent * inverse_length_tangent;
             result_x = result_x;
             result = result_x * normalize_tangent;
 
             inverse_length_normal = inversesqrt(normal_length);
-            normal = normal.x;
+            normal = normal.{c};
             normalize_normal = normal * inverse_length_normal;
             result_z = result_z;
             result = fma(result_z, normalize_normal, result);
 
             inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent.x;
+            bitangent = bitangent.{c};
             normalize_bitangent = bitangent * inverse_length_bitangent;
             result_y = result_y;
             result = fma(result_y, normalize_bitangent, result);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
+        }}
+    "}
+}
+
+static CALC_NORMAL_MAP_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
+    let query = calc_normal_map_xcx_query('x');
+    Graph::parse_glsl(&query).unwrap()
 });
 
 static CALC_NORMAL_MAP_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        void main() {
-            inverse_length_tangent = inversesqrt(tangent_length);
-            tangent = tangent.y;
-            normalize_tangent = tangent * inverse_length_tangent;
-            result_x = result_x;
-            result = result_x * normalize_tangent;
+    let query = calc_normal_map_xcx_query('y');
+    Graph::parse_glsl(&query).unwrap()
+});
 
-            inverse_length_normal = inversesqrt(normal_length);
-            normal = normal.y;
-            normalize_normal = normal * inverse_length_normal;
-            result_z = result_z;
-            result = fma(result_z, normalize_normal, result);
-
-            inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent.y;
-            normalize_bitangent = bitangent * inverse_length_bitangent;
-            result_y = result_y;
-            result = fma(result_y, normalize_bitangent, result);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
+static CALC_NORMAL_MAP_XCX_Z: LazyLock<Graph> = LazyLock::new(|| {
+    let query = calc_normal_map_xcx_query('z');
+    Graph::parse_glsl(&query).unwrap()
 });
 
 fn op_calc_normal_map<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // TODO: Detect normal mapping from other games.
     let (op, result) = query_nodes(expr, nodes, &CALC_NORMAL_MAP_XCX_X.nodes)
+        .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_VAL_INF_XCX_X.nodes))
         .map(|r| (Operation::NormalMapX, r))
         .or_else(|| {
             query_nodes(expr, nodes, &CALC_NORMAL_MAP_XCX_Y.nodes)
+                .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_VAL_INF_XCX_Y.nodes))
                 .map(|r| (Operation::NormalMapY, r))
+        })
+        .or_else(|| {
+            query_nodes(expr, nodes, &CALC_NORMAL_MAP_XCX_Z.nodes)
+                .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_VAL_INF_XCX_Z.nodes))
+                .map(|r| (Operation::NormalMapZ, r))
         })?;
 
     // Don't store result_z since it can be calculated from result_x and result_y.
@@ -1855,6 +1806,110 @@ fn u_mdl_view_attribute_xyzw<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'
             query_nodes(expr, nodes, &U_MDL_ATTRIBUTE_XYZW_Z.nodes)
                 .and_then(|r| r.get("result_z").copied())
         })
+}
+
+static U_MDL_VIEW_BITANGENT_X: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_10 = vNormal.x;
+            temp_12 = vNormal.y;
+            temp_14 = vNormal.z;
+            temp_18 = vTan.x;
+            temp_19 = vTan.y;
+            temp_21 = vTan.z;
+            temp_23 = vTan.w;
+            temp_49 = temp_10 * U_Mdl.gmWorldView[2].x;
+            temp_55 = temp_10 * U_Mdl.gmWorldView[1].x;
+            temp_56 = temp_18 * U_Mdl.gmWorldView[2].x;
+            temp_57 = temp_18 * U_Mdl.gmWorldView[1].x;
+            temp_58 = fma(temp_12, U_Mdl.gmWorldView[2].y, temp_49);
+            temp_61 = fma(temp_19, U_Mdl.gmWorldView[2].y, temp_56);
+            temp_62 = fma(temp_19, U_Mdl.gmWorldView[1].y, temp_57);
+            temp_64 = fma(temp_12, U_Mdl.gmWorldView[1].y, temp_55);
+            temp_66 = fma(temp_14, U_Mdl.gmWorldView[2].z, temp_58);
+            temp_67 = fma(temp_21, U_Mdl.gmWorldView[2].z, temp_61);
+            temp_68 = fma(temp_21, U_Mdl.gmWorldView[1].z, temp_62);
+            temp_70 = fma(temp_14, U_Mdl.gmWorldView[1].z, temp_64);
+            temp_74 = temp_66 * temp_68;
+            temp_77 = 0.0 - temp_74;
+            temp_78 = fma(temp_67, temp_70, temp_77);
+            temp_84 = temp_78 * temp_23;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static U_MDL_VIEW_BITANGENT_Y: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_10 = vNormal.x;
+            temp_12 = vNormal.y;
+            temp_14 = vNormal.z;
+            temp_18 = vTan.x;
+            temp_19 = vTan.y;
+            temp_21 = vTan.z;
+            temp_23 = vTan.w;
+            temp_49 = temp_10 * U_Mdl.gmWorldView[2].x;
+            temp_56 = temp_18 * U_Mdl.gmWorldView[2].x;
+            temp_58 = fma(temp_12, U_Mdl.gmWorldView[2].y, temp_49);
+            temp_59 = temp_10 * U_Mdl.gmWorldView[0].x;
+            temp_60 = temp_18 * U_Mdl.gmWorldView[0].x;
+            temp_61 = fma(temp_19, U_Mdl.gmWorldView[2].y, temp_56);
+            temp_63 = fma(temp_12, U_Mdl.gmWorldView[0].y, temp_59);
+            temp_65 = fma(temp_19, U_Mdl.gmWorldView[0].y, temp_60);
+            temp_66 = fma(temp_14, U_Mdl.gmWorldView[2].z, temp_58);
+            temp_67 = fma(temp_21, U_Mdl.gmWorldView[2].z, temp_61);
+            temp_69 = fma(temp_14, U_Mdl.gmWorldView[0].z, temp_63);
+            temp_71 = fma(temp_21, U_Mdl.gmWorldView[0].z, temp_65);
+            temp_75 = temp_67 * temp_69;
+            temp_79 = 0.0 - temp_75;
+            temp_80 = fma(temp_66, temp_71, temp_79);
+            temp_85 = temp_80 * temp_23;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static U_MDL_VIEW_BITANGENT_Z: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_10 = vNormal.x;
+            temp_12 = vNormal.y;
+            temp_14 = vNormal.z;
+            temp_18 = vTan.x;
+            temp_19 = vTan.y;
+            temp_21 = vTan.z;
+            temp_23 = vTan.w;
+            temp_55 = temp_10 * U_Mdl.gmWorldView[1].x;
+            temp_57 = temp_18 * U_Mdl.gmWorldView[1].x;
+            temp_59 = temp_10 * U_Mdl.gmWorldView[0].x;
+            temp_60 = temp_18 * U_Mdl.gmWorldView[0].x;
+            temp_62 = fma(temp_19, U_Mdl.gmWorldView[1].y, temp_57);
+            temp_63 = fma(temp_12, U_Mdl.gmWorldView[0].y, temp_59);
+            temp_64 = fma(temp_12, U_Mdl.gmWorldView[1].y, temp_55);
+            temp_65 = fma(temp_19, U_Mdl.gmWorldView[0].y, temp_60);
+            temp_68 = fma(temp_21, U_Mdl.gmWorldView[1].z, temp_62);
+            temp_69 = fma(temp_14, U_Mdl.gmWorldView[0].z, temp_63);
+            temp_70 = fma(temp_14, U_Mdl.gmWorldView[1].z, temp_64);
+            temp_71 = fma(temp_21, U_Mdl.gmWorldView[0].z, temp_65);
+            temp_76 = temp_70 * temp_71;
+            temp_81 = 0.0 - temp_76;
+            temp_82 = fma(temp_69, temp_68, temp_81);
+            temp_86 = temp_82 * temp_23;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn u_mdl_view_bitangent_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<Expr> {
+    let channel = query_nodes(expr, nodes, &U_MDL_VIEW_BITANGENT_X.nodes)
+        .map(|_| 'x')
+        .or_else(|| query_nodes(expr, nodes, &U_MDL_VIEW_BITANGENT_Y.nodes).map(|_| 'y'))
+        .or_else(|| query_nodes(expr, nodes, &U_MDL_VIEW_BITANGENT_Z.nodes).map(|_| 'z'))?;
+    Some(Expr::Global {
+        name: "vBitan".into(),
+        channel: Some(channel),
+    })
 }
 
 static U_MDL_CLIP_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {

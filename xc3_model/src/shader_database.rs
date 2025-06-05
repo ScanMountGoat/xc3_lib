@@ -225,6 +225,8 @@ pub enum Operation {
     NormalMapX,
     /// `apply_normal_map(create_normal_map(arg0, arg1), tangent.xyz, bitangent.xyz, normal.xyz).y`
     NormalMapY,
+    /// `apply_normal_map(create_normal_map(arg0, arg1), tangent.xyz, bitangent.xyz, normal.xyz).z`
+    NormalMapZ,
 }
 
 impl Default for Operation {

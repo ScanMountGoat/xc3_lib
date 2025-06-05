@@ -117,6 +117,10 @@ fn func_wgsl(op: &Operation, args: &[usize]) -> Option<String> {
             "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).y",
             arg0?, arg1?
         )),
+        Operation::NormalMapZ => Some(format!(
+            "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).z",
+            arg0?, arg1?
+        )),
     }
 }
 
