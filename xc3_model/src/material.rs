@@ -8,7 +8,10 @@ pub use xc3_lib::mxmd::{
 };
 
 use crate::{
-    shader_database::{BufferDependency, ProgramHash, ShaderDatabase, ShaderProgram},
+    shader_database::{
+        BufferDependency, Dependency, Operation, OutputExpr, ProgramHash, ShaderDatabase,
+        ShaderProgram,
+    },
     ImageTexture, Sampler,
 };
 
@@ -464,13 +467,25 @@ fn get_shader_legacy<S: GetProgramHash>(
     // 2: normal (only xy)
     // 3: specular (alpha is spec?)
     // 4: depth (alpha is glossiness)
+    let mut exprs = program.exprs;
     let output_dependencies = if !is_single_output {
         program
             .output_dependencies
             .iter()
             .filter_map(|(k, v)| match k.as_str() {
                 // Ambient Occlusion
-                "o0.x" => Some(("o2.z".into(), *v)),
+                "o0.x" => {
+                    // Undo the multiply by 0.5 used for XCX and XCX DE.
+                    // This avoids needing to modify the actual database file.
+                    let const_index = exprs.len();
+                    exprs.push(OutputExpr::Value(Dependency::Constant(2.0.into())));
+                    let index = exprs.len();
+                    exprs.push(OutputExpr::Func {
+                        op: Operation::Mul,
+                        args: vec![*v, const_index],
+                    });
+                    Some(("o2.z".into(), index))
+                }
                 // Color
                 "o1.x" => Some(("o0.x".into(), *v)),
                 "o1.y" => Some(("o0.y".into(), *v)),
@@ -500,6 +515,7 @@ fn get_shader_legacy<S: GetProgramHash>(
 
     Some(ShaderProgram {
         output_dependencies,
+        exprs,
         ..program
     })
 }
