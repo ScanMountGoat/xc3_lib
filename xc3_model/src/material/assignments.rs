@@ -217,13 +217,25 @@ pub(crate) fn infer_assignment_from_textures(
     let mut assignments = IndexSet::new();
 
     let mut assignment = |i: Option<usize>, c: usize| {
+        let u = assignments
+            .insert_full(Assignment::Value(Some(AssignmentValue::Attribute {
+                name: "vTex0".into(),
+                channel: Some('x'),
+            })))
+            .0;
+        let v = assignments
+            .insert_full(Assignment::Value(Some(AssignmentValue::Attribute {
+                name: "vTex0".into(),
+                channel: Some('y'),
+            })))
+            .0;
         Some(
             assignments
                 .insert_full(Assignment::Value(i.map(|i| {
                     AssignmentValue::Texture(TextureAssignment {
                         name: format!("s{i}").into(),
                         channel: Some(['x', 'y', 'z', 'w'][c]),
-                        texcoords: Vec::new(),
+                        texcoords: vec![u, v],
                     })
                 })))
                 .0,
