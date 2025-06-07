@@ -15,11 +15,7 @@ use indexmap::{IndexMap, IndexSet};
 use indoc::{formatdoc, indoc};
 use log::error;
 use rayon::prelude::*;
-use xc3_lib::mths::VertexShader;
-use xc3_lib::{
-    mths::{FragmentShader, Mths},
-    spch::Spch,
-};
+use xc3_lib::{mths::Mths, spch::Spch};
 use xc3_model::shader_database::{
     AttributeDependency, Dependency, Operation, OutputExpr, ProgramHash, ShaderDatabase,
     ShaderProgram,
@@ -144,84 +140,6 @@ fn outline_width_parameter(vert: &Graph) -> Option<Dependency> {
             None
         }
     })
-}
-
-fn shader_from_latte_asm(
-    vertex: &str,
-    fragment: &str,
-    _vertex_shader: &VertexShader,
-    fragment_shader: &FragmentShader,
-) -> ShaderProgram {
-    let _vert = Graph::from_latte_asm(vertex);
-    let frag = Graph::from_latte_asm(fragment);
-
-    // Cache graph expr -> output expr index to visit nodes only once.
-    let mut exprs = IndexSet::new();
-    let mut expr_to_index = IndexMap::new();
-
-    let mut normal_intensity = None;
-
-    // TODO: What is the largest number of outputs?
-    // TODO: get output count from the graph itself?
-    let mut output_dependencies = IndexMap::new();
-    for i in 0..=5 {
-        for c in "xyzw".chars() {
-            let name = format!("PIX{i}");
-
-            // TODO: share code with glsl?
-            let dependent_lines = frag.dependencies_recursive(&name, Some(c), None);
-
-            let value;
-            if i == 2 {
-                if c == 'x' || c == 'y' {
-                    // XCX only has 2 components.
-                    let (new_value, intensity) =
-                        normal_output_expr(&frag, &dependent_lines, &mut exprs, &mut expr_to_index)
-                            .unzip();
-                    value = new_value;
-                    normal_intensity = intensity.flatten();
-                } else {
-                    value = None;
-                }
-            } else {
-                // Xenoblade X DE uses different outputs than other games.
-                // Detect color or params to handle different outputs and channels.
-                value = color_or_param_output_expr(
-                    &frag,
-                    &dependent_lines,
-                    &mut exprs,
-                    &mut expr_to_index,
-                );
-            };
-
-            if let Some(value) = value {
-                // Simplify the output name to save space.
-                let output_name = format!("o{i}.{c}");
-                output_dependencies.insert(output_name.into(), value);
-            }
-        }
-    }
-
-    let mut exprs: Vec<_> = exprs.into_iter().collect();
-
-    // Apply annotations from the shader metadata.
-    // We don't annotate the assembly itself to avoid parsing errors.
-    for e in &mut exprs {
-        if let OutputExpr::Value(Dependency::Texture(t)) = e {
-            for sampler in &fragment_shader.samplers {
-                if t.name == format!("t{}", sampler.location) {
-                    t.name = (&sampler.name).into();
-                }
-            }
-        }
-    }
-
-    ShaderProgram {
-        output_dependencies,
-        outline_width: None,
-        normal_intensity,
-        exprs: exprs.into_iter().collect(),
-    }
 }
 
 fn color_or_param_output_expr(
@@ -2631,16 +2549,6 @@ mod tests {
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
 
-    macro_rules! assert_debug_eq {
-        ($path:expr, $shader:expr) => {
-            let path = std::path::Path::new(std::env!("CARGO_MANIFEST_DIR"))
-                .join("src")
-                .join($path);
-            std::fs::write(path, shader_str(&$shader)).unwrap();
-            assert!(include_str!($path) == shader_str(&$shader))
-        };
-    }
-
     macro_rules! assert_shader_snapshot {
         ($folder:expr, $name: expr, $index:expr) => {
             let vert_glsl =
@@ -2828,127 +2736,6 @@ mod tests {
         // xeno3/chr/ch/ch44000210, "ch45133501_body", shd0029
         // Check for correct color layers
         assert_shader_snapshot!("xc3", "ch44000210", "29");
-    }
-
-    #[test]
-    fn shader_from_latte_asm_elma_leg() {
-        // xenox/chr_pc/pc221115.camdo, "leg_mat", shd0000
-        let vert_asm = include_str!("data/xcx/pc221115.0.vert.txt");
-        let frag_asm = include_str!("data/xcx/pc221115.0.frag.txt");
-
-        // TODO: Make this easier to test by taking metadata directly?
-        let fragment_shader = xc3_lib::mths::FragmentShader {
-            unk1: 0,
-            unk2: 0,
-            program_binary: Vec::new(),
-            shader_mode: xc3_lib::mths::ShaderMode::UniformBlock,
-            uniform_buffers: vec![xc3_lib::mths::UniformBuffer {
-                name: "U_Mate".to_string(),
-                offset: 1,
-                size: 48,
-            }],
-            uniforms: vec![
-                xc3_lib::mths::Uniform {
-                    name: "Q".to_string(),
-                    data_type: xc3_lib::mths::VarType::Vec4,
-                    count: 1,
-                    offset: 0,
-                    uniform_buffer_index: 0,
-                },
-                xc3_lib::mths::Uniform {
-                    name: "Q".to_string(),
-                    data_type: xc3_lib::mths::VarType::Vec4,
-                    count: 1,
-                    offset: 8,
-                    uniform_buffer_index: 0,
-                },
-                xc3_lib::mths::Uniform {
-                    name: "Q".to_string(),
-                    data_type: xc3_lib::mths::VarType::Vec4,
-                    count: 1,
-                    offset: 4,
-                    uniform_buffer_index: 0,
-                },
-            ],
-            unk9: [0, 0, 0, 0],
-            samplers: vec![
-                xc3_lib::mths::Sampler {
-                    name: "gIBL".to_string(),
-                    sampler_type: xc3_lib::mths::SamplerType::D2,
-                    location: 0,
-                },
-                xc3_lib::mths::Sampler {
-                    name: "s0".to_string(),
-                    sampler_type: xc3_lib::mths::SamplerType::D2,
-                    location: 1,
-                },
-                xc3_lib::mths::Sampler {
-                    name: "s1".to_string(),
-                    sampler_type: xc3_lib::mths::SamplerType::D2,
-                    location: 2,
-                },
-                xc3_lib::mths::Sampler {
-                    name: "s2".to_string(),
-                    sampler_type: xc3_lib::mths::SamplerType::D2,
-                    location: 3,
-                },
-                xc3_lib::mths::Sampler {
-                    name: "s3".to_string(),
-                    sampler_type: xc3_lib::mths::SamplerType::D2,
-                    location: 4,
-                },
-                xc3_lib::mths::Sampler {
-                    name: "texRef".to_string(),
-                    sampler_type: xc3_lib::mths::SamplerType::D2,
-                    location: 5,
-                },
-            ],
-        };
-        let vertex_shader = xc3_lib::mths::VertexShader {
-            inner: fragment_shader.clone(),
-            attributes: vec![
-                xc3_lib::mths::Attribute {
-                    name: "Q".to_string(),
-                    data_type: xc3_lib::mths::VarType::IVec2,
-                    count: 0,
-                    location: 1,
-                },
-                xc3_lib::mths::Attribute {
-                    name: "Q".to_string(),
-                    data_type: xc3_lib::mths::VarType::Vec4,
-                    count: 0,
-                    location: 4,
-                },
-                xc3_lib::mths::Attribute {
-                    name: "Q".to_string(),
-                    data_type: xc3_lib::mths::VarType::Vec4,
-                    count: 0,
-                    location: 0,
-                },
-                xc3_lib::mths::Attribute {
-                    name: "Q".to_string(),
-                    data_type: xc3_lib::mths::VarType::Vec4,
-                    count: 0,
-                    location: 3,
-                },
-                xc3_lib::mths::Attribute {
-                    name: "Q".to_string(),
-                    data_type: xc3_lib::mths::VarType::Vec2,
-                    count: 0,
-                    location: 2,
-                },
-                xc3_lib::mths::Attribute {
-                    name: "Q".to_string(),
-                    data_type: xc3_lib::mths::VarType::Vec4,
-                    count: 0,
-                    location: 5,
-                },
-            ],
-            unks: [0; 6],
-        };
-        let shader = shader_from_latte_asm(vert_asm, frag_asm, &vertex_shader, &fragment_shader);
-        // TODO: use snapshot.
-        assert_debug_eq!("data/xcx/pc221115.0.txt", shader);
     }
 
     #[test]

@@ -561,8 +561,8 @@ fn dissassemble_fragment_shader(
     binary_path: &Path,
     binary: &[u8],
     gfd_tool: &str,
-    shader: &xc3_lib::mths::FragmentShader,
-    technique: Option<&xc3_lib::mxmd::legacy::Technique>,
+    _shader: &xc3_lib::mths::FragmentShader,
+    _technique: Option<&xc3_lib::mxmd::legacy::Technique>,
     vertex_outputs: &BTreeSet<usize>,
 ) {
     std::fs::write(binary_path, binary).unwrap();
