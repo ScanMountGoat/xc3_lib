@@ -283,7 +283,14 @@ fn channel_assignment_wgsl(
                 }
             }
         }
-        AssignmentValue::Float(f) => Some(format!("{f:?}")),
+        AssignmentValue::Float(f) => {
+            if f.is_finite() {
+                Some(format!("{f:?}"))
+            } else {
+                error!("Unsupported float literal {f:?}");
+                None
+            }
+        }
     }
 }
 
