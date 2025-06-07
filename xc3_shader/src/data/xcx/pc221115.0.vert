@@ -1,6 +1,9 @@
 R1.x = R5.x;
 R1.y = R5.y;
 R5.w = 1.0;
+R0.w = R1.x * 4e-45;
+R0.z = R0.w + 1.0;
+R1.w = R0.w + 3e-45;
 R9.w = R2.w;
 PARAM0.x = R1.x;
 PARAM0.y = R1.y;
