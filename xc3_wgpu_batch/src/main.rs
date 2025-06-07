@@ -59,7 +59,7 @@ fn main() {
 
     // Ignore most logs to avoid flooding the console.
     simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Warn)
+        .with_level(log::LevelFilter::Error)
         .init()
         .unwrap();
 
