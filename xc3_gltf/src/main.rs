@@ -50,10 +50,13 @@ fn main() -> anyhow::Result<()> {
 
     let start = std::time::Instant::now();
 
-    let database = match cli.database {
+    // The current database won't work with single texture glTF assignments.
+    // TODO: Find a way to bake textures.
+    let _database = match cli.database {
         Some(p) => Some(ShaderDatabase::from_file(&p).with_context(|| format!("{p:?}"))?),
         None => ShaderDatabase::from_file(database_path()?).ok(),
     };
+    let database = None;
 
     let first_input = Path::new(&cli.inputs[0]);
 
