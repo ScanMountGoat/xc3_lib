@@ -23,4 +23,4 @@ smol_str.workspace = true
 indoc.workspace = true
 
 [build-dependencies]
-wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu", rev = "cb24d15" }
+wgsl_to_wgpu = "0.14.1"
