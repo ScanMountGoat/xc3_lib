@@ -20,7 +20,7 @@ pub struct OutputAssignments {
     /// The parameter multiplied by vertex alpha to determine outline width.
     pub outline_width: Option<AssignmentValue>,
 
-    /// Index into [assignments](#structfield.assignments] for the intensity map for normal mapping.
+    /// Index into [assignments](#structfield.assignments) for the intensity map for normal mapping.
     pub normal_intensity: Option<usize>,
 
     /// Unique values shared between all outputs.
