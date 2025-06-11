@@ -13,13 +13,83 @@ use xc3_model::{
     IndexMapExt,
 };
 
-use crate::pipeline::PipelineKey;
-
 const OUT_VAR: &str = "RESULT";
 const VAR_PREFIX: &str = "VAR";
 
 // TODO: This needs to be 16 to support all in game shaders.
 const MAX_SAMPLERS: usize = 15;
+
+/// Generated WGSL model shader code for a material.
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
+pub struct ShaderWgsl {
+    assignments: String,
+    outputs: Vec<String>,
+    alpha_test: String,
+    normal_intensity: String,
+}
+
+impl ShaderWgsl {
+    pub fn new(
+        output_assignments: &OutputAssignments,
+        alpha_test: Option<&TextureAlphaTest>,
+        name_to_index: &mut IndexMap<SmolStr, usize>,
+    ) -> Self {
+        let assignments = generate_assignments_wgsl(output_assignments, name_to_index);
+        let outputs = generate_outputs_wgsl(output_assignments);
+
+        // Generate empty code if alpha testing is disabled.
+        let alpha_test = alpha_test
+            .map(|a| generate_alpha_test_wgsl(a, name_to_index))
+            .unwrap_or_default();
+
+        let normal_intensity = output_assignments
+            .normal_intensity
+            .as_ref()
+            .map(|i| generate_normal_intensity_wgsl(*i))
+            .unwrap_or_default();
+
+        Self {
+            assignments,
+            outputs,
+            alpha_test,
+            normal_intensity,
+        }
+    }
+
+    pub fn create_model_shader(&self) -> String {
+        let mut source = include_str!("shader/model.wgsl").to_string();
+
+        source = source.replace("// ASSIGN_VARS", &self.assignments);
+
+        for ((from, var), to) in [
+            ("// ASSIGN_COLOR_GENERATED", "g_color"),
+            ("// ASSIGN_ETC_GENERATED", "g_etc_buffer"),
+            ("// ASSIGN_NORMAL_GENERATED", "g_normal"),
+            ("// ASSIGN_G_LGT_COLOR_GENERATED", "g_lgt_color"),
+        ]
+        .iter()
+        .zip(&self.outputs)
+        {
+            source = source.replace(from, &to.replace(OUT_VAR, var));
+        }
+
+        source = source.replace("// ALPHA_TEST_DISCARD_GENERATED", &self.alpha_test);
+
+        source = source.replace(
+            "// ASSIGN_NORMAL_INTENSITY_GENERATED",
+            &self.normal_intensity.replace(OUT_VAR, "intensity"),
+        );
+
+        // This section is only used for wgsl_to_wgpu reachability analysis and can be removed.
+        if let (Some(start), Some(end)) =
+            (source.find("// REMOVE_BEGIN"), source.find("// REMOVE_END"))
+        {
+            source.replace_range(start..end, "");
+        }
+
+        source
+    }
+}
 
 fn assignment_wgsl(
     value: &Assignment,
@@ -128,40 +198,7 @@ fn arg(args: &[usize], i: usize) -> Option<String> {
     Some(format!("{VAR_PREFIX}{}", args.get(i)?))
 }
 
-pub fn create_model_shader(key: &PipelineKey) -> String {
-    let mut source = include_str!("shader/model.wgsl").to_string();
-
-    source = source.replace("// ASSIGN_VARS", &key.assignments_wgsl);
-
-    for ((from, var), to) in [
-        ("// ASSIGN_COLOR_GENERATED", "g_color"),
-        ("// ASSIGN_ETC_GENERATED", "g_etc_buffer"),
-        ("// ASSIGN_NORMAL_GENERATED", "g_normal"),
-        ("// ASSIGN_G_LGT_COLOR_GENERATED", "g_lgt_color"),
-    ]
-    .iter()
-    .zip(&key.output_layers_wgsl)
-    {
-        source = source.replace(from, &to.replace(OUT_VAR, var));
-    }
-
-    source = source.replace("// ALPHA_TEST_DISCARD_GENERATED", &key.alpha_test_wgsl);
-
-    source = source.replace(
-        "// ASSIGN_NORMAL_INTENSITY_GENERATED",
-        &key.normal_intensity_wgsl.replace(OUT_VAR, "intensity"),
-    );
-
-    // This section is only used for wgsl_to_wgpu reachability analysis and can be removed.
-    if let (Some(start), Some(end)) = (source.find("// REMOVE_BEGIN"), source.find("// REMOVE_END"))
-    {
-        source.replace_range(start..end, "");
-    }
-
-    source
-}
-
-pub fn generate_alpha_test_wgsl(
+fn generate_alpha_test_wgsl(
     alpha_test: &TextureAlphaTest,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
@@ -183,8 +220,7 @@ pub fn generate_alpha_test_wgsl(
     }
 }
 
-// TODO: Struct to hold all the shader information?
-pub fn generate_assignments_wgsl(
+fn generate_assignments_wgsl(
     assignments: &OutputAssignments,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
@@ -204,7 +240,7 @@ pub fn generate_assignments_wgsl(
 
     wgsl
 }
-pub fn generate_layering_wgsl(assignments: &OutputAssignments) -> Vec<String> {
+fn generate_outputs_wgsl(assignments: &OutputAssignments) -> Vec<String> {
     // Don't generate code for velocity or depth.
     assignments
         .output_assignments
@@ -233,7 +269,7 @@ pub fn generate_layering_wgsl(assignments: &OutputAssignments) -> Vec<String> {
         .collect()
 }
 
-pub fn generate_normal_intensity_wgsl(intensity: usize) -> String {
+fn generate_normal_intensity_wgsl(intensity: usize) -> String {
     format!("{OUT_VAR} = {VAR_PREFIX}{intensity};")
 }
 

@@ -1,8 +1,7 @@
 use xc3_model::material::{BlendMode, ColorWriteMode, CullMode, RenderPassType, StateFlags};
 
 use crate::{
-    shadergen::create_model_shader, DEPTH_STENCIL_FORMAT, GBUFFER_COLOR_FORMAT,
-    GBUFFER_NORMAL_FORMAT,
+    shadergen::ShaderWgsl, DEPTH_STENCIL_FORMAT, GBUFFER_COLOR_FORMAT, GBUFFER_NORMAL_FORMAT,
 };
 
 #[derive(Debug)]
@@ -26,11 +25,7 @@ pub struct PipelineKey {
     pub is_outline: bool,
     pub output5_type: Output5Type,
     pub is_instanced_static: bool,
-    // TODO: group these
-    pub assignments_wgsl: String,
-    pub output_layers_wgsl: Vec<String>,
-    pub alpha_test_wgsl: String,
-    pub normal_intensity_wgsl: String,
+    pub wgsl: ShaderWgsl,
 }
 
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq)]
@@ -188,7 +183,7 @@ fn model_pipeline_inner<const M: usize, const N: usize>(
     fragment_entry: crate::shader::model::FragmentEntry<N>,
     key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
-    let source = create_model_shader(key);
+    let source = key.wgsl.create_model_shader();
 
     // TODO: Is it even worth caching these?
     // TODO: Better to add technique index and material name?

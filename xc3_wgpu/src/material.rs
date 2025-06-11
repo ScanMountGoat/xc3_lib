@@ -10,10 +10,7 @@ use xc3_model::{
 
 use crate::{
     pipeline::{Output5Type, PipelineKey},
-    shadergen::{
-        generate_alpha_test_wgsl, generate_assignments_wgsl, generate_layering_wgsl,
-        generate_normal_intensity_wgsl,
-    },
+    shadergen::ShaderWgsl,
     texture::create_default_black_texture,
     DeviceBufferExt, MonolibShaderTextures,
 };
@@ -69,21 +66,11 @@ pub fn create_material(
         name_to_index.entry_index(format!("s{}", a.texture_index).into());
     }
 
-    let assignments_wgsl = generate_assignments_wgsl(&material_assignments, &mut name_to_index);
-    let output_layers_wgsl = generate_layering_wgsl(&material_assignments);
-
-    // Generate empty code if alpha testing is disabled.
-    let alpha_test_wgsl = material
-        .alpha_test
-        .as_ref()
-        .map(|a| generate_alpha_test_wgsl(a, &mut name_to_index))
-        .unwrap_or_default();
-
-    let normal_intensity_wgsl = material_assignments
-        .normal_intensity
-        .as_ref()
-        .map(|i| generate_normal_intensity_wgsl(*i))
-        .unwrap_or_default();
+    let wgsl = ShaderWgsl::new(
+        &material_assignments,
+        material.alpha_test.as_ref(),
+        &mut name_to_index,
+    );
 
     let mut texture_views: [Option<_>; 16] = std::array::from_fn(|_| None);
 
@@ -210,10 +197,7 @@ pub fn create_material(
         is_outline: material.name.ends_with("_outline"),
         output5_type,
         is_instanced_static,
-        assignments_wgsl,
-        output_layers_wgsl,
-        alpha_test_wgsl,
-        normal_intensity_wgsl,
+        wgsl,
     };
     pipelines.insert(pipeline_key.clone());
 
