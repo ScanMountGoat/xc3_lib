@@ -125,7 +125,7 @@ pub struct TextureAssignmentXyz {
     pub texcoords: Vec<usize>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChannelXyz {
     Xyz,
     X,

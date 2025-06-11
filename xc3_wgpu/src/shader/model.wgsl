@@ -453,6 +453,10 @@ fn overlay_blend(a: f32, b: f32) -> f32 {
     return screen * is_a_gt_half + multiply * (1.0 - is_a_gt_half);
 }
 
+fn overlay_blend_xyz(a: vec3<f32>, b: vec3<f32>) -> vec3<f32> {
+    return vec3(overlay_blend(a.x, b.x), overlay_blend(a.y, b.y), overlay_blend(a.z, b.z));
+}
+
 fn overlay_blend2(a: f32, b: f32) -> f32 {
     // An overlay variant for xeno1/model/obj/oj110006.wimdo.
     // This is used for normals and other values.
@@ -460,6 +464,10 @@ fn overlay_blend2(a: f32, b: f32) -> f32 {
     let screen = 1.0 - 2.0 * (1.0 - a) * (1.0 - b);
     let multiply = 2.0 * a * b;
     return screen * ratio + multiply * (1.0 - ratio);
+}
+
+fn overlay_blend2_xyz(a: vec3<f32>, b: vec3<f32>) -> vec3<f32> {
+    return vec3(overlay_blend2(a.x, b.x), overlay_blend2(a.y, b.y), overlay_blend2(a.z, b.z));
 }
 
 fn fresnel_ratio(ratio: f32, n_dot_v: f32) -> f32 {
