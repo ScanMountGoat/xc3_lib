@@ -84,11 +84,54 @@ pub struct TextureAssignment {
     pub texcoords: Vec<usize>,
 }
 
+/// Assignment information for the channels of each output.
+/// This includes channels from textures, material parameters, or shader constants.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OutputAssignmentXyz {
+    /// Index into [assignments](#structfield.assignments) for the most recent assignment.
+    pub assignment: usize, // TODO: option int?
+
+    /// Unique shared values.
+    pub assignments: Vec<AssignmentXyz>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TexCoordParallax {
-    pub mask_a: Box<AssignmentValue>,
-    pub mask_b: Box<AssignmentValue>,
-    pub ratio: Box<AssignmentValue>,
+pub enum AssignmentXyz {
+    Value(Option<AssignmentValueXyz>),
+    Func {
+        op: Operation,
+        /// Index into [assignments](struct.OutputAssignmentXyz.html#structfield.assignments)
+        /// for the function argument list `[arg0, arg1, ...]`.
+        args: Vec<usize>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum AssignmentValueXyz {
+    Texture(TextureAssignmentXyz),
+    Attribute {
+        name: SmolStr,
+        channel: Option<ChannelXyz>,
+    },
+    Float([OrderedFloat<f32>; 3]),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TextureAssignmentXyz {
+    pub name: SmolStr,
+    pub channel: Option<ChannelXyz>,
+    /// Indices into [assigmments](struct.OutputAssignments.html#structfield.assignments)
+    /// for the texture coordinates.
+    pub texcoords: Vec<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ChannelXyz {
+    Xyz,
+    X,
+    Y,
+    Z,
+    W,
 }
 
 impl Default for Assignment {
@@ -118,6 +161,136 @@ impl AssignmentValue {
                 channel: a.channel,
             }),
         }
+    }
+}
+
+impl OutputAssignment {
+    pub fn merge_xyz(&self, assignments: &[Assignment]) -> Option<OutputAssignmentXyz> {
+        let mut assignments_xyz = IndexSet::new();
+        let i =
+            merge_xyz_assignments(self.x?, self.y?, self.z?, assignments, &mut assignments_xyz)?;
+
+        Some(OutputAssignmentXyz {
+            assignment: i,
+            assignments: assignments_xyz.into_iter().collect(),
+        })
+    }
+}
+
+fn merge_xyz_assignments(
+    x: usize,
+    y: usize,
+    z: usize,
+    assignments: &[Assignment],
+    assignments_xyz: &mut IndexSet<AssignmentXyz>,
+) -> Option<usize> {
+    let x = assignments.get(x)?;
+    let y = assignments.get(y)?;
+    let z = assignments.get(z)?;
+
+    let assignment_xyz = match (x, y, z) {
+        (
+            Assignment::Func {
+                op: op_x,
+                args: args_x,
+            },
+            Assignment::Func {
+                op: op_y,
+                args: args_y,
+            },
+            Assignment::Func {
+                op: op_z,
+                args: args_z,
+            },
+        ) => {
+            if op_x == op_y
+                && op_y == op_z
+                && args_x.len() == args_y.len()
+                && args_y.len() == args_z.len()
+            {
+                let mut args = Vec::new();
+                for ((x, y), z) in args_x.iter().zip(args_y.iter()).zip(args_z.iter()) {
+                    let arg = merge_xyz_assignments(*x, *y, *z, assignments, assignments_xyz)?;
+                    args.push(arg);
+                }
+                Some(AssignmentXyz::Func { op: *op_x, args })
+            } else {
+                None
+            }
+        }
+        (Assignment::Value(vx), Assignment::Value(vy), Assignment::Value(vz)) => {
+            // TODO: Check that channels are one of the supported channels.
+            match (vx, vy, vz) {
+                (
+                    Some(AssignmentValue::Texture(tx)),
+                    Some(AssignmentValue::Texture(ty)),
+                    Some(AssignmentValue::Texture(tz)),
+                ) => {
+                    if tx.texcoords == ty.texcoords && ty.texcoords == tz.texcoords {
+                        let t_xyz = TextureAssignmentXyz {
+                            name: name_xyz(&tx.name, &ty.name, &tz.name)?,
+                            channel: channel_xyz(tx.channel, ty.channel, tz.channel)?,
+                            texcoords: tx.texcoords.clone(), // TODO: These should refer to the scalar assignments?
+                        };
+                        Some(AssignmentXyz::Value(Some(AssignmentValueXyz::Texture(
+                            t_xyz,
+                        ))))
+                    } else {
+                        None
+                    }
+                }
+                (
+                    Some(AssignmentValue::Attribute {
+                        name: n_x,
+                        channel: c_x,
+                    }),
+                    Some(AssignmentValue::Attribute {
+                        name: n_y,
+                        channel: c_y,
+                    }),
+                    Some(AssignmentValue::Attribute {
+                        name: n_z,
+                        channel: c_z,
+                    }),
+                ) => Some(AssignmentXyz::Value(Some(AssignmentValueXyz::Attribute {
+                    name: name_xyz(n_x, n_y, n_z)?,
+                    channel: channel_xyz(*c_x, *c_y, *c_z)?,
+                }))),
+                (
+                    Some(AssignmentValue::Float(fx)),
+                    Some(AssignmentValue::Float(fy)),
+                    Some(AssignmentValue::Float(fz)),
+                ) => Some(AssignmentXyz::Value(Some(AssignmentValueXyz::Float([
+                    *fx, *fy, *fz,
+                ])))),
+                (None, None, None) => Some(AssignmentXyz::Value(None)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }?;
+
+    let index = assignments_xyz.insert_full(assignment_xyz).0;
+    Some(index)
+}
+
+fn name_xyz(x: &SmolStr, y: &SmolStr, z: &SmolStr) -> Option<SmolStr> {
+    if x == y && y == z {
+        Some(x.clone())
+    } else {
+        None
+    }
+}
+
+fn channel_xyz(x: Option<char>, y: Option<char>, z: Option<char>) -> Option<Option<ChannelXyz>> {
+    match (x, y, z) {
+        (Some('x'), Some('y'), Some('z')) => Some(Some(ChannelXyz::Xyz)),
+        (Some('x'), Some('x'), Some('x')) => Some(Some(ChannelXyz::X)),
+        (Some('y'), Some('y'), Some('y')) => Some(Some(ChannelXyz::Y)),
+        (Some('z'), Some('z'), Some('z')) => Some(Some(ChannelXyz::Z)),
+        (Some('w'), Some('w'), Some('w')) => Some(Some(ChannelXyz::W)),
+        (None, None, None) => Some(None),
+        _ => None,
     }
 }
 
@@ -295,5 +468,168 @@ pub(crate) fn infer_assignment_from_textures(
         outline_width: None,
         normal_intensity: None,
         assignments: assignments.into_iter().collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn merge_xyz_empty() {
+        assert_eq!(
+            None,
+            OutputAssignment {
+                x: Some(0),
+                y: Some(0),
+                z: Some(0),
+                w: None,
+            }
+            .merge_xyz(&[])
+        );
+    }
+
+    #[test]
+    fn merge_xyz_invalid_channels() {
+        let assignments = [
+            Assignment::Value(Some(AssignmentValue::Float(0.0.into()))),
+            Assignment::Value(Some(AssignmentValue::Texture(TextureAssignment {
+                name: "s0".into(),
+                channel: Some('z'),
+                texcoords: vec![0, 0],
+            }))),
+            Assignment::Value(Some(AssignmentValue::Texture(TextureAssignment {
+                name: "s0".into(),
+                channel: Some('y'),
+                texcoords: vec![0, 0],
+            }))),
+            Assignment::Value(Some(AssignmentValue::Texture(TextureAssignment {
+                name: "s0".into(),
+                channel: Some('x'),
+                texcoords: vec![0, 0],
+            }))),
+        ];
+        assert_eq!(
+            None,
+            OutputAssignment {
+                x: Some(1),
+                y: Some(2),
+                z: Some(3),
+                w: None,
+            }
+            .merge_xyz(&assignments)
+        );
+    }
+
+    #[test]
+    fn merge_xyz_single_channel() {
+        let assignments = [
+            Assignment::Value(Some(AssignmentValue::Float(0.0.into()))),
+            Assignment::Value(Some(AssignmentValue::Texture(TextureAssignment {
+                name: "s0".into(),
+                channel: Some('w'),
+                texcoords: vec![0, 0],
+            }))),
+        ];
+        assert_eq!(
+            Some(OutputAssignmentXyz {
+                assignment: 0,
+                assignments: vec![AssignmentXyz::Value(Some(AssignmentValueXyz::Texture(
+                    TextureAssignmentXyz {
+                        name: "s0".into(),
+                        channel: Some(ChannelXyz::W),
+                        texcoords: vec![0, 0]
+                    }
+                )))]
+            }),
+            OutputAssignment {
+                x: Some(1),
+                y: Some(1),
+                z: Some(1),
+                w: None,
+            }
+            .merge_xyz(&assignments)
+        );
+    }
+
+    #[test]
+    fn merge_xyz_multiple_channels() {
+        let assignments = [
+            Assignment::Value(Some(AssignmentValue::Float(0.0.into()))),
+            Assignment::Value(Some(AssignmentValue::Texture(TextureAssignment {
+                name: "s0".into(),
+                channel: Some('x'),
+                texcoords: vec![0, 0],
+            }))),
+            Assignment::Value(Some(AssignmentValue::Float(1.0.into()))),
+            Assignment::Value(Some(AssignmentValue::Attribute {
+                name: "vColor".into(),
+                channel: Some('x'),
+            })),
+            Assignment::Value(Some(AssignmentValue::Texture(TextureAssignment {
+                name: "s0".into(),
+                channel: Some('y'),
+                texcoords: vec![0, 0],
+            }))),
+            Assignment::Value(Some(AssignmentValue::Float(2.0.into()))),
+            Assignment::Value(Some(AssignmentValue::Attribute {
+                name: "vColor".into(),
+                channel: Some('y'),
+            })),
+            Assignment::Value(Some(AssignmentValue::Texture(TextureAssignment {
+                name: "s0".into(),
+                channel: Some('z'),
+                texcoords: vec![0, 0],
+            }))),
+            Assignment::Value(Some(AssignmentValue::Float(3.0.into()))),
+            Assignment::Value(Some(AssignmentValue::Attribute {
+                name: "vColor".into(),
+                channel: Some('z'),
+            })),
+            Assignment::Func {
+                op: Operation::Fma,
+                args: vec![1, 2, 3],
+            },
+            Assignment::Func {
+                op: Operation::Fma,
+                args: vec![4, 5, 6],
+            },
+            Assignment::Func {
+                op: Operation::Fma,
+                args: vec![7, 8, 9],
+            },
+        ];
+        assert_eq!(
+            Some(OutputAssignmentXyz {
+                assignment: 3,
+                assignments: vec![
+                    AssignmentXyz::Value(Some(AssignmentValueXyz::Texture(TextureAssignmentXyz {
+                        name: "s0".into(),
+                        channel: Some(ChannelXyz::Xyz),
+                        texcoords: vec![0, 0]
+                    }))),
+                    AssignmentXyz::Value(Some(AssignmentValueXyz::Float([
+                        1.0.into(),
+                        2.0.into(),
+                        3.0.into()
+                    ]))),
+                    AssignmentXyz::Value(Some(AssignmentValueXyz::Attribute {
+                        name: "vColor".into(),
+                        channel: Some(ChannelXyz::Xyz)
+                    })),
+                    AssignmentXyz::Func {
+                        op: Operation::Fma,
+                        args: vec![0, 1, 2]
+                    }
+                ]
+            }),
+            OutputAssignment {
+                x: Some(10),
+                y: Some(11),
+                z: Some(12),
+                w: None,
+            }
+            .merge_xyz(&assignments)
+        );
     }
 }
