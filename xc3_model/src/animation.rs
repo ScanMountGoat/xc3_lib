@@ -876,7 +876,7 @@ fn animated_bone_names<'a>(animation: &'a Animation, skeleton: &'a Skeleton) -> 
         .map(|b| (murmur3(b.name.as_bytes()), b.name.as_str()))
         .collect();
 
-    animation
+    let mut names: BTreeSet<_> = animation
         .tracks
         .iter()
         .filter_map(|t| match &t.bone_index {
@@ -884,7 +884,16 @@ fn animated_bone_names<'a>(animation: &'a Animation, skeleton: &'a Skeleton) -> 
             BoneIndex::Hash(hash) => hash_to_name.get(hash).copied(),
             BoneIndex::Name(n) => Some(n.as_str()),
         })
-        .collect()
+        .collect();
+
+    // Include the root motion even if there is no track for the root bone.
+    if animation.root_translation.is_some() {
+        if let Some(root_bone) = skeleton.bones.first() {
+            names.insert(&root_bone.name);
+        }
+    }
+
+    names
 }
 
 fn blender_transform(m: Mat4) -> Mat4 {
@@ -1498,6 +1507,64 @@ mod tests {
                 rotation: [
                     ("a".to_string(), vec![quat(1.0, 0.0, 0.0, 0.0)]),
                     ("b".to_string(), vec![quat(0.0, 0.0, 1.0, 0.0)])
+                ]
+                .into(),
+                scale: [
+                    ("a".to_string(), vec![vec3(1.0, 1.0, 1.0)]),
+                    ("b".to_string(), vec![vec3(1.0, 1.0, 1.0)])
+                ]
+                .into()
+            },
+            fcurves
+        );
+    }
+
+    #[test]
+    fn fcurves_xenoblade_no_root_track() {
+        // Model space animations update the model space transforms directly.
+        let animation = Animation {
+            name: String::new(),
+            space_mode: SpaceMode::Model,
+            play_mode: PlayMode::Single,
+            blend_mode: BlendMode::Blend,
+            frames_per_second: 30.0,
+            frame_count: 1,
+            tracks: vec![Track {
+                translation_keyframes: [keyframe(10.0, 20.0, 30.0, 0.0)].into(),
+                rotation_keyframes: [keyframe(0.0, 1.0, 0.0, 0.0)].into(),
+                scale_keyframes: [keyframe(1.0, 1.0, 1.0, 0.0)].into(),
+                bone_index: BoneIndex::Index(1),
+            }],
+            morph_tracks: None,
+            root_translation: Some(vec![vec3(0.25, 0.5, 0.75)]),
+        };
+
+        let skeleton = Skeleton {
+            bones: vec![
+                Bone {
+                    name: "a".to_string(),
+                    transform: Transform::IDENTITY,
+                    parent_index: None,
+                },
+                Bone {
+                    name: "b".to_string(),
+                    transform: Transform::IDENTITY,
+                    parent_index: Some(0),
+                },
+            ],
+        };
+
+        let fcurves = animation.fcurves(&skeleton, false);
+        assert_eq!(
+            FCurves {
+                translation: [
+                    ("a".to_string(), vec![vec3(0.25, 0.5, 0.75)]),
+                    ("b".to_string(), vec![vec3(9.75, 19.5, 29.25)])
+                ]
+                .into(),
+                rotation: [
+                    ("a".to_string(), vec![quat(0.0, 0.0, 0.0, 1.0)]),
+                    ("b".to_string(), vec![quat(0.0, 1.0, 0.0, 0.0)])
                 ]
                 .into(),
                 scale: [
