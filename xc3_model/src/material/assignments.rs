@@ -77,6 +77,7 @@ pub enum AssignmentValue {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TextureAssignment {
+    /// The name of the texture like `s0` or `gTResidentTex09`.
     pub name: SmolStr,
     pub channel: Option<char>,
     /// Indices into [assigmments](struct.OutputAssignments.html#structfield.assignments)
@@ -100,7 +101,7 @@ pub enum AssignmentXyz {
     Value(Option<AssignmentValueXyz>),
     Func {
         op: Operation,
-        /// Index into [assignments](struct.OutputAssignmentXyz.html#structfield.assignments)
+        /// Index into XYZ [assignments](struct.OutputAssignmentXyz.html#structfield.assignments)
         /// for the function argument list `[arg0, arg1, ...]`.
         args: Vec<usize>,
     },
@@ -118,9 +119,10 @@ pub enum AssignmentValueXyz {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TextureAssignmentXyz {
+    /// The name of the texture like `s0` or `gTResidentTex09`.
     pub name: SmolStr,
     pub channel: Option<ChannelXyz>,
-    /// Indices into [assigmments](struct.OutputAssignments.html#structfield.assignments)
+    /// Indices into scalar [assigmments](struct.OutputAssignments.html#structfield.assignments)
     /// for the texture coordinates.
     pub texcoords: Vec<usize>,
 }
@@ -203,17 +205,14 @@ fn merge_xyz_assignments(
                 args: args_z,
             },
         ) => {
-            if op_x == op_y
-                && op_y == op_z
-                && args_x.len() == args_y.len()
-                && args_y.len() == args_z.len()
-            {
+            let op = op_xyz(*op_x, *op_y, *op_z)?;
+            if args_x.len() == args_y.len() && args_y.len() == args_z.len() {
                 let mut args = Vec::new();
                 for ((x, y), z) in args_x.iter().zip(args_y.iter()).zip(args_z.iter()) {
                     let arg = merge_xyz_assignments(*x, *y, *z, assignments, assignments_xyz)?;
                     args.push(arg);
                 }
-                Some(AssignmentXyz::Func { op: *op_x, args })
+                Some(AssignmentXyz::Func { op, args })
             } else {
                 None
             }
@@ -272,6 +271,31 @@ fn merge_xyz_assignments(
 
     let index = assignments_xyz.insert_full(assignment_xyz).0;
     Some(index)
+}
+
+fn op_xyz(x: Operation, y: Operation, z: Operation) -> Option<Operation> {
+    // Skip any operations that involve vector arguments.
+    // TODO: Should all operations be supported?
+    // TODO: Combine xyz and scalar operations?
+    if x == y
+        && y == z
+        && !matches!(
+            x,
+            Operation::AddNormalX
+                | Operation::AddNormalY
+                | Operation::ReflectX
+                | Operation::ReflectY
+                | Operation::ReflectZ
+                | Operation::Dot4
+                | Operation::NormalMapX
+                | Operation::NormalMapY
+                | Operation::NormalMapZ,
+        )
+    {
+        Some(x)
+    } else {
+        None
+    }
 }
 
 fn name_xyz(x: &SmolStr, y: &SmolStr, z: &SmolStr) -> Option<SmolStr> {

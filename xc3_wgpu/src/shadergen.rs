@@ -431,7 +431,7 @@ fn func_xyz_wgsl(op: &Operation, args: &[usize], output_index: usize) -> Option<
         Operation::Sub => Some(format!("{} - {}", arg0?, arg1?)),
         Operation::Fma => Some(format!("{} * {} + {}", arg0?, arg1?, arg2?)),
         Operation::Abs => Some(format!("abs({})", arg0?)),
-        Operation::Fresnel => Some(format!("fresnel_ratio({}.x, n_dot_v)", arg0?)), // TODO: handle all channels?
+        Operation::Fresnel => Some(format!("fresnel_ratio_xyz({}, n_dot_v)", arg0?)),
         Operation::MulRatio => {
             Some(format!("mix({0}, {0} * {1}, {2})", arg0?, arg1?, arg2?))
         }
@@ -471,15 +471,15 @@ fn func_xyz_wgsl(op: &Operation, args: &[usize], output_index: usize) -> Option<
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?, arg6?, arg7?
         )),
         Operation::NormalMapX => Some(format!(
-            "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).x",
+            "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).xxx",
             arg0?, arg1?
         )),
         Operation::NormalMapY => Some(format!(
-            "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).y",
+            "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).yyy",
             arg0?, arg1?
         )),
         Operation::NormalMapZ => Some(format!(
-            "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).z",
+            "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).zzz",
             arg0?, arg1?
         )),
     }

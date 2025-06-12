@@ -475,6 +475,10 @@ fn fresnel_ratio(ratio: f32, n_dot_v: f32) -> f32 {
     return pow(1.0 - n_dot_v, ratio * 5.0);
 }
 
+fn fresnel_ratio_xyz(ratio: vec3<f32>, n_dot_v: f32) -> vec3<f32> {
+    return vec3(fresnel_ratio(ratio.x, n_dot_v), fresnel_ratio(ratio.y, n_dot_v), fresnel_ratio(ratio.z, n_dot_v));
+}
+
 fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let tangent = normalize(in.tangent.xyz);
     let vertex_normal = normalize(in.normal.xyz);
