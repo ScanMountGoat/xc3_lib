@@ -26,10 +26,7 @@ use crate::{
     extract::nvsd_glsl_name,
     graph::{
         glsl::shader_source_no_extensions,
-        query::{
-            assign_x, assign_x_recursive, dot3_a_b, fma_a_b_c, fma_half_half, mix_a_b_ratio,
-            node_expr, normalize, query_nodes,
-        },
+        query::{assign_x, assign_x_recursive, fma_a_b_c, fma_half_half, normalize, query_nodes},
         BinaryOp, Expr, Graph, Node, UnaryOp,
     },
 };
@@ -169,39 +166,11 @@ fn color_or_param_output_expr(
 
     current = assign_x_recursive(&frag.nodes, current);
 
-    // This isn't always present for all materials in all games.
-    // Xenoblade 1 DE and Xenoblade 3 both seem to do this for non map materials.
-    // TODO: Include calc_monochrome as func?
-    if let Some((mat_cols, _monochrome_ratio)) = calc_monochrome(&frag.nodes, current) {
-        let mat_col = match last_node.output.channel {
-            Some('x') => &mat_cols[0],
-            Some('y') => &mat_cols[1],
-            Some('z') => &mat_cols[2],
-            _ => &mat_cols[0],
-        };
-        current = assign_x_recursive(&frag.nodes, mat_col);
-    }
-
     if let Some(new_current) = geometric_specular_aa(&frag.nodes, current) {
         current = new_current;
     }
 
     Some(output_expr(current, frag, exprs, expr_to_index))
-}
-
-fn calc_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], &'a Expr)> {
-    // calcMonochrome in pcmdo fragment shaders for XC1 and XC3.
-    let (_mat_col, monochrome, monochrome_ratio) = mix_a_b_ratio(nodes, expr)?;
-    let monochrome = node_expr(nodes, monochrome)?;
-    let (a, b) = dot3_a_b(nodes, monochrome)?;
-
-    // TODO: Check weight values for XC1 (0.3, 0.59, 0.11) or XC3 (0.01, 0.01, 0.01)?
-    let mat_col = match (a, b) {
-        ([Expr::Float(_), Expr::Float(_), Expr::Float(_)], mat_col) => Some(mat_col),
-        (mat_col, [Expr::Float(_), Expr::Float(_), Expr::Float(_)]) => Some(mat_col),
-        _ => None,
-    }?;
-    Some((mat_col, monochrome_ratio))
 }
 
 fn normal_output_expr(
@@ -312,6 +281,7 @@ fn output_expr_inner(
         // Detect operations from most specific to least specific.
         // This results in fewer operations in many cases.
         if let Some((op, args)) = op_add_normal(&graph.nodes, expr)
+            .or_else(|| op_monochrome(&graph.nodes, expr))
             .or_else(|| op_fresnel_ratio(&graph.nodes, expr))
             .or_else(|| op_overlay2(&graph.nodes, expr))
             .or_else(|| op_overlay_ratio(&graph.nodes, expr))
@@ -760,6 +730,59 @@ fn dependency_expr(
                 _ => None,
             })
     })
+}
+
+static OP_MONOCHROME: LazyLock<Graph> = LazyLock::new(|| {
+    // result = mix(color, dot(color, vec3(0.01, 0.01, 0.01), ratio))
+    let query = indoc! {"
+        void main() {
+            b = x * 0.01;
+            b = fma(y, 0.01, b);
+            b = fma(z, 0.01, b);
+            neg_a = 0.0 - a;
+            b_minus_a = neg_a + b;
+            result = fma(b_minus_a, ratio, a);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+static OP_MONOCHROME_XC1: LazyLock<Graph> = LazyLock::new(|| {
+    // result = mix(color, dot(color, vec3(0.3, 0.59, 0.11), ratio))
+    let query = indoc! {"
+        void main() {
+            b = x * 0.3;
+            b = fma(y, 0.59, b);
+            b = fma(z, 0.11, b);
+            neg_a = 0.0 - a;
+            b_minus_a = neg_a + b;
+            result = fma(b_minus_a, ratio, a);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap()
+});
+
+fn op_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    // calcMonochrome in pcmdo fragment shaders for XC1 and XC3.
+    // TODO: Create separate ops or include the RGB weights in the args?
+    let result = query_nodes(expr, nodes, &OP_MONOCHROME.nodes)
+        .or_else(|| query_nodes(expr, nodes, &OP_MONOCHROME_XC1.nodes))?;
+    let a = result.get("a")?;
+    let x = result.get("x")?;
+    let y = result.get("y")?;
+    let z = result.get("z")?;
+    let ratio = result.get("ratio")?;
+
+    let operation = if a == x {
+        Operation::MonochromeX
+    } else if a == y {
+        Operation::MonochromeY
+    } else if a == z {
+        Operation::MonochromeZ
+    } else {
+        Operation::Unk
+    };
+    Some((operation, vec![x, y, z, ratio]))
 }
 
 static OP_ADD_NORMAL: LazyLock<Graph> = LazyLock::new(|| {

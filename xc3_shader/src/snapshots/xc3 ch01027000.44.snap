@@ -1,9 +1,9 @@
 ---
 source: xc3_shader/src/shader_database.rs
 ---
-"o0.x": "U_Mate.gMatCol.x"
-"o0.y": "U_Mate.gMatCol.y"
-"o0.z": "U_Mate.gMatCol.z"
+"o0.x": "MonochromeX(U_Mate.gMatCol.x, U_Mate.gMatCol.y, U_Mate.gMatCol.z, U_Mate.gWrkFl4[1].y)"
+"o0.y": "MonochromeY(U_Mate.gMatCol.x, U_Mate.gMatCol.y, U_Mate.gMatCol.z, U_Mate.gWrkFl4[1].y)"
+"o0.z": "MonochromeZ(U_Mate.gMatCol.x, U_Mate.gMatCol.y, U_Mate.gMatCol.z, U_Mate.gWrkFl4[1].y)"
 "o0.w": "Mul(Unk(), 0.003921569)"
 "o1.x": "U_Mate.gWrkFl4[0].w"
 "o1.y": "U_Mate.gWrkFl4[0].z"

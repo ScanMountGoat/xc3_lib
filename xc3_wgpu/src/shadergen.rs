@@ -204,6 +204,18 @@ fn func_wgsl(op: &Operation, args: &[usize]) -> Option<String> {
             "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).z",
             arg0?, arg1?
         )),
+        Operation::MonochromeX => Some(format!(
+            "monochrome({}, {}, {}, {}).x",
+            arg0?, arg1?, arg2?, arg3?
+        )),
+        Operation::MonochromeY => Some(format!(
+            "monochrome({}, {}, {}, {}).y",
+            arg0?, arg1?, arg2?, arg3?
+        )),
+        Operation::MonochromeZ => Some(format!(
+            "monochrome({}, {}, {}, {}).z",
+            arg0?, arg1?, arg2?, arg3?
+        )),
     }
 }
 
@@ -481,6 +493,18 @@ fn func_xyz_wgsl(op: &Operation, args: &[usize], output_index: usize) -> Option<
         Operation::NormalMapZ => Some(format!(
             "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).zzz",
             arg0?, arg1?
+        )),
+        Operation::MonochromeX => Some(format!(
+            "monochrome_xyz_x({}, {}, {}, {})",
+            arg0?, arg1?, arg2?, arg3?
+        )),
+        Operation::MonochromeY => Some(format!(
+            "monochrome_xyz_y({}, {}, {}, {})",
+            arg0?, arg1?, arg2?, arg3?
+        )),
+        Operation::MonochromeZ => Some(format!(
+            "monochrome_xyz_z({}, {}, {}, {})",
+            arg0?, arg1?, arg2?, arg3?
         )),
     }
 }

@@ -479,6 +479,23 @@ fn fresnel_ratio_xyz(ratio: vec3<f32>, n_dot_v: f32) -> vec3<f32> {
     return vec3(fresnel_ratio(ratio.x, n_dot_v), fresnel_ratio(ratio.y, n_dot_v), fresnel_ratio(ratio.z, n_dot_v));
 }
 
+fn monochrome(x: f32, y: f32, z: f32, ratio: f32) -> vec3<f32> {
+    let color = vec3(x, y, z);
+    return mix(color, vec3(dot(color, vec3(0.01))), ratio);
+}
+
+fn monochrome_xyz_x(x: vec3<f32>, y: vec3<f32>, z: vec3<f32>, ratio: vec3<f32>) -> vec3<f32> {
+    return vec3(monochrome(x.x, y.x, z.x, ratio.x).x, monochrome(x.y, y.y, z.y, ratio.y).x, monochrome(x.z, y.z, z.z, ratio.z).x);
+}
+
+fn monochrome_xyz_y(x: vec3<f32>, y: vec3<f32>, z: vec3<f32>, ratio: vec3<f32>) -> vec3<f32> {
+    return vec3(monochrome(x.x, y.x, z.x, ratio.x).y, monochrome(x.y, y.y, z.y, ratio.y).y, monochrome(x.z, y.z, z.z, ratio.z).y);
+}
+
+fn monochrome_xyz_z(x: vec3<f32>, y: vec3<f32>, z: vec3<f32>, ratio: vec3<f32>) -> vec3<f32> {
+    return vec3(monochrome(x.x, y.x, z.x, ratio.x).z, monochrome(x.y, y.y, z.y, ratio.y).z, monochrome(x.z, y.z, z.z, ratio.z).z);
+}
+
 fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let tangent = normalize(in.tangent.xyz);
     let vertex_normal = normalize(in.normal.xyz);

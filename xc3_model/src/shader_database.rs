@@ -227,6 +227,12 @@ pub enum Operation {
     NormalMapY,
     /// `apply_normal_map(create_normal_map(arg0, arg1), tangent.xyz, bitangent.xyz, normal.xyz).z`
     NormalMapZ,
+    /// `monochrome(arg0, arg1, arg2, arg3).x`
+    MonochromeX,
+    /// `monochrome(arg0, arg1, arg2, arg3).y`
+    MonochromeY,
+    /// `monochrome(arg0, arg1, arg2, arg3).z`
+    MonochromeZ,
 }
 
 impl Default for Operation {
