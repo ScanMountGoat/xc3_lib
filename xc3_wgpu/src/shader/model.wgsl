@@ -25,107 +25,19 @@ struct PerGroup {
 @group(1) @binding(0)
 var<uniform> per_group: PerGroup;
 
+const TEXTURE_SAMPLER_COUNT: u32 = 32;
+
 // PerMaterial values.
 // Define all possible parameters even if unused.
 // The "ubershader" approach makes it possible to generate WGSL bindings at build time.
 @group(2) @binding(0)
-var s0: texture_2d<f32>;
+var textures: binding_array<texture_2d<f32>, TEXTURE_SAMPLER_COUNT>;
 
 @group(2) @binding(1)
-var s1: texture_2d<f32>;
-
-@group(2) @binding(2)
-var s2: texture_2d<f32>;
-
-@group(2) @binding(3)
-var s3: texture_2d<f32>;
-
-@group(2) @binding(4)
-var s4: texture_2d<f32>;
-
-@group(2) @binding(5)
-var s5: texture_2d<f32>;
-
-@group(2) @binding(6)
-var s6: texture_2d<f32>;
-
-@group(2) @binding(7)
-var s7: texture_2d<f32>;
-
-@group(2) @binding(8)
-var s8: texture_2d<f32>;
-
-@group(2) @binding(9)
-var s9: texture_2d<f32>;
-
-@group(2) @binding(10)
-var s10: texture_2d<f32>;
-
-@group(2) @binding(11)
-var s11: texture_2d<f32>;
-
-@group(2) @binding(12)
-var s12: texture_2d<f32>;
-
-@group(2) @binding(13)
-var s13: texture_2d<f32>;
-
-@group(2) @binding(14)
-var s14: texture_2d<f32>;
-
-@group(2) @binding(15)
-var s15: texture_2d<f32>;
-
-@group(2) @binding(16)
-var s0_sampler: sampler;
-
-@group(2) @binding(17)
-var s1_sampler: sampler;
-
-@group(2) @binding(18)
-var s2_sampler: sampler;
-
-@group(2) @binding(19)
-var s3_sampler: sampler;
-
-@group(2) @binding(20)
-var s4_sampler: sampler;
-
-@group(2) @binding(21)
-var s5_sampler: sampler;
-
-@group(2) @binding(22)
-var s6_sampler: sampler;
-
-@group(2) @binding(23)
-var s7_sampler: sampler;
-
-@group(2) @binding(24)
-var s8_sampler: sampler;
-
-@group(2) @binding(25)
-var s9_sampler: sampler;
-
-@group(2) @binding(26)
-var s10_sampler: sampler;
-
-@group(2) @binding(27)
-var s11_sampler: sampler;
-
-@group(2) @binding(28)
-var s12_sampler: sampler;
-
-@group(2) @binding(29)
-var s13_sampler: sampler;
-
-@group(2) @binding(30)
-var s14_sampler: sampler;
-
-// @group(2) @binding(31)
-// var s15_sampler: sampler;
+var samplers: binding_array<sampler, TEXTURE_SAMPLER_COUNT>;
 
 // TODO: move this to a separate pass?
-@group(2) @binding(32)
+@group(2) @binding(2)
 var alpha_test_sampler: sampler;
 
 struct OutputAssignment {
@@ -153,7 +65,7 @@ struct FurShellParams {
 }
 
 @group(2) @binding(33)
-var<uniform> per_material: PerMaterial;
+var<storage, read> per_material: PerMaterial;
 
 // PerMesh values.
 struct PerMesh {
@@ -514,23 +426,8 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
 
     // Required for reachability analysis to include these resources.
     // REMOVE_BEGIN
-    var _unused = textureSample(s0, s0_sampler, vec2(0.0));
-    _unused = textureSample(s1, s1_sampler, vec2(0.0));
-    _unused = textureSample(s2, s2_sampler, vec2(0.0));
-    _unused = textureSample(s3, s3_sampler, vec2(0.0));
-    _unused = textureSample(s4, s4_sampler, vec2(0.0));
-    _unused = textureSample(s5, s5_sampler, vec2(0.0));
-    _unused = textureSample(s6, s6_sampler, vec2(0.0));
-    _unused = textureSample(s7, s7_sampler, vec2(0.0));
-    _unused = textureSample(s8, s8_sampler, vec2(0.0));
-    _unused = textureSample(s9, s9_sampler, vec2(0.0));
-    _unused = textureSample(s10, s10_sampler, vec2(0.0));
-    _unused = textureSample(s11, s11_sampler, vec2(0.0));
-    _unused = textureSample(s12, s12_sampler, vec2(0.0));
-    _unused = textureSample(s13, s13_sampler, vec2(0.0));
-    _unused = textureSample(s14, s14_sampler, vec2(0.0));
-    _unused = textureSample(s15, s14_sampler, vec2(0.0));
-    _unused = textureSample(s0, alpha_test_sampler, vec2(0.0));
+    var _unused = textureSample(textures[0], samplers[0], vec2(0.0));
+    _unused = textureSample(textures[0], alpha_test_sampler, vec2(0.0));
     // REMOVE_END
 
     // ALPHA_TEST_DISCARD_GENERATED
@@ -548,16 +445,17 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     var g_depth = assignments[4].default_value;
     var g_lgt_color = assignments[5].default_value;
 
-    // Normal layers never use fresnel blending, so just use a default for dot(N, V).
-    // This avoids needing to define N before layering normal maps.
-    var n_dot_v = 1.0;
+    // Normals are in view space, so the view vector is simple.
+    var normal = vertex_normal;
+    let view = vec3(0.0, 0.0, 1.0);
+    // TODO: This should use the normal after normal mapping.
+    let n_dot_v = max(dot(view, normal), 0.0);
 
     // ASSIGN_VARS
 
     // ASSIGN_NORMAL_GENERATED
     
     // Not all materials and shaders use normal mapping.
-    var normal = vertex_normal;
     if assignments[2].has_channels.x != 0u || assignments[2].has_channels.y != 0u {
         var intensity = 1.0;
         // ASSIGN_NORMAL_INTENSITY_GENERATED
@@ -568,10 +466,6 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let ao = g_normal.z;
 
     // TODO: front facing in calcNormalZAbs in pcmdo?
-
-    // Normals are in view space, so the view vector is simple.
-    let view = vec3(0.0, 0.0, 1.0);
-    n_dot_v = max(dot(view, normal), 0.0);
 
     // ASSIGN_COLOR_GENERATED
     // ASSIGN_ETC_GENERATED

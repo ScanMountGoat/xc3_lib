@@ -10,6 +10,7 @@ use xc3_model::{
 
 use crate::{
     pipeline::{Output5Type, PipelineKey},
+    shader::model::TEXTURE_SAMPLER_COUNT,
     shadergen::ShaderWgsl,
     texture::create_default_black_texture,
     DeviceBufferExt, MonolibShaderTextures,
@@ -72,7 +73,8 @@ pub fn create_material(
         &mut name_to_index,
     );
 
-    let mut texture_views: [Option<_>; 16] = std::array::from_fn(|_| None);
+    let mut texture_views: [Option<_>; TEXTURE_SAMPLER_COUNT as usize] =
+        std::array::from_fn(|_| None);
 
     for (name, i) in &name_to_index {
         if let Some(texture) = assign_texture(material, textures, monolib_shader, name) {
@@ -80,7 +82,7 @@ pub fn create_material(
                 texture_views[*i] = Some(texture.create_view(&Default::default()));
             }
         } else {
-            error!("Unable to assign texture {name:?} for {:?}", &material.name);
+            error!("Unable to assign {name} for {:?}", &material.name);
         }
     }
 
@@ -105,9 +107,8 @@ pub fn create_material(
     let outline_width =
         value_channel_assignment(material_assignments.outline_width.as_ref()).unwrap_or(0.005);
 
-    // TODO: This is normally done using a depth prepass.
-    // TODO: Is it ok to combine the prepass alpha in the main pass like this?
-    let per_material = device.create_uniform_buffer(
+    // Use a storage buffer since wgpu doesn't allow binding arrays and uniform buffers in a bind group.
+    let per_material = device.create_storage_buffer(
         // TODO: include model name?
         &format!(
             "PerMaterial {:?} shd{:04}",
@@ -121,45 +122,21 @@ pub fn create_material(
         }],
     );
 
+    let texture_array =
+        std::array::from_fn(|i| texture_views[i].as_ref().unwrap_or(&default_black));
+    let sampler_array = std::array::from_fn(|i| {
+        material_sampler(material, samplers, i).unwrap_or(&default_sampler)
+    });
+
     // Bind all available textures and samplers.
     // Texture selection happens within generated shader code.
     // Any unused shader code will likely be removed during shader compilation.
     let bind_group2 = crate::shader::model::bind_groups::BindGroup2::from_bindings(
         device,
         crate::shader::model::bind_groups::BindGroupLayout2 {
-            s0: texture_views[0].as_ref().unwrap_or(&default_black),
-            s1: texture_views[1].as_ref().unwrap_or(&default_black),
-            s2: texture_views[2].as_ref().unwrap_or(&default_black),
-            s3: texture_views[3].as_ref().unwrap_or(&default_black),
-            s4: texture_views[4].as_ref().unwrap_or(&default_black),
-            s5: texture_views[5].as_ref().unwrap_or(&default_black),
-            s6: texture_views[6].as_ref().unwrap_or(&default_black),
-            s7: texture_views[7].as_ref().unwrap_or(&default_black),
-            s8: texture_views[8].as_ref().unwrap_or(&default_black),
-            s9: texture_views[9].as_ref().unwrap_or(&default_black),
-            s10: texture_views[10].as_ref().unwrap_or(&default_black),
-            s11: texture_views[11].as_ref().unwrap_or(&default_black),
-            s12: texture_views[12].as_ref().unwrap_or(&default_black),
-            s13: texture_views[13].as_ref().unwrap_or(&default_black),
-            s14: texture_views[14].as_ref().unwrap_or(&default_black),
-            s15: texture_views[15].as_ref().unwrap_or(&default_black),
-            s0_sampler: material_sampler(material, samplers, 0).unwrap_or(&default_sampler),
-            s1_sampler: material_sampler(material, samplers, 1).unwrap_or(&default_sampler),
-            s2_sampler: material_sampler(material, samplers, 2).unwrap_or(&default_sampler),
-            s3_sampler: material_sampler(material, samplers, 3).unwrap_or(&default_sampler),
-            s4_sampler: material_sampler(material, samplers, 4).unwrap_or(&default_sampler),
-            s5_sampler: material_sampler(material, samplers, 5).unwrap_or(&default_sampler),
-            s6_sampler: material_sampler(material, samplers, 6).unwrap_or(&default_sampler),
-            s7_sampler: material_sampler(material, samplers, 7).unwrap_or(&default_sampler),
-            s8_sampler: material_sampler(material, samplers, 8).unwrap_or(&default_sampler),
-            s9_sampler: material_sampler(material, samplers, 9).unwrap_or(&default_sampler),
-            s10_sampler: material_sampler(material, samplers, 10).unwrap_or(&default_sampler),
-            s11_sampler: material_sampler(material, samplers, 11).unwrap_or(&default_sampler),
-            s12_sampler: material_sampler(material, samplers, 12).unwrap_or(&default_sampler),
-            s13_sampler: material_sampler(material, samplers, 13).unwrap_or(&default_sampler),
-            s14_sampler: material_sampler(material, samplers, 14).unwrap_or(&default_sampler),
+            textures: &texture_array,
+            samplers: &sampler_array,
             // TODO: Move alpha test to a separate pass?
-            // s15_sampler: material_sampler(material, samplers, 15).unwrap_or(&default_sampler),
             alpha_test_sampler: material
                 .alpha_test
                 .as_ref()

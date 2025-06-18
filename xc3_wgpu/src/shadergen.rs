@@ -16,12 +16,11 @@ use xc3_model::{
     IndexMapExt,
 };
 
+use crate::shader::model::TEXTURE_SAMPLER_COUNT;
+
 const OUT_VAR: &str = "RESULT";
 const VAR_PREFIX: &str = "VAR";
 const VAR_PREFIX_XYZ: &str = "VAR_XYZ";
-
-// TODO: This needs to be 16 to support all in game shaders.
-const MAX_SAMPLERS: usize = 15;
 
 /// Generated WGSL model shader code for a material.
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
@@ -227,20 +226,20 @@ fn generate_alpha_test_wgsl(
     alpha_test: &TextureAlphaTest,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
-    let name: SmolStr = format!("s{}", alpha_test.texture_index).into();
+    let name: SmolStr = format!("textures[{}]", alpha_test.texture_index).into();
     let i = name_to_index.entry_index(name.clone());
 
-    if i < MAX_SAMPLERS {
+    if i < TEXTURE_SAMPLER_COUNT as usize {
         let c = ['x', 'y', 'z', 'w'][alpha_test.channel_index];
 
         // TODO: Detect the UV attribute to use with alpha testing.
         formatdoc! {"
-            if textureSample(s{i}, alpha_test_sampler, tex0).{c} <= per_material.alpha_test_ref {{
+            if textureSample(textures[{i}], alpha_test_sampler, tex0).{c} <= per_material.alpha_test_ref {{
                 discard;
             }}
         "}
     } else {
-        error!("Sampler index {i} exceeds supported max of {MAX_SAMPLERS}");
+        error!("Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}");
         String::new()
     }
 }
@@ -339,16 +338,14 @@ fn assignment_value_wgsl(
         AssignmentValue::Texture(t) => {
             let i = name_to_index.entry_index(t.name.clone());
 
-            if i < MAX_SAMPLERS {
-                let u = t.texcoords.first()?;
-                let v = t.texcoords.get(1)?;
-
+            if i < TEXTURE_SAMPLER_COUNT as usize {
+                let coords = texture_coordinates(&t.texcoords)?;
                 Some(format!(
-                    "textureSample(s{i}, s{i}_sampler, vec2({VAR_PREFIX}{u}, {VAR_PREFIX}{v})){}",
+                    "textureSample(textures[{i}], samplers[{i}], {coords}){}",
                     channel_wgsl(t.channel)
                 ))
             } else {
-                error!("Sampler index {i} exceeds supported max of {MAX_SAMPLERS}");
+                error!("Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}");
                 None
             }
         }
@@ -385,6 +382,14 @@ fn assignment_value_wgsl(
                 None
             }
         }
+    }
+}
+
+fn texture_coordinates(coords: &[usize]) -> Option<String> {
+    // TODO: support 3D and cube textures with [u, v, w].
+    match coords {
+        &[u, v] => Some(format!("vec2({VAR_PREFIX}{u}, {VAR_PREFIX}{v})")),
+        _ => None,
     }
 }
 
@@ -522,16 +527,14 @@ fn assignment_value_xyz_wgsl(
         AssignmentValueXyz::Texture(t) => {
             let i = name_to_index.entry_index(t.name.clone());
 
-            if i < MAX_SAMPLERS {
-                let u = t.texcoords.first()?;
-                let v = t.texcoords.get(1)?;
-
+            if i < TEXTURE_SAMPLER_COUNT as usize {
+                let coords = texture_coordinates(&t.texcoords)?;
                 Some(format!(
-                    "textureSample(s{i}, s{i}_sampler, vec2({VAR_PREFIX}{u}, {VAR_PREFIX}{v})){}",
+                    "textureSample(textures[{i}], samplers[{i}], {coords}){}",
                     channel_xyz_wgsl(t.channel)
                 ))
             } else {
-                error!("Sampler index {i} exceeds supported max of {MAX_SAMPLERS}");
+                error!("Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}");
                 None
             }
         }
