@@ -12,7 +12,7 @@ use crate::{
     pipeline::{Output5Type, PipelineKey},
     shader::model::TEXTURE_SAMPLER_COUNT,
     shadergen::ShaderWgsl,
-    texture::create_default_black_texture,
+    texture::{default_black_3d_texture, default_black_cube_texture, default_black_texture},
     DeviceBufferExt, MonolibShaderTextures,
 };
 
@@ -42,8 +42,18 @@ pub fn create_material(
     is_instanced_static: bool,
 ) -> Material {
     // TODO: Is there a better way to handle missing textures?
-    let default_black = create_default_black_texture(device, queue)
-        .create_view(&wgpu::TextureViewDescriptor::default());
+    let default_2d =
+        default_black_texture(device, queue).create_view(&wgpu::TextureViewDescriptor::default());
+    let default_3d =
+        default_black_3d_texture(device, queue).create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D3),
+            ..Default::default()
+        });
+    let default_cube =
+        default_black_cube_texture(device, queue).create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::Cube),
+            ..Default::default()
+        });
 
     let default_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         address_mode_u: wgpu::AddressMode::Repeat,
@@ -73,13 +83,13 @@ pub fn create_material(
         &mut name_to_index,
     );
 
-    let mut texture_views: [Option<_>; TEXTURE_SAMPLER_COUNT as usize] =
+    let mut material_textures: [Option<_>; TEXTURE_SAMPLER_COUNT as usize] =
         std::array::from_fn(|_| None);
 
     for (name, i) in &name_to_index {
         if let Some(texture) = assign_texture(material, textures, monolib_shader, name) {
-            if *i < texture_views.len() {
-                texture_views[*i] = Some(texture.create_view(&Default::default()));
+            if let Some(material_texture) = material_textures.get_mut(*i) {
+                *material_texture = Some(texture);
             }
         } else {
             error!("Unable to assign {name} for {:?}", &material.name);
@@ -122,8 +132,43 @@ pub fn create_material(
         }],
     );
 
-    let texture_array =
-        std::array::from_fn(|i| texture_views[i].as_ref().unwrap_or(&default_black));
+    let texture_views = material_textures.map(|t| {
+        t.map(|t| {
+            t.create_view(&wgpu::TextureViewDescriptor {
+                dimension: if t.dimension() == wgpu::TextureDimension::D3 {
+                    Some(wgpu::TextureViewDimension::D3)
+                } else if t.dimension() == wgpu::TextureDimension::D2
+                    && t.depth_or_array_layers() == 6
+                {
+                    Some(wgpu::TextureViewDimension::Cube)
+                } else {
+                    Some(wgpu::TextureViewDimension::D2)
+                },
+                ..Default::default()
+            })
+        })
+    });
+
+    // TODO: better way of handling this?
+    let texture_array = texture_view_array(
+        &material_textures,
+        &texture_views,
+        |t| t.dimension() == wgpu::TextureDimension::D2 && t.depth_or_array_layers() == 1,
+        &default_2d,
+    );
+    let texture_array_3d = texture_view_array(
+        &material_textures,
+        &texture_views,
+        |t| t.dimension() == wgpu::TextureDimension::D3,
+        &default_3d,
+    );
+    let texture_array_cube = texture_view_array(
+        &material_textures,
+        &texture_views,
+        |t| t.dimension() == wgpu::TextureDimension::D2 && t.depth_or_array_layers() == 6,
+        &default_cube,
+    );
+
     let sampler_array = std::array::from_fn(|i| {
         material_sampler(material, samplers, i).unwrap_or(&default_sampler)
     });
@@ -135,6 +180,8 @@ pub fn create_material(
         device,
         crate::shader::model::bind_groups::BindGroupLayout2 {
             textures: &texture_array,
+            textures_3d: &texture_array_3d,
+            textures_cube: &texture_array_cube,
             samplers: &sampler_array,
             // TODO: Move alpha test to a separate pass?
             alpha_test_sampler: material
@@ -184,6 +231,26 @@ pub fn create_material(
         pipeline_key,
         fur_shell_instance_count: material.fur_params.as_ref().map(|p| p.instance_count),
     }
+}
+
+fn texture_view_array<'a, const N: usize, F: Fn(&wgpu::Texture) -> bool>(
+    textures: &[Option<&wgpu::Texture>],
+    texture_views: &'a [Option<wgpu::TextureView>],
+    check: F,
+    default: &'a wgpu::TextureView,
+) -> [&'a wgpu::TextureView; N] {
+    std::array::from_fn(|i| {
+        textures[i]
+            .as_ref()
+            .and_then(|t| {
+                if check(t) {
+                    texture_views[i].as_ref()
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(default)
+    })
 }
 
 fn output_assignments(
@@ -269,7 +336,7 @@ fn assign_texture<'a>(
     monolib_shader: &'a MonolibShaderTextures,
     name: &str,
 ) -> Option<&'a wgpu::Texture> {
-    let texture = match material_texture_index(name) {
+    match material_texture_index(name) {
         Some(texture_index) => {
             // Search the material textures like "s0" or "s3".
             // TODO: Why is this sometimes out of range for XC2 maps?
@@ -280,18 +347,6 @@ fn assign_texture<'a>(
             // Search global textures from monolib/shader like "gTResidentTex44".
             monolib_shader.global_texture(name)
         }
-    }?;
-
-    // TODO: How to handle 3D textures and cube maps within the shader?
-    if texture.dimension() == wgpu::TextureDimension::D2 && texture.depth_or_array_layers() == 1 {
-        Some(texture)
-    } else {
-        error!(
-            "Expected 2D texture but found dimension {:?} and {} layers.",
-            texture.dimension(),
-            texture.depth_or_array_layers()
-        );
-        None
     }
 }
 

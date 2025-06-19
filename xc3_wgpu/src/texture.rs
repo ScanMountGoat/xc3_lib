@@ -92,7 +92,7 @@ fn image_format_data(texture: &ImageTexture) -> (wgpu::TextureFormat, Cow<'_, Ve
     }
 }
 
-pub fn create_default_black_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Texture {
+pub fn default_black_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Texture {
     device.create_texture_with_data(
         queue,
         &wgpu::TextureDescriptor {
@@ -111,6 +111,56 @@ pub fn create_default_black_texture(device: &wgpu::Device, queue: &wgpu::Queue) 
         },
         wgpu::util::TextureDataOrder::LayerMajor,
         &[0u8; 4 * 4 * 4],
+    )
+}
+
+pub fn default_black_cube_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+) -> wgpu::Texture {
+    device.create_texture_with_data(
+        queue,
+        &wgpu::TextureDescriptor {
+            label: Some("DEFAULT_CUBE"),
+            size: wgpu::Extent3d {
+                width: 4,
+                height: 4,
+                depth_or_array_layers: 6,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        },
+        wgpu::util::TextureDataOrder::LayerMajor,
+        &[0u8; 4 * 4 * 4 * 6],
+    )
+}
+
+pub fn default_black_3d_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+) -> wgpu::Texture {
+    device.create_texture_with_data(
+        queue,
+        &wgpu::TextureDescriptor {
+            label: Some("DEFAULT_CUBE"),
+            size: wgpu::Extent3d {
+                width: 4,
+                height: 4,
+                depth_or_array_layers: 4,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D3,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        },
+        wgpu::util::TextureDataOrder::LayerMajor,
+        &[0u8; 4 * 4 * 4 * 4],
     )
 }
 

@@ -226,7 +226,7 @@ fn generate_alpha_test_wgsl(
     alpha_test: &TextureAlphaTest,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
-    let name: SmolStr = format!("textures[{}]", alpha_test.texture_index).into();
+    let name: SmolStr = format!("s{}", alpha_test.texture_index).into();
     let i = name_to_index.entry_index(name.clone());
 
     if i < TEXTURE_SAMPLER_COUNT as usize {
@@ -340,10 +340,17 @@ fn assignment_value_wgsl(
 
             if i < TEXTURE_SAMPLER_COUNT as usize {
                 let coords = texture_coordinates(&t.texcoords)?;
-                Some(format!(
-                    "textureSample(textures[{i}], samplers[{i}], {coords}){}",
-                    channel_wgsl(t.channel)
-                ))
+                let channels = channel_wgsl(t.channel);
+                // TODO: Support cube maps.
+                if t.texcoords.len() == 3 {
+                    Some(format!(
+                        "textureSample(textures_3d[{i}], samplers[{i}], {coords}){channels}",
+                    ))
+                } else {
+                    Some(format!(
+                        "textureSample(textures[{i}], samplers[{i}], {coords}){channels}",
+                    ))
+                }
             } else {
                 error!("Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}");
                 None
@@ -386,10 +393,15 @@ fn assignment_value_wgsl(
 }
 
 fn texture_coordinates(coords: &[usize]) -> Option<String> {
-    // TODO: support 3D and cube textures with [u, v, w].
     match coords {
         &[u, v] => Some(format!("vec2({VAR_PREFIX}{u}, {VAR_PREFIX}{v})")),
-        _ => None,
+        &[u, v, w] => Some(format!(
+            "vec3({VAR_PREFIX}{u}, {VAR_PREFIX}{v}, {VAR_PREFIX}{w})"
+        )),
+        _ => {
+            error!("Unexpected texture coordinates {coords:?}");
+            None
+        }
     }
 }
 
@@ -529,10 +541,17 @@ fn assignment_value_xyz_wgsl(
 
             if i < TEXTURE_SAMPLER_COUNT as usize {
                 let coords = texture_coordinates(&t.texcoords)?;
-                Some(format!(
-                    "textureSample(textures[{i}], samplers[{i}], {coords}){}",
-                    channel_xyz_wgsl(t.channel)
-                ))
+                let channels = channel_xyz_wgsl(t.channel);
+                // TODO: Support cube maps.
+                if t.texcoords.len() == 3 {
+                    Some(format!(
+                        "textureSample(textures_3d[{i}], samplers[{i}], {coords}){channels}",
+                    ))
+                } else {
+                    Some(format!(
+                        "textureSample(textures[{i}], samplers[{i}], {coords}){channels}",
+                    ))
+                }
             } else {
                 error!("Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}");
                 None

@@ -34,10 +34,16 @@ const TEXTURE_SAMPLER_COUNT: u32 = 32;
 var textures: binding_array<texture_2d<f32>, TEXTURE_SAMPLER_COUNT>;
 
 @group(2) @binding(1)
+var textures_3d: binding_array<texture_3d<f32>, TEXTURE_SAMPLER_COUNT>;
+
+@group(2) @binding(2)
+var textures_cube: binding_array<texture_cube<f32>, TEXTURE_SAMPLER_COUNT>;
+
+@group(2) @binding(3)
 var samplers: binding_array<sampler, TEXTURE_SAMPLER_COUNT>;
 
 // TODO: move this to a separate pass?
-@group(2) @binding(2)
+@group(2) @binding(4)
 var alpha_test_sampler: sampler;
 
 struct OutputAssignment {
@@ -427,6 +433,8 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     // Required for reachability analysis to include these resources.
     // REMOVE_BEGIN
     var _unused = textureSample(textures[0], samplers[0], vec2(0.0));
+    _unused = textureSample(textures_3d[0], samplers[0], vec3(0.0));
+    _unused = textureSample(textures_cube[0], samplers[0], vec3(0.0));
     _unused = textureSample(textures[0], alpha_test_sampler, vec2(0.0));
     // REMOVE_END
 
