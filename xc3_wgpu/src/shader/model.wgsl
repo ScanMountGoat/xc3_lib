@@ -1,14 +1,6 @@
 // PerScene values.
-struct Camera {
-    view: mat4x4<f32>,
-    projection: mat4x4<f32>,
-    view_projection: mat4x4<f32>,
-    position: vec4<f32>,
-    resolution: vec2<f32>
-}
-
 @group(0) @binding(0)
-var<uniform> camera: Camera;
+var<uniform> camera: super::camera::Camera;
 
 // PerGroup values for ModelGroup.
 struct PerGroup {
@@ -34,7 +26,7 @@ const TEXTURE_SAMPLER_COUNT: u32 = 32;
 var textures: binding_array<texture_2d<f32>, TEXTURE_SAMPLER_COUNT>;
 
 @group(2) @binding(1)
-var textures_3d: binding_array<texture_3d<f32>, TEXTURE_SAMPLER_COUNT>;
+var textures_d3: binding_array<texture_3d<f32>, TEXTURE_SAMPLER_COUNT>;
 
 @group(2) @binding(2)
 var textures_cube: binding_array<texture_cube<f32>, TEXTURE_SAMPLER_COUNT>;
@@ -70,7 +62,7 @@ struct FurShellParams {
     alpha: f32
 }
 
-@group(2) @binding(33)
+@group(2) @binding(5)
 var<storage, read> per_material: PerMaterial;
 
 // PerMesh values.
@@ -431,14 +423,14 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let tex8 = in.tex8.xy;
 
     // Required for reachability analysis to include these resources.
-    // REMOVE_BEGIN
+    let REMOVE_BEGIN = 0.0;
     var _unused = textureSample(textures[0], samplers[0], vec2(0.0));
-    _unused = textureSample(textures_3d[0], samplers[0], vec3(0.0));
+    _unused = textureSample(textures_d3[0], samplers[0], vec3(0.0));
     _unused = textureSample(textures_cube[0], samplers[0], vec3(0.0));
     _unused = textureSample(textures[0], alpha_test_sampler, vec2(0.0));
-    // REMOVE_END
+    let REMOVE_END = 0.0;
 
-    // ALPHA_TEST_DISCARD_GENERATED
+    let ALPHA_TEST_DISCARD_GENERATED = 0.0;
 
     // The layout of G-Buffer textures is mostly fixed but assignments are not.
     // Each material in game can have a unique shader program.
@@ -459,14 +451,14 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     // TODO: This should use the normal after normal mapping.
     let n_dot_v = max(dot(view, normal), 0.0);
 
-    // ASSIGN_VARS
+    let ASSIGN_VARS = 0.0;
 
-    // ASSIGN_NORMAL_GENERATED
+    let ASSIGN_NORMAL_GENERATED = 0.0;
     
     // Not all materials and shaders use normal mapping.
     if assignments[2].has_channels.x != 0u || assignments[2].has_channels.y != 0u {
         var intensity = 1.0;
-        // ASSIGN_NORMAL_INTENSITY_GENERATED
+        let ASSIGN_NORMAL_INTENSITY_GENERATED = 0.0;
         intensity = pow(intensity, 0.7);
         let normal_map = create_normal_map(g_normal.x, g_normal.y) * vec3(intensity, intensity, 1.0);
         normal = apply_normal_map(normal_map, tangent, bitangent, vertex_normal);
@@ -475,9 +467,9 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
 
     // TODO: front facing in calcNormalZAbs in pcmdo?
 
-    // ASSIGN_COLOR_GENERATED
-    // ASSIGN_ETC_GENERATED
-    // ASSIGN_G_LGT_COLOR_GENERATED
+    let ASSIGN_COLOR_GENERATED = 0.0;
+    let ASSIGN_ETC_GENERATED = 0.0;
+    let ASSIGN_G_LGT_COLOR_GENERATED = 0.0;
 
     // The ordering here is the order of per material fragment shader outputs.
     // The input order for the deferred lighting pass is slightly different.

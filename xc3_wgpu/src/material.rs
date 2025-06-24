@@ -180,7 +180,7 @@ pub fn create_material(
         device,
         crate::shader::model::bind_groups::BindGroupLayout2 {
             textures: &texture_array,
-            textures_3d: &texture_array_3d,
+            textures_d3: &texture_array_3d,
             textures_cube: &texture_array_cube,
             samplers: &sampler_array,
             // TODO: Move alpha test to a separate pass?

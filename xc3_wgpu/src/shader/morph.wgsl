@@ -1,8 +1,8 @@
 // TODO: Share type with model.wgsl?
 struct VertexInput0 {
-    @location(0) position: vec4<f32>,
-    @location(1) normal: vec4<f32>,
-    @location(2) tangent: vec4<f32>,
+    position: vec4<f32>,
+    normal: vec4<f32>,
+    tangent: vec4<f32>,
 }
 
 struct MorphVertexDelta {

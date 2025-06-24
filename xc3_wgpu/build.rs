@@ -1,68 +1,76 @@
-use wgsl_to_wgpu::{create_shader_module_embedded, MatrixVectorTypes, WriteOptions};
+use wesl::{Mangler, Wesl};
+use wgsl_to_wgpu::{MatrixVectorTypes, Module, ModulePath, WriteOptions};
 
 fn main() {
     let out_dir = std::env::var("OUT_DIR").unwrap();
-    write_shader(
-        include_str!("src/shader/blit.wgsl"),
-        "src/shader/blit.wgsl",
-        format!("{out_dir}/blit.rs"),
-    );
-    write_shader(
-        include_str!("src/shader/bone.wgsl"),
-        "src/shader/bone.wgsl",
-        format!("{out_dir}/bone.rs"),
-    );
-    write_shader(
-        include_str!("src/shader/collision.wgsl"),
-        "src/shader/collision.wgsl",
-        format!("{out_dir}/collision.rs"),
-    );
-    write_shader(
-        include_str!("src/shader/deferred.wgsl"),
-        "src/shader/deferred.wgsl",
-        format!("{out_dir}/deferred.rs"),
-    );
-    write_shader(
-        include_str!("src/shader/model.wgsl"),
-        "src/shader/model.wgsl",
-        format!("{out_dir}/model.rs"),
-    );
-    write_shader(
-        include_str!("src/shader/morph.wgsl"),
-        "src/shader/morph.wgsl",
-        format!("{out_dir}/morph.rs"),
-    );
-    write_shader(
-        include_str!("src/shader/snn_filter.wgsl"),
-        "src/shader/snn_filter.wgsl",
-        format!("{out_dir}/snn_filter.rs"),
-    );
-    write_shader(
-        include_str!("src/shader/solid.wgsl"),
-        "src/shader/solid.wgsl",
-        format!("{out_dir}/solid.rs"),
-    );
-    write_shader(
-        include_str!("src/shader/unbranch_to_depth.wgsl"),
-        "src/shader/unbranch_to_depth.wgsl",
-        format!("{out_dir}/unbranch_to_depth.rs"),
-    );
+
+    let mut wesl = Wesl::new("src/shader");
+    wesl.set_mangler(wesl::ManglerKind::Escape);
+    wesl.set_options(wesl::CompileOptions {
+        mangle_root: false,
+        strip: false,
+        ..Default::default()
+    });
+
+    let options = WriteOptions {
+        derive_bytemuck_vertex: true,
+        derive_encase_host_shareable: true,
+        matrix_vector_types: MatrixVectorTypes::Glam,
+        ..Default::default()
+    };
+    let mut module = Module::default();
+
+    for name in [
+        "blit",
+        "bone",
+        "collision",
+        "deferred",
+        "model",
+        "morph",
+        "snn_filter",
+        "solid",
+        "unbranch_to_depth",
+    ] {
+        println!("cargo:rerun-if-changed=src/shader/{name}.wgsl");
+
+        let wgsl = wesl.compile(format!("{name}.wgsl")).unwrap().to_string();
+        module
+            .add_shader_module(
+                &wgsl,
+                None,
+                options,
+                ModulePath {
+                    components: vec![name.to_string()],
+                },
+                demangle_wesl,
+            )
+            .unwrap();
+    }
+
+    let text = module.to_generated_bindings(options);
+    std::fs::write(format!("{out_dir}/shader.rs"), &text).unwrap();
 }
 
-fn write_shader(wgsl_source: &str, wgsl_path: &str, output_path: String) {
-    println!("cargo:rerun-if-changed={wgsl_path}");
+fn demangle_wesl(name: &str) -> wgsl_to_wgpu::TypePath {
+    // Assume all paths are absolute paths.
+    // TODO: Detect if mangling is necessary without relying on implementation details?
+    if name.starts_with("package_") {
+        let mangler = wesl::EscapeMangler;
+        let (path, name) = mangler
+            .unmangle(name)
+            .unwrap_or((wesl::ModulePath::default(), name.to_string()));
 
-    // Generate the Rust bindings and write to a file.
-    let text = create_shader_module_embedded(
-        wgsl_source,
-        WriteOptions {
-            derive_bytemuck_vertex: true,
-            derive_encase_host_shareable: true,
-            matrix_vector_types: MatrixVectorTypes::Glam,
-            ..Default::default()
-        },
-    )
-    .unwrap();
-
-    std::fs::write(output_path, text.as_bytes()).unwrap();
+        // Assume all wesl paths are absolute paths.
+        wgsl_to_wgpu::TypePath {
+            parent: wgsl_to_wgpu::ModulePath {
+                components: path.components,
+            },
+            name,
+        }
+    } else {
+        wgsl_to_wgpu::TypePath {
+            parent: wgsl_to_wgpu::ModulePath::default(),
+            name: name.to_string(),
+        }
+    }
 }

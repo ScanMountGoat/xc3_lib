@@ -169,7 +169,7 @@ impl Renderer {
         };
         let camera_buffer = device.create_uniform_buffer(
             "camera buffer",
-            &crate::shader::model::Camera {
+            &crate::shader::camera::Camera {
                 view: Mat4::IDENTITY,
                 projection: Mat4::IDENTITY,
                 view_projection: Mat4::IDENTITY,
@@ -364,7 +364,7 @@ impl Renderer {
     pub fn update_camera(&mut self, queue: &wgpu::Queue, camera_data: &CameraData) {
         queue.write_uniform_data(
             &self.camera_buffer,
-            &crate::shader::model::Camera {
+            &crate::shader::camera::Camera {
                 view: camera_data.view,
                 projection: camera_data.projection,
                 view_projection: camera_data.view_projection,
@@ -976,14 +976,11 @@ fn create_unbranch_to_depth_bindgroup(
     device: &wgpu::Device,
     gbuffer: &GBuffer,
 ) -> crate::shader::unbranch_to_depth::bind_groups::BindGroup0 {
-    let shared_sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
-
     crate::shader::unbranch_to_depth::bind_groups::BindGroup0::from_bindings(
         device,
         crate::shader::unbranch_to_depth::bind_groups::BindGroupLayout0 {
             g_etc_buffer: &gbuffer.etc_buffer,
             g_depth: &gbuffer.depth,
-            shared_sampler: &shared_sampler,
         },
     )
 }

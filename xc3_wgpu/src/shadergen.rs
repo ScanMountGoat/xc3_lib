@@ -69,15 +69,16 @@ impl ShaderWgsl {
     }
 
     pub fn create_model_shader(&self) -> String {
-        let mut source = include_str!("shader/model.wgsl").to_string();
+        let mut source = crate::shader::model::SOURCE.to_string();
 
-        source = source.replace("// ASSIGN_VARS", &self.assignments);
+        // TODO: use vars instead of comments.
+        source = source.replace("let ASSIGN_VARS = 0.0;", &self.assignments);
 
         for ((from, var), to) in [
-            ("// ASSIGN_COLOR_GENERATED", "g_color"),
-            ("// ASSIGN_ETC_GENERATED", "g_etc_buffer"),
-            ("// ASSIGN_NORMAL_GENERATED", "g_normal"),
-            ("// ASSIGN_G_LGT_COLOR_GENERATED", "g_lgt_color"),
+            ("let ASSIGN_COLOR_GENERATED = 0.0;", "g_color"),
+            ("let ASSIGN_ETC_GENERATED = 0.0;", "g_etc_buffer"),
+            ("let ASSIGN_NORMAL_GENERATED = 0.0;", "g_normal"),
+            ("let ASSIGN_G_LGT_COLOR_GENERATED = 0.0;", "g_lgt_color"),
         ]
         .iter()
         .zip(&self.outputs)
@@ -85,17 +86,18 @@ impl ShaderWgsl {
             source = source.replace(from, &to.replace(OUT_VAR, var));
         }
 
-        source = source.replace("// ALPHA_TEST_DISCARD_GENERATED", &self.alpha_test);
+        source = source.replace("let ALPHA_TEST_DISCARD_GENERATED = 0.0;", &self.alpha_test);
 
         source = source.replace(
-            "// ASSIGN_NORMAL_INTENSITY_GENERATED",
+            "let ASSIGN_NORMAL_INTENSITY_GENERATED = 0.0;",
             &self.normal_intensity.replace(OUT_VAR, "intensity"),
         );
 
         // This section is only used for wgsl_to_wgpu reachability analysis and can be removed.
-        if let (Some(start), Some(end)) =
-            (source.find("// REMOVE_BEGIN"), source.find("// REMOVE_END"))
-        {
+        if let (Some(start), Some(end)) = (
+            source.find("let REMOVE_BEGIN = 0.0;"),
+            source.find("let REMOVE_END = 0.0;"),
+        ) {
             source.replace_range(start..end, "");
         }
 
@@ -344,7 +346,7 @@ fn assignment_value_wgsl(
                 // TODO: Support cube maps.
                 if t.texcoords.len() == 3 {
                     Some(format!(
-                        "textureSample(textures_3d[{i}], samplers[{i}], {coords}){channels}",
+                        "textureSample(textures_d3[{i}], samplers[{i}], {coords}){channels}",
                     ))
                 } else {
                     Some(format!(
@@ -545,7 +547,7 @@ fn assignment_value_xyz_wgsl(
                 // TODO: Support cube maps.
                 if t.texcoords.len() == 3 {
                     Some(format!(
-                        "textureSample(textures_3d[{i}], samplers[{i}], {coords}){channels}",
+                        "textureSample(textures_d3[{i}], samplers[{i}], {coords}){channels}",
                     ))
                 } else {
                     Some(format!(
