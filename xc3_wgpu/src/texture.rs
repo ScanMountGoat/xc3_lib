@@ -81,7 +81,7 @@ pub fn create_texture(
     )
 }
 
-fn image_format_data(texture: &ImageTexture) -> (wgpu::TextureFormat, Cow<'_, Vec<u8>>) {
+fn image_format_data(texture: &ImageTexture) -> (wgpu::TextureFormat, Cow<'_, [u8]>) {
     // Convert unsupported formats to rgba8 for compatibility.
     match texture_format(texture.image_format) {
         Some(format) => (format, Cow::Borrowed(&texture.image_data)),
@@ -114,10 +114,7 @@ pub fn default_black_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu
     )
 }
 
-pub fn default_black_cube_texture(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-) -> wgpu::Texture {
+pub fn default_black_cube_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Texture {
     device.create_texture_with_data(
         queue,
         &wgpu::TextureDescriptor {
@@ -139,10 +136,7 @@ pub fn default_black_cube_texture(
     )
 }
 
-pub fn default_black_3d_texture(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-) -> wgpu::Texture {
+pub fn default_black_3d_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Texture {
     device.create_texture_with_data(
         queue,
         &wgpu::TextureDescriptor {

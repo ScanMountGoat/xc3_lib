@@ -396,8 +396,8 @@ fn assignment_value_wgsl(
 
 fn texture_coordinates(coords: &[usize]) -> Option<String> {
     match coords {
-        &[u, v] => Some(format!("vec2({VAR_PREFIX}{u}, {VAR_PREFIX}{v})")),
-        &[u, v, w] => Some(format!(
+        [u, v] => Some(format!("vec2({VAR_PREFIX}{u}, {VAR_PREFIX}{v})")),
+        [u, v, w] => Some(format!(
             "vec3({VAR_PREFIX}{u}, {VAR_PREFIX}{v}, {VAR_PREFIX}{w})"
         )),
         _ => {
