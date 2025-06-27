@@ -7,7 +7,6 @@ use wgpu::util::DeviceExt;
 use xc3_model::{vertex::AttributeData, ImageTexture, MeshRenderFlags2, MeshRenderPass};
 
 use crate::{
-    animation::animated_skinning_transforms,
     culling::is_within_frustum,
     material::{create_material, Material},
     pipeline::{model_pipeline, ModelPipelineData, Output5Type, PipelineKey},
@@ -23,12 +22,14 @@ pub struct ModelGroup {
     buffers: Vec<ModelBuffers>,
     skeleton: Option<xc3_model::Skeleton>,
     per_group: crate::shader::model::bind_groups::BindGroup1,
-    per_group_buffer: wgpu::Buffer,
     pub(crate) bone_animated_transforms: wgpu::Buffer,
+    pub(crate) animated_transforms: wgpu::Buffer,
+    pub(crate) animated_transforms_inv_transpose: wgpu::Buffer,
     pub(crate) bone_count: usize,
 
     // Cache pipelines by their creation parameters.
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
+    // TODO: store textures here?
 }
 
 pub struct ModelBuffers {
@@ -68,7 +69,6 @@ impl Models {
         queue: &wgpu::Queue,
         models: &xc3_model::Models,
         buffers: &[xc3_model::vertex::ModelBuffers],
-        skeleton: Option<&xc3_model::Skeleton>,
         pipelines: &mut HashSet<PipelineKey>,
         textures: &[wgpu::Texture],
         image_textures: &[ImageTexture],
@@ -78,9 +78,6 @@ impl Models {
         // TODO: How to enforce this assumption?
         // Reindex to match the ordering defined in the current skeleton.
         let weights = buffers.first().and_then(|b| b.weights.as_ref());
-        let bone_names: Option<Vec<_>> = skeleton
-            .as_ref()
-            .map(|s| s.bones.iter().map(|b| b.name.clone()).collect());
 
         let morph_controller_names = models.morph_controller_names.clone();
         let animation_morph_names = models.animation_morph_names.clone();
@@ -109,7 +106,6 @@ impl Models {
                     models,
                     buffers,
                     weights,
-                    bone_names.as_deref(),
                     &models.materials,
                     &mut index_to_materials,
                     image_textures,
@@ -135,6 +131,25 @@ impl Models {
     pub fn bounds_min_max_xyz(&self) -> (Vec3, Vec3) {
         (self.bounds.min_xyz, self.bounds.max_xyz)
     }
+}
+
+fn remap_bone_indices(
+    skinning_names: &[String],
+    skeleton: Option<&xc3_model::Skeleton>,
+) -> Vec<u32> {
+    // Remap skinning bone indices to skeleton bone indices.
+    skeleton
+        .as_ref()
+        .map(|skeleton| {
+            skinning_names
+                .iter()
+                .map(|n| {
+                    let i = skeleton.bones.iter().position(|b2| &b2.name == n);
+                    i.unwrap_or_default() as u32
+                })
+                .collect()
+        })
+        .unwrap_or((0..256).collect())
 }
 
 pub struct Model {
@@ -388,17 +403,17 @@ impl ModelGroup {
         current_time_seconds: f32,
     ) {
         if let Some(skeleton) = &self.skeleton {
-            let animated_transforms =
-                animated_skinning_transforms(skeleton, animation, current_time_seconds);
-            let animated_transforms_inv_transpose =
-                animated_transforms.map(|t| t.inverse().transpose());
-            queue.write_uniform_data(
-                &self.per_group_buffer,
-                &crate::shader::model::PerGroup {
-                    enable_skinning: uvec4(1, 0, 0, 0),
-                    animated_transforms,
-                    animated_transforms_inv_transpose,
-                },
+            let frame = animation.current_frame(current_time_seconds);
+            let animated_transforms = animation.skinning_transforms(skeleton, frame);
+            queue.write_storage_data(&self.animated_transforms, &animated_transforms);
+
+            let animated_transforms_inv_transpose: Vec<_> = animated_transforms
+                .iter()
+                .map(|t| t.inverse().transpose())
+                .collect();
+            queue.write_storage_data(
+                &self.animated_transforms_inv_transpose,
+                &animated_transforms_inv_transpose,
             );
 
             let bone_transforms: Vec<_> = animation
@@ -554,7 +569,15 @@ fn create_model_group(
         && group.models.iter().any(|g| g.skinning.is_some())
         && group.buffers.iter().any(|b| b.weights.is_some());
 
-    let (per_group, per_group_buffer) = per_group_bind_group(device, enable_skinning);
+    let skinning_names: Vec<_> = group
+        .models
+        .first()
+        .and_then(|m| {
+            m.skinning
+                .as_ref()
+                .map(|s| s.bones.iter().map(|b| b.name.clone()).collect())
+        })
+        .unwrap_or_default();
 
     // TODO: Create helper ext method in lib.rs?
     let bone_transforms: Vec<_> = skeleton
@@ -574,6 +597,21 @@ fn create_model_group(
         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
     });
 
+    let animated_transforms =
+        device.create_storage_buffer("Animated Transforms", &vec![Mat4::IDENTITY; bone_count]);
+    let animated_transforms_inv_transpose = device.create_storage_buffer(
+        "Animated Transforms Inv Transpose",
+        &vec![Mat4::IDENTITY; bone_count],
+    );
+    let per_group = per_group_bind_group(
+        device,
+        enable_skinning,
+        &skinning_names,
+        skeleton,
+        &animated_transforms,
+        &animated_transforms_inv_transpose,
+    );
+
     let buffers = group
         .buffers
         .iter()
@@ -591,7 +629,6 @@ fn create_model_group(
                 queue,
                 models,
                 &group.buffers,
-                skeleton,
                 &mut pipeline_keys,
                 textures,
                 image_textures,
@@ -622,8 +659,9 @@ fn create_model_group(
         models,
         buffers,
         per_group,
-        per_group_buffer,
         skeleton: skeleton.cloned(),
+        animated_transforms,
+        animated_transforms_inv_transpose,
         bone_animated_transforms,
         bone_count,
         pipelines,
@@ -660,7 +698,6 @@ fn create_model(
     models: &xc3_model::Models,
     buffers: &[xc3_model::vertex::ModelBuffers],
     weights: Option<&xc3_model::skinning::Weights>,
-    bone_names: Option<&[String]>,
     materials: &[xc3_model::material::Material],
     index_to_material: &mut BTreeMap<usize, Material>,
     image_textures: &[ImageTexture],
@@ -700,14 +737,7 @@ fn create_model(
                 index_buffer_index: mesh.index_buffer_index,
                 material_index: mesh.material_index,
                 flags2: mesh.flags2,
-                per_mesh: per_mesh_bind_group(
-                    device,
-                    model_buffers,
-                    mesh,
-                    material,
-                    weights,
-                    bone_names,
-                ),
+                per_mesh: per_mesh_bind_group(device, model_buffers, mesh, material, weights),
             }
         })
         .collect();
@@ -1052,24 +1082,32 @@ where
 fn per_group_bind_group(
     device: &wgpu::Device,
     enable_skinning: bool,
-) -> (shader::model::bind_groups::BindGroup1, wgpu::Buffer) {
+    skinning_names: &[String],
+    skeleton: Option<&xc3_model::Skeleton>,
+    animated_transforms: &wgpu::Buffer,
+    animated_transforms_inv_transpose: &wgpu::Buffer,
+) -> shader::model::bind_groups::BindGroup1 {
     let buffer = device.create_uniform_buffer(
         "per group buffer",
         &crate::shader::model::PerGroup {
             enable_skinning: uvec4(enable_skinning as u32, 0, 0, 0),
-            animated_transforms: [Mat4::IDENTITY; 256],
-            animated_transforms_inv_transpose: [Mat4::IDENTITY; 256],
         },
     );
 
-    (
-        crate::shader::model::bind_groups::BindGroup1::from_bindings(
-            device,
-            crate::shader::model::bind_groups::BindGroupLayout1 {
-                per_group: buffer.as_entire_buffer_binding(),
-            },
-        ),
-        buffer,
+    let bone_indices_remap = remap_bone_indices(skinning_names, skeleton);
+
+    let remap_buffer =
+        device.create_storage_buffer("bone indices remap buffer", &bone_indices_remap);
+
+    crate::shader::model::bind_groups::BindGroup1::from_bindings(
+        device,
+        crate::shader::model::bind_groups::BindGroupLayout1 {
+            per_group: buffer.as_entire_buffer_binding(),
+            animated_transforms: animated_transforms.as_entire_buffer_binding(),
+            animated_transforms_inv_transpose: animated_transforms_inv_transpose
+                .as_entire_buffer_binding(),
+            bone_indices_remap: remap_buffer.as_entire_buffer_binding(),
+        },
     )
 }
 
@@ -1079,7 +1117,6 @@ fn per_mesh_bind_group(
     mesh: &xc3_model::Mesh,
     material: &Material,
     weights: Option<&xc3_model::skinning::Weights>,
-    bone_names: Option<&[String]>,
 ) -> shader::model::bind_groups::BindGroup3 {
     // TODO: Fix weight indexing calculations.
     let start = buffers
@@ -1101,15 +1138,7 @@ fn per_mesh_bind_group(
         },
     );
 
-    // Use the existing weights if the skeleton bone names are missing.
-    // This avoids confusing or redundant errors messages for a missing skeleton.
-    let skin_weights = weights
-        .and_then(|w| w.weight_buffer(mesh.flags2.into()))
-        .map(|w| {
-            bone_names
-                .map(|names| w.reindex_bones(names.to_vec()))
-                .unwrap_or(w)
-        });
+    let skin_weights = weights.and_then(|w| w.weight_buffer(mesh.flags2.into()));
 
     let skin_weight_count = skin_weights
         .as_ref()

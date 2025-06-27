@@ -40,7 +40,6 @@
 //! Skeletal animations should use [ModelGroup::update_bone_transforms] and
 //! the [Animation](xc3_model::animation::Animation) type from [xc3_model].
 
-mod animation;
 mod collision;
 mod culling;
 mod material;

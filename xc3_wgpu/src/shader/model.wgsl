@@ -7,15 +7,21 @@ struct PerGroup {
     // TODO: Should this be with the model?
     // TODO: rename to has skeleton?
     enable_skinning: vec4<u32>,
-    // TODO: Is 256 the max bone count if index attributes use u8?
-    // animated_bone_world * bone_world.inv()
-    // i.e. animated_world * inverse_bind
-    animated_transforms: array<mat4x4<f32>, 256>,
-    animated_transforms_inv_transpose: array<mat4x4<f32>, 256>,
 }
 
 @group(1) @binding(0)
 var<uniform> per_group: PerGroup;
+
+@group(1) @binding(1)
+var<storage> animated_transforms: array<mat4x4<f32>>;
+
+@group(1) @binding(2)
+var<storage> animated_transforms_inv_transpose: array<mat4x4<f32>>;
+
+// Remap 8-bit vertex skinning bone index -> skeleton bone index.
+// This is necessary for models that have more than 256 bones in the skeleton.
+@group(1) @binding(3)
+var<storage> bone_indices_remap: array<u32>;
 
 const TEXTURE_SAMPLER_COUNT: u32 = 32;
 
@@ -152,12 +158,13 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
         let skin_weights = skin_weights[weights_index.x];
 
         for (var i = 0u; i < 4u; i += 1u) {
-            let bone_index = bone_indices[i];
+            let skinning_bone_index = bone_indices[i];
+            let bone_index = bone_indices_remap[skinning_bone_index];
             let skin_weight = skin_weights[i];
 
-            position += skin_weight * (per_group.animated_transforms[bone_index] * vec4(in0.position.xyz, 1.0)).xyz;
-            tangent_xyz += skin_weight * (per_group.animated_transforms_inv_transpose[bone_index] * vec4(in0.tangent.xyz, 0.0)).xyz;
-            normal_xyz += skin_weight * (per_group.animated_transforms_inv_transpose[bone_index] * vec4(in0.normal.xyz, 0.0)).xyz;
+            position += skin_weight * (animated_transforms[bone_index] * vec4(in0.position.xyz, 1.0)).xyz;
+            tangent_xyz += skin_weight * (animated_transforms_inv_transpose[bone_index] * vec4(in0.tangent.xyz, 0.0)).xyz;
+            normal_xyz += skin_weight * (animated_transforms_inv_transpose[bone_index] * vec4(in0.normal.xyz, 0.0)).xyz;
         }
     }
 

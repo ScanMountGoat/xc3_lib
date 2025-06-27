@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 * Fixed an issue where `xc3_model::Animation::fcurves` would not include root motion in some cases.
+* Fixed an issue where xc3_wgpu would not properly render animations for skeletons with more than 256 bones.
 
 ## 0.20.0 - 2025-06-09
 ### Added
