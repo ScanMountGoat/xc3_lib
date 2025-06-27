@@ -54,7 +54,7 @@ mod skeleton;
 mod texture;
 
 pub use collision::{load_collisions, Collision};
-pub use model::{load_map, load_model, Mesh, Model, ModelBuffers, ModelGroup, Models};
+pub use model::{load_map, load_model, Mesh, Model, ModelGroup, Models};
 pub use monolib::MonolibShaderTextures;
 pub use renderer::{CameraData, RenderMode, Renderer};
 
