@@ -580,6 +580,7 @@ fn add_models(
                 if let Some(weight_group) = data.buffers.insert_weight_group(
                     model_buffers,
                     skeleton,
+                    models.skinning.as_ref(),
                     WeightGroupKey {
                         weights_start_index,
                         flags2: mesh.flags2.into(),

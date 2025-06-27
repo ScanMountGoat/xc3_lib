@@ -181,12 +181,14 @@ impl Buffers {
         &mut self,
         buffers: &crate::ModelBuffers,
         skeleton: Option<&crate::Skeleton>,
+        skinning: Option<&crate::skinning::Skinning>,
         key: WeightGroupKey,
     ) -> Option<WeightGroup> {
         match self.weight_groups.get(&key) {
             Some(group) => Some(group.clone()),
             None => {
-                let weight_group = self.insert_weight_group_inner(skeleton, buffers, key)?;
+                let weight_group =
+                    self.insert_weight_group_inner(skeleton, skinning, buffers, key)?;
                 self.weight_groups.insert(key, weight_group.clone());
                 Some(weight_group)
             }
@@ -196,6 +198,7 @@ impl Buffers {
     fn insert_weight_group_inner(
         &mut self,
         skeleton: Option<&crate::Skeleton>,
+        skinning: Option<&crate::skinning::Skinning>,
         buffers: &crate::vertex::ModelBuffers,
         key: WeightGroupKey,
     ) -> Option<WeightGroup> {
@@ -209,6 +212,7 @@ impl Buffers {
         let weight_group = self
             .add_weight_group(
                 skeleton?,
+                skinning?,
                 buffers.weights.as_ref()?,
                 weight_indices,
                 key.flags2,
@@ -221,16 +225,13 @@ impl Buffers {
     fn add_weight_group(
         &mut self,
         skeleton: &crate::Skeleton,
+        skinning: &crate::skinning::Skinning,
         weights: &crate::skinning::Weights,
         weight_indices: &[[u16; 2]],
         flags2: u32,
         weights_start_index: usize,
     ) -> BinResult<WeightGroup> {
         let skin_weights = weights.weight_buffer(flags2).unwrap();
-
-        // The weights may be defined with a different bone ordering.
-        let bone_names: Vec<_> = skeleton.bones.iter().map(|b| b.name.clone()).collect();
-        let skin_weights = skin_weights.reindex_bones(bone_names);
 
         // Each group has a different starting offset.
         // This needs to be applied during reindexing.
@@ -245,19 +246,65 @@ impl Buffers {
             (None, None),
             true,
         )?;
-        let indices_accessor = self.add_values(
-            &skin_weights.bone_indices,
-            gltf::json::accessor::Type::Vec4,
-            gltf::json::accessor::ComponentType::U8,
-            Some(Valid(Target::ArrayBuffer)),
-            (None, None),
-            true,
-        )?;
+
+        let indices_accessor = self.add_bone_indices(skeleton, skinning, skin_weights)?;
 
         Ok(WeightGroup {
             weights: (Valid(gltf::Semantic::Weights(0)), weights_accessor),
             indices: (Valid(gltf::Semantic::Joints(0)), indices_accessor),
         })
+    }
+
+    fn add_bone_indices(
+        &mut self,
+        skeleton: &crate::Skeleton,
+        skinning: &crate::skinning::Skinning,
+        skin_weights: crate::skinning::SkinWeights,
+    ) -> Result<gltf_json::Index<gltf_json::Accessor>, binrw::Error> {
+        // Convert skinning bones to skeleton bones.
+        let remap_bone_indices: Vec<_> = skinning
+            .bones
+            .iter()
+            .map(|b| {
+                skeleton
+                    .bones
+                    .iter()
+                    .position(|b2| b.name == b2.name)
+                    .unwrap()
+            })
+            .collect();
+
+        // Bone indices may not fit in 8 bits if the skeleton has more than 256 bones.
+        let max_index = remap_bone_indices.iter().max().copied().unwrap_or_default();
+        if max_index <= u8::MAX as usize {
+            let indices: Vec<_> = skin_weights
+                .bone_indices
+                .iter()
+                .map(|i| i.map(|i| remap_bone_indices[i as usize] as u8))
+                .collect();
+            self.add_values(
+                &indices,
+                gltf::json::accessor::Type::Vec4,
+                gltf::json::accessor::ComponentType::U8,
+                Some(Valid(Target::ArrayBuffer)),
+                (None, None),
+                true,
+            )
+        } else {
+            let indices: Vec<_> = skin_weights
+                .bone_indices
+                .iter()
+                .map(|i| i.map(|i| remap_bone_indices[i as usize] as u16))
+                .collect();
+            self.add_values(
+                &indices,
+                gltf::json::accessor::Type::Vec4,
+                gltf::json::accessor::ComponentType::U16,
+                Some(Valid(Target::ArrayBuffer)),
+                (None, None),
+                true,
+            )
+        }
     }
 
     fn write_attributes(
@@ -655,6 +702,12 @@ impl WriteBytes for u16 {
 }
 
 impl WriteBytes for [u8; 4] {
+    fn write<W: Write + Seek>(&self, writer: &mut W) -> BinResult<()> {
+        self.write_le(writer)
+    }
+}
+
+impl WriteBytes for [u16; 4] {
     fn write<W: Write + Seek>(&self, writer: &mut W) -> BinResult<()> {
         self.write_le(writer)
     }
