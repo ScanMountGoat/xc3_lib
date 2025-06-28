@@ -395,7 +395,6 @@ impl AttributeData {
 
 fn read_vertex_buffers(
     vertex_data: &VertexData,
-    skinning: Option<&xc3_lib::mxmd::Skinning>,
 ) -> BinResult<(Vec<VertexBuffer>, Option<Weights>)> {
     // TODO: This skips the weights buffer since it doesn't have ext info?
     // TODO: Save the weights buffer for converting back to xc3_lib types?
@@ -433,8 +432,7 @@ fn read_vertex_buffers(
     }
 
     // TODO: Is this the best place to do this?
-    let skin_weights = skinning.and_then(|skinning| {
-        let vertex_weights = vertex_data.weights.as_ref()?;
+    let skin_weights = vertex_data.weights.as_ref().and_then(|vertex_weights| {
         let weights_index = vertex_weights.vertex_buffer_index as usize;
 
         let descriptor = vertex_data.vertex_buffers.get(weights_index)?;
@@ -455,8 +453,6 @@ fn read_vertex_buffers(
             weight_buffers: vec![SkinWeights {
                 bone_indices,
                 weights,
-                // TODO: Will this cover all bone indices?
-                bone_names: skinning.bones.iter().map(|b| b.name.clone()).collect(),
             }],
             weight_groups: WeightGroups::Groups {
                 weight_groups: vertex_weights.groups.clone(),
@@ -900,11 +896,8 @@ fn read_outline_buffer(
 
 impl ModelBuffers {
     /// Decode all the attributes from `vertex_data`.
-    pub fn from_vertex_data(
-        vertex_data: &VertexData,
-        skinning: Option<&xc3_lib::mxmd::Skinning>,
-    ) -> BinResult<Self> {
-        let (vertex_buffers, weights) = read_vertex_buffers(vertex_data, skinning)?;
+    pub fn from_vertex_data(vertex_data: &VertexData) -> BinResult<Self> {
+        let (vertex_buffers, weights) = read_vertex_buffers(vertex_data)?;
         let index_buffers = read_index_buffers(vertex_data, Endian::Little)?;
 
         let outline_buffers = vertex_data
@@ -938,7 +931,6 @@ impl ModelBuffers {
     /// Decode all the attributes from `vertex_data`.
     pub fn from_vertex_data_legacy(
         vertex_data: &xc3_lib::mxmd::legacy::VertexData,
-        models: &xc3_lib::mxmd::legacy::Models,
         endian: Endian,
     ) -> BinResult<Self> {
         let vertex_buffers = read_vertex_buffers_legacy(vertex_data, endian)?;
@@ -946,7 +938,7 @@ impl ModelBuffers {
         let index_buffers = read_index_buffers_legacy(vertex_data, endian)?;
 
         // TODO: don't duplicate the weights buffers?
-        let weights = weights_legacy(&vertex_buffers, models, vertex_data.weight_buffer_indices);
+        let weights = weights_legacy(&vertex_buffers, vertex_data.weight_buffer_indices);
 
         Ok(Self {
             vertex_buffers,
@@ -1385,14 +1377,12 @@ fn read_vertex_buffers_legacy(
 
 fn weights_legacy(
     vertex_buffers: &[VertexBuffer],
-    models: &xc3_lib::mxmd::legacy::Models,
     weight_buffer_indices: [u16; 6],
 ) -> Option<Weights> {
     // TODO: Find a better way of organizing these types?
     // TODO: Don't store this with the vertex data?
     // TODO: Is this correct?
     // TODO: Does this also depend on the skinning indices?
-    let bone_names: Vec<_> = models.bone_names.iter().map(|n| n.name.clone()).collect();
 
     // Xenoblade X uses multiple weight buffers.
     let weight_buffers = vertex_buffers
@@ -1402,7 +1392,6 @@ fn weights_legacy(
             Some(SkinWeights {
                 bone_indices,
                 weights,
-                bone_names: bone_names.clone(),
             })
         })
         .collect();

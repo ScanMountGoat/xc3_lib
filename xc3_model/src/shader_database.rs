@@ -364,7 +364,7 @@ impl<'a> arbitrary::Arbitrary<'a> for TextureDependency {
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for ShaderProgram {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
-        let output_dependencies: Vec<(String, OutputExpr)> = u.arbitrary()?;
+        let output_dependencies: Vec<(String, usize)> = u.arbitrary()?;
         Ok(Self {
             output_dependencies: output_dependencies
                 .into_iter()
@@ -372,6 +372,7 @@ impl<'a> arbitrary::Arbitrary<'a> for ShaderProgram {
                 .collect(),
             outline_width: u.arbitrary()?,
             normal_intensity: u.arbitrary()?,
+            exprs: u.arbitrary()?,
         })
     }
 }

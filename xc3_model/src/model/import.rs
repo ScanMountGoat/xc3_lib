@@ -307,8 +307,8 @@ impl ModelRoot {
 
         let skeleton = create_skeleton(skel.as_ref(), files.models.skinning.as_ref());
 
-        let buffers = ModelBuffers::from_vertex_data(&files.vertex, files.models.skinning.as_ref())
-            .map_err(LoadModelError::VertexData)?;
+        let buffers =
+            ModelBuffers::from_vertex_data(&files.vertex).map_err(LoadModelError::VertexData)?;
 
         let models = Models::from_models_v112(
             files.models,
@@ -341,9 +341,8 @@ impl ModelRoot {
 
         let skeleton = create_skeleton(skel.as_ref(), None);
 
-        let buffers =
-            ModelBuffers::from_vertex_data_legacy(&files.vertex, files.models, Endian::Little)
-                .map_err(LoadModelError::VertexData)?;
+        let buffers = ModelBuffers::from_vertex_data_legacy(&files.vertex, Endian::Little)
+            .map_err(LoadModelError::VertexData)?;
 
         let image_textures = load_textures(&files.textures)?;
         // TODO: Can xcx de texture indices be remapped like with xcx?
@@ -377,8 +376,8 @@ impl ModelRoot {
 
         let skeleton = create_skeleton(skel.as_ref(), files.models.skinning.as_ref());
 
-        let buffers = ModelBuffers::from_vertex_data(&files.vertex, files.models.skinning.as_ref())
-            .map_err(LoadModelError::VertexData)?;
+        let buffers =
+            ModelBuffers::from_vertex_data(&files.vertex).map_err(LoadModelError::VertexData)?;
 
         let models = Models::from_models_v111(
             files.models,
@@ -407,9 +406,8 @@ impl ModelRoot {
     ) -> Result<Self, LoadModelLegacyError> {
         let skeleton = hkt.map(Skeleton::from_legacy_skeleton);
 
-        let buffers =
-            ModelBuffers::from_vertex_data_legacy(&mxmd.vertex, &mxmd.models, Endian::Big)
-                .map_err(LoadModelLegacyError::VertexData)?;
+        let buffers = ModelBuffers::from_vertex_data_legacy(&mxmd.vertex, Endian::Big)
+            .map_err(LoadModelLegacyError::VertexData)?;
 
         let (texture_indices, image_textures) = load_textures_legacy(mxmd, casmt)?;
 

@@ -245,40 +245,9 @@ pub struct SkinWeights {
     pub bone_indices: Vec<[u8; 4]>,
     #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))]
     pub weights: Vec<Vec4>,
-    // TODO: This should be stored with skinning instead?
-    /// The name list for the indices in [bone_indices](#structfield.bone_indices).
-    pub bone_names: Vec<String>,
 }
 
 impl SkinWeights {
-    // TODO: tests for this?
-    /// Reindex bone indices to match the ordering defined in the new bone list.
-    pub fn reindex_bones(&self, bone_names: Vec<String>) -> Self {
-        // TODO: Return an error if a bone is missing?
-        let index_remap: Vec<_> = self
-            .bone_names
-            .iter()
-            .map(|name| {
-                bone_names
-                    .iter()
-                    .position(|n| n == name)
-                    .unwrap_or_default() as u8
-            })
-            .collect();
-
-        let bone_indices = self
-            .bone_indices
-            .iter()
-            .map(|indices| indices.map(|i| index_remap[i as usize]))
-            .collect();
-
-        Self {
-            bone_indices,
-            weights: self.weights.clone(),
-            bone_names,
-        }
-    }
-
     // TODO: tests for this?
     /// Reindex the weights and indices using [WeightIndex](xc3_lib::vertex::DataType::WeightIndex) values.
     /// The `weight_group_input_start_index` should use the value from the mesh's weight group.
@@ -300,7 +269,6 @@ impl SkinWeights {
         Self {
             bone_indices,
             weights,
-            bone_names: self.bone_names.clone(),
         }
     }
 
@@ -310,11 +278,16 @@ impl SkinWeights {
     /// The `weight_indices` represent the data from [crate::vertex::AttributeData::WeightIndex].
     /// The `skeleton` defines the mapping from bone indices to bone names.
     ///
+    /// The `bone_names` should match the skinning bone list used for these skin weights.
+    ///
     /// This assumes the weight group starting index has already been applied
     /// using a method like [Self::reindex].
-    pub fn to_influences(&self, weight_indices: &[[u16; 2]]) -> Vec<crate::skinning::Influence> {
-        let mut influences: Vec<_> = self
-            .bone_names
+    pub fn to_influences(
+        &self,
+        weight_indices: &[[u16; 2]],
+        bone_names: &[String],
+    ) -> Vec<crate::skinning::Influence> {
+        let mut influences: Vec<_> = bone_names
             .iter()
             .map(|bone_name| Influence {
                 bone_name: bone_name.clone(),
@@ -396,19 +369,24 @@ impl SkinWeights {
         Self {
             bone_indices,
             weights,
-            bone_names: bone_names.iter().map(|n| n.as_ref().to_string()).collect(),
         }
     }
 
     // TODO: Tests for this
     /// Add unique bone indices and weights from `influences`
     /// and return the weight indices for `vertex_count` many vertices.
-    pub fn add_influences(
+    ///
+    /// The `bone_names` should match the skinning bone list used for these skin weights.
+    pub fn add_influences<S>(
         &mut self,
         influences: &[Influence],
         vertex_count: usize,
-    ) -> Vec<[u16; 2]> {
-        let new_weights = SkinWeights::from_influences(influences, vertex_count, &self.bone_names);
+        bone_names: &[S],
+    ) -> Vec<[u16; 2]>
+    where
+        S: AsRef<str>,
+    {
+        let new_weights = SkinWeights::from_influences(influences, vertex_count, bone_names);
 
         // Add unique indices and weights from each buffer.
         // TODO: Xenoblade 2 has 384000 SSBO bytes / sizeof(mat3x4) = 8000 unique elements.
@@ -499,7 +477,6 @@ mod tests {
             SkinWeights {
                 bone_indices: vec![[0u8; 4]; 3],
                 weights: vec![Vec4::ZERO; 3],
-                bone_names: vec!["a".to_string(), "b".to_string(), "c".to_string()]
             },
             SkinWeights::from_influences(&[], 3, &["a", "b", "c"])
         );
@@ -515,7 +492,6 @@ mod tests {
                     vec4(0.0, 0.0, 0.0, 0.0),
                     vec4(0.3, 0.11, 0.0, 0.0)
                 ],
-                bone_names: vec!["a".to_string(), "c".to_string(), "b".to_string()]
             },
             SkinWeights::from_influences(
                 &[
@@ -565,9 +541,8 @@ mod tests {
         assert!(SkinWeights {
             bone_indices: Vec::new(),
             weights: Vec::new(),
-            bone_names: Vec::new(),
         }
-        .to_influences(&[])
+        .to_influences(&[], &[])
         .is_empty());
     }
 
@@ -576,9 +551,8 @@ mod tests {
         assert!(SkinWeights {
             bone_indices: vec![[0u8; 4], [0u8; 4]],
             weights: vec![Vec4::ZERO, Vec4::ZERO],
-            bone_names: vec!["root".to_string()]
         }
-        .to_influences(&[[0, 0], [1, 0]])
+        .to_influences(&[[0, 0], [1, 0]], &["root".to_string()])
         .is_empty());
     }
 
@@ -598,9 +572,8 @@ mod tests {
             SkinWeights {
                 bone_indices: vec![[0u8; 4], [0u8; 4]],
                 weights: vec![Vec4::splat(0.5), Vec4::splat(0.75)],
-                bone_names: vec!["root".to_string()]
             }
-            .to_influences(&[[1, 0]])
+            .to_influences(&[[1, 0]], &["root".to_string()])
         );
     }
 
@@ -652,15 +625,17 @@ mod tests {
             SkinWeights {
                 bone_indices: vec![[3, 1, 2, 0], [2, 1, 0, 0]],
                 weights: vec![vec4(0.3, 0.4, 0.1, 0.2), vec4(0.7, 0.3, 0.0, 0.0)],
-                bone_names: vec![
+            }
+            .to_influences(
+                &[[0, 0], [1, 0]],
+                &[
                     "D".to_string(),
                     "C".to_string(),
                     "B".to_string(),
                     "A".to_string(),
                     "unused".to_string()
                 ]
-            }
-            .to_influences(&[[0, 0], [1, 0]])
+            )
         );
     }
 
@@ -783,27 +758,23 @@ mod tests {
         let mut skin_weights = SkinWeights {
             bone_indices: Vec::new(),
             weights: Vec::new(),
-            bone_names: vec![
+        };
+        skin_weights.add_influences(
+            &influences,
+            2,
+            &[
                 "D".to_string(),
                 "C".to_string(),
                 "B".to_string(),
                 "A".to_string(),
                 "unused".to_string(),
             ],
-        };
-        skin_weights.add_influences(&influences, 2);
+        );
 
         assert_eq!(
             SkinWeights {
                 bone_indices: vec![[1, 3, 0, 2], [2, 1, 0, 0]],
                 weights: vec![vec4(0.4, 0.3, 0.2, 0.1), vec4(0.7, 0.3, 0.0, 0.0)],
-                bone_names: vec![
-                    "D".to_string(),
-                    "C".to_string(),
-                    "B".to_string(),
-                    "A".to_string(),
-                    "unused".to_string()
-                ]
             },
             skin_weights
         );

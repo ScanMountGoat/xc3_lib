@@ -328,7 +328,7 @@ fn create_buffers(
         .map(|e| {
             // Assume maps have no skeletons for now.
             let vertex_data = e.extract(&mut Cursor::new(wismda), compressed)?;
-            ModelBuffers::from_vertex_data(&vertex_data, None).map_err(Into::into)
+            ModelBuffers::from_vertex_data(&vertex_data).map_err(Into::into)
         })
         .collect()
 }
@@ -597,7 +597,7 @@ fn load_env_model(
         .map(ImageTexture::from_packed_texture)
         .collect::<Result<Vec<_>, _>>()?;
 
-    let buffers = ModelBuffers::from_vertex_data(&model_data.vertex_data, None)?;
+    let buffers = ModelBuffers::from_vertex_data(&model_data.vertex_data)?;
 
     Ok(MapRoot {
         groups: vec![ModelGroup {
@@ -648,7 +648,7 @@ fn load_foliage_model(
         })
         .collect();
 
-    let buffers = ModelBuffers::from_vertex_data(&model_data.vertex_data, None)?;
+    let buffers = ModelBuffers::from_vertex_data(&model_data.vertex_data)?;
 
     // TODO: foliage samplers?
     // TODO: is it worth making a skeleton here?
