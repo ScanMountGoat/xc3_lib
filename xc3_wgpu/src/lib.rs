@@ -1,9 +1,6 @@
 //! # xc3_wgpu
 //! A Xenoblade Chronicles model rendering library.
 //!
-//! Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3 are all supported
-//! with Xenoblade 1 DE receiving the least testing.
-//!
 //! # Getting Started
 //! The first step is to initialize an [Renderer].
 //! This only needs to be done once since the renderer can be updated using methods

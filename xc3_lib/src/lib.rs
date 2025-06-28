@@ -1,7 +1,5 @@
 //! A library for reading and writing rendering related file formats.
 //!
-//! Xenoblade 1 DE, Xenoblade 2, and Xenoblade 3 are supported
-//! with Xenoblade 3 receiving the most testing.
 //! Struct documentation contains the corresponding
 //! type from Xenoblade 2 binary symbols where appropriate.
 //!
