@@ -171,8 +171,8 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
     // Transform any direction vectors by the camera transforms.
     // TODO: This assumes no scaling?
     position = (camera.view * vec4(position, 1.0)).xyz;
-    normal_xyz = (camera.view * vec4(normal_xyz, 0.0)).xyz;
-    tangent_xyz = (camera.view * vec4(tangent_xyz, 0.0)).xyz;
+    normal_xyz = (camera.view * vec4(normalize(normal_xyz), 0.0)).xyz;
+    tangent_xyz = (camera.view * vec4(normalize(tangent_xyz), 0.0)).xyz;
 
     var vertex_color = in1.vertex_color;
 
