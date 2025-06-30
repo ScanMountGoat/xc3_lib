@@ -46,6 +46,25 @@ pub struct Models {
     animation_morph_names: Vec<String>,
 }
 
+pub struct Model {
+    pub meshes: Vec<Mesh>,
+    model_buffers_index: usize,
+    instances: Instances,
+}
+
+pub struct Mesh {
+    vertex_buffer_index: usize,
+    index_buffer_index: usize,
+    material_index: usize,
+    flags2: MeshRenderFlags2,
+    per_mesh: crate::shader::model::bind_groups::BindGroup3,
+}
+
+struct Instances {
+    transforms: wgpu::Buffer,
+    count: u32,
+}
+
 impl Models {
     #[allow(clippy::too_many_arguments)]
     fn from_models(
@@ -136,25 +155,6 @@ fn remap_bone_indices(
         .unwrap_or((0..256).collect())
 }
 
-pub struct Model {
-    pub meshes: Vec<Mesh>,
-    model_buffers_index: usize,
-    instances: Instances,
-}
-
-pub struct Mesh {
-    vertex_buffer_index: usize,
-    index_buffer_index: usize,
-    material_index: usize,
-    flags2: MeshRenderFlags2,
-    per_mesh: crate::shader::model::bind_groups::BindGroup3,
-}
-
-struct Instances {
-    transforms: wgpu::Buffer,
-    count: u32,
-}
-
 impl ModelGroup {
     /// Draw each mesh for each model.
     pub fn draw<'a>(
@@ -175,52 +175,88 @@ impl ModelGroup {
             .iter()
             .filter(|m| is_within_frustum(m.bounds.min_xyz, m.bounds.max_xyz, camera))
         {
-            // TODO: cull aabb with instance transforms.
-            for model in models.models.iter() {
-                for mesh in &model.meshes {
-                    let material = &models.index_to_materials[&mesh.material_index];
+            self.draw_models(
+                render_pass,
+                models,
+                write_to_all_outputs,
+                pass_id,
+                output5_type,
+            );
+        }
+    }
 
-                    // TODO: Is there a flag that controls this?
-                    let is_outline = material.name.contains("outline");
+    fn draw_models<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        models: &'a Models,
+        write_to_all_outputs: bool,
+        pass_id: MeshRenderPass,
+        output5_type: Option<Output5Type>,
+    ) {
+        // TODO: cull aabb with instance transforms.
+        for model in &models.models {
+            self.draw_model(
+                render_pass,
+                models,
+                model,
+                write_to_all_outputs,
+                pass_id,
+                output5_type,
+            );
+        }
+    }
 
-                    // TODO: Group these into passes with separate shaders for each pass?
-                    // TODO: The main pass is shared with outline, ope, and zpre?
-                    // TODO: How to handle transparency?
-                    // Only check the output5 type if needed.
-                    if (write_to_all_outputs == material.pipeline_key.write_to_all_outputs())
-                        && mesh.flags2.render_pass() == pass_id
-                        && output5_type
-                            .map(|ty| material.pipeline_key.output5_type == ty)
-                            .unwrap_or(true)
-                    {
-                        mesh.per_mesh.set(render_pass);
+    fn draw_model<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        models: &Models,
+        model: &'a Model,
+        write_to_all_outputs: bool,
+        pass_id: MeshRenderPass,
+        output5_type: Option<Output5Type>,
+    ) {
+        for mesh in &model.meshes {
+            let material = &models.index_to_materials[&mesh.material_index];
 
-                        // TODO: How to make sure the pipeline outputs match the render pass?
-                        let pipeline = &self.pipelines[&material.pipeline_key];
-                        render_pass.set_pipeline(pipeline);
+            // TODO: Is there a flag that controls this?
+            let is_outline = material.name.contains("outline");
 
-                        let stencil_reference = material.pipeline_key.stencil_reference();
-                        render_pass.set_stencil_reference(stencil_reference);
+            // TODO: Group these into passes with separate shaders for each pass?
+            // TODO: The main pass is shared with outline, ope, and zpre?
+            // TODO: How to handle transparency?
+            // Only check the output5 type if needed.
+            if (write_to_all_outputs == material.pipeline_key.write_to_all_outputs())
+                && mesh.flags2.render_pass() == pass_id
+                && output5_type
+                    .map(|ty| material.pipeline_key.output5_type == ty)
+                    .unwrap_or(true)
+            {
+                mesh.per_mesh.set(render_pass);
 
-                        material.bind_group2.set(render_pass);
+                // TODO: How to make sure the pipeline outputs match the render pass?
+                let pipeline = &self.pipelines[&material.pipeline_key];
+                render_pass.set_pipeline(pipeline);
 
-                        // Assume meshes have either instance transforms or fur shells.
-                        let instance_count = material
-                            .fur_shell_instance_count
-                            .unwrap_or(model.instances.count);
+                let stencil_reference = material.pipeline_key.stencil_reference();
+                render_pass.set_stencil_reference(stencil_reference);
 
-                        let is_instanced_static = material.pipeline_key.is_instanced_static;
+                material.bind_group2.set(render_pass);
 
-                        self.draw_mesh(
-                            model,
-                            mesh,
-                            render_pass,
-                            is_outline,
-                            is_instanced_static,
-                            instance_count,
-                        );
-                    }
-                }
+                // Assume meshes have either instance transforms or fur shells.
+                let instance_count = material
+                    .fur_shell_instance_count
+                    .unwrap_or(model.instances.count);
+
+                let is_instanced_static = material.pipeline_key.is_instanced_static;
+
+                self.draw_mesh(
+                    render_pass,
+                    model,
+                    mesh,
+                    is_outline,
+                    is_instanced_static,
+                    instance_count,
+                );
             }
         }
     }
@@ -246,9 +282,9 @@ impl ModelGroup {
 
     fn draw_mesh<'a>(
         &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
         model: &'a Model,
         mesh: &Mesh,
-        render_pass: &mut wgpu::RenderPass<'a>,
         is_outline: bool,
         is_instanced_static: bool,
         instance_count: u32,
