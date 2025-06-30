@@ -92,12 +92,17 @@ fn main() {
     }))
     .unwrap();
 
-    // Assume the path is the game root folder.
-    let monolib_shader = &MonolibShaderTextures::from_file(
-        &device,
-        &queue,
-        Path::new(&cli.root_folder).join("monolib/shader"),
-    );
+    // Assume paths are somewhere in a full game dump.
+    let mut monolib = Path::new(&cli.root_folder);
+    while let Some(parent) = monolib.parent() {
+        if monolib.join("monolib/shader").exists() {
+            break;
+        } else {
+            monolib = parent;
+        }
+    }
+    let monolib_shader =
+        &MonolibShaderTextures::from_file(&device, &queue, monolib.join("monolib/shader"));
 
     let size = wgpu::Extent3d {
         width: WIDTH,
@@ -177,14 +182,26 @@ fn main() {
                     if cli.anim {
                         // Search for paths with non empty anims using in game naming conventions.
                         // TODO: Better heuristics based on all game versions.
+                        let model_name = path.file_stem().unwrap().to_string_lossy().to_string();
+
+                        // Xenoblade 3 chr/ch names.
+                        let mut chr_name = model_name.to_string();
+                        chr_name.replace_range(chr_name.len() - 3.., "000");
+
                         let possible_anim_paths = [
                             path.with_extension("mot"),
-                            path.with_extension("_obj.mot"),
-                            path.with_extension("_field.mot"),
+                            path.with_file_name(format!("{chr_name}_field.mot")),
+                            path.with_file_name(format!("{model_name}_field.mot")),
+                            // Xenoblade 1 DE
+                            path.with_file_name(model_name.replace("en", "me"))
+                                .with_extension("mot"),
+                            path.with_file_name(model_name.replace("np", "mn"))
+                                .with_extension("mot"),
+                            path.with_file_name(format!("{}.mot", chr_name.replace("pc", "mp"))),
                         ];
                         possible_anim_paths
                             .iter()
-                            .find(|p| apply_anim(&queue, &groups, p));
+                            .find(|p| apply_anim(&queue, &groups, p, &model_name));
                     }
 
                     let mut encoder =
@@ -268,10 +285,22 @@ fn load_groups(
     }
 }
 
-fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &Path) -> bool {
+fn apply_anim(
+    queue: &wgpu::Queue,
+    groups: &[xc3_wgpu::ModelGroup],
+    path: &Path,
+    model_name: &str,
+) -> bool {
     match load_animations(path) {
         Ok(animations) => {
-            if let Some(animation) = animations.first() {
+            if let Some(animation) = animations
+                .iter()
+                .find(|a| a.name.starts_with(&format!("{model_name}_idle")))
+                .or_else(|| animations.iter().find(|a| a.name.starts_with("idle_")))
+                .or_else(|| animations.iter().find(|a| a.name.contains("btidle")))
+                .or_else(|| animations.iter().find(|a| a.name.contains("idle")))
+                .or_else(|| animations.first())
+            {
                 for group in groups {
                     group.update_bone_transforms(queue, animation, 0.0);
                 }
@@ -280,10 +309,7 @@ fn apply_anim(queue: &wgpu::Queue, groups: &[xc3_wgpu::ModelGroup], path: &Path)
                 false
             }
         }
-        Err(e) => {
-            println!("Error loading animations from {path:?}: {e:?}");
-            false
-        }
+        Err(_) => false,
     }
 }
 
