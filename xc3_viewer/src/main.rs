@@ -348,6 +348,8 @@ impl<'a> State<'a> {
             &self.collisions,
             self.draw_bounds,
             self.draw_bones,
+            None,
+            None,
         );
 
         self.queue.submit(std::iter::once(encoder.finish()));

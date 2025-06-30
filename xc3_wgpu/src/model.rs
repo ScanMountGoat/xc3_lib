@@ -48,6 +48,8 @@ pub struct Models {
 
 pub struct Model {
     pub meshes: Vec<Mesh>,
+    pub min_xyz: Vec3,
+    pub max_xyz: Vec3,
     model_buffers_index: usize,
     instances: Instances,
 }
@@ -164,24 +166,38 @@ impl ModelGroup {
         pass_id: MeshRenderPass,
         camera: &CameraData,
         output5_type: Option<Output5Type>,
+        models_index: Option<usize>,
+        model_index: Option<usize>,
     ) {
         self.per_group.set(render_pass);
 
         // TODO: This should account for the instance transforms.
         // Assume the models AABB contains each model AABB.
         // This allows for better culling efficiency.
-        for models in self
-            .models
-            .iter()
-            .filter(|m| is_within_frustum(m.bounds.min_xyz, m.bounds.max_xyz, camera))
-        {
+        if let Some(i) = models_index {
             self.draw_models(
                 render_pass,
-                models,
+                &self.models[i],
                 write_to_all_outputs,
                 pass_id,
                 output5_type,
+                model_index,
             );
+        } else {
+            for models in self
+                .models
+                .iter()
+                .filter(|m| is_within_frustum(m.bounds.min_xyz, m.bounds.max_xyz, camera))
+            {
+                self.draw_models(
+                    render_pass,
+                    models,
+                    write_to_all_outputs,
+                    pass_id,
+                    output5_type,
+                    model_index,
+                );
+            }
         }
     }
 
@@ -192,17 +208,29 @@ impl ModelGroup {
         write_to_all_outputs: bool,
         pass_id: MeshRenderPass,
         output5_type: Option<Output5Type>,
+        model_index: Option<usize>,
     ) {
         // TODO: cull aabb with instance transforms.
-        for model in &models.models {
+        if let Some(i) = model_index {
             self.draw_model(
                 render_pass,
                 models,
-                model,
+                &models.models[i],
                 write_to_all_outputs,
                 pass_id,
                 output5_type,
             );
+        } else {
+            for model in &models.models {
+                self.draw_model(
+                    render_pass,
+                    models,
+                    model,
+                    write_to_all_outputs,
+                    pass_id,
+                    output5_type,
+                );
+            }
         }
     }
 
@@ -686,6 +714,8 @@ fn create_model(
 
     Model {
         meshes,
+        min_xyz: model.min_xyz,
+        max_xyz: model.max_xyz,
         model_buffers_index: model.model_buffers_index,
         instances,
     }

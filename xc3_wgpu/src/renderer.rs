@@ -331,6 +331,8 @@ impl Renderer {
         collisions: &[Collision],
         draw_bounds: bool,
         draw_bones: bool,
+        models_index: Option<usize>,
+        model_index: Option<usize>,
     ) {
         // The passes and their ordering only loosely matches in game.
         // This enables better performance, portability, etc.
@@ -338,17 +340,29 @@ impl Renderer {
 
         // TODO: changing the texture for output5 requires a new render pass?
         // TODO: does the in game rendering group these in any meaningful way?
-        self.opaque_pass(encoder, models);
-        self.alpha1_pass(encoder, models);
-        self.alpha2_pass(encoder, models);
+        self.opaque_pass(encoder, models, models_index, model_index);
+        self.alpha1_pass(encoder, models, models_index, model_index);
+        self.alpha2_pass(encoder, models, models_index, model_index);
         self.unbranch_to_depth_pass(encoder);
         if self.render_mode == RenderMode::Shaded {
             self.deferred_pass(encoder);
-            self.alpha3_pass(encoder, models, &self.textures.deferred_output);
+            self.alpha3_pass(
+                encoder,
+                models,
+                &self.textures.deferred_output,
+                models_index,
+                model_index,
+            );
             self.snn_filter_pass(encoder);
         } else {
             // Move forward passes earlier to show all meshes in debug modes.
-            self.alpha3_pass(encoder, models, &self.textures.gbuffer.color);
+            self.alpha3_pass(
+                encoder,
+                models,
+                &self.textures.gbuffer.color,
+                models_index,
+                model_index,
+            );
             self.deferred_debug_pass(encoder);
         }
         self.final_pass(
@@ -396,7 +410,13 @@ impl Renderer {
         );
     }
 
-    fn opaque_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
+    fn opaque_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        models: &[ModelGroup],
+        models_index: Option<usize>,
+        model_index: Option<usize>,
+    ) {
         // TODO: Interleave emissive and specular passes?
         let mut pass = self.begin_opaque_pass(encoder, Output5Type::Emission, false);
         self.model_bind_group0.set(&mut pass);
@@ -408,6 +428,8 @@ impl Renderer {
                 MeshRenderPass::Unk1,
                 &self.camera,
                 Some(Output5Type::Emission),
+                models_index,
+                model_index,
             );
             model.draw(
                 &mut pass,
@@ -415,6 +437,8 @@ impl Renderer {
                 MeshRenderPass::Unk0,
                 &self.camera,
                 Some(Output5Type::Emission),
+                models_index,
+                model_index,
             );
             // TODO: Where is this supposed to go?
             model.draw(
@@ -423,6 +447,8 @@ impl Renderer {
                 MeshRenderPass::Unk4,
                 &self.camera,
                 Some(Output5Type::Emission),
+                models_index,
+                model_index,
             );
         }
         drop(pass);
@@ -437,6 +463,8 @@ impl Renderer {
                 MeshRenderPass::Unk1,
                 &self.camera,
                 Some(Output5Type::Specular),
+                models_index,
+                model_index,
             );
             model.draw(
                 &mut render_pass,
@@ -444,6 +472,8 @@ impl Renderer {
                 MeshRenderPass::Unk0,
                 &self.camera,
                 Some(Output5Type::Specular),
+                models_index,
+                model_index,
             );
             // TODO: Where is this supposed to go?
             model.draw(
@@ -452,6 +482,8 @@ impl Renderer {
                 MeshRenderPass::Unk4,
                 &self.camera,
                 Some(Output5Type::Specular),
+                models_index,
+                model_index,
             );
         }
     }
@@ -534,7 +566,13 @@ impl Renderer {
         })
     }
 
-    fn alpha1_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
+    fn alpha1_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        models: &[ModelGroup],
+        models_index: Option<usize>,
+        model_index: Option<usize>,
+    ) {
         // Deferred rendering requires a second forward pass for transparent meshes.
         // This pass only writes to the color output.
         // TODO: Research more about how this is implemented in game.
@@ -577,12 +615,20 @@ impl Renderer {
                 MeshRenderPass::Unk8,
                 &self.camera,
                 None,
+                models_index,
+                model_index,
             );
         }
     }
 
     // TODO: Share code for drawing?
-    fn alpha2_pass(&self, encoder: &mut wgpu::CommandEncoder, models: &[ModelGroup]) {
+    fn alpha2_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        models: &[ModelGroup],
+        models_index: Option<usize>,
+        model_index: Option<usize>,
+    ) {
         // Deferred rendering requires a second forward pass for transparent meshes.
         // This pass writes to all outputs.
         // TODO: Research more about how this is implemented in game.
@@ -599,6 +645,8 @@ impl Renderer {
                 MeshRenderPass::Unk8,
                 &self.camera,
                 Some(Output5Type::Emission),
+                models_index,
+                model_index,
             );
         }
         drop(render_pass);
@@ -617,6 +665,8 @@ impl Renderer {
                 MeshRenderPass::Unk8,
                 &self.camera,
                 Some(Output5Type::Specular),
+                models_index,
+                model_index,
             );
         }
         drop(render_pass);
@@ -669,6 +719,8 @@ impl Renderer {
         encoder: &mut wgpu::CommandEncoder,
         models: &[ModelGroup],
         output_view: &wgpu::TextureView,
+        models_index: Option<usize>,
+        model_index: Option<usize>,
     ) {
         // Deferred rendering requires a second forward pass for transparent meshes.
         // The transparent pass only writes to the color output.
@@ -712,6 +764,8 @@ impl Renderer {
                 MeshRenderPass::Unk2,
                 &self.camera,
                 None,
+                models_index,
+                model_index,
             );
             // TODO: 0x21 is single output after deferred in xcx?
             // TODO: Test how this actually works in game.
@@ -721,6 +775,8 @@ impl Renderer {
                 MeshRenderPass::Unk1,
                 &self.camera,
                 None,
+                models_index,
+                model_index,
             );
         }
     }

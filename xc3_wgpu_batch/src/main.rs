@@ -204,55 +204,71 @@ fn main() {
                             .find(|p| apply_anim(&queue, &groups, p, &model_name));
                     }
 
-                    let mut encoder =
-                        device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                            label: Some("Render Encoder"),
-                        });
+                    for (group_index, group) in groups.iter().enumerate() {
+                        let groups = &groups[group_index..group_index + 1];
 
-                    // Each model updates the renderer's internal buffers for camera framing.
-                    // We need to hold the lock until the output image has been copied to the buffer.
-                    // Rendering is cheap, so this has little performance impact in practice.
-                    let mut renderer = renderer.lock().unwrap();
+                        for (models_index, models) in group.models.iter().enumerate() {
+                            for (model_index, model) in models.models.iter().enumerate() {
+                                let mut encoder = device.create_command_encoder(
+                                    &wgpu::CommandEncoderDescriptor {
+                                        label: Some("Render Encoder"),
+                                    },
+                                );
 
-                    frame_group_bounds(&queue, &groups, &mut renderer);
+                                // Each model updates the renderer's internal buffers for camera framing.
+                                // We need to hold the lock until the output image has been copied to the buffer.
+                                // Rendering is cheap, so this has little performance impact in practice.
+                                let mut renderer = renderer.lock().unwrap();
 
-                    renderer.render_models(
-                        &output_view,
-                        &mut encoder,
-                        &groups,
-                        &[],
-                        false,
-                        cli.bones,
-                    );
+                                frame_bounds(&queue, &mut renderer, model.min_xyz, model.max_xyz);
 
-                    encoder.copy_texture_to_buffer(
-                        wgpu::TexelCopyTextureInfo {
-                            aspect: wgpu::TextureAspect::All,
-                            texture: &output,
-                            mip_level: 0,
-                            origin: wgpu::Origin3d::ZERO,
-                        },
-                        wgpu::TexelCopyBufferInfo {
-                            buffer: &output_buffer,
-                            layout: wgpu::TexelCopyBufferLayout {
-                                offset: 0,
-                                bytes_per_row: Some(WIDTH * 4),
-                                rows_per_image: Some(HEIGHT),
-                            },
-                        },
-                        size,
-                    );
-                    queue.submit([encoder.finish()]);
+                                renderer.render_models(
+                                    &output_view,
+                                    &mut encoder,
+                                    &groups,
+                                    &[],
+                                    false,
+                                    cli.bones,
+                                    Some(models_index),
+                                    Some(model_index),
+                                );
 
-                    drop(renderer);
+                                encoder.copy_texture_to_buffer(
+                                    wgpu::TexelCopyTextureInfo {
+                                        aspect: wgpu::TextureAspect::All,
+                                        texture: &output,
+                                        mip_level: 0,
+                                        origin: wgpu::Origin3d::ZERO,
+                                    },
+                                    wgpu::TexelCopyBufferInfo {
+                                        buffer: &output_buffer,
+                                        layout: wgpu::TexelCopyBufferLayout {
+                                            offset: 0,
+                                            bytes_per_row: Some(WIDTH * 4),
+                                            rows_per_image: Some(HEIGHT),
+                                        },
+                                    },
+                                    size,
+                                );
+                                queue.submit([encoder.finish()]);
 
-                    // TODO: channels to send images to save to worker threads
-                    let output_path = path.with_extension("png");
-                    save_screenshot(&device, &output_buffer, output_path);
+                                drop(renderer);
 
-                    // Clean up resources.
-                    queue.submit(std::iter::empty());
-                    device.poll(wgpu::PollType::Wait).unwrap();
+                                let output_path = if cli.extension == FileExtension::Wismhd {
+                                    path.with_extension(format!(
+                                        "{group_index}_{models_index}_{model_index}.png"
+                                    ))
+                                } else {
+                                    path.with_extension("png")
+                                };
+                                save_screenshot(&device, &output_buffer, output_path);
+
+                                // Clean up resources.
+                                queue.submit(std::iter::empty());
+                                device.poll(wgpu::PollType::Wait).unwrap();
+                            }
+                        }
+                    }
                 }
                 Err(e) => println!("Error loading {model_path:?}: {e:?}"),
             }
@@ -275,7 +291,74 @@ fn load_groups(
             Ok(xc3_wgpu::load_model(device, queue, &[root], monolib_shader))
         }
         FileExtension::Wismhd => {
-            let roots = xc3_model::load_map(model_path, database)?;
+            let mut roots = xc3_model::load_map(model_path, database)?;
+
+            // TODO: Find a way to disable this during rendering.
+            for root in &mut roots {
+                for group in &mut root.groups {
+                    for models in &mut group.models {
+                        for model in &mut models.models {
+                            model.instances = vec![Mat4::IDENTITY];
+                        }
+                    }
+                }
+            }
+
+            // TODO: always enable this?
+            // TODO: move to xc3_model?
+            // Split models to make it easier to render individual models.
+            // TODO: Find a more efficient way of doing this.
+            // let start = std::time::Instant::now();
+            // let mut split_roots = Vec::new();
+            // for root in &roots {
+            //     for group in &root.groups {
+            //         for models in &group.models {
+            //             for model in &models.models {
+            //                 let mut image_texture_indices = IndexSet::new();
+            //                 // Create a root that only contains the given model.
+            //                 let split_root = MapRoot {
+            //                     groups: vec![ModelGroup {
+            //                         models: vec![Models {
+            //                             models: vec![Model {
+            //                                 instances: vec![Mat4::IDENTITY],
+            //                                 model_buffers_index: 0,
+            //                                 ..model.clone()
+            //                             }],
+            //                             min_xyz: model.min_xyz,
+            //                             max_xyz: model.max_xyz,
+            //                             materials: models
+            //                                 .materials
+            //                                 .iter()
+            //                                 .map(|m| Material {
+            //                                     textures: m
+            //                                         .textures
+            //                                         .iter()
+            //                                         .map(|t| Texture {
+            //                                             image_texture_index: image_texture_indices
+            //                                                 .insert_full(t.image_texture_index)
+            //                                                 .0,
+            //                                             ..t.clone()
+            //                                         })
+            //                                         .collect(),
+            //                                     ..m.clone()
+            //                                 })
+            //                                 .collect(),
+            //                             ..models.clone()
+            //                         }],
+            //                         buffers: vec![group.buffers[model.model_buffers_index].clone()],
+            //                     }],
+            //                     image_textures: image_texture_indices
+            //                         .into_iter()
+            //                         .map(|i| root.image_textures[i].clone())
+            //                         .collect(),
+            //                 };
+            //                 split_roots.push(split_root);
+            //             }
+            //         }
+            //     }
+            // }
+            // println!("Split: {:?}", start.elapsed());
+
             Ok(xc3_wgpu::load_map(device, queue, &roots, monolib_shader))
         }
         FileExtension::Camdo => {
@@ -311,26 +394,6 @@ fn apply_anim(
         }
         Err(_) => false,
     }
-}
-
-fn frame_group_bounds(
-    queue: &wgpu::Queue,
-    groups: &[xc3_wgpu::ModelGroup],
-    renderer: &mut Renderer,
-) {
-    let min_xyz = groups
-        .iter()
-        .flat_map(|g| g.models.iter().map(|m| m.bounds_min_max_xyz().0))
-        .reduce(Vec3::min)
-        .unwrap();
-
-    let max_xyz = groups
-        .iter()
-        .flat_map(|g| g.models.iter().map(|m| m.bounds_min_max_xyz().1))
-        .reduce(Vec3::max)
-        .unwrap();
-
-    frame_bounds(queue, renderer, min_xyz, max_xyz);
 }
 
 fn frame_bounds(queue: &wgpu::Queue, renderer: &mut Renderer, min_xyz: Vec3, max_xyz: Vec3) {
