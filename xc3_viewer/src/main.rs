@@ -6,7 +6,7 @@ use std::{
 use anyhow::{anyhow, Context};
 use clap::Parser;
 use futures::executor::block_on;
-use glam::{vec3, Vec3};
+use glam::{vec3, Mat4, Vec3};
 use log::{error, info};
 use winit::{
     dpi::PhysicalPosition,
@@ -52,6 +52,10 @@ struct State<'a> {
 
     draw_bones: bool,
     draw_bounds: bool,
+
+    root_index: Option<usize>,
+    models_index: Option<usize>,
+    model_index: Option<usize>,
 
     input_state: InputState,
 }
@@ -185,6 +189,20 @@ impl<'a> State<'a> {
                 ext => return Err(anyhow!(format!("unrecognized file extension {ext}"))),
             }
         }
+
+        // Disable instancing if we only want to render a single model.
+        if cli.model.is_some() {
+            for root in &mut map_roots {
+                for group in &mut root.groups {
+                    for models in &mut group.models {
+                        for model in &mut models.models {
+                            model.instances = vec![Mat4::IDENTITY];
+                        }
+                    }
+                }
+            }
+        }
+
         if !model_roots.is_empty() || !map_roots.is_empty() {
             info!(
                 "Load {} roots: {:?}",
@@ -264,7 +282,6 @@ impl<'a> State<'a> {
             );
         }
         let animation_index = cli.anim_index.unwrap_or_default();
-        update_window_title(window, &file_names, &animations, animation_index);
 
         Ok(Self {
             surface,
@@ -285,6 +302,9 @@ impl<'a> State<'a> {
             previous_frame_start: Instant::now(),
             draw_bones: cli.bones,
             draw_bounds: cli.bounds,
+            root_index: cli.root,
+            models_index: cli.models,
+            model_index: cli.model,
             render_mode: RenderMode::Shaded,
         })
     }
@@ -341,15 +361,19 @@ impl<'a> State<'a> {
                 label: Some("Render Encoder"),
             });
 
+        let groups = self
+            .root_index
+            .map(|i| &self.groups[i..i + 1])
+            .unwrap_or(&self.groups);
         self.renderer.render_models(
             &output_view,
             &mut encoder,
-            &self.groups,
+            groups,
             &self.collisions,
             self.draw_bounds,
             self.draw_bones,
-            None,
-            None,
+            self.models_index,
+            self.model_index,
         );
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -398,24 +422,14 @@ impl<'a> State<'a> {
                                 if event.state == ElementState::Released {
                                     self.current_time_seconds = 0.0;
                                     self.animation_index += 1;
-                                    update_window_title(
-                                        window,
-                                        &self.model_names,
-                                        &self.animations,
-                                        self.animation_index,
-                                    );
+                                    self.set_window_title(window);
                                 }
                             }
                             "," => {
                                 if event.state == ElementState::Released {
                                     self.current_time_seconds = 0.0;
                                     self.animation_index = self.animation_index.saturating_sub(1);
-                                    update_window_title(
-                                        window,
-                                        &self.model_names,
-                                        &self.animations,
-                                        self.animation_index,
-                                    );
+                                    self.set_window_title(window);
                                 }
                             }
                             _ => (),
@@ -479,22 +493,33 @@ impl<'a> State<'a> {
             _ => (),
         }
     }
-}
 
-fn update_window_title(window: &Window, model_names: &str, anims: &[Animation], anim_index: usize) {
-    if let Some(anim) = anims.get(anim_index) {
-        window.set_title(&format!(
-            "{} - {} - {}",
-            concat!("xc3_viewer ", env!("CARGO_PKG_VERSION")),
-            model_names,
-            anim.name
-        ));
-    } else {
-        window.set_title(&format!(
-            "{} - {}",
-            concat!("xc3_viewer ", env!("CARGO_PKG_VERSION")),
-            model_names,
-        ));
+    fn set_window_title(&self, window: &Window) {
+        let mut title = if let Some(anim) = self.animations.get(self.animation_index) {
+            format!(
+                "{} - {} - {}",
+                concat!("xc3_viewer ", env!("CARGO_PKG_VERSION")),
+                self.model_names,
+                anim.name
+            )
+        } else {
+            format!(
+                "{} - {}",
+                concat!("xc3_viewer ", env!("CARGO_PKG_VERSION")),
+                self.model_names,
+            )
+        };
+        if let Some(i) = self.root_index {
+            title = format!("{title} root {i}");
+        }
+        if let Some(i) = self.models_index {
+            title = format!("{title} models {i}");
+        }
+        if let Some(i) = self.model_index {
+            title = format!("{title} model {i}");
+        }
+
+        window.set_title(&title);
     }
 }
 
@@ -572,6 +597,18 @@ struct Cli {
         ["dx12", "vulkan", "metal"]
     ))]
     backend: Option<String>,
+    /// Index for the wimdo or camdo or root in a wismhd to render.
+    /// If not specified, all roots will be rendered.
+    #[arg(long)]
+    root: Option<usize>,
+    /// Index for the model collections to render.
+    /// If not specified, all model collections will be rendered.
+    #[arg(long)]
+    models: Option<usize>,
+    /// Index for the model to render.
+    /// If not specified, all models will be rendered.
+    #[arg(long)]
+    model: Option<usize>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -600,6 +637,7 @@ fn main() -> anyhow::Result<()> {
         .unwrap();
 
     let mut state = block_on(State::new(&window, &cli))?;
+    state.set_window_title(&window);
     event_loop
         .run(|event, target| match event {
             Event::WindowEvent {

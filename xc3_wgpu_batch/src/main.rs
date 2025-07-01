@@ -52,6 +52,17 @@ enum FileExtension {
     Camdo,
 }
 
+impl FileExtension {
+    fn ext(&self) -> &'static str {
+        match self {
+            FileExtension::Wimdo => "wimdo",
+            FileExtension::Pcmdo => "pcmdo",
+            FileExtension::Wismhd => "wismhd",
+            FileExtension::Camdo => "camdo",
+        }
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -143,15 +154,8 @@ fn main() {
         .transpose()
         .unwrap();
 
-    // TODO: Work through mxmd in wiefb files in xc2?
-    let ext = match cli.extension {
-        FileExtension::Wimdo => "wimdo",
-        FileExtension::Pcmdo => "pcmdo",
-        FileExtension::Wismhd => "wismhd",
-        FileExtension::Camdo => "camdo",
-    };
-
     // TODO: Output which model fails if there is a panic?
+    let ext = cli.extension.ext();
     globwalk::GlobWalkerBuilder::from_patterns(&cli.root_folder, &[format!("*.{ext}")])
         .build()
         .unwrap()
@@ -180,28 +184,7 @@ fn main() {
             match groups {
                 Ok(groups) => {
                     if cli.anim {
-                        // Search for paths with non empty anims using in game naming conventions.
-                        // TODO: Better heuristics based on all game versions.
-                        let model_name = path.file_stem().unwrap().to_string_lossy().to_string();
-
-                        // Xenoblade 3 chr/ch names.
-                        let mut chr_name = model_name.to_string();
-                        chr_name.replace_range(chr_name.len() - 3.., "000");
-
-                        let possible_anim_paths = [
-                            path.with_extension("mot"),
-                            path.with_file_name(format!("{chr_name}_field.mot")),
-                            path.with_file_name(format!("{model_name}_field.mot")),
-                            // Xenoblade 1 DE
-                            path.with_file_name(model_name.replace("en", "me"))
-                                .with_extension("mot"),
-                            path.with_file_name(model_name.replace("np", "mn"))
-                                .with_extension("mot"),
-                            path.with_file_name(format!("{}.mot", chr_name.replace("pc", "mp"))),
-                        ];
-                        possible_anim_paths
-                            .iter()
-                            .find(|p| apply_anim(&queue, &groups, p, &model_name));
+                        find_and_apply_idle_anim(&queue, path, &groups);
                     }
 
                     for (group_index, group) in groups.iter().enumerate() {
@@ -277,6 +260,31 @@ fn main() {
     println!("Finished in {:?}", start.elapsed());
 }
 
+fn find_and_apply_idle_anim(queue: &wgpu::Queue, path: &Path, groups: &Vec<xc3_wgpu::ModelGroup>) {
+    // Search for paths with non empty anims using in game naming conventions.
+    // TODO: Better heuristics based on all game versions.
+    let model_name = path.file_stem().unwrap().to_string_lossy().to_string();
+
+    // Xenoblade 3 chr/ch names.
+    let mut chr_name = model_name.to_string();
+    chr_name.replace_range(chr_name.len() - 3.., "000");
+
+    let possible_anim_paths = [
+        path.with_extension("mot"),
+        path.with_file_name(format!("{chr_name}_field.mot")),
+        path.with_file_name(format!("{model_name}_field.mot")),
+        // Xenoblade 1 DE
+        path.with_file_name(model_name.replace("en", "me"))
+            .with_extension("mot"),
+        path.with_file_name(model_name.replace("np", "mn"))
+            .with_extension("mot"),
+        path.with_file_name(format!("{}.mot", chr_name.replace("pc", "mp"))),
+    ];
+    possible_anim_paths
+        .iter()
+        .find(|p| apply_anim(queue, groups, p, &model_name));
+}
+
 fn load_groups(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -293,7 +301,7 @@ fn load_groups(
         FileExtension::Wismhd => {
             let mut roots = xc3_model::load_map(model_path, database)?;
 
-            // TODO: Find a way to disable this during rendering.
+            // Disable instancing since we only want to frame and render a single model.
             for root in &mut roots {
                 for group in &mut root.groups {
                     for models in &mut group.models {
@@ -303,61 +311,6 @@ fn load_groups(
                     }
                 }
             }
-
-            // TODO: always enable this?
-            // TODO: move to xc3_model?
-            // Split models to make it easier to render individual models.
-            // TODO: Find a more efficient way of doing this.
-            // let start = std::time::Instant::now();
-            // let mut split_roots = Vec::new();
-            // for root in &roots {
-            //     for group in &root.groups {
-            //         for models in &group.models {
-            //             for model in &models.models {
-            //                 let mut image_texture_indices = IndexSet::new();
-            //                 // Create a root that only contains the given model.
-            //                 let split_root = MapRoot {
-            //                     groups: vec![ModelGroup {
-            //                         models: vec![Models {
-            //                             models: vec![Model {
-            //                                 instances: vec![Mat4::IDENTITY],
-            //                                 model_buffers_index: 0,
-            //                                 ..model.clone()
-            //                             }],
-            //                             min_xyz: model.min_xyz,
-            //                             max_xyz: model.max_xyz,
-            //                             materials: models
-            //                                 .materials
-            //                                 .iter()
-            //                                 .map(|m| Material {
-            //                                     textures: m
-            //                                         .textures
-            //                                         .iter()
-            //                                         .map(|t| Texture {
-            //                                             image_texture_index: image_texture_indices
-            //                                                 .insert_full(t.image_texture_index)
-            //                                                 .0,
-            //                                             ..t.clone()
-            //                                         })
-            //                                         .collect(),
-            //                                     ..m.clone()
-            //                                 })
-            //                                 .collect(),
-            //                             ..models.clone()
-            //                         }],
-            //                         buffers: vec![group.buffers[model.model_buffers_index].clone()],
-            //                     }],
-            //                     image_textures: image_texture_indices
-            //                         .into_iter()
-            //                         .map(|i| root.image_textures[i].clone())
-            //                         .collect(),
-            //                 };
-            //                 split_roots.push(split_root);
-            //             }
-            //         }
-            //     }
-            // }
-            // println!("Split: {:?}", start.elapsed());
 
             Ok(xc3_wgpu::load_map(device, queue, &roots, monolib_shader))
         }

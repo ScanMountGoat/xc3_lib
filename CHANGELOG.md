@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Added
 * Added support for rendering 3D volume textures.
+* Added support for rendering individual models to xc3_viewer with the `--root`, `--models` and `--model` args.
 
 ### Changed
 * Changed xc3_wgpu_batch to render wismhd models to individual files.
