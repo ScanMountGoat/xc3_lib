@@ -245,10 +245,6 @@ fn main() {
                                     path.with_extension("png")
                                 };
                                 save_screenshot(&device, &output_buffer, output_path);
-
-                                // Clean up resources.
-                                queue.submit(std::iter::empty());
-                                device.poll(wgpu::PollType::Wait).unwrap();
                             }
                         }
                     }
