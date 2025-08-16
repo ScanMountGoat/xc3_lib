@@ -13,7 +13,7 @@ use xc3_shader::shader_database::{
     shader_str,
 };
 
-use xc3_shader::graph::glsl::glsl_dependencies;
+use xc3_shader::graph::glsl::{glsl_dependencies, shader_source_no_extensions};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -167,6 +167,7 @@ fn main() {
         }
         Commands::GlslOutputDependencies { frag, output } => {
             let frag_glsl = std::fs::read_to_string(&frag).unwrap();
+            let frag_glsl = shader_source_no_extensions(&frag_glsl);
             let fragment = TranslationUnit::parse(&frag_glsl).unwrap();
 
             // TODO: make an argument for this?

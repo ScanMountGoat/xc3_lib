@@ -399,24 +399,16 @@ fn extract_legacy_shaders<P: AsRef<Path>>(
         let binary_path = output_folder.join(format!("{index}.vert.bin"));
         dissassemble_vertex_shader(
             &binary_path,
-            &vert.inner.program_binary,
-            gfd_tool,
             &vert,
+            gfd_tool,
             technique,
             &mut vertex_outputs,
         );
     }
 
-    if let Ok(frag) = mths.fragment_shader() {
+    if let Ok(frag) = mths.pixel_shader() {
         let binary_path = output_folder.join(format!("{index}.frag.bin"));
-        dissassemble_fragment_shader(
-            &binary_path,
-            &frag.program_binary,
-            gfd_tool,
-            &frag,
-            technique,
-            &vertex_outputs,
-        );
+        dissassemble_fragment_shader(&binary_path, &frag, gfd_tool, technique, &vertex_outputs);
     }
 }
 
@@ -424,13 +416,12 @@ fn extract_legacy_shaders<P: AsRef<Path>>(
 // TODO: Tests for annotation
 fn dissassemble_vertex_shader(
     binary_path: &Path,
-    binary: &[u8],
+    shader: &xc3_lib::mths::Gx2VertexShader,
     gfd_tool: &str,
-    shader: &xc3_lib::mths::VertexShader,
     technique: Option<&xc3_lib::mxmd::legacy::Technique>,
     vertex_outputs: &mut BTreeSet<usize>,
 ) {
-    std::fs::write(binary_path, binary).unwrap();
+    std::fs::write(binary_path, &shader.program_binary).unwrap();
 
     let output = std::process::Command::new(gfd_tool)
         .arg("disassemble")
@@ -559,13 +550,12 @@ fn attribute_name(d: xc3_lib::vertex::DataType) -> &'static str {
 
 fn dissassemble_fragment_shader(
     binary_path: &Path,
-    binary: &[u8],
+    shader: &xc3_lib::mths::Gx2PixelShader,
     gfd_tool: &str,
-    _shader: &xc3_lib::mths::FragmentShader,
     _technique: Option<&xc3_lib::mxmd::legacy::Technique>,
     vertex_outputs: &BTreeSet<usize>,
 ) {
-    std::fs::write(binary_path, binary).unwrap();
+    std::fs::write(binary_path, &shader.program_binary).unwrap();
 
     let output = std::process::Command::new(gfd_tool)
         .arg("disassemble")

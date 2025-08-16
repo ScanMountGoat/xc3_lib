@@ -66,4 +66,6 @@ Special thanks go to members of the World Tree Research discord (formerly the Wo
 * [xc3_data_sheet.py](https://gist.github.com/RoccoDev/935c43c98384115f56dd3af57667b030)
 * [XenoLib](https://github.com/PredatorCZ/XenoLib)
 * [HavokLib](https://github.com/PredatorCZ/HavokLib)
+* [Nintendo-File-Formats](https://github.com/kinnay/Nintendo-File-Formats)
+* [wut](https://github.com/devkitPro/wut)
 * [Xenoblade Data Hub](https://xenobladedata.github.io/)

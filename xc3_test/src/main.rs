@@ -1125,7 +1125,7 @@ impl CheckFile for Mths {
         if let Err(e) = self.vertex_shader() {
             println!("Error reading vertex shader in {path:?}: {e}")
         }
-        if let Err(e) = self.fragment_shader() {
+        if let Err(e) = self.pixel_shader() {
             println!("Error reading fragment shader in {path:?}: {e}")
         }
     }
