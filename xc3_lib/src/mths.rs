@@ -34,8 +34,8 @@ pub struct Mths {
     pub uniform_offset: u32,
     pub attribute_offset: u32,
     pub sampler_offset: u32,
-    pub register_offset: u32, // TODO: 52 for vert and 41 for pixel
-    pub string_offset: u32,   // TODO: Why does this not always work?
+    pub register_offset: u32,
+    pub string_offset: u32,
     pub program_offset: u32,
 
     #[br(parse_with = until_eof)]
@@ -352,6 +352,8 @@ where
 {
     let mut cursor = Cursor::new(Vec::new());
     value.write_ne(&mut cursor).unwrap();
+
+    cursor.set_position(0);
     U::read_ne(&mut cursor)
 }
 

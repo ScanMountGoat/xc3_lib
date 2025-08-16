@@ -419,15 +419,15 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
 
     let bitangent = cross(vertex_normal, tangent) * in.tangent.w;
 
-    let tex0 = in.tex01.xy;
-    let tex1 = in.tex01.zw;
-    let tex2 = in.tex23.xy;
-    let tex3 = in.tex23.zw;
-    let tex4 = in.tex45.xy;
-    let tex5 = in.tex45.zw;
-    let tex6 = in.tex67.xy;
-    let tex7 = in.tex67.zw;
-    let tex8 = in.tex8.xy;
+    let tex0 = vec4(in.tex01.xy, 0.0, 0.0);
+    let tex1 = vec4(in.tex01.zw, 0.0, 0.0);
+    let tex2 = vec4(in.tex23.xy, 0.0, 0.0);
+    let tex3 = vec4(in.tex23.zw, 0.0, 0.0);
+    let tex4 = vec4(in.tex45.xy, 0.0, 0.0);
+    let tex5 = vec4(in.tex45.zw, 0.0, 0.0);
+    let tex6 = vec4(in.tex67.xy, 0.0, 0.0);
+    let tex7 = vec4(in.tex67.zw, 0.0, 0.0);
+    let tex8 = vec4(in.tex8.xy, 0.0, 0.0);
 
     // Required for reachability analysis to include these resources.
     let REMOVE_BEGIN = 0.0;

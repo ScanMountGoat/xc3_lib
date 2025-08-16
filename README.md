@@ -68,4 +68,6 @@ Special thanks go to members of the World Tree Research discord (formerly the Wo
 * [HavokLib](https://github.com/PredatorCZ/HavokLib)
 * [Nintendo-File-Formats](https://github.com/kinnay/Nintendo-File-Formats)
 * [wut](https://github.com/devkitPro/wut)
+* [cemu](https://github.com/cemu-project/Cemu)
+* [decaf-emu](https://github.com/decaf-emu/decaf-emu)
 * [Xenoblade Data Hub](https://xenobladedata.github.io/)

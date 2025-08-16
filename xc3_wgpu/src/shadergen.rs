@@ -236,7 +236,7 @@ fn generate_alpha_test_wgsl(
 
         // TODO: Detect the UV attribute to use with alpha testing.
         formatdoc! {"
-            if textureSample(textures[{i}], alpha_test_sampler, tex0).{c} <= per_material.alpha_test_ref {{
+            if textureSample(textures[{i}], alpha_test_sampler, tex0.xy).{c} <= per_material.alpha_test_ref {{
                 discard;
             }}
         "}

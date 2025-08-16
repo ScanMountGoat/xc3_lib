@@ -393,7 +393,7 @@ fn extract_legacy_shaders<P: AsRef<Path>>(
     // Save the binary for creating the database later.
     std::fs::write(output_folder.join(format!("{index}.cashd")), mths_bytes).unwrap();
 
-    let mut vertex_outputs = BTreeSet::new();
+    let mut vertex_output_locations = Vec::new();
 
     if let Ok(vert) = mths.vertex_shader() {
         let binary_path = output_folder.join(format!("{index}.vert.bin"));
@@ -402,13 +402,19 @@ fn extract_legacy_shaders<P: AsRef<Path>>(
             &vert,
             gfd_tool,
             technique,
-            &mut vertex_outputs,
+            &mut vertex_output_locations,
         );
     }
 
     if let Ok(frag) = mths.pixel_shader() {
         let binary_path = output_folder.join(format!("{index}.frag.bin"));
-        dissassemble_fragment_shader(&binary_path, &frag, gfd_tool, technique, &vertex_outputs);
+        dissassemble_fragment_shader(
+            &binary_path,
+            &frag,
+            gfd_tool,
+            technique,
+            &vertex_output_locations,
+        );
     }
 }
 
@@ -419,7 +425,7 @@ fn dissassemble_vertex_shader(
     shader: &xc3_lib::mths::Gx2VertexShader,
     gfd_tool: &str,
     technique: Option<&xc3_lib::mxmd::legacy::Technique>,
-    vertex_outputs: &mut BTreeSet<usize>,
+    vertex_output_locations: &mut Vec<usize>,
 ) {
     std::fs::write(binary_path, &shader.program_binary).unwrap();
 
@@ -438,15 +444,38 @@ fn dissassemble_vertex_shader(
     // TODO: Construct syntatically valid GLSL for parsing later?
     let mut graph = Graph::from_latte_asm(&text);
 
+    let output_count = shader
+        .registers
+        .spi_vs_out_id
+        .iter()
+        .flat_map(|id| id.to_be_bytes())
+        .filter(|i| *i != 0xFF)
+        .count();
+
+    // Vertex output locations be remapped by registers.
+    // https://github.com/decaf-emu/decaf-emu/blob/e6c528a20a41c34e0f9eb91dd3da40f119db2dee/src/libgpu/src/spirv/spirv_transpiler.cpp#L280-L301
+    for output_index in 0..output_count {
+        let mut i = 0;
+        for register in &shader.registers.spi_vs_out_id {
+            // The order is [id3, id2, id1, id0];
+            for id in &register.to_le_bytes() {
+                if *id as usize == output_index {
+                    vertex_output_locations.push(i);
+                }
+
+                i += 1;
+            }
+        }
+    }
+
     for node in &mut graph.nodes {
         if node.output.name.starts_with("PARAM") {
-            let index = node
+            let index: usize = node
                 .output
                 .name
                 .trim_start_matches("PARAM")
                 .parse()
                 .unwrap();
-            vertex_outputs.insert(index);
 
             node.output.name = format!("out_attr{index}").into();
         }
@@ -478,7 +507,7 @@ fn dissassemble_vertex_shader(
         }
     }
 
-    for i in vertex_outputs.iter() {
+    for i in 0..vertex_output_locations.len() {
         // TODO: is the type always vec4?
         writeln!(
             &mut annotated,
@@ -489,9 +518,24 @@ fn dissassemble_vertex_shader(
 
     writeln!(&mut annotated, "void main() {{").unwrap();
 
-    // Attributes initialize R1, R2, ...?
-    for (location, name) in attribute_names {
-        writeln!(&mut annotated, "    R{} = {name};", location + 1).unwrap();
+    // Vertex input attribute registers can also be remapped.
+    for (i, location) in shader
+        .registers
+        .sq_vtx_semantic
+        .iter()
+        .enumerate()
+        .take(shader.registers.num_sq_vtx_semantic as usize)
+    {
+        if *location != 0xFF {
+            if let Some(name) = attribute_names.get(location) {
+                // Register 0 is special, so we need to start with register 1.
+                for c in "xyzw".chars() {
+                    writeln!(&mut annotated, "    R{}.{c} = {name}.{c};", i + 1).unwrap();
+                }
+            } else {
+                error!("Unable to find name for attribute location {location}");
+            }
+        }
     }
 
     for line in glsl.lines() {
@@ -553,7 +597,7 @@ fn dissassemble_fragment_shader(
     shader: &xc3_lib::mths::Gx2PixelShader,
     gfd_tool: &str,
     _technique: Option<&xc3_lib::mxmd::legacy::Technique>,
-    vertex_outputs: &BTreeSet<usize>,
+    vertex_output_locations: &[usize],
 ) {
     std::fs::write(binary_path, &shader.program_binary).unwrap();
 
@@ -597,9 +641,14 @@ fn dissassemble_fragment_shader(
 
     let mut annotated = String::new();
 
-    for i in vertex_outputs.iter() {
-        writeln!(&mut annotated, "layout(location = {i}) in vec4 in_attr{i};").unwrap();
+    for (i, location) in vertex_output_locations.iter().enumerate() {
+        writeln!(
+            &mut annotated,
+            "layout(location = {location}) in vec4 in_attr{i};"
+        )
+        .unwrap();
     }
+
     for i in fragment_outputs.iter() {
         writeln!(
             &mut annotated,
@@ -611,8 +660,10 @@ fn dissassemble_fragment_shader(
     writeln!(&mut annotated, "void main() {{").unwrap();
 
     // Fragment input attributes initialize R0, R1, ...?
-    for i in vertex_outputs.iter() {
-        writeln!(&mut annotated, "    R{i} = in_attr{i};").unwrap();
+    for i in 0..vertex_output_locations.len() {
+        for c in "xyzw".chars() {
+            writeln!(&mut annotated, "    R{i}.{c} = in_attr{i}.{c};").unwrap();
+        }
     }
 
     for line in glsl.lines() {
