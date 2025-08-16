@@ -184,7 +184,7 @@ fn export_map_gltf(
     GltfFile::from_map(name, roots, shader_textures, flip_images_uvs)
         .with_context(|| "failed to create glTF file")?
         .save(output)
-        .with_context(|| format!("failed to save glTF file to {:?}", output))
+        .with_context(|| format!("failed to save glTF file to {output:?}"))
 }
 
 fn export_map_glb(
@@ -197,7 +197,7 @@ fn export_map_glb(
     GlbFile::from_map(name, roots, shader_textures, flip_images_uvs)
         .with_context(|| "failed to create glb file")?
         .save(output)
-        .with_context(|| format!("failed to save glb file to {:?}", output))
+        .with_context(|| format!("failed to save glb file to {output:?}"))
 }
 
 fn export_model_gltf(
@@ -211,7 +211,7 @@ fn export_model_gltf(
     GltfFile::from_model(name, roots, &animations, shader_textures, flip_images_uvs)
         .with_context(|| "failed to create glTF file")?
         .save(output)
-        .with_context(|| format!("failed to save glTF file to {:?}", output))
+        .with_context(|| format!("failed to save glTF file to {output:?}"))
 }
 
 fn export_model_glb(
@@ -225,5 +225,5 @@ fn export_model_glb(
     GlbFile::from_model(name, roots, &animations, shader_textures, flip_images_uvs)
         .with_context(|| "failed to create glb file")?
         .save(output)
-        .with_context(|| format!("failed to save glb file to {:?}", output))
+        .with_context(|| format!("failed to save glb file to {output:?}"))
 }

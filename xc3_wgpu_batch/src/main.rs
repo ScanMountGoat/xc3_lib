@@ -208,7 +208,7 @@ fn main() {
                                 renderer.render_models(
                                     &output_view,
                                     &mut encoder,
-                                    &groups,
+                                    groups,
                                     &[],
                                     false,
                                     cli.bones,
@@ -256,7 +256,7 @@ fn main() {
     println!("Finished in {:?}", start.elapsed());
 }
 
-fn find_and_apply_idle_anim(queue: &wgpu::Queue, path: &Path, groups: &Vec<xc3_wgpu::ModelGroup>) {
+fn find_and_apply_idle_anim(queue: &wgpu::Queue, path: &Path, groups: &[xc3_wgpu::ModelGroup]) {
     // Search for paths with non empty anims using in game naming conventions.
     // TODO: Better heuristics based on all game versions.
     let model_name = path.file_stem().unwrap().to_string_lossy().to_string();

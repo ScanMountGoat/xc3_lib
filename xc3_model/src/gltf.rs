@@ -263,8 +263,7 @@ impl GltfData {
         }
 
         for (root_index, root) in roots.iter().enumerate() {
-            // TODO: Avoid clone?
-            let group_buffers = &[root.buffers.clone()];
+            let group_buffers = std::slice::from_ref(&root.buffers);
 
             data.material_cache
                 .insert_samplers(&root.models, root_index, 0, 0);

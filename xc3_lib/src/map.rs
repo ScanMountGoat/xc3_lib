@@ -443,7 +443,6 @@ pub struct FoliageUnkData {
 }
 
 /// The data for a [MapLowModel](crate::msmd::MapLowModel).
-
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MapLowModelData {

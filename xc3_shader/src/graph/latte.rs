@@ -947,6 +947,7 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
         "LOG_CLAMPED" => Some(add_func("log2", 1, &scalar, output, inst_count, nodes)),
         // scalar2
         "ADD" | "ADD_INT" => {
+            // TODO: _INT shouldn't interpret the bits as float.
             let node = Node {
                 output,
                 input: Expr::Binary(

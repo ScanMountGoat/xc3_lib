@@ -474,7 +474,7 @@ fn input_expr_inner(
                 // TODO: These should already be split up into multiple scalar operations?
                 let mut text = String::new();
                 show_expr(&mut text, e, &mut FormattingState::default()).unwrap();
-                panic!("{}.{}\n", text, rh)
+                panic!("{text}.{rh}\n")
             }
         }
         ExprData::PostInc(e) => input_expr_inner(e, last_assignment_index, channel),

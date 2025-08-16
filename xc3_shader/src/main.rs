@@ -168,7 +168,7 @@ fn main() {
         Commands::GlslOutputDependencies { frag, output } => {
             let frag_glsl = std::fs::read_to_string(&frag).unwrap();
             let frag_glsl = shader_source_no_extensions(&frag_glsl);
-            let fragment = TranslationUnit::parse(&frag_glsl).unwrap();
+            let fragment = TranslationUnit::parse(frag_glsl).unwrap();
 
             // TODO: make an argument for this?
             let vert = std::fs::read_to_string(Path::new(&frag).with_extension("vert"))

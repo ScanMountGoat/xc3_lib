@@ -2540,7 +2540,7 @@ pub fn shader_graphviz(shader: &ShaderProgram) -> String {
             }
             OutputExpr::Value(d) => d.to_string(),
         };
-        writeln!(&mut text, "    {i} [label={:?}]", label).unwrap();
+        writeln!(&mut text, "    {i} [label={label:?}]").unwrap();
     }
     for (i, expr) in shader.exprs.iter().enumerate() {
         match expr {

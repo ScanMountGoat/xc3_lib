@@ -1062,7 +1062,7 @@ fn create_deferred_bind_group1(
 fn color_attachment(
     view: &wgpu::TextureView,
     color: wgpu::Color,
-) -> Option<wgpu::RenderPassColorAttachment> {
+) -> Option<wgpu::RenderPassColorAttachment<'_>> {
     Some(wgpu::RenderPassColorAttachment {
         view,
         resolve_target: None,
@@ -1073,7 +1073,7 @@ fn color_attachment(
     })
 }
 
-fn color_attachment_load(view: &wgpu::TextureView) -> Option<wgpu::RenderPassColorAttachment> {
+fn color_attachment_load(view: &wgpu::TextureView) -> Option<wgpu::RenderPassColorAttachment<'_>> {
     Some(wgpu::RenderPassColorAttachment {
         view,
         resolve_target: None,
