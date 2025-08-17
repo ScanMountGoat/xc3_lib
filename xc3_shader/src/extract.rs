@@ -479,10 +479,14 @@ fn dissassemble_vertex_shader(
 
             node.output.name = format!("out_attr{index}").into();
         }
+
+        replace_uniform_blocks(&mut node.input, &shader.uniform_blocks);
     }
     let glsl = graph.to_glsl();
 
     let mut annotated = String::new();
+
+    write_uniform_blocks(&mut annotated, &shader.uniform_blocks);
 
     // TODO: Create metadata and annotate the GLSL instead?
     let mut attribute_names = BTreeMap::new();
@@ -548,6 +552,64 @@ fn dissassemble_vertex_shader(
 
     // TODO: add an option to preserve binaries?
     std::fs::remove_file(binary_path).unwrap();
+}
+
+fn write_uniform_blocks(annotated: &mut String, blocks: &[xc3_lib::mths::UniformBlock]) {
+    for block in blocks {
+        writeln!(
+            annotated,
+            "layout(binding = {}, std140) uniform _{} {{",
+            block.offset, &block.name
+        )
+        .unwrap();
+        // TODO: Add uniform variables.
+        writeln!(annotated, "    vec4 values[{}];", block.size / 16).unwrap();
+        writeln!(annotated, "}} {};", &block.name).unwrap();
+    }
+}
+
+fn replace_uniform_blocks(e: &mut Expr, blocks: &[xc3_lib::mths::UniformBlock]) {
+    // TODO: Create iterator that visits mutable expressions?
+    match e {
+        Expr::Node { .. } => (),
+        Expr::Float(_) => (),
+        Expr::Int(_) => (),
+        Expr::Uint(_) => (),
+        Expr::Bool(_) => (),
+        Expr::Parameter { name, field, .. } => match name.as_str() {
+            "KC0" => {
+                // TODO: What is the correct way to map KC0 to uniform blocks?
+                if let Some(block) = blocks.iter().find(|b| b.offset == 1) {
+                    *field = Some("values".into());
+                    *name = (&block.name).into();
+                }
+            }
+            "KC1" => {
+                // TODO: What is the correct way to map KC1 to uniform blocks?
+                if let Some(block) = blocks.iter().find(|b| b.offset == 2) {
+                    *field = Some("values".into());
+                    *name = (&block.name).into();
+                }
+            }
+            _ => (),
+        },
+        Expr::Global { .. } => (),
+        Expr::Unary(_, expr) => replace_uniform_blocks(expr, blocks),
+        Expr::Binary(_, expr, expr1) => {
+            replace_uniform_blocks(expr, blocks);
+            replace_uniform_blocks(expr1, blocks);
+        }
+        Expr::Ternary(expr, expr1, expr2) => {
+            replace_uniform_blocks(expr, blocks);
+            replace_uniform_blocks(expr1, blocks);
+            replace_uniform_blocks(expr2, blocks);
+        }
+        Expr::Func { args, .. } => {
+            for arg in args {
+                replace_uniform_blocks(arg, blocks);
+            }
+        }
+    }
 }
 
 fn attribute_name(d: xc3_lib::vertex::DataType) -> &'static str {
@@ -625,6 +687,8 @@ fn dissassemble_fragment_shader(
                 }
             }
         }
+
+        replace_uniform_blocks(&mut node.input, &shader.uniform_blocks);
     }
 
     let mut fragment_outputs = BTreeSet::new();
@@ -640,6 +704,8 @@ fn dissassemble_fragment_shader(
     let glsl = graph.to_glsl();
 
     let mut annotated = String::new();
+
+    write_uniform_blocks(&mut annotated, &shader.uniform_blocks);
 
     for (i, location) in vertex_output_locations.iter().enumerate() {
         writeln!(
