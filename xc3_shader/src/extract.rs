@@ -29,7 +29,6 @@ pub fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Op
 
             // Assume that file names are unique even across different folders.
             // This simplifies the output directory structure.
-            // TODO: Preserve the original folder structure instead?
             let output_folder = shader_output_folder(output, path);
             std::fs::create_dir_all(&output_folder).unwrap();
             println!("{output_folder:?}");
@@ -186,7 +185,6 @@ pub fn extract_all_legacy_shaders(input: &str, output: &str, gfd_tool: &str) {
 
             // Assume that file names are unique even across different folders.
             // This simplifies the output directory structure.
-            // TODO: Preserve the original folder structure instead?
             let output_folder = shader_output_folder(output, path);
             std::fs::create_dir_all(&output_folder).unwrap();
 
@@ -221,7 +219,6 @@ pub fn extract_all_legacy_shaders(input: &str, output: &str, gfd_tool: &str) {
 
             // Assume that file names are unique even across different folders.
             // This simplifies the output directory structure.
-            // TODO: Preserve the original folder structure instead?
             let output_folder = shader_output_folder(output, path);
             std::fs::create_dir_all(&output_folder).unwrap();
 
@@ -243,7 +240,6 @@ pub fn annotate_all_legacy_shaders(input: &str, output: &str) {
 
             // Assume that file names are unique even across different folders.
             // This simplifies the output directory structure.
-            // TODO: Preserve the original folder structure instead?
             let output_folder = shader_output_folder(output, path);
             std::fs::create_dir_all(&output_folder).unwrap();
 
@@ -281,7 +277,6 @@ pub fn annotate_all_legacy_shaders(input: &str, output: &str) {
 
             // Assume that file names are unique even across different folders.
             // This simplifies the output directory structure.
-            // TODO: Preserve the original folder structure instead?
             let output_folder = shader_output_folder(output, path);
             std::fs::create_dir_all(&output_folder).unwrap();
 
@@ -293,7 +288,6 @@ pub fn annotate_all_legacy_shaders(input: &str, output: &str) {
         });
 }
 
-// TODO: profile performance using a single thread and check threading with tracing?
 fn extract_shaders<P: AsRef<Path>>(
     spch: &Spch,
     output_folder: P,
