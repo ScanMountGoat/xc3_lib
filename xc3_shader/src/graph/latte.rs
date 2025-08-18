@@ -1048,6 +1048,8 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
         "INT_TO_FLT" => None,
         // TODO: Cube maps
         "CUBE" => None,
+        // TODO: Conditionals
+        "KILLE_INT" | "PRED_SETGE" | "SETNE" | "CNDGE" | "PRED_SETGT" => None,
         opcode => {
             // TODO: Handle additional opcodes?
             error!("Unsupported opcode {opcode}");

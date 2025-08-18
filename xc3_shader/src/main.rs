@@ -6,7 +6,9 @@ use glsl_lang::ast::TranslationUnit;
 use glsl_lang::parse::DefaultParse;
 use xc3_model::shader_database::ShaderDatabase;
 use xc3_shader::dependencies::latte_dependencies;
-use xc3_shader::extract::{extract_and_decompile_shaders, extract_and_disassemble_shaders};
+use xc3_shader::extract::{
+    annotate_all_legacy_shaders, extract_all_legacy_shaders, extract_and_decompile_shaders,
+};
 use xc3_shader::graph::Graph;
 use xc3_shader::shader_database::{
     create_shader_database, create_shader_database_legacy, shader_from_glsl, shader_graphviz,
@@ -43,6 +45,13 @@ enum Commands {
         output_folder: String,
         /// The path to the gfd-tool executable
         gfd_tool: String,
+    },
+    /// Create annotated GLSL shaders for each .camdo file.
+    AnnotateLegacyShaders {
+        /// The root folder for Xenoblade X.
+        input_folder: String,
+        /// The output folder for the shaders.
+        output_folder: String,
     },
     /// Create a database of decompiled shader data.
     ShaderDatabase {
@@ -119,7 +128,11 @@ fn main() {
             input_folder,
             output_folder,
             gfd_tool,
-        } => extract_and_disassemble_shaders(&input_folder, &output_folder, &gfd_tool),
+        } => extract_all_legacy_shaders(&input_folder, &output_folder, &gfd_tool),
+        Commands::AnnotateLegacyShaders {
+            input_folder,
+            output_folder,
+        } => annotate_all_legacy_shaders(&input_folder, &output_folder),
         Commands::ShaderDatabase {
             input_folder,
             output_file,
