@@ -143,11 +143,11 @@ impl Graph {
         if let Some(n) = self.nodes.get(node_index) {
             // Avoid processing the subtree rooted at a line more than once.
             if dependent_lines.insert(node_index) {
-                for e in n.input.exprs_recursive() {
+                n.input.visit_exprs(&mut |e| {
                     if let Expr::Node { node_index, .. } = e {
                         self.add_dependencies(*node_index, dependent_lines);
                     }
-                }
+                });
             }
         }
     }
@@ -338,13 +338,75 @@ fn simplify(input: &Expr, nodes: &[Node], simplified: &mut BTreeMap<usize, Expr>
     }
 }
 
-// TODO: Turn this into an iterator or visitor that doesn't allocate?
 impl Expr {
-    /// Flatten all expressions recursively.
-    pub fn exprs_recursive(&self) -> Vec<&Expr> {
-        let mut exprs = Vec::new();
-        add_exprs(&mut exprs, self);
-        exprs
+    /// Apply `visit` to the current expression recursively.
+    pub fn visit_exprs<F: FnMut(&Expr)>(&self, visit: &mut F) {
+        visit(self);
+        match self {
+            Expr::Node { .. } => (),
+            Expr::Float(_) => (),
+            Expr::Int(_) => (),
+            Expr::Uint(_) => (),
+            Expr::Bool(_) => (),
+            Expr::Parameter { index, .. } => {
+                if let Some(index) = index {
+                    index.visit_exprs(visit);
+                }
+            }
+            Expr::Global { .. } => (),
+            Expr::Unary(_, a) => {
+                a.visit_exprs(visit);
+            }
+            Expr::Binary(_, lh, rh) => {
+                lh.visit_exprs(visit);
+                rh.visit_exprs(visit);
+            }
+            Expr::Ternary(a, b, c) => {
+                a.visit_exprs(visit);
+                b.visit_exprs(visit);
+                c.visit_exprs(visit);
+            }
+            Expr::Func { args, .. } => {
+                for arg in args {
+                    arg.visit_exprs(visit);
+                }
+            }
+        }
+    }
+
+    /// Apply `visit` to the current expression recursively.
+    pub fn visit_exprs_mut<F: FnMut(&mut Expr)>(&mut self, visit: &mut F) {
+        visit(self);
+        match self {
+            Expr::Node { .. } => (),
+            Expr::Float(_) => (),
+            Expr::Int(_) => (),
+            Expr::Uint(_) => (),
+            Expr::Bool(_) => (),
+            Expr::Parameter { index, .. } => {
+                if let Some(index) = index {
+                    index.visit_exprs_mut(visit);
+                }
+            }
+            Expr::Global { .. } => (),
+            Expr::Unary(_, a) => {
+                a.visit_exprs_mut(visit);
+            }
+            Expr::Binary(_, lh, rh) => {
+                lh.visit_exprs_mut(visit);
+                rh.visit_exprs_mut(visit);
+            }
+            Expr::Ternary(a, b, c) => {
+                a.visit_exprs_mut(visit);
+                b.visit_exprs_mut(visit);
+                c.visit_exprs_mut(visit);
+            }
+            Expr::Func { args, .. } => {
+                for arg in args {
+                    arg.visit_exprs_mut(visit);
+                }
+            }
+        }
     }
 
     pub fn channel(&self) -> Option<char> {
@@ -370,41 +432,6 @@ impl Expr {
             Expr::Global { channel, .. } => *channel = c,
             Expr::Func { channel, .. } => *channel = c,
             _ => (),
-        }
-    }
-}
-
-fn add_exprs<'a>(exprs: &mut Vec<&'a Expr>, input: &'a Expr) {
-    // Recursively collect exprs.
-    exprs.push(input);
-    match input {
-        Expr::Node { .. } => (),
-        Expr::Float(_) => (),
-        Expr::Int(_) => (),
-        Expr::Uint(_) => (),
-        Expr::Bool(_) => (),
-        Expr::Parameter { index, .. } => {
-            if let Some(index) = index {
-                add_exprs(exprs, index);
-            }
-        }
-        Expr::Global { .. } => (),
-        Expr::Unary(_, a) => {
-            add_exprs(exprs, a);
-        }
-        Expr::Binary(_, lh, rh) => {
-            add_exprs(exprs, lh);
-            add_exprs(exprs, rh);
-        }
-        Expr::Ternary(a, b, c) => {
-            add_exprs(exprs, a);
-            add_exprs(exprs, b);
-            add_exprs(exprs, c);
-        }
-        Expr::Func { args, .. } => {
-            for arg in args {
-                add_exprs(exprs, arg);
-            }
         }
     }
 }

@@ -44,19 +44,15 @@ fn texcoord_args(
     exprs: &mut IndexSet<OutputExpr>,
     expr_to_index: &mut IndexMap<Expr, usize>,
 ) -> Vec<usize> {
-    // Search recursively to find texcoord variables.
     // The first arg is always the texture name.
     // texture(arg0, vec2(arg2, arg3, ...))
-    args.iter()
-        .skip(1)
-        .flat_map(|a| {
-            a.exprs_recursive()
-                .iter()
-                .skip(1)
-                .map(|e| output_expr(e, graph, exprs, expr_to_index))
-                .collect::<Vec<_>>()
-        })
-        .collect()
+    if let Some(Expr::Func { args, .. }) = args.iter().nth(1) {
+        args.iter()
+            .map(|e| output_expr(e, graph, exprs, expr_to_index))
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    }
 }
 
 pub fn buffer_dependency(e: &Expr) -> Option<BufferDependency> {

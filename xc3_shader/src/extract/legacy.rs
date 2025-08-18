@@ -123,7 +123,8 @@ fn annotate_vertex_shader(
             node.output.name = format!("out_attr{index}").into();
         }
 
-        replace_uniform_blocks(&mut node.input, &shader.uniform_blocks);
+        node.input
+            .visit_exprs_mut(&mut |e| replace_uniform(e, &shader.uniform_blocks));
     }
     let glsl = graph.to_glsl();
 
@@ -194,29 +195,9 @@ fn annotate_vertex_shader(
     std::fs::write(binary_path.with_extension(""), annotated).unwrap();
 }
 
-fn write_uniform_blocks(annotated: &mut String, blocks: &[xc3_lib::mths::UniformBlock]) {
-    for block in blocks {
-        writeln!(
-            annotated,
-            "layout(binding = {}, std140) uniform _{} {{",
-            block.offset, &block.name
-        )
-        .unwrap();
-        // TODO: Add uniform variables.
-        writeln!(annotated, "    vec4 values[{}];", block.size / 16).unwrap();
-        writeln!(annotated, "}} {};", &block.name).unwrap();
-    }
-}
-
-fn replace_uniform_blocks(e: &mut Expr, blocks: &[xc3_lib::mths::UniformBlock]) {
-    // TODO: Create iterator that visits mutable expressions?
-    match e {
-        Expr::Node { .. } => (),
-        Expr::Float(_) => (),
-        Expr::Int(_) => (),
-        Expr::Uint(_) => (),
-        Expr::Bool(_) => (),
-        Expr::Parameter { name, field, .. } => match name.as_str() {
+fn replace_uniform(e: &mut Expr, blocks: &[xc3_lib::mths::UniformBlock]) {
+    if let Expr::Parameter { name, field, .. } = e {
+        match name.as_str() {
             "KC0" => {
                 // TODO: What is the correct way to map KC0 to uniform blocks?
                 if let Some(block) = blocks.iter().find(|b| b.offset == 1) {
@@ -232,23 +213,21 @@ fn replace_uniform_blocks(e: &mut Expr, blocks: &[xc3_lib::mths::UniformBlock]) 
                 }
             }
             _ => (),
-        },
-        Expr::Global { .. } => (),
-        Expr::Unary(_, expr) => replace_uniform_blocks(expr, blocks),
-        Expr::Binary(_, expr, expr1) => {
-            replace_uniform_blocks(expr, blocks);
-            replace_uniform_blocks(expr1, blocks);
         }
-        Expr::Ternary(expr, expr1, expr2) => {
-            replace_uniform_blocks(expr, blocks);
-            replace_uniform_blocks(expr1, blocks);
-            replace_uniform_blocks(expr2, blocks);
-        }
-        Expr::Func { args, .. } => {
-            for arg in args {
-                replace_uniform_blocks(arg, blocks);
-            }
-        }
+    }
+}
+
+fn write_uniform_blocks(annotated: &mut String, blocks: &[xc3_lib::mths::UniformBlock]) {
+    for block in blocks {
+        writeln!(
+            annotated,
+            "layout(binding = {}, std140) uniform _{} {{",
+            block.offset, &block.name
+        )
+        .unwrap();
+        // TODO: Add uniform variables.
+        writeln!(annotated, "    vec4 values[{}];", block.size / 16).unwrap();
+        writeln!(annotated, "}} {};", &block.name).unwrap();
     }
 }
 
@@ -316,7 +295,8 @@ fn annotate_fragment_shader(
             }
         }
 
-        replace_uniform_blocks(&mut node.input, &shader.uniform_blocks);
+        node.input
+            .visit_exprs_mut(&mut |e| replace_uniform(e, &shader.uniform_blocks));
     }
 
     let mut fragment_outputs = BTreeSet::new();
