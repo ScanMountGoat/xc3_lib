@@ -4,7 +4,6 @@ use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
 
 pub mod glsl;
-#[cfg(feature = "xc3")]
 pub mod latte;
 pub mod query;
 
