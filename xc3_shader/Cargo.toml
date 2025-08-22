@@ -23,6 +23,7 @@ ordered-float.workspace = true
 smol_str.workspace = true
 indexmap.workspace = true
 indoc.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

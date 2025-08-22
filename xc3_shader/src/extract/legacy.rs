@@ -85,7 +85,7 @@ fn annotate_vertex_shader(
     // TODO: annotation will require the technique since attributes and params are just "Q"?
     // TODO: Construct syntatically valid GLSL for parsing later?
     let text = std::fs::read_to_string(binary_path.with_extension("txt")).unwrap();
-    let mut graph = Graph::from_latte_asm(&text);
+    let mut graph = Graph::from_latte_asm(&text).unwrap();
 
     let output_count = shader
         .registers
@@ -283,7 +283,7 @@ fn annotate_fragment_shader(
     // TODO: annotation will require the technique since attributes and params are just "Q"?
     // TODO: Construct syntatically valid GLSL for parsing later?
     let text = std::fs::read_to_string(binary_path.with_extension("txt")).unwrap();
-    let mut graph = Graph::from_latte_asm(&text);
+    let mut graph = Graph::from_latte_asm(&text).unwrap();
 
     for node in &mut graph.nodes {
         if let Expr::Func { name, args, .. } = &mut node.input {

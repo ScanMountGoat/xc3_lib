@@ -4,8 +4,19 @@ use pest::{iterators::Pairs, Parser, Span};
 use pest_ast::FromPest;
 use pest_derive::Parser;
 use smol_str::ToSmolStr;
+use thiserror::Error;
 
 use super::*;
+
+/// Errors while converting latte shader assembly to a [Graph].
+#[derive(Debug, Error)]
+pub enum ParseError {
+    #[error("error parsing assembly text")]
+    Parse(#[from] pest::error::Error<Rule>),
+
+    #[error("error converting parsing rules")]
+    Convert(#[from] from_pest::ConversionError<from_pest::Void>),
+}
 
 // Grammar adapted from the cpp-peglib grammer used for decaf-emu:
 // https://github.com/decaf-emu/decaf-emu/blob/master/tools/latte-assembler/resources/grammar.txt
@@ -695,7 +706,7 @@ impl Nodes {
 
 // TODO: The first registers are always input attributes?
 impl Graph {
-    pub fn from_latte_asm(asm: &str) -> Self {
+    pub fn from_latte_asm(asm: &str) -> Result<Self, ParseError> {
         // TODO: The FETCH instruction isn't part of the official grammar?
         let asm = asm
             .lines()
@@ -703,11 +714,11 @@ impl Graph {
             .collect::<Vec<_>>()
             .join("\n");
         if asm.is_empty() {
-            return Graph::default();
+            return Ok(Graph::default());
         }
 
-        let mut pairs = LatteParser::parse(Rule::program, &asm).unwrap();
-        let program = Program::from_pest(&mut pairs).unwrap();
+        let mut pairs = LatteParser::parse(Rule::program, &asm)?;
+        let program = Program::from_pest(&mut pairs)?;
 
         let mut nodes = Nodes::default();
 
@@ -720,7 +731,7 @@ impl Graph {
             }
         }
 
-        Self { nodes: nodes.nodes }
+        Ok(Self { nodes: nodes.nodes })
     }
 }
 
@@ -1355,7 +1366,7 @@ mod tests {
 
         // TODO: Figure out the expected nodes to test previous node references.
         // TODO: Test expected nodes on a handwritten example?
-        let graph = Graph::from_latte_asm(asm);
+        let graph = Graph::from_latte_asm(asm).unwrap();
         assert_eq!(expected, graph.to_glsl());
     }
 
@@ -1367,7 +1378,7 @@ mod tests {
 
         // TODO: Figure out the expected nodes to test previous node references.
         // TODO: Test expected nodes on a handwritten example?
-        let graph = Graph::from_latte_asm(asm);
+        let graph = Graph::from_latte_asm(asm).unwrap();
         assert_eq!(expected, graph.to_glsl());
     }
 
@@ -1377,7 +1388,7 @@ mod tests {
         let asm = include_str!("../data/xcx/en020601.0.frag.txt");
         let expected = include_str!("../data/xcx/en020601.0.frag");
 
-        let graph = Graph::from_latte_asm(asm);
+        let graph = Graph::from_latte_asm(asm).unwrap();
         assert_eq!(expected, graph.to_glsl());
     }
 }

@@ -175,7 +175,7 @@ fn main() {
         }
         Commands::LatteGlsl { input, output } => {
             let asm = std::fs::read_to_string(input).unwrap();
-            let graph = Graph::from_latte_asm(&asm);
+            let graph = Graph::from_latte_asm(&asm).unwrap();
             std::fs::write(output, graph.to_glsl()).unwrap();
         }
         Commands::GlslOutputDependencies { frag, output } => {

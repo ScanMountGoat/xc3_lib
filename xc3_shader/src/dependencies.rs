@@ -84,5 +84,7 @@ pub fn buffer_dependency(e: &Expr) -> Option<BufferDependency> {
 }
 
 pub fn latte_dependencies(source: &str, variable: &str, channel: Option<char>) -> String {
-    Graph::from_latte_asm(source).glsl_dependencies(variable, channel, None)
+    Graph::from_latte_asm(source)
+        .unwrap()
+        .glsl_dependencies(variable, channel, None)
 }
