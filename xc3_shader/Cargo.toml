@@ -14,10 +14,10 @@ serde_json = "1.0"
 log.workspace = true
 simple_logger.workspace = true
 bimap = "0.6.3"
-pest = { version = "2.7.11", optional = true }
-pest_derive = { version = "2.7.11", optional = true }
-from-pest = { version = "0.3.3", optional = true }
-pest-ast = { version = "0.3.5", optional = true }
+pest = "2.7.11"
+pest_derive = "2.7.11"
+from-pest = "0.3.3"
+pest-ast = "0.3.5"
 approx.workspace = true
 ordered-float.workspace = true
 smol_str.workspace = true
@@ -30,4 +30,4 @@ insta.workspace = true
 
 [features]
 default = ["xc3"]
-xc3 = ["dep:xc3_lib", "dep:xc3_model", "dep:pest", "dep:pest_derive", "dep:from-pest", "dep:pest-ast"]
+xc3 = ["dep:xc3_lib", "dep:xc3_model"]
