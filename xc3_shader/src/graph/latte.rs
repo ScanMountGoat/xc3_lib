@@ -20,6 +20,7 @@ pub enum ParseError {
 
 // Grammar adapted from the cpp-peglib grammer used for decaf-emu:
 // https://github.com/decaf-emu/decaf-emu/blob/master/tools/latte-assembler/resources/grammar.txt
+// Instruction details are available in the ISA https://www.techpowerup.com/gpu-specs/docs/ati-r600-isa.pdf.
 #[derive(Parser)]
 #[grammar = "graph/latte.pest"]
 struct LatteParser;
@@ -276,7 +277,25 @@ struct AluClauseProperties(Vec<AluClauseProperty>);
 
 #[allow(dead_code)]
 enum AluClauseProperty {
+    KCache0(KCache0),
+    KCache1(KCache1),
     Unk(Rule),
+}
+
+#[derive(FromPest)]
+#[pest_ast(rule(Rule::kcache0))]
+struct KCache0 {
+    constant_buffer: Number,
+    start_index: Number,
+    end_index: Number,
+}
+
+#[derive(FromPest)]
+#[pest_ast(rule(Rule::kcache1))]
+struct KCache1 {
+    constant_buffer: Number,
+    start_index: Number,
+    end_index: Number,
 }
 
 // TODO: Is there a way to derive this?
@@ -289,15 +308,15 @@ impl<'pest> FromPest<'pest> for AluClauseProperty {
         pest: &mut Pairs<'pest, Self::Rule>,
     ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
         // TODO: error type?
-        let next = pest.next().ok_or(ConversionError::NoMatch)?;
+        let next = pest.peek().ok_or(ConversionError::NoMatch)?;
         match next.as_rule() {
+            Rule::kcache0 => KCache0::from_pest(pest).map(Self::KCache0),
+            Rule::kcache1 => KCache1::from_pest(pest).map(Self::KCache1),
             Rule::addr
             | Rule::cnt
-            | Rule::kcache0
-            | Rule::kcache1
             | Rule::uses_waterfall
             | Rule::whole_quad_mode
-            | Rule::no_barrier => Ok(Self::Unk(next.as_rule())),
+            | Rule::no_barrier => Ok(Self::Unk(pest.next().unwrap().as_rule())),
             _ => Err(ConversionError::NoMatch),
         }
     }
@@ -710,7 +729,7 @@ impl Graph {
         // TODO: The FETCH instruction isn't part of the official grammar?
         let asm = asm
             .lines()
-            .filter(|l| !l.contains("FETCH"))
+            .filter(|l| !l.is_empty() && !l.contains("FETCH"))
             .collect::<Vec<_>>()
             .join("\n");
         if asm.is_empty() {
@@ -798,9 +817,40 @@ struct AluScalarData {
     sources: Vec<Expr>,
 }
 
+#[allow(dead_code)]
+struct ConstantBuffer {
+    index: usize,
+    start_index: usize,
+    end_index: usize,
+}
+
 fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
     for group in clause.groups {
         let inst_count = group.inst_count.0 .0;
+
+        // Ranges from constant buffers are mapped to constant cache KC0 and KC1.
+        // These mappings persist for the duration of the ALU clause.
+        let mut kc0_buffer = None;
+        let mut kc1_buffer = None;
+        for prop in &clause.properties.0 {
+            match prop {
+                AluClauseProperty::KCache0(kc) => {
+                    kc0_buffer = Some(ConstantBuffer {
+                        index: kc.constant_buffer.0,
+                        start_index: kc.start_index.0,
+                        end_index: kc.end_index.0,
+                    })
+                }
+                AluClauseProperty::KCache1(kc) => {
+                    kc1_buffer = Some(ConstantBuffer {
+                        index: kc.constant_buffer.0,
+                        start_index: kc.start_index.0,
+                        end_index: kc.end_index.0,
+                    })
+                }
+                _ => (),
+            }
+        }
 
         // TODO: backup values if assigned value is used for another channel
         let scalars: Vec<_> = group
@@ -824,7 +874,7 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         op_code: s.opcode.0,
                         output_modifier: s.modifier.map(|m| m.0),
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
-                        sources: vec![alu_src_expr(s.src1, nodes)],
+                        sources: vec![alu_src_expr(s.src1, nodes, &kc0_buffer, &kc1_buffer)],
                     }
                 }
                 AluScalar::Scalar2(s) => {
@@ -834,7 +884,10 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         op_code: s.opcode.0,
                         output_modifier: s.modifier.map(|m| m.0),
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
-                        sources: vec![alu_src_expr(s.src1, nodes), alu_src_expr(s.src2, nodes)],
+                        sources: vec![
+                            alu_src_expr(s.src1, nodes, &kc0_buffer, &kc1_buffer),
+                            alu_src_expr(s.src2, nodes, &kc0_buffer, &kc1_buffer),
+                        ],
                     }
                 }
                 AluScalar::Scalar3(s) => {
@@ -845,9 +898,9 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         output_modifier: None,
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
                         sources: vec![
-                            alu_src_expr(s.src1, nodes),
-                            alu_src_expr(s.src2, nodes),
-                            alu_src_expr(s.src3, nodes),
+                            alu_src_expr(s.src1, nodes, &kc0_buffer, &kc1_buffer),
+                            alu_src_expr(s.src2, nodes, &kc0_buffer, &kc1_buffer),
+                            alu_src_expr(s.src3, nodes, &kc0_buffer, &kc1_buffer),
                         ],
                     }
                 }
@@ -1162,7 +1215,12 @@ fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Nod
     }
 }
 
-fn alu_src_expr(source: AluSrc, nodes: &Nodes) -> Expr {
+fn alu_src_expr(
+    source: AluSrc,
+    nodes: &Nodes,
+    kc0: &Option<ConstantBuffer>,
+    kc1: &Option<ConstantBuffer>,
+) -> Expr {
     let negate = source.negate.is_some();
 
     let channel = source.swizzle.and_then(|s| s.channels().chars().next());
@@ -1170,10 +1228,10 @@ fn alu_src_expr(source: AluSrc, nodes: &Nodes) -> Expr {
     let expr = match source.value {
         AluSrcValueOrAbs::Abs(abs_value) => Expr::Func {
             name: "abs".into(),
-            args: vec![value_expr(nodes, channel, abs_value.value)],
+            args: vec![value_expr(nodes, channel, abs_value.value, kc0, kc1)],
             channel: abs_value.swizzle.and_then(|s| s.channels().chars().next()),
         },
-        AluSrcValueOrAbs::Value(value) => value_expr(nodes, channel, value),
+        AluSrcValueOrAbs::Value(value) => value_expr(nodes, channel, value, kc0, kc1),
     };
 
     if negate {
@@ -1183,22 +1241,18 @@ fn alu_src_expr(source: AluSrc, nodes: &Nodes) -> Expr {
     }
 }
 
-fn value_expr(nodes: &Nodes, channel: Option<char>, value: AluSrcValue) -> Expr {
+fn value_expr(
+    nodes: &Nodes,
+    channel: Option<char>,
+    value: AluSrcValue,
+    kc0: &Option<ConstantBuffer>,
+    kc1: &Option<ConstantBuffer>,
+) -> Expr {
     // Find a previous assignment that modifies the desired channel for variables.
     match value.0 {
         AluSrcValueInner::Gpr(gpr) => previous_assignment(&gpr.to_string(), channel, nodes),
-        AluSrcValueInner::ConstantCache0(c0) => Expr::Parameter {
-            name: "KC0".into(),
-            field: None,
-            index: Some(Box::new(Expr::Int(c0.0 .0 as i32))),
-            channel,
-        },
-        AluSrcValueInner::ConstantCache1(c1) => Expr::Parameter {
-            name: "KC1".into(),
-            field: None,
-            index: Some(Box::new(Expr::Int(c1.0 .0 as i32))),
-            channel,
-        },
+        AluSrcValueInner::ConstantCache0(c0) => constant_buffer_parameter(c0.0, channel, kc0),
+        AluSrcValueInner::ConstantCache1(c1) => constant_buffer_parameter(c1.0, channel, kc1),
         AluSrcValueInner::ConstantFile(cf) => Expr::Global {
             name: format!("C{}", cf.0 .0).into(), // TODO: how to handle constant file expressions?
             channel,
@@ -1212,6 +1266,21 @@ fn value_expr(nodes: &Nodes, channel: Option<char>, value: AluSrcValue) -> Expr 
         }
         AluSrcValueInner::PreviousScalar(s) => previous_assignment(&s.to_string(), channel, nodes),
         AluSrcValueInner::PreviousVector(v) => previous_assignment(&v.to_string(), channel, nodes),
+    }
+}
+
+fn constant_buffer_parameter(
+    index: Number,
+    channel: Option<char>,
+    constant_buffer: &Option<ConstantBuffer>,
+) -> Expr {
+    Expr::Parameter {
+        name: format!("CB{}", constant_buffer.as_ref().unwrap().index).into(),
+        field: None,
+        index: Some(Box::new(Expr::Int(
+            (index.0 + constant_buffer.as_ref().unwrap().start_index) as i32,
+        ))),
+        channel,
     }
 }
 

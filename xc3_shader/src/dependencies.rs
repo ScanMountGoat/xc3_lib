@@ -46,7 +46,7 @@ fn texcoord_args(
 ) -> Vec<usize> {
     // The first arg is always the texture name.
     // texture(arg0, vec2(arg2, arg3, ...))
-    if let Some(Expr::Func { args, .. }) = args.iter().nth(1) {
+    if let Some(Expr::Func { args, .. }) = args.get(1) {
         args.iter()
             .map(|e| output_expr(e, graph, exprs, expr_to_index))
             .collect::<Vec<_>>()

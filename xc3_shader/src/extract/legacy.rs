@@ -197,22 +197,14 @@ fn annotate_vertex_shader(
 
 fn replace_uniform(e: &mut Expr, blocks: &[xc3_lib::mths::UniformBlock]) {
     if let Expr::Parameter { name, field, .. } = e {
-        match name.as_str() {
-            "KC0" => {
-                // TODO: What is the correct way to map KC0 to uniform blocks?
-                if let Some(block) = blocks.iter().find(|b| b.offset == 1) {
-                    *field = Some("values".into());
-                    *name = (&block.name).into();
-                }
+        if let Some(block_index) = name
+            .strip_prefix("CB")
+            .and_then(|i| i.parse::<usize>().ok())
+        {
+            if let Some(block) = blocks.iter().find(|b| b.offset as usize == block_index) {
+                *field = Some("values".into());
+                *name = (&block.name).into();
             }
-            "KC1" => {
-                // TODO: What is the correct way to map KC1 to uniform blocks?
-                if let Some(block) = blocks.iter().find(|b| b.offset == 2) {
-                    *field = Some("values".into());
-                    *name = (&block.name).into();
-                }
-            }
-            _ => (),
         }
     }
 }
