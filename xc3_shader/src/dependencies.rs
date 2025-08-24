@@ -1,17 +1,21 @@
 use crate::{
+    expr::{OutputExpr, Parameter, Texture, Value},
     graph::{Expr, Graph},
     shader_database::output_expr,
 };
 
 use indexmap::{IndexMap, IndexSet};
-use xc3_model::shader_database::{BufferDependency, Dependency, OutputExpr, TextureDependency};
+
+use xc3_model::shader_database::{
+    AttributeDependency, BufferDependency, Dependency, Operation, TextureDependency,
+};
 
 pub fn texture_dependency(
     e: &Expr,
     graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr>,
+    exprs: &mut IndexSet<OutputExpr<Operation>>,
     expr_to_index: &mut IndexMap<Expr, usize>,
-) -> Option<Dependency> {
+) -> Option<Value> {
     if let Expr::Func {
         name,
         args,
@@ -22,7 +26,7 @@ pub fn texture_dependency(
             if let Some(Expr::Global { name, .. }) = args.first() {
                 let texcoords = texcoord_args(args, graph, exprs, expr_to_index);
 
-                Some(Dependency::Texture(TextureDependency {
+                Some(Value::Texture(Texture {
                     name: name.clone(),
                     channel: *channel,
                     texcoords,
@@ -41,7 +45,7 @@ pub fn texture_dependency(
 fn texcoord_args(
     args: &[Expr],
     graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr>,
+    exprs: &mut IndexSet<OutputExpr<Operation>>,
     expr_to_index: &mut IndexMap<Expr, usize>,
 ) -> Vec<usize> {
     // The first arg is always the texture name.
@@ -55,7 +59,7 @@ fn texcoord_args(
     }
 }
 
-pub fn buffer_dependency(e: &Expr) -> Option<BufferDependency> {
+pub fn buffer_dependency(e: &Expr) -> Option<Parameter> {
     if let Expr::Parameter {
         name,
         field,
@@ -64,14 +68,14 @@ pub fn buffer_dependency(e: &Expr) -> Option<BufferDependency> {
     } = e
     {
         if let Some(Expr::Int(index)) = index.as_deref() {
-            Some(BufferDependency {
+            Some(Parameter {
                 name: name.clone(),
                 field: field.clone().unwrap_or_default(),
                 index: Some((*index).try_into().unwrap()),
                 channel: *channel,
             })
         } else {
-            Some(BufferDependency {
+            Some(Parameter {
                 name: name.clone(),
                 field: field.clone().unwrap_or_default(),
                 index: None,
@@ -87,4 +91,27 @@ pub fn latte_dependencies(source: &str, variable: &str, channel: Option<char>) -
     Graph::from_latte_asm(source)
         .unwrap()
         .glsl_dependencies(variable, channel, None)
+}
+
+impl From<Value> for Dependency {
+    fn from(value: Value) -> Self {
+        match value {
+            Value::Constant(f) => Self::Constant(f),
+            Value::Parameter(parameter) => Self::Buffer(BufferDependency {
+                name: parameter.name,
+                field: parameter.field,
+                index: parameter.index,
+                channel: parameter.channel,
+            }),
+            Value::Texture(texture) => Self::Texture(TextureDependency {
+                name: texture.name,
+                channel: texture.channel,
+                texcoords: texture.texcoords,
+            }),
+            Value::Attribute(attribute) => Self::Attribute(AttributeDependency {
+                name: attribute.name,
+                channel: attribute.channel,
+            }),
+        }
+    }
 }

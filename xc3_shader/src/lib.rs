@@ -1,6 +1,7 @@
 pub mod annotation;
 #[cfg(feature = "xc3")]
 pub mod dependencies;
+pub mod expr;
 #[cfg(feature = "xc3")]
 pub mod extract;
 pub mod graph;

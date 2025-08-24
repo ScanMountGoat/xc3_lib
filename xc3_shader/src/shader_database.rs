@@ -9,10 +9,10 @@ use log::error;
 use rayon::prelude::*;
 use xc3_lib::{mths::Mths, spch::Spch};
 use xc3_model::shader_database::{
-    AttributeDependency, Dependency, Operation, OutputExpr, ProgramHash, ShaderDatabase,
-    ShaderProgram,
+    Dependency, Operation, ProgramHash, ShaderDatabase, ShaderProgram,
 };
 
+use crate::expr::{OutputExpr, Value};
 use crate::graph::glsl::{find_attribute_locations, merge_vertex_fragment};
 use crate::{
     dependencies::{buffer_dependency, texture_dependency},
@@ -98,9 +98,19 @@ pub fn shader_from_glsl(
 
     ShaderProgram {
         output_dependencies,
-        outline_width,
+        outline_width: outline_width.map(Into::into),
         normal_intensity,
-        exprs: exprs.into_iter().collect(),
+        exprs: exprs
+            .into_iter()
+            .map(|e| match e {
+                OutputExpr::Value(value) => {
+                    xc3_model::shader_database::OutputExpr::Value(value.into())
+                }
+                OutputExpr::Func { op, args } => {
+                    xc3_model::shader_database::OutputExpr::Func { op: op, args }
+                }
+            })
+            .collect(),
     }
 }
 
@@ -116,7 +126,7 @@ static OUTLINE_WIDTH_PARAMETER: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn outline_width_parameter(vert: &Graph) -> Option<Dependency> {
+fn outline_width_parameter(vert: &Graph) -> Option<Value> {
     vert.nodes.iter().find_map(|n| {
         // TODO: Add a way to match identifiers like "vColor" exactly.
         let result = query_nodes(&n.input, &vert.nodes, &OUTLINE_WIDTH_PARAMETER.nodes)?;
@@ -125,7 +135,7 @@ fn outline_width_parameter(vert: &Graph) -> Option<Dependency> {
 
         if matches!(vcolor, Expr::Global { name, channel } if name == "vColor" && *channel == Some('w')) {
             // TODO: Handle other dependency types?
-            buffer_dependency(param).map(Dependency::Buffer)
+            buffer_dependency(param).map(Value::Parameter)
         } else {
             None
         }
@@ -135,7 +145,7 @@ fn outline_width_parameter(vert: &Graph) -> Option<Dependency> {
 fn color_or_param_output_expr(
     frag: &Graph,
     dependent_lines: &[usize],
-    exprs: &mut IndexSet<OutputExpr>,
+    exprs: &mut IndexSet<OutputExpr<Operation>>,
     expr_to_index: &mut IndexMap<Expr, usize>,
 ) -> Option<usize> {
     let last_node_index = *dependent_lines.last()?;
@@ -169,7 +179,7 @@ fn color_or_param_output_expr(
 fn normal_output_expr(
     frag: &Graph,
     dependent_lines: &[usize],
-    exprs: &mut IndexSet<OutputExpr>,
+    exprs: &mut IndexSet<OutputExpr<Operation>>,
     expr_to_index: &mut IndexMap<Expr, usize>,
 ) -> Option<(usize, Option<usize>)> {
     let last_node_index = *dependent_lines.last()?;
@@ -214,7 +224,7 @@ fn normal_output_expr(
 pub(crate) fn output_expr(
     expr: &Expr,
     graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr>,
+    exprs: &mut IndexSet<OutputExpr<Operation>>,
     expr_to_index: &mut IndexMap<Expr, usize>,
 ) -> usize {
     // Cache graph input expressions to avoid processing nodes more than once while recursing.
@@ -264,9 +274,9 @@ pub(crate) fn output_expr(
 fn output_expr_inner(
     expr: &Expr,
     graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr>,
+    exprs: &mut IndexSet<OutputExpr<Operation>>,
     expr_to_index: &mut IndexMap<Expr, usize>,
-) -> OutputExpr {
+) -> crate::expr::OutputExpr<Operation> {
     if let Some(value) = extract_value(expr, graph, exprs, expr_to_index) {
         // The base case is a single value.
         OutputExpr::Value(value)
@@ -330,9 +340,9 @@ fn output_expr_inner(
 fn extract_value(
     expr: &Expr,
     graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr>,
+    exprs: &mut IndexSet<OutputExpr<Operation>>,
     expr_to_index: &mut IndexMap<Expr, usize>,
-) -> Option<Dependency> {
+) -> Option<crate::expr::Value> {
     let mut expr = assign_x_recursive(&graph.nodes, expr);
     if let Some(new_expr) = normalize(&graph.nodes, expr) {
         expr = new_expr;
@@ -698,24 +708,24 @@ fn binary_op(
 fn dependency_expr(
     e: &Expr,
     graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr>,
+    exprs: &mut IndexSet<OutputExpr<Operation>>,
     expr_to_index: &mut IndexMap<Expr, usize>,
-) -> Option<Dependency> {
+) -> Option<crate::expr::Value> {
     texture_dependency(e, graph, exprs, expr_to_index).or_else(|| {
         buffer_dependency(e)
-            .map(Dependency::Buffer)
+            .map(crate::expr::Value::Parameter)
             .or_else(|| match e {
                 Expr::Unary(UnaryOp::Negate, e) => {
                     if let Expr::Float(f) = **e {
-                        Some(Dependency::Constant(-f))
+                        Some(crate::expr::Value::Constant(-f))
                     } else {
                         None
                     }
                 }
-                Expr::Float(f) => Some(Dependency::Constant(*f)),
+                Expr::Float(f) => Some(crate::expr::Value::Constant(*f)),
                 Expr::Global { name, channel } => {
                     // TODO: Also check if this matches a vertex input name?
-                    Some(Dependency::Attribute(AttributeDependency {
+                    Some(crate::expr::Value::Attribute(crate::expr::Attribute {
                         name: name.clone(),
                         channel: *channel,
                     }))
@@ -2352,7 +2362,7 @@ pub fn shader_str(s: &ShaderProgram) -> String {
 fn expr_str(s: &ShaderProgram, v: usize) -> String {
     // Substitute all args to produce a single line of condensed output.
     match &s.exprs[v] {
-        OutputExpr::Value(Dependency::Texture(t)) => {
+        xc3_model::shader_database::OutputExpr::Value(Dependency::Texture(t)) => {
             let args: Vec<_> = t.texcoords.iter().map(|a| expr_str(s, *a)).collect();
             format!(
                 "Texture({}, {}){}",
@@ -2361,11 +2371,11 @@ fn expr_str(s: &ShaderProgram, v: usize) -> String {
                 t.channel.map(|c| format!(".{c}")).unwrap_or_default()
             )
         }
-        OutputExpr::Func { op, args } => {
+        xc3_model::shader_database::OutputExpr::Func { op, args } => {
             let args: Vec<_> = args.iter().map(|a| expr_str(s, *a)).collect();
             format!("{op}({})", args.join(", "))
         }
-        OutputExpr::Value(v) => v.to_string(),
+        xc3_model::shader_database::OutputExpr::Value(v) => v.to_string(),
     }
 }
 
@@ -2374,26 +2384,26 @@ pub fn shader_graphviz(shader: &ShaderProgram) -> String {
     writeln!(&mut text, "digraph {{").unwrap();
     for (i, expr) in shader.exprs.iter().enumerate() {
         let label = match expr {
-            OutputExpr::Func { op, .. } => op.to_string(),
-            OutputExpr::Value(Dependency::Texture(t)) => {
+            xc3_model::shader_database::OutputExpr::Func { op, .. } => op.to_string(),
+            xc3_model::shader_database::OutputExpr::Value(Dependency::Texture(t)) => {
                 format!(
                     "{}{}",
                     &t.name,
                     t.channel.map(|c| format!(".{c}")).unwrap_or_default()
                 )
             }
-            OutputExpr::Value(d) => d.to_string(),
+            xc3_model::shader_database::OutputExpr::Value(d) => d.to_string(),
         };
         writeln!(&mut text, "    {i} [label={label:?}]").unwrap();
     }
     for (i, expr) in shader.exprs.iter().enumerate() {
         match expr {
-            OutputExpr::Func { args, .. } => {
+            xc3_model::shader_database::OutputExpr::Func { args, .. } => {
                 for arg in args {
                     writeln!(&mut text, "    {arg} -> {i}").unwrap();
                 }
             }
-            OutputExpr::Value(Dependency::Texture(t)) => {
+            xc3_model::shader_database::OutputExpr::Value(Dependency::Texture(t)) => {
                 for arg in &t.texcoords {
                     writeln!(&mut text, "    {arg} -> {i}").unwrap();
                 }
