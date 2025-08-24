@@ -1,9 +1,11 @@
 use std::collections::BTreeMap;
 
+use bimap::BiBTreeMap;
 use glsl_lang::{
     ast::{
-        DeclarationData, ExprData, FunIdentifierData, InitializerData, Statement, StatementData,
-        TranslationUnit,
+        DeclarationData, ExprData, FunIdentifierData, InitializerData, LayoutQualifierSpecData,
+        SingleDeclaration, Statement, StatementData, StorageQualifierData, TranslationUnit,
+        TypeQualifierSpecData,
     },
     parse::DefaultParse,
     transpiler::glsl::{show_expr, show_type_specifier, FormattingState},
@@ -480,6 +482,154 @@ fn input_expr_inner(
         ExprData::PostInc(e) => input_expr_inner(e, last_assignment_index, channel),
         ExprData::PostDec(e) => input_expr_inner(e, last_assignment_index, channel),
         ExprData::Comma(_, _) => todo!(),
+    }
+}
+
+#[derive(Debug, Default)]
+struct AttributeVisitor {
+    attributes: Attributes,
+}
+
+#[derive(Debug, Default, PartialEq)]
+pub struct Attributes {
+    pub input_locations: BiBTreeMap<String, i32>,
+    pub output_locations: BiBTreeMap<String, i32>,
+}
+
+impl Visitor for AttributeVisitor {
+    fn visit_single_declaration(&mut self, declaration: &SingleDeclaration) -> Visit {
+        if let Some(name) = &declaration.name {
+            if let Some(qualifier) = &declaration.ty.content.qualifier {
+                let mut is_input = None;
+                let mut location = None;
+
+                for q in &qualifier.qualifiers {
+                    match &q.content {
+                        TypeQualifierSpecData::Storage(storage) => match &storage.content {
+                            StorageQualifierData::In => {
+                                is_input = Some(true);
+                            }
+                            StorageQualifierData::Out => {
+                                is_input = Some(false);
+                            }
+                            _ => (),
+                        },
+                        TypeQualifierSpecData::Layout(layout) => {
+                            if let Some(id) = layout.content.ids.first() {
+                                if let LayoutQualifierSpecData::Identifier(key, value) = &id.content
+                                {
+                                    if key.0 == "location" {
+                                        if let Some(ExprData::IntConst(i)) =
+                                            value.as_ref().map(|v| &v.content)
+                                        {
+                                            location = Some(*i);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+
+                if let (Some(is_input), Some(location)) = (is_input, location) {
+                    if is_input {
+                        self.attributes
+                            .input_locations
+                            .insert(name.0.to_string(), location);
+                    } else {
+                        self.attributes
+                            .output_locations
+                            .insert(name.0.to_string(), location);
+                    }
+                }
+            }
+        }
+
+        Visit::Children
+    }
+}
+
+pub fn find_attribute_locations(translation_unit: &TranslationUnit) -> Attributes {
+    let mut visitor = AttributeVisitor::default();
+    translation_unit.visit(&mut visitor);
+    visitor.attributes
+}
+
+pub fn merge_vertex_fragment(
+    vert: Graph,
+    vert_attributes: &Attributes,
+    frag: Graph,
+    frag_attributes: &Attributes,
+) -> Graph {
+    let mut graph = vert;
+
+    // Make sure fragment nodes only refer to other fragment nodes.
+    let start = graph.nodes.len();
+    for n in frag.nodes {
+        let mut new_node = n;
+        remap_expr_node_indices(&mut new_node.input, start);
+
+        if let Expr::Global { name, channel } = &mut new_node.input {
+            // Convert a fragment input like "in_attr4" to its vertex output like "out_attr4".
+            if let Some(fragment_location) =
+                frag_attributes.input_locations.get_by_left(name.as_str())
+            {
+                if let Some(vertex_output_name) = vert_attributes
+                    .output_locations
+                    .get_by_right(fragment_location)
+                {
+                    // This will search vertex nodes first even if a fragment output has the same name.
+                    if let Some(node_index) = graph.nodes.iter().position(|n| {
+                        n.output.name == vertex_output_name && n.output.channel == *channel
+                    }) {
+                        // Link fragment inputs to vertex outputs.
+                        new_node.input = Expr::Node {
+                            node_index,
+                            channel: *channel,
+                        };
+                    }
+                }
+            }
+        }
+
+        graph.nodes.push(new_node);
+    }
+
+    graph
+}
+
+fn remap_expr_node_indices(input: &mut Expr, start_index: usize) {
+    // Recursively shift node indices to match their new position.
+    match input {
+        Expr::Node { node_index, .. } => *node_index += start_index,
+        Expr::Float(_) => (),
+        Expr::Int(_) => (),
+        Expr::Uint(_) => (),
+        Expr::Bool(_) => (),
+        Expr::Parameter { index, .. } => {
+            if let Some(index) = index {
+                remap_expr_node_indices(index, start_index);
+            }
+        }
+        Expr::Global { .. } => (),
+        Expr::Unary(_, a) => {
+            remap_expr_node_indices(a, start_index);
+        }
+        Expr::Binary(_, lh, rh) => {
+            remap_expr_node_indices(lh, start_index);
+            remap_expr_node_indices(rh, start_index);
+        }
+        Expr::Ternary(a, b, c) => {
+            remap_expr_node_indices(a, start_index);
+            remap_expr_node_indices(b, start_index);
+            remap_expr_node_indices(c, start_index);
+        }
+        Expr::Func { args, .. } => {
+            for arg in args {
+                remap_expr_node_indices(arg, start_index);
+            }
+        }
     }
 }
 
@@ -1198,6 +1348,42 @@ mod tests {
                 temp_20 = texture(texDither, vec2(temp_19, temp_18)).x;
             "},
             glsl_dependencies(glsl, "temp_20", None)
+        );
+    }
+
+    #[test]
+    fn find_attribute_locations_outputs() {
+        let glsl = indoc! {"
+            layout(location = 0) in vec4 in_attr0;
+            layout(location = 4) in vec4 in_attr1;
+            layout(location = 3) in vec4 in_attr2;
+
+            layout(location = 3) out vec4 out_attr0;
+            layout(location = 5) out vec4 out_attr1;
+            layout(location = 7) out vec4 out_attr2;
+
+            void main() {}
+        "};
+
+        let tu = TranslationUnit::parse(glsl).unwrap();
+        assert_eq!(
+            Attributes {
+                input_locations: [
+                    ("in_attr0".to_string(), 0),
+                    ("in_attr1".to_string(), 4),
+                    ("in_attr2".to_string(), 3)
+                ]
+                .into_iter()
+                .collect(),
+                output_locations: [
+                    ("out_attr0".to_string(), 3),
+                    ("out_attr1".to_string(), 5),
+                    ("out_attr2".to_string(), 7)
+                ]
+                .into_iter()
+                .collect(),
+            },
+            find_attribute_locations(&tu)
         );
     }
 }
