@@ -188,7 +188,7 @@ impl Graph {
                 self.nodes[*node_index].output.name,
                 channel_swizzle(*channel)
             ),
-            Expr::Float(f) => format!("{:?}", dbg!(f.0)),
+            Expr::Float(f) => format!("{f:?}"),
             Expr::Int(i) => i.to_string(),
             Expr::Uint(u) => u.to_string(),
             Expr::Bool(b) => b.to_string(),
