@@ -23,7 +23,7 @@ pub fn texture_dependency(
     } = e
     {
         if name.starts_with("texture") {
-            if let Some(Expr::Global { name, .. }) = args.first() {
+            if let Some(Expr::Global { name, .. }) = args.first().map(|a| &graph.exprs[*a]) {
                 let texcoords = texcoord_args(args, graph, exprs, expr_to_index);
 
                 Some(Value::Texture(Texture {
@@ -43,23 +43,23 @@ pub fn texture_dependency(
 }
 
 fn texcoord_args(
-    args: &[Expr],
+    args: &[usize],
     graph: &Graph,
     exprs: &mut IndexSet<OutputExpr<Operation>>,
     expr_to_index: &mut IndexMap<Expr, usize>,
 ) -> Vec<usize> {
     // The first arg is always the texture name.
     // texture(arg0, vec2(arg2, arg3, ...))
-    if let Some(Expr::Func { args, .. }) = args.get(1) {
+    if let Some(Expr::Func { args, .. }) = args.get(1).map(|a| &graph.exprs[*a]) {
         args.iter()
-            .map(|e| output_expr(e, graph, exprs, expr_to_index))
+            .map(|e| output_expr(&graph.exprs[*e], graph, exprs, expr_to_index))
             .collect::<Vec<_>>()
     } else {
         Vec::new()
     }
 }
 
-pub fn buffer_dependency(e: &Expr) -> Option<Parameter> {
+pub fn buffer_dependency(graph: &Graph, e: &Expr) -> Option<Parameter> {
     if let Expr::Parameter {
         name,
         field,
@@ -67,7 +67,7 @@ pub fn buffer_dependency(e: &Expr) -> Option<Parameter> {
         channel,
     } = e
     {
-        if let Some(Expr::Int(index)) = index.as_deref() {
+        if let Some(Expr::Int(index)) = index.map(|i| &graph.exprs[i]) {
             Some(Parameter {
                 name: name.clone(),
                 field: field.clone().unwrap_or_default(),

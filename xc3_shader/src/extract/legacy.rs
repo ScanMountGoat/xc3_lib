@@ -123,8 +123,9 @@ fn annotate_vertex_shader(
             node.output.name = format!("out_attr{index}").into();
         }
 
-        node.input
-            .visit_exprs_mut(&mut |e| replace_uniform(e, &shader.uniform_blocks));
+        for e in &mut graph.exprs {
+            replace_uniform(e, &shader.uniform_blocks);
+        }
     }
     let glsl = graph.to_glsl();
 
@@ -277,18 +278,26 @@ fn annotate_fragment_shader(
     let text = std::fs::read_to_string(binary_path.with_extension("txt")).unwrap();
     let mut graph = Graph::from_latte_asm(&text).unwrap();
 
-    for node in &mut graph.nodes {
-        if let Expr::Func { name, args, .. } = &mut node.input {
+    let mut texture_names = Vec::new();
+    for e in &graph.exprs {
+        if let Expr::Func { name, args, .. } = e {
             if name.starts_with("texture") {
-                if let Some(Expr::Global { name, .. }) = args.first_mut() {
-                    // texture(t1, ...) -> texture(s1, ...)
-                    *name = name.replace("t", "s").into();
+                if let Some(Expr::Global { name, .. }) = args.first().map(|a| &graph.exprs[*a]) {
+                    texture_names.push(name.clone());
                 }
             }
         }
+    }
 
-        node.input
-            .visit_exprs_mut(&mut |e| replace_uniform(e, &shader.uniform_blocks));
+    for e in &mut graph.exprs {
+        if let Expr::Global { name, .. } = e {
+            if texture_names.contains(name) {
+                // texture(t1, ...) -> texture(s1, ...)
+                *name = name.replace("t", "s").into();
+            }
+        }
+
+        replace_uniform(e, &shader.uniform_blocks);
     }
 
     let mut fragment_outputs = BTreeSet::new();

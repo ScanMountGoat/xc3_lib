@@ -21,12 +21,12 @@
 
 use crate::graph::UnaryOp;
 
-use super::{BinaryOp, Expr, Graph, Node};
+use super::{BinaryOp, Expr, Graph};
 use indexmap::IndexMap;
 use indoc::indoc;
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
-use std::{collections::BTreeMap, ops::Deref, sync::LazyLock};
+use std::{collections::BTreeMap, sync::LazyLock};
 
 impl Graph {
     /// Find the corresponding [Expr] in the graph for each [Expr::Global] in `query`
@@ -39,7 +39,7 @@ impl Graph {
     /// and implements basic algebraic identities like `a*b == b*a`.
     pub fn query(&self, query: &Graph) -> Option<BTreeMap<SmolStr, &Expr>> {
         // TODO: Should this always be the last node?
-        query_nodes(&self.nodes.last()?.input, &self.nodes, &query.nodes)
+        query_nodes(&self.exprs[self.nodes.last()?.input], self, query)
     }
 }
 
@@ -49,12 +49,12 @@ impl Graph {
 /// ahead of time with [Graph::parse_glsl] if the query is used many times.
 pub fn query_nodes_glsl<'a>(
     input: &'a Expr,
-    input_nodes: &'a [Node],
+    input_graph: &'a Graph,
     query: &str,
 ) -> Option<BTreeMap<SmolStr, &'a Expr>> {
     // TODO: simplify both query and graph to a single expr?
     let query = Graph::parse_glsl(&format!("void main() {{ {query} }}")).unwrap();
-    query_nodes(input, input_nodes, &query.nodes)
+    query_nodes(input, input_graph, &query)
 }
 
 /// Find the corresponding [Expr] in the graph for each [Expr::Global] in `query_nodes`
@@ -68,18 +68,18 @@ pub fn query_nodes_glsl<'a>(
 /// while allowing for differences in variable names basic algebraic identities like `a*b == b*a`.
 pub fn query_nodes<'a>(
     input: &'a Expr,
-    input_nodes: &'a [Node],
-    query_nodes: &[Node],
+    input_graph: &'a Graph,
+    query_graph: &Graph,
 ) -> Option<BTreeMap<SmolStr, &'a Expr>> {
     // Keep track of corresponding input exprs for global vars in query.
     let mut vars = BTreeMap::new();
 
     // TODO: Is this the right way to handle multiple nodes?
     let is_match = check_exprs(
-        &query_nodes.last()?.input,
-        input,
-        query_nodes,
-        input_nodes,
+        query_graph.nodes.last()?.input,
+        input_graph.exprs.iter().position(|e| e == input)?,
+        query_graph,
+        input_graph,
         &mut vars,
     );
 
@@ -87,51 +87,53 @@ pub fn query_nodes<'a>(
 }
 
 fn check_exprs<'a>(
-    query: &Expr,
-    input: &'a Expr,
-    query_nodes: &[Node],
-    input_nodes: &'a [Node],
+    query: usize,
+    input: usize,
+    query_graph: &Graph,
+    input_graph: &'a Graph,
     vars: &mut BTreeMap<SmolStr, &'a Expr>,
 ) -> bool {
-    let mut check = |a, b| check_args(a, b, query_nodes, input_nodes, vars);
+    let mut check = |a, b| check_args(a, b, query_graph, input_graph, vars);
 
-    match (query, input) {
+    match (&query_graph.exprs[query], &input_graph.exprs[input]) {
         (Expr::Binary(BinaryOp::Sub, a1, b1), Expr::Binary(BinaryOp::Add, a2, b2)) => {
             // a - b == a + (-b) == a + (0.0 - b)
             // TODO: Find a way to avoid repetition.
-            match b2.deref() {
-                Expr::Unary(UnaryOp::Negate, b2) => check(&[a1, b1], &[a2, b2]),
+            match &input_graph.exprs[*b2] {
+                Expr::Unary(UnaryOp::Negate, b2) => check(&[*a1, *b1], &[*a2, *b2]),
                 Expr::Binary(BinaryOp::Sub, z, b2) => {
-                    **z == Expr::Float(OrderedFloat(0.0)) && check(&[a1, b1], &[a2, b2])
+                    input_graph.exprs[*z] == Expr::Float(OrderedFloat(0.0))
+                        && check(&[*a1, *b1], &[*a2, *b2])
                 }
                 _ => false,
             }
         }
         (Expr::Binary(BinaryOp::Add, a1, b1), Expr::Binary(BinaryOp::Sub, a2, b2)) => {
             // a + (-b) == a + (0.0 - b) == a - b
-            match b1.deref() {
-                Expr::Unary(UnaryOp::Negate, b1) => check(&[a1, b1], &[a2, b2]),
+            match &query_graph.exprs[*b1] {
+                Expr::Unary(UnaryOp::Negate, b1) => check(&[*a1, *b1], &[*a2, *b2]),
                 Expr::Binary(BinaryOp::Sub, z, b1) => {
-                    **z == Expr::Float(OrderedFloat(0.0)) && check(&[a1, b1], &[a2, b2])
+                    query_graph.exprs[*z] == Expr::Float(OrderedFloat(0.0))
+                        && check(&[*a1, *b1], &[*a2, *b2])
                 }
                 _ => false,
             }
         }
-        (Expr::Unary(op1, a1), Expr::Unary(op2, a2)) => op1 == op2 && check(&[a1], &[a2]),
+        (Expr::Unary(op1, a1), Expr::Unary(op2, a2)) => op1 == op2 && check(&[*a1], &[*a2]),
         (Expr::Binary(op1, a1, b1), Expr::Binary(op2, a2, b2)) => {
             op1 == op2
                 && if matches!(op1, BinaryOp::Add | BinaryOp::Mul) {
                     // commutativity
-                    let q1 = &[a1.deref(), b1.deref()];
-                    let q2 = &[b1.deref(), a1.deref()];
-                    let i = &[a2.deref(), b2.deref()];
+                    let q1 = &[*a1, *b1];
+                    let q2 = &[*b1, *a1];
+                    let i = &[*a2, *b2];
                     check(q1, i) || check(q2, i)
                 } else {
-                    check(&[a1, b1], &[a2, b2])
+                    check(&[*a1, *b1], &[*a2, *b2])
                 }
         }
         (Expr::Ternary(a1, b1, c1), Expr::Ternary(a2, b2, c2)) => {
-            check(&[a1, b1, c1], &[a2, b2, c2])
+            check(&[*a1, *b1, *c1], &[*a2, *b2, *c2])
         }
         (
             Expr::Func {
@@ -149,21 +151,18 @@ fn check_exprs<'a>(
                 && channel1 == channel2
                 && if name1 == "fma" {
                     // commutativity of the mul part of fma
-                    let q1 = &[&args1[0], &args1[1], &args1[2]];
-                    let q2 = &[&args1[1], &args1[0], &args1[2]];
-                    let i = &[&args2[0], &args2[1], &args2[2]];
+                    let q1 = &[args1[0], args1[1], args1[2]];
+                    let q2 = &[args1[1], args1[0], args1[2]];
+                    let i = &[args2[0], args2[1], args2[2]];
                     check(q1, i) || check(q2, i)
                 } else if name1 == "max" || name1 == "min" {
                     // The order does not matter for max/min.
-                    let q1 = &[&args1[0], &args1[1]];
-                    let q2 = &[&args1[1], &args1[0]];
-                    let i = &[&args2[0], &args2[1]];
+                    let q1 = &[args1[0], args1[1]];
+                    let q2 = &[args1[1], args1[0]];
+                    let i = &[args2[0], args2[1]];
                     check(q1, i) || check(q2, i)
                 } else {
-                    check(
-                        &args1.iter().collect::<Vec<_>>(),
-                        &args2.iter().collect::<Vec<_>>(),
-                    )
+                    check(args1, args2)
                 }
         }
         (
@@ -177,7 +176,10 @@ fn check_exprs<'a>(
             },
         ) => {
             check_channels(*c1, *c2)
-                && check(&[&query_nodes[*n1].input], &[&input_nodes[*n2].input])
+                && check(
+                    &[query_graph.nodes[*n1].input],
+                    &[input_graph.nodes[*n2].input],
+                )
         }
         (
             Expr::Parameter {
@@ -194,7 +196,7 @@ fn check_exprs<'a>(
             },
         ) => {
             if let (Some(i1), Some(i2)) = (i1, i2) {
-                n1 == n2 && f1 == f2 && c1 == c2 && check(&[i1], &[i2])
+                n1 == n2 && f1 == f2 && c1 == c2 && check(&[*i1], &[*i2])
             } else {
                 n1 == n2 && f1 == f2 && c1 == c2
             }
@@ -206,15 +208,16 @@ fn check_exprs<'a>(
 
             check_channels(*channel, i.channel())
         }
+        // TODO: Move this to simplification instead?
         (Expr::Unary(UnaryOp::Negate, a1), Expr::Binary(BinaryOp::Sub, a2, b2)) => {
             // 0.0 - x == -x
-            **a2 == Expr::Float(OrderedFloat(0.0)) && check(&[a1], &[b2])
+            input_graph.exprs[*a2] == Expr::Float(OrderedFloat(0.0)) && check(&[*a1], &[*b2])
         }
         (Expr::Binary(BinaryOp::Sub, a1, b1), Expr::Unary(UnaryOp::Negate, a2)) => {
             // 0.0 - x == -x
-            **a1 == Expr::Float(OrderedFloat(0.0)) && check(&[b1], &[a2])
+            query_graph.exprs[*a1] == Expr::Float(OrderedFloat(0.0)) && check(&[*b1], &[*a2])
         }
-        _ => query == input,
+        _ => query_graph.exprs[query] == input_graph.exprs[input],
     }
 }
 
@@ -224,10 +227,10 @@ fn check_channels(query: Option<char>, input: Option<char>) -> bool {
 }
 
 fn check_args<'a>(
-    query: &[&Expr],
-    input: &[&'a Expr],
-    query_nodes: &[Node],
-    input_nodes: &'a [Node],
+    query: &[usize],
+    input: &[usize],
+    query_graph: &Graph,
+    input_graph: &'a Graph,
     vars: &mut BTreeMap<SmolStr, &'a Expr>,
 ) -> bool {
     // Track values for query variables used in this expr.
@@ -236,7 +239,7 @@ fn check_args<'a>(
     let mut local_vars = IndexMap::new();
     query.len() == input.len()
         && query.iter().zip(input).all(|(q, i)| {
-            if let Expr::Global { name, .. } = q {
+            if let Expr::Global { name, .. } = &query_graph.exprs[*q] {
                 if let Some(i_prev) = local_vars.insert(name.clone(), i) {
                     // TODO: Should this check equivalent exprs?
                     if i_prev != i {
@@ -244,20 +247,22 @@ fn check_args<'a>(
                     }
                 }
             }
-            check_exprs(q, i, query_nodes, input_nodes, vars)
+            check_exprs(*q, *i, query_graph, input_graph, vars)
         })
 }
 
-pub fn assign_x<'a>(nodes: &'a [Node], expr: &Expr) -> Option<&'a Expr> {
+pub fn assign_x<'a>(graph: &'a Graph, expr: &Expr) -> Option<&'a Expr> {
     match expr {
-        Expr::Node { node_index, .. } => nodes.get(*node_index).map(|n| &n.input),
+        Expr::Node { node_index, .. } => {
+            graph.nodes.get(*node_index).map(|n| &graph.exprs[n.input])
+        }
         _ => None,
     }
 }
 
-pub fn assign_x_recursive<'a>(nodes: &'a [Node], expr: &'a Expr) -> &'a Expr {
+pub fn assign_x_recursive<'a>(graph: &'a Graph, expr: &'a Expr) -> &'a Expr {
     let mut node = expr;
-    while let Some(new_node) = assign_x(nodes, node) {
+    while let Some(new_node) = assign_x(graph, node) {
         node = new_node;
     }
     node
@@ -275,19 +280,19 @@ static MIX_A_B_RATIO: LazyLock<Graph> = LazyLock::new(|| {
 });
 
 pub fn mix_a_b_ratio<'a>(
-    nodes: &'a [Node],
+    graph: &'a Graph,
     expr: &'a Expr,
 ) -> Option<(&'a Expr, &'a Expr, &'a Expr)> {
-    let result = query_nodes(expr, nodes, &MIX_A_B_RATIO.nodes)?;
+    let result = query_nodes(expr, graph, &MIX_A_B_RATIO)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     let ratio = result.get("ratio")?;
     Some((a, b, ratio))
 }
 
-pub fn node_expr<'a>(nodes: &'a [Node], e: &Expr) -> Option<&'a Expr> {
+pub fn node_expr<'a>(graph: &'a Graph, e: &Expr) -> Option<&'a Expr> {
     if let Expr::Node { node_index, .. } = e {
-        nodes.get(*node_index).map(|n| &n.input)
+        graph.nodes.get(*node_index).map(|n| &graph.exprs[n.input])
     } else {
         None
     }
@@ -304,20 +309,20 @@ static DOT3_A_B: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-pub fn dot3_a_b<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<([&'a Expr; 3], [&'a Expr; 3])> {
-    let result = query_nodes(expr, nodes, &DOT3_A_B.nodes)?;
+pub fn dot3_a_b<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<([&'a Expr; 3], [&'a Expr; 3])> {
+    let result = query_nodes(expr, graph, &DOT3_A_B)?;
     Some((
         [result.get("a1")?, result.get("a2")?, result.get("a3")?],
         [result.get("b1")?, result.get("b2")?, result.get("b3")?],
     ))
 }
 
-pub fn fma_a_b_c(expr: &Expr) -> Option<(&Expr, &Expr, &Expr)> {
+pub fn fma_a_b_c<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(&'a Expr, &'a Expr, &'a Expr)> {
     match expr {
         Expr::Func { name, args, .. } => {
             if name == "fma" {
                 match &args[..] {
-                    [a, b, c] => Some((a, b, c)),
+                    [a, b, c] => Some((&graph.exprs[*a], &graph.exprs[*b], &graph.exprs[*c])),
                     _ => None,
                 }
             } else {
@@ -331,9 +336,9 @@ pub fn fma_a_b_c(expr: &Expr) -> Option<(&Expr, &Expr, &Expr)> {
 static FMA_HALF_HALF: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = fma(x, 0.5, 0.5); }").unwrap());
 
-pub fn fma_half_half<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
-    let result = query_nodes(expr, nodes, &FMA_HALF_HALF.nodes)?;
-    node_expr(nodes, result.get("x")?)
+pub fn fma_half_half<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    let result = query_nodes(expr, graph, &FMA_HALF_HALF)?;
+    node_expr(graph, result.get("x")?)
 }
 
 static NORMALIZE: LazyLock<Graph> = LazyLock::new(|| {
@@ -346,8 +351,8 @@ static NORMALIZE: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-pub fn normalize<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
-    let result = query_nodes(expr, nodes, &NORMALIZE.nodes)?;
+pub fn normalize<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    let result = query_nodes(expr, graph, &NORMALIZE)?;
     result.get("result").copied()
 }
 

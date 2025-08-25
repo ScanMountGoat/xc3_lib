@@ -702,6 +702,7 @@ impl OneCompSwizzle {
 struct Nodes {
     nodes: Vec<Node>,
     node_info: Vec<NodeInfo>,
+    exprs: IndexSet<Expr>,
 }
 
 struct NodeInfo {
@@ -720,6 +721,10 @@ impl Nodes {
             inst_count,
         });
         index
+    }
+
+    fn insert_expr(&mut self, expr: Expr) -> usize {
+        self.exprs.insert_full(expr).0
     }
 }
 
@@ -750,7 +755,10 @@ impl Graph {
             }
         }
 
-        Ok(Self { nodes: nodes.nodes })
+        Ok(Self {
+            nodes: nodes.nodes,
+            exprs: nodes.exprs.into_iter().collect(),
+        })
     }
 }
 
@@ -789,11 +797,11 @@ fn add_exp_inst(exp: CfExpInst, nodes: &mut Nodes) {
                     name: format!("{target_name}{}", target_index + i).into(),
                     channel: Some(c),
                 },
-                input: previous_assignment(
+                input: nodes.insert_expr(previous_assignment(
                     &format!("{source_name}{}", source_index + i),
                     Some(c),
                     nodes,
-                ),
+                )),
             };
             nodes.add_node(node, None, inst_count);
         }
@@ -915,10 +923,10 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                 if let Some(node_index) = dot_node_index {
                     let node = Node {
                         output: scalar.output,
-                        input: Expr::Node {
+                        input: nodes.insert_expr(Expr::Node {
                             node_index,
                             channel: None,
-                        },
+                        }),
                     };
                     nodes.add_node(node, Some(scalar.alu_unit), inst_count);
                 }
@@ -938,34 +946,38 @@ fn dot_product_node_index(
         .iter()
         .filter_map(|s| {
             if s.op_code.starts_with("DOT4") {
-                Some((s.sources[0].clone(), s.sources[1].clone()))
+                Some((
+                    nodes.insert_expr(s.sources[0].clone()),
+                    nodes.insert_expr(s.sources[1].clone()),
+                ))
             } else {
                 None
             }
         })
         .unzip();
     if !dot4_a.is_empty() && !dot4_b.is_empty() {
+        let input = Expr::Func {
+            name: "dot".into(),
+            args: vec![
+                nodes.insert_expr(Expr::Func {
+                    name: "vec4".into(),
+                    args: dot4_a,
+                    channel: None,
+                }),
+                nodes.insert_expr(Expr::Func {
+                    name: "vec4".into(),
+                    args: dot4_b,
+                    channel: None,
+                }),
+            ],
+            channel: None,
+        };
         let node = Node {
             output: Output {
                 name: format!("temp{inst_count}").into(),
                 channel: None,
             },
-            input: Expr::Func {
-                name: "dot".into(),
-                args: vec![
-                    Expr::Func {
-                        name: "vec4".into(),
-                        args: dot4_a,
-                        channel: None,
-                    },
-                    Expr::Func {
-                        name: "vec4".into(),
-                        args: dot4_b,
-                        channel: None,
-                    },
-                ],
-                channel: None,
-            },
+            input: nodes.insert_expr(input),
         };
         let node_index = nodes.add_node(node, None, inst_count);
         Some(node_index)
@@ -982,20 +994,21 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
         "MOV" => {
             let node = Node {
                 output,
-                input: scalar.sources[0].clone(),
+                input: nodes.insert_expr(scalar.sources[0].clone()),
             };
             Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
         "FLOOR" => Some(add_func("floor", 1, &scalar, output, inst_count, nodes)),
         "SQRT_IEEE" => Some(add_func("sqrt", 1, &scalar, output, inst_count, nodes)),
         "RECIP_IEEE" => {
+            let input = Expr::Binary(
+                BinaryOp::Div,
+                nodes.insert_expr(Expr::Float(1.0.into())),
+                nodes.insert_expr(scalar.sources[0].clone()),
+            );
             let node = Node {
                 output,
-                input: Expr::Binary(
-                    BinaryOp::Div,
-                    Box::new(Expr::Float(1.0.into())),
-                    Box::new(scalar.sources[0].clone()),
-                ),
+                input: nodes.insert_expr(input),
             };
             Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
@@ -1012,13 +1025,14 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
         // scalar2
         "ADD" | "ADD_INT" => {
             // TODO: _INT shouldn't interpret the bits as float.
+            let input = Expr::Binary(
+                BinaryOp::Add,
+                nodes.insert_expr(scalar.sources[0].clone()),
+                nodes.insert_expr(scalar.sources[1].clone()),
+            );
             let node = Node {
                 output,
-                input: Expr::Binary(
-                    BinaryOp::Add,
-                    Box::new(scalar.sources[0].clone()),
-                    Box::new(scalar.sources[1].clone()),
-                ),
+                input: nodes.insert_expr(input),
             };
             Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
@@ -1026,13 +1040,14 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
         "MAX" | "MAX_DX10" => Some(add_func("max", 2, &scalar, output, inst_count, nodes)),
         "MUL" | "MUL_IEEE" | "MULLO_INT" => {
             // TODO: _INT shouldn't interpret the bits as float.
+            let input = Expr::Binary(
+                BinaryOp::Mul,
+                nodes.insert_expr(scalar.sources[0].clone()),
+                nodes.insert_expr(scalar.sources[1].clone()),
+            );
             let node = Node {
                 output,
-                input: Expr::Binary(
-                    BinaryOp::Mul,
-                    Box::new(scalar.sources[0].clone()),
-                    Box::new(scalar.sources[1].clone()),
-                ),
+                input: nodes.insert_expr(input),
             };
             Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
@@ -1044,65 +1059,65 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
         "MULADD" | "MULADD_IEEE" => Some(add_func("fma", 3, &scalar, output, inst_count, nodes)),
         "MULADD_M2" => {
             let node_index = add_func("fma", 3, &scalar, output.clone(), inst_count, nodes);
-
+            let input = Expr::Binary(
+                BinaryOp::Mul,
+                nodes.insert_expr(Expr::Node {
+                    node_index,
+                    channel: scalar.output.channel,
+                }),
+                nodes.insert_expr(Expr::Float(2.0.into())),
+            );
             let node = Node {
                 output,
-                input: Expr::Binary(
-                    BinaryOp::Mul,
-                    Box::new(Expr::Node {
-                        node_index,
-                        channel: scalar.output.channel,
-                    }),
-                    Box::new(Expr::Float(2.0.into())),
-                ),
+                input: nodes.insert_expr(input),
             };
             Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
         "MULADD_M4" => {
             let node_index = add_func("fma", 3, &scalar, output.clone(), inst_count, nodes);
-
+            let input = Expr::Binary(
+                BinaryOp::Mul,
+                nodes.insert_expr(Expr::Node {
+                    node_index,
+                    channel: scalar.output.channel,
+                }),
+                nodes.insert_expr(Expr::Float(4.0.into())),
+            );
             let node = Node {
                 output,
-                input: Expr::Binary(
-                    BinaryOp::Mul,
-                    Box::new(Expr::Node {
-                        node_index,
-                        channel: scalar.output.channel,
-                    }),
-                    Box::new(Expr::Float(4.0.into())),
-                ),
+                input: nodes.insert_expr(input),
             };
             Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
         "MULADD_D2" => {
             let node_index = add_func("fma", 3, &scalar, output.clone(), inst_count, nodes);
-
+            let input = Expr::Binary(
+                BinaryOp::Div,
+                nodes.insert_expr(Expr::Node {
+                    node_index,
+                    channel: scalar.output.channel,
+                }),
+                nodes.insert_expr(Expr::Float(2.0.into())),
+            );
             let node = Node {
                 output,
-                input: Expr::Binary(
-                    BinaryOp::Div,
-                    Box::new(Expr::Node {
-                        node_index,
-                        channel: scalar.output.channel,
-                    }),
-                    Box::new(Expr::Float(2.0.into())),
-                ),
+                input: nodes.insert_expr(input),
             };
             Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
         "MULADD_D4" => {
             let node_index = add_func("fma", 3, &scalar, output.clone(), inst_count, nodes);
-
+            let input = Expr::Binary(
+                BinaryOp::Div,
+                nodes.insert_expr(Expr::Node {
+                    node_index,
+                    channel: scalar.output.channel,
+                }),
+                nodes.insert_expr(Expr::Float(4.0.into())),
+            );
             let node = Node {
                 output,
-                input: Expr::Binary(
-                    BinaryOp::Div,
-                    Box::new(Expr::Node {
-                        node_index,
-                        channel: scalar.output.channel,
-                    }),
-                    Box::new(Expr::Float(4.0.into())),
-                ),
+                input: nodes.insert_expr(input),
             };
             Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
@@ -1123,7 +1138,7 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
 
     if let Some(modifier) = scalar.output_modifier {
         if let Some(node_index) = node_index {
-            let node = alu_output_modifier(&modifier, scalar.output, node_index);
+            let node = alu_output_modifier(&modifier, scalar.output, node_index, nodes);
             nodes.add_node(node, Some(scalar.alu_unit), inst_count);
         }
     }
@@ -1137,13 +1152,16 @@ fn add_func(
     inst_count: usize,
     nodes: &mut Nodes,
 ) -> usize {
+    let input = Expr::Func {
+        name: func.into(),
+        args: (0..arg_count)
+            .map(|i| nodes.insert_expr(scalar.sources[i].clone()))
+            .collect(),
+        channel: None,
+    };
     let node = Node {
         output,
-        input: Expr::Func {
-            name: func.into(),
-            args: (0..arg_count).map(|i| scalar.sources[i].clone()).collect(),
-            channel: None,
-        },
+        input: nodes.insert_expr(input),
     };
     nodes.add_node(node, Some(scalar.alu_unit), inst_count)
 }
@@ -1191,7 +1209,12 @@ fn alu_dst_output(dst: AluDst, inst_count: usize, alu_unit: char) -> Output {
     }
 }
 
-fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Node {
+fn alu_output_modifier(
+    modifier: &str,
+    output: Output,
+    node_index: usize,
+    nodes: &mut Nodes,
+) -> Node {
     let channel = output.channel;
 
     let (op, f) = match modifier {
@@ -1202,22 +1225,23 @@ fn alu_output_modifier(modifier: &str, output: Output, node_index: usize) -> Nod
         _ => panic!("unexpected modifier: {modifier}"),
     };
 
+    let input = Expr::Binary(
+        op,
+        nodes.insert_expr(Expr::Node {
+            node_index,
+            channel,
+        }),
+        nodes.insert_expr(Expr::Float(f.into())),
+    );
     Node {
         output,
-        input: Expr::Binary(
-            op,
-            Box::new(Expr::Node {
-                node_index,
-                channel,
-            }),
-            Box::new(Expr::Float(f.into())),
-        ),
+        input: nodes.insert_expr(input),
     }
 }
 
 fn alu_src_expr(
     source: AluSrc,
-    nodes: &Nodes,
+    nodes: &mut Nodes,
     kc0: &Option<ConstantBuffer>,
     kc1: &Option<ConstantBuffer>,
 ) -> Expr {
@@ -1226,23 +1250,26 @@ fn alu_src_expr(
     let channel = source.swizzle.and_then(|s| s.channels().chars().next());
 
     let expr = match source.value {
-        AluSrcValueOrAbs::Abs(abs_value) => Expr::Func {
-            name: "abs".into(),
-            args: vec![value_expr(nodes, channel, abs_value.value, kc0, kc1)],
-            channel: abs_value.swizzle.and_then(|s| s.channels().chars().next()),
-        },
+        AluSrcValueOrAbs::Abs(abs_value) => {
+            let arg = value_expr(nodes, channel, abs_value.value, kc0, kc1);
+            Expr::Func {
+                name: "abs".into(),
+                args: vec![nodes.insert_expr(arg)],
+                channel: abs_value.swizzle.and_then(|s| s.channels().chars().next()),
+            }
+        }
         AluSrcValueOrAbs::Value(value) => value_expr(nodes, channel, value, kc0, kc1),
     };
 
     if negate {
-        Expr::Unary(UnaryOp::Negate, Box::new(expr))
+        Expr::Unary(UnaryOp::Negate, nodes.insert_expr(expr))
     } else {
         expr
     }
 }
 
 fn value_expr(
-    nodes: &Nodes,
+    nodes: &mut Nodes,
     channel: Option<char>,
     value: AluSrcValue,
     kc0: &Option<ConstantBuffer>,
@@ -1251,8 +1278,12 @@ fn value_expr(
     // Find a previous assignment that modifies the desired channel for variables.
     match value.0 {
         AluSrcValueInner::Gpr(gpr) => previous_assignment(&gpr.to_string(), channel, nodes),
-        AluSrcValueInner::ConstantCache0(c0) => constant_buffer_parameter(c0.0, channel, kc0),
-        AluSrcValueInner::ConstantCache1(c1) => constant_buffer_parameter(c1.0, channel, kc1),
+        AluSrcValueInner::ConstantCache0(c0) => {
+            constant_buffer_parameter(c0.0, channel, kc0, nodes)
+        }
+        AluSrcValueInner::ConstantCache1(c1) => {
+            constant_buffer_parameter(c1.0, channel, kc1, nodes)
+        }
         AluSrcValueInner::ConstantFile(cf) => Expr::Global {
             name: format!("C{}", cf.0 .0).into(), // TODO: how to handle constant file expressions?
             channel,
@@ -1273,11 +1304,12 @@ fn constant_buffer_parameter(
     index: Number,
     channel: Option<char>,
     constant_buffer: &Option<ConstantBuffer>,
+    nodes: &mut Nodes,
 ) -> Expr {
     Expr::Parameter {
         name: format!("CB{}", constant_buffer.as_ref().unwrap().index).into(),
         field: None,
-        index: Some(Box::new(Expr::Int(
+        index: Some(nodes.insert_expr(Expr::Int(
             (index.0 + constant_buffer.as_ref().unwrap().start_index) as i32,
         ))),
         channel,
@@ -1342,7 +1374,7 @@ fn previous_assignment(value: &str, channel: Option<char>, nodes: &Nodes) -> Exp
     }
 }
 
-fn tex_inst_node(tex: TexInst, nodes: &Nodes) -> Option<Vec<Node>> {
+fn tex_inst_node(tex: TexInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
     // TODO: Check that op code is SAMPLE?
 
     // TODO: Get the input names and channels.
@@ -1351,27 +1383,29 @@ fn tex_inst_node(tex: TexInst, nodes: &Nodes) -> Option<Vec<Node>> {
     let output_channels = tex.dst.swizzle.channels();
 
     let texcoords = tex_src_coords(tex.src, nodes)?;
+    let texcoords = nodes.insert_expr(texcoords);
 
     // TODO: make these rules not atomic and format similar to gpr?
     let texture = tex.resource_id.0;
     let _sampler = tex.sampler_id.0;
 
-    let texture_name = Expr::Global {
+    let texture_name = nodes.insert_expr(Expr::Global {
         name: texture.into(),
         channel: None,
-    };
+    });
 
     if output_channels.is_empty() {
+        let input = Expr::Func {
+            name: "texture".into(),
+            args: vec![texture_name, texcoords],
+            channel: None,
+        };
         Some(vec![Node {
             output: Output {
                 name: output_name,
                 channel: None,
             },
-            input: Expr::Func {
-                name: "texture".into(),
-                args: vec![texture_name, texcoords],
-                channel: None,
-            },
+            input: nodes.insert_expr(input),
         }])
     } else {
         // Convert vector swizzles to scalar operations to simplify analysis code.
@@ -1383,16 +1417,17 @@ fn tex_inst_node(tex: TexInst, nodes: &Nodes) -> Option<Vec<Node>> {
                 .zip("xyzw".chars())
                 .filter_map(|(c_in, c_out)| {
                     if c_in != '_' {
+                        let input = Expr::Func {
+                            name: "texture".into(),
+                            args: vec![texture_name, texcoords],
+                            channel: Some(c_in),
+                        };
                         Some(Node {
                             output: Output {
                                 name: output_name.clone(),
                                 channel: Some(c_out),
                             },
-                            input: Expr::Func {
-                                name: "texture".into(),
-                                args: vec![texture_name.clone(), texcoords.clone()],
-                                channel: Some(c_in),
-                            },
+                            input: nodes.insert_expr(input),
                         })
                     } else {
                         None
@@ -1403,7 +1438,7 @@ fn tex_inst_node(tex: TexInst, nodes: &Nodes) -> Option<Vec<Node>> {
     }
 }
 
-fn tex_src_coords(src: TexSrc, nodes: &Nodes) -> Option<Expr> {
+fn tex_src_coords(src: TexSrc, nodes: &mut Nodes) -> Option<Expr> {
     // TODO: Handle other cases from grammar.
     let gpr = src.gpr.to_string();
 
@@ -1414,8 +1449,8 @@ fn tex_src_coords(src: TexSrc, nodes: &Nodes) -> Option<Expr> {
     Some(Expr::Func {
         name: "vec2".into(),
         args: vec![
-            previous_assignment(&gpr, channels.next(), nodes),
-            previous_assignment(&gpr, channels.next(), nodes),
+            nodes.insert_expr(previous_assignment(&gpr, channels.next(), nodes)),
+            nodes.insert_expr(previous_assignment(&gpr, channels.next(), nodes)),
         ],
         channel: None,
     })

@@ -20,7 +20,7 @@ use crate::{
     graph::{
         glsl::shader_source_no_extensions,
         query::{assign_x, assign_x_recursive, fma_a_b_c, fma_half_half, normalize, query_nodes},
-        BinaryOp, Expr, Graph, Node, UnaryOp,
+        BinaryOp, Expr, Graph, UnaryOp,
     },
 };
 
@@ -107,7 +107,7 @@ pub fn shader_from_glsl(
                     xc3_model::shader_database::OutputExpr::Value(value.into())
                 }
                 OutputExpr::Func { op, args } => {
-                    xc3_model::shader_database::OutputExpr::Func { op: op, args }
+                    xc3_model::shader_database::OutputExpr::Func { op, args }
                 }
             })
             .collect(),
@@ -129,13 +129,13 @@ static OUTLINE_WIDTH_PARAMETER: LazyLock<Graph> = LazyLock::new(|| {
 fn outline_width_parameter(vert: &Graph) -> Option<Value> {
     vert.nodes.iter().find_map(|n| {
         // TODO: Add a way to match identifiers like "vColor" exactly.
-        let result = query_nodes(&n.input, &vert.nodes, &OUTLINE_WIDTH_PARAMETER.nodes)?;
+        let result = query_nodes(&vert.exprs[n.input], vert, &OUTLINE_WIDTH_PARAMETER)?;
         let param = result.get("param")?;
         let vcolor = result.get("vColor")?;
 
         if matches!(vcolor, Expr::Global { name, channel } if name == "vColor" && *channel == Some('w')) {
             // TODO: Handle other dependency types?
-            buffer_dependency(param).map(Value::Parameter)
+            buffer_dependency(vert, param).map(Value::Parameter)
         } else {
             None
         }
@@ -152,24 +152,24 @@ fn color_or_param_output_expr(
     let last_node = frag.nodes.get(last_node_index)?;
 
     // matCol.xyz in pcmdo shaders.
-    let mut current = &last_node.input;
+    let mut current = &frag.exprs[last_node.input];
 
     // Remove some redundant conversions found in some shaders.
     if let Expr::Func { name, args, .. } = current {
         if name == "intBitsToFloat" {
-            current = assign_x_recursive(&frag.nodes, &args[0]);
+            current = assign_x_recursive(frag, &frag.exprs[args[0]]);
 
             if let Expr::Func { name, args, .. } = current {
                 if name == "floatBitsToInt" {
-                    current = &args[0];
+                    current = &frag.exprs[args[0]];
                 }
             }
         }
     }
 
-    current = assign_x_recursive(&frag.nodes, current);
+    current = assign_x_recursive(frag, current);
 
-    if let Some(new_current) = geometric_specular_aa(&frag.nodes, current) {
+    if let Some(new_current) = geometric_specular_aa(frag, current) {
         current = new_current;
     }
 
@@ -185,26 +185,24 @@ fn normal_output_expr(
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
-    let mut view_normal = assign_x(&frag.nodes, &last_node.input)?;
+    let mut view_normal = assign_x(frag, &frag.exprs[last_node.input])?;
 
     // setMrtNormal in pcmdo shaders.
     // Xenoblade X uses RG16Float and doesn't require remapping the value range.
-    if let Some(new_view_normal) = fma_half_half(&frag.nodes, view_normal) {
+    if let Some(new_view_normal) = fma_half_half(frag, view_normal) {
         view_normal = new_view_normal;
     }
-    view_normal = assign_x_recursive(&frag.nodes, view_normal);
-    view_normal = normalize(&frag.nodes, view_normal)?;
-    view_normal = assign_x_recursive(&frag.nodes, view_normal);
+    view_normal = assign_x_recursive(frag, view_normal);
+    view_normal = normalize(frag, view_normal)?;
+    view_normal = assign_x_recursive(frag, view_normal);
 
     // TODO: front facing in calcNormalZAbs in pcmdo?
 
     // nomWork input for getCalcNormalMap in pcmdo shaders.
-    let (nom_work, intensity) = calc_normal_map(&frag.nodes, view_normal)
+    let (nom_work, intensity) = calc_normal_map(frag, view_normal)
         .map(|n| (n, None))
-        .or_else(|| calc_normal_map_xcx(&frag.nodes, view_normal).map(|n| (n, None)))
-        .or_else(|| {
-            calc_normal_map_w_intensity(&frag.nodes, view_normal).map(|(n, i)| (n, Some(i)))
-        })?;
+        .or_else(|| calc_normal_map_xcx(frag, view_normal).map(|n| (n, None)))
+        .or_else(|| calc_normal_map_w_intensity(frag, view_normal).map(|(n, i)| (n, Some(i))))?;
 
     let nom_work = match last_node.output.channel {
         Some('x') => nom_work[0],
@@ -212,7 +210,7 @@ fn normal_output_expr(
         Some('z') => nom_work[2],
         _ => nom_work[0],
     };
-    let nom_work = assign_x_recursive(&frag.nodes, nom_work);
+    let nom_work = assign_x_recursive(frag, nom_work);
 
     let value = output_expr(nom_work, frag, exprs, expr_to_index);
 
@@ -234,29 +232,29 @@ pub(crate) fn output_expr(
             let original_expr = expr.clone();
 
             // Simplify any expressions that would interfere with queries.
-            let mut expr = assign_x_recursive(&graph.nodes, expr);
-            if let Some(new_expr) = normal_map_fma(&graph.nodes, expr) {
+            let mut expr = assign_x_recursive(graph, expr);
+            if let Some(new_expr) = normal_map_fma(graph, expr) {
                 expr = new_expr;
             }
-            if let Some(new_expr) = normalize(&graph.nodes, expr) {
-                expr = assign_x_recursive(&graph.nodes, new_expr);
+            if let Some(new_expr) = normalize(graph, expr) {
+                expr = assign_x_recursive(graph, new_expr);
             }
 
             // Detect attributes.
             // TODO: preserve the space for attributes like clip or view?
-            if let Some(new_expr) = skin_attribute_xyzw(&graph.nodes, expr)
-                .or_else(|| skin_attribute_xyz(&graph.nodes, expr))
-                .or_else(|| skin_attribute_clip_space_xyzw(&graph.nodes, expr))
-                .or_else(|| u_mdl_clip_attribute_xyzw(&graph.nodes, expr))
-                .or_else(|| u_mdl_view_attribute_xyzw(&graph.nodes, expr))
-                .or_else(|| u_mdl_attribute_xyz(&graph.nodes, expr))
+            if let Some(new_expr) = skin_attribute_xyzw(graph, expr)
+                .or_else(|| skin_attribute_xyz(graph, expr))
+                .or_else(|| skin_attribute_clip_space_xyzw(graph, expr))
+                .or_else(|| u_mdl_clip_attribute_xyzw(graph, expr))
+                .or_else(|| u_mdl_view_attribute_xyzw(graph, expr))
+                .or_else(|| u_mdl_attribute_xyz(graph, expr))
             {
                 expr = new_expr;
             }
 
             let mut expr = expr.clone();
-            if let Some(new_expr) = skin_attribute_bitangent(&graph.nodes, &expr)
-                .or_else(|| u_mdl_view_bitangent_xyz(&graph.nodes, &expr))
+            if let Some(new_expr) = skin_attribute_bitangent(graph, &expr)
+                .or_else(|| u_mdl_view_bitangent_xyz(graph, &expr))
             {
                 expr = new_expr;
             }
@@ -283,39 +281,46 @@ fn output_expr_inner(
     } else {
         // Detect operations from most specific to least specific.
         // This results in fewer operations in many cases.
-        if let Some((op, args)) = op_add_normal(&graph.nodes, expr)
-            .or_else(|| op_monochrome(&graph.nodes, expr))
-            .or_else(|| op_fresnel_ratio(&graph.nodes, expr))
-            .or_else(|| op_overlay2(&graph.nodes, expr))
-            .or_else(|| op_overlay_ratio(&graph.nodes, expr))
-            .or_else(|| op_overlay(&graph.nodes, expr))
-            .or_else(|| tex_parallax2(&graph.nodes, expr))
-            .or_else(|| tex_parallax(&graph.nodes, expr))
-            .or_else(|| tex_matrix(&graph.nodes, expr))
-            .or_else(|| op_reflect(&graph.nodes, expr))
-            .or_else(|| op_calc_normal_map(&graph.nodes, expr))
-            .or_else(|| op_mix(&graph.nodes, expr))
-            .or_else(|| op_mul_ratio(&graph.nodes, expr))
-            .or_else(|| op_add_ratio(expr))
-            .or_else(|| op_sub(&graph.nodes, expr))
-            .or_else(|| op_div(&graph.nodes, expr))
-            .or_else(|| binary_op(expr, BinaryOp::Mul, Operation::Mul))
-            .or_else(|| binary_op(expr, BinaryOp::Add, Operation::Add))
-            .or_else(|| op_pow(&graph.nodes, expr))
-            .or_else(|| op_clamp(&graph.nodes, expr))
-            .or_else(|| op_min(&graph.nodes, expr))
-            .or_else(|| op_max(&graph.nodes, expr))
-            .or_else(|| op_sqrt(&graph.nodes, expr))
-            .or_else(|| op_dot(&graph.nodes, expr))
-            .or_else(|| unary_op(expr, "abs", Operation::Abs))
-            .or_else(|| unary_op(expr, "floor", Operation::Floor))
-            .or_else(|| binary_op(expr, BinaryOp::Equal, Operation::Equal))
-            .or_else(|| binary_op(expr, BinaryOp::NotEqual, Operation::NotEqual))
-            .or_else(|| binary_op(expr, BinaryOp::Less, Operation::Less))
-            .or_else(|| binary_op(expr, BinaryOp::Greater, Operation::Greater))
-            .or_else(|| binary_op(expr, BinaryOp::LessEqual, Operation::LessEqual))
-            .or_else(|| binary_op(expr, BinaryOp::GreaterEqual, Operation::GreaterEqual))
-            .or_else(|| ternary(expr))
+        if let Some((op, args)) = op_add_normal(graph, expr)
+            .or_else(|| op_monochrome(graph, expr))
+            .or_else(|| op_fresnel_ratio(graph, expr))
+            .or_else(|| op_overlay2(graph, expr))
+            .or_else(|| op_overlay_ratio(graph, expr))
+            .or_else(|| op_overlay(graph, expr))
+            .or_else(|| tex_parallax2(graph, expr))
+            .or_else(|| tex_parallax(graph, expr))
+            .or_else(|| tex_matrix(graph, expr))
+            .or_else(|| op_reflect(graph, expr))
+            .or_else(|| op_calc_normal_map(graph, expr))
+            .or_else(|| op_mix(graph, expr))
+            .or_else(|| op_mul_ratio(graph, expr))
+            .or_else(|| op_add_ratio(graph, expr))
+            .or_else(|| op_sub(graph, expr))
+            .or_else(|| op_div(graph, expr))
+            .or_else(|| binary_op(graph, expr, BinaryOp::Mul, Operation::Mul))
+            .or_else(|| binary_op(graph, expr, BinaryOp::Add, Operation::Add))
+            .or_else(|| op_pow(graph, expr))
+            .or_else(|| op_clamp(graph, expr))
+            .or_else(|| op_min(graph, expr))
+            .or_else(|| op_max(graph, expr))
+            .or_else(|| op_sqrt(graph, expr))
+            .or_else(|| op_dot(graph, expr))
+            .or_else(|| unary_op(graph, expr, "abs", Operation::Abs))
+            .or_else(|| unary_op(graph, expr, "floor", Operation::Floor))
+            .or_else(|| binary_op(graph, expr, BinaryOp::Equal, Operation::Equal))
+            .or_else(|| binary_op(graph, expr, BinaryOp::NotEqual, Operation::NotEqual))
+            .or_else(|| binary_op(graph, expr, BinaryOp::Less, Operation::Less))
+            .or_else(|| binary_op(graph, expr, BinaryOp::Greater, Operation::Greater))
+            .or_else(|| binary_op(graph, expr, BinaryOp::LessEqual, Operation::LessEqual))
+            .or_else(|| {
+                binary_op(
+                    graph,
+                    expr,
+                    BinaryOp::GreaterEqual,
+                    Operation::GreaterEqual,
+                )
+            })
+            .or_else(|| ternary(graph, expr))
         {
             // Insert values that this operation depends on first.
             let args: Vec<_> = args
@@ -343,11 +348,11 @@ fn extract_value(
     exprs: &mut IndexSet<OutputExpr<Operation>>,
     expr_to_index: &mut IndexMap<Expr, usize>,
 ) -> Option<crate::expr::Value> {
-    let mut expr = assign_x_recursive(&graph.nodes, expr);
-    if let Some(new_expr) = normalize(&graph.nodes, expr) {
+    let mut expr = assign_x_recursive(graph, expr);
+    if let Some(new_expr) = normalize(graph, expr) {
         expr = new_expr;
     }
-    if let Some(new_expr) = normal_map_fma(&graph.nodes, expr) {
+    if let Some(new_expr) = normal_map_fma(graph, expr) {
         expr = new_expr;
     }
 
@@ -377,10 +382,10 @@ static OP_OVER2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn op_mix<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+fn op_mix<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // getPixelCalcOver in pcmdo fragment shaders for XC1 and XC3.
-    let result = query_nodes(expr, nodes, &OP_OVER.nodes)
-        .or_else(|| query_nodes(expr, nodes, &OP_OVER2.nodes))?;
+    let result =
+        query_nodes(expr, graph, &OP_OVER).or_else(|| query_nodes(expr, graph, &OP_OVER2))?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     let ratio = result.get("ratio")?;
@@ -399,18 +404,18 @@ static OP_RATIO: LazyLock<Graph> = LazyLock::new(|| {
 });
 
 // TODO: Is it better to just detect this as mix -> mul?
-fn op_mul_ratio<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+fn op_mul_ratio<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // getPixelCalcRatioBlend in pcmdo fragment shaders for XC1 and XC3.
-    let result = query_nodes(expr, nodes, &OP_RATIO.nodes)?;
+    let result = query_nodes(expr, graph, &OP_RATIO)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     let ratio = result.get("ratio")?;
     Some((Operation::MulRatio, vec![a, b, ratio]))
 }
 
-fn op_add_ratio(expr: &Expr) -> Option<(Operation, Vec<&Expr>)> {
+fn op_add_ratio<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // += getPixelCalcRatio in pcmdo fragment shaders for XC1 and XC3.
-    let (a, b, c) = fma_a_b_c(expr)?;
+    let (a, b, c) = fma_a_b_c(graph, expr)?;
     Some((Operation::Fma, vec![a, b, c]))
 }
 
@@ -436,10 +441,10 @@ static OP_OVERLAY_XC2: LazyLock<Graph> = LazyLock::new(|| {
 });
 
 // TODO: This can just be detected as mix -> overlay2?
-fn op_overlay_ratio<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+fn op_overlay_ratio<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // Overlay combines multiply and screen blend modes.
     // Some XC2 models use overlay blending for metalness.
-    let result = query_nodes(expr, nodes, &OP_OVERLAY_XC2.nodes)?;
+    let result = query_nodes(expr, graph, &OP_OVERLAY_XC2)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     let ratio = result.get("ratio")?;
@@ -467,10 +472,10 @@ static OP_OVERLAY_XCX_DE: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn op_overlay<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+fn op_overlay<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // Overlay combines multiply and screen blend modes.
     // Some XCX DE models use overlay for face coloring.
-    let result = query_nodes(expr, nodes, &OP_OVERLAY_XCX_DE.nodes)?;
+    let result = query_nodes(expr, graph, &OP_OVERLAY_XCX_DE)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     Some((Operation::Overlay, vec![a, b]))
@@ -511,9 +516,9 @@ static FRESNEL_RATIO2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn op_fresnel_ratio<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(expr, nodes, &FRESNEL_RATIO.nodes)
-        .or_else(|| query_nodes(expr, nodes, &FRESNEL_RATIO2.nodes))?;
+fn op_fresnel_ratio<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes(expr, graph, &FRESNEL_RATIO)
+        .or_else(|| query_nodes(expr, graph, &FRESNEL_RATIO2))?;
     let a = result.get("ratio")?;
     Some((Operation::Fresnel, vec![a]))
 }
@@ -543,9 +548,9 @@ static OP_POW2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn op_pow<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(expr, nodes, &OP_POW.nodes)
-        .or_else(|| query_nodes(expr, nodes, &OP_POW2.nodes))?;
+fn op_pow<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result =
+        query_nodes(expr, graph, &OP_POW).or_else(|| query_nodes(expr, graph, &OP_POW2))?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     Some((Operation::Power, vec![a, b]))
@@ -554,8 +559,8 @@ fn op_pow<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a E
 static OP_MAX: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = max(a, b); }").unwrap());
 
-fn op_max<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(expr, nodes, &OP_MAX.nodes)?;
+fn op_max<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes(expr, graph, &OP_MAX)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     Some((Operation::Max, vec![a, b]))
@@ -564,8 +569,8 @@ fn op_max<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a E
 static OP_MIN: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = min(a, b); }").unwrap());
 
-fn op_min<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(expr, nodes, &OP_MIN.nodes)?;
+fn op_min<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes(expr, graph, &OP_MIN)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     Some((Operation::Min, vec![a, b]))
@@ -574,8 +579,8 @@ fn op_min<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a E
 static OP_CLAMP: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = clamp(a, b, c); }").unwrap());
 
-fn op_clamp<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(expr, nodes, &OP_CLAMP.nodes)?;
+fn op_clamp<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes(expr, graph, &OP_CLAMP)?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     let c = result.get("c")?;
@@ -596,9 +601,9 @@ static OP_SQRT: LazyLock<Graph> = LazyLock::new(|| {
 static OP_SQRT2: LazyLock<Graph> =
     LazyLock::new(|| Graph::parse_glsl("void main() { result = sqrt(result); }").unwrap());
 
-fn op_sqrt<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(expr, nodes, &OP_SQRT.nodes)
-        .or_else(|| query_nodes(expr, nodes, &OP_SQRT2.nodes))?;
+fn op_sqrt<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result =
+        query_nodes(expr, graph, &OP_SQRT).or_else(|| query_nodes(expr, graph, &OP_SQRT2))?;
     let result = result.get("result")?;
     Some((Operation::Sqrt, vec![result]))
 }
@@ -612,8 +617,8 @@ static OP_DOT4: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn op_dot<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(expr, nodes, &OP_DOT4.nodes)?;
+fn op_dot<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes(expr, graph, &OP_DOT4)?;
 
     let ax = result.get("ax")?;
     let ay = result.get("ay")?;
@@ -629,21 +634,25 @@ fn op_dot<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a E
 }
 
 fn unary_op<'a>(
+    graph: &'a Graph,
     expr: &'a Expr,
     fn_name: &str,
     op: Operation,
 ) -> Option<(Operation, Vec<&'a Expr>)> {
     if let Expr::Func { name, args, .. } = expr {
         if name == fn_name {
-            return Some((op, vec![&args[0]]));
+            return Some((op, vec![&graph.exprs[args[0]]]));
         }
     }
     None
 }
 
-fn ternary(expr: &Expr) -> Option<(Operation, Vec<&Expr>)> {
+fn ternary<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     if let Expr::Ternary(cond, a, b) = expr {
-        Some((Operation::Select, vec![cond, a, b]))
+        Some((
+            Operation::Select,
+            vec![&graph.exprs[*cond], &graph.exprs[*a], &graph.exprs[*b]],
+        ))
     } else {
         None
     }
@@ -662,10 +671,10 @@ static OP_SUB2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn op_sub<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+fn op_sub<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // Some layers are simply subtracted like for xeno3/chr/chr/ch44000210.wimdo "ch45133501_body".
-    let result = query_nodes(expr, nodes, &OP_SUB.nodes)
-        .or_else(|| query_nodes(expr, nodes, &OP_SUB2.nodes))?;
+    let result =
+        query_nodes(expr, graph, &OP_SUB).or_else(|| query_nodes(expr, graph, &OP_SUB2))?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     Some((Operation::Sub, vec![a, b]))
@@ -684,22 +693,23 @@ static OP_DIV2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn op_div<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(expr, nodes, &OP_DIV.nodes)
-        .or_else(|| query_nodes(expr, nodes, &OP_DIV2.nodes))?;
+fn op_div<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result =
+        query_nodes(expr, graph, &OP_DIV).or_else(|| query_nodes(expr, graph, &OP_DIV2))?;
     let a = result.get("a")?;
     let b = result.get("b")?;
     Some((Operation::Div, vec![a, b]))
 }
 
-fn binary_op(
-    expr: &Expr,
+fn binary_op<'a>(
+    graph: &'a Graph,
+    expr: &'a Expr,
     binary_op: BinaryOp,
     operation: Operation,
-) -> Option<(Operation, Vec<&Expr>)> {
+) -> Option<(Operation, Vec<&'a Expr>)> {
     if let Expr::Binary(op, a0, a1) = expr {
         if *op == binary_op {
-            return Some((operation, vec![a0, a1]));
+            return Some((operation, vec![&graph.exprs[*a0], &graph.exprs[*a1]]));
         }
     }
     None
@@ -712,11 +722,11 @@ fn dependency_expr(
     expr_to_index: &mut IndexMap<Expr, usize>,
 ) -> Option<crate::expr::Value> {
     texture_dependency(e, graph, exprs, expr_to_index).or_else(|| {
-        buffer_dependency(e)
+        buffer_dependency(graph, e)
             .map(crate::expr::Value::Parameter)
             .or_else(|| match e {
                 Expr::Unary(UnaryOp::Negate, e) => {
-                    if let Expr::Float(f) = **e {
+                    if let Expr::Float(f) = &graph.exprs[*e] {
                         Some(crate::expr::Value::Constant(-f))
                     } else {
                         None
@@ -765,11 +775,11 @@ static OP_MONOCHROME_XC1: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn op_monochrome<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+fn op_monochrome<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // calcMonochrome in pcmdo fragment shaders for XC1 and XC3.
     // TODO: Create separate ops or include the RGB weights in the args?
-    let result = query_nodes(expr, nodes, &OP_MONOCHROME.nodes)
-        .or_else(|| query_nodes(expr, nodes, &OP_MONOCHROME_XC1.nodes))?;
+    let result = query_nodes(expr, graph, &OP_MONOCHROME)
+        .or_else(|| query_nodes(expr, graph, &OP_MONOCHROME_XC1))?;
     let a = result.get("a")?;
     let x = result.get("x")?;
     let y = result.get("y")?;
@@ -837,7 +847,7 @@ static OP_ADD_NORMAL_OUTER: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn op_add_normal<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+fn op_add_normal<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // getPixelCalcAddNormal in pcmdo shaders.
     // normalize(mix(nomWork, normalize(r), ratio))
     // XC2: ratio * (normalize(r) - nomWork) + nomWork
@@ -845,12 +855,12 @@ fn op_add_normal<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Ve
 
     // The normalize is baked into the outer query and might not be present.
     let mut expr = expr;
-    if let Some(new_expr) = normalize(nodes, expr) {
-        expr = assign_x_recursive(nodes, new_expr);
+    if let Some(new_expr) = normalize(graph, expr) {
+        expr = assign_x_recursive(graph, new_expr);
     }
 
-    let result = query_nodes(expr, nodes, &OP_ADD_NORMAL_OUTER.nodes)
-        .or_else(|| query_nodes(expr, nodes, &OP_ADD_NORMAL.nodes))?;
+    let result = query_nodes(expr, graph, &OP_ADD_NORMAL_OUTER)
+        .or_else(|| query_nodes(expr, graph, &OP_ADD_NORMAL))?;
 
     let n1_x = result.get("n1_x")?;
     let n1_y = result.get("n1_y")?;
@@ -861,14 +871,14 @@ fn op_add_normal<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Ve
     let ratio = result.get("ratio")?;
 
     let mut nom_work = *result.get("nom_work")?;
-    nom_work = assign_x_recursive(nodes, nom_work);
-    if let Some(new_expr) = normalize(nodes, nom_work) {
-        nom_work = assign_x_recursive(nodes, new_expr);
+    nom_work = assign_x_recursive(graph, nom_work);
+    if let Some(new_expr) = normalize(graph, nom_work) {
+        nom_work = assign_x_recursive(graph, new_expr);
     }
 
-    let op = if nom_work == assign_x_recursive(nodes, n1_x) {
+    let op = if nom_work == assign_x_recursive(graph, n1_x) {
         Operation::AddNormalX
-    } else if nom_work == assign_x_recursive(nodes, n1_y) {
+    } else if nom_work == assign_x_recursive(graph, n1_y) {
         Operation::AddNormalY
     } else {
         Operation::Unk
@@ -902,8 +912,8 @@ static OP_OVERLAY2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn op_overlay2<'a>(nodes: &'a [Node], nom_work: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(nom_work, nodes, &OP_OVERLAY2.nodes)?;
+fn op_overlay2<'a>(graph: &'a Graph, nom_work: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes(nom_work, graph, &OP_OVERLAY2)?;
     let a = *result.get("a")?;
     let b = result.get("b")?;
     Some((Operation::Overlay2, vec![a, b]))
@@ -918,10 +928,10 @@ static NORMAL_MAP_FMA: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn normal_map_fma<'a>(nodes: &'a [Node], nom_work: &'a Expr) -> Option<&'a Expr> {
+fn normal_map_fma<'a>(graph: &'a Graph, nom_work: &'a Expr) -> Option<&'a Expr> {
     // Extract the normal map texture if present.
     // This could be fma(x, 2.0, -1.0) or fma(x, 2.0, -1.0039216)
-    let result = query_nodes(nom_work, nodes, &NORMAL_MAP_FMA.nodes)?;
+    let result = query_nodes(nom_work, graph, &NORMAL_MAP_FMA)?;
     let neg_one = result.get("neg_one")?;
     match neg_one {
         Expr::Float(f) => {
@@ -932,7 +942,7 @@ fn normal_map_fma<'a>(nodes: &'a [Node], nom_work: &'a Expr) -> Option<&'a Expr>
             }
         }
         Expr::Unary(UnaryOp::Negate, f) => {
-            if matches!(**f, Expr::Float(f) if f.abs_diff_eq(&1.0, 1.0 / 128.0)) {
+            if matches!(&graph.exprs[*f], Expr::Float(f) if f.abs_diff_eq(&1.0, 1.0 / 128.0)) {
                 result.get("result").copied()
             } else {
                 None
@@ -992,9 +1002,9 @@ static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn calc_normal_map<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Expr; 3]> {
-    let result = query_nodes(expr, nodes, &CALC_NORMAL_MAP_X.nodes)
-        .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_Y.nodes))?;
+fn calc_normal_map<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<[&'a Expr; 3]> {
+    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_X)
+        .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_MAP_Y))?;
     Some([
         result.get("result_x")?,
         result.get("result_y")?,
@@ -1048,11 +1058,11 @@ static CALC_NORMAL_MAP_W_INTENSITY_Y: LazyLock<Graph> = LazyLock::new(|| {
 });
 
 fn calc_normal_map_w_intensity<'a>(
-    nodes: &'a [Node],
+    graph: &'a Graph,
     expr: &'a Expr,
 ) -> Option<([&'a Expr; 3], &'a Expr)> {
-    let result = query_nodes(expr, nodes, &CALC_NORMAL_MAP_W_INTENSITY_X.nodes)
-        .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_W_INTENSITY_Y.nodes))?;
+    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_W_INTENSITY_X)
+        .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_MAP_W_INTENSITY_Y))?;
     Some((
         [
             result.get("result_x")?,
@@ -1106,9 +1116,9 @@ static CALC_NORMAL_MAP_VAL_INF_XCX_Z: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(&query).unwrap()
 });
 
-fn calc_normal_map_xcx<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<[&'a Expr; 3]> {
-    let result = query_nodes(expr, nodes, &CALC_NORMAL_MAP_VAL_INF_XCX_X.nodes)
-        .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_VAL_INF_XCX_Y.nodes))?;
+fn calc_normal_map_xcx<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<[&'a Expr; 3]> {
+    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_X)
+        .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_Y))?;
     Some([
         result.get("result_x")?,
         result.get("result_y")?,
@@ -1155,19 +1165,19 @@ static CALC_NORMAL_MAP_XCX_Z: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(&query).unwrap()
 });
 
-fn op_calc_normal_map<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+fn op_calc_normal_map<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // TODO: Detect normal mapping from other games.
-    let (op, result) = query_nodes(expr, nodes, &CALC_NORMAL_MAP_XCX_X.nodes)
-        .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_VAL_INF_XCX_X.nodes))
+    let (op, result) = query_nodes(expr, graph, &CALC_NORMAL_MAP_XCX_X)
+        .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_X))
         .map(|r| (Operation::NormalMapX, r))
         .or_else(|| {
-            query_nodes(expr, nodes, &CALC_NORMAL_MAP_XCX_Y.nodes)
-                .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_VAL_INF_XCX_Y.nodes))
+            query_nodes(expr, graph, &CALC_NORMAL_MAP_XCX_Y)
+                .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_Y))
                 .map(|r| (Operation::NormalMapY, r))
         })
         .or_else(|| {
-            query_nodes(expr, nodes, &CALC_NORMAL_MAP_XCX_Z.nodes)
-                .or_else(|| query_nodes(expr, nodes, &CALC_NORMAL_MAP_VAL_INF_XCX_Z.nodes))
+            query_nodes(expr, graph, &CALC_NORMAL_MAP_XCX_Z)
+                .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_Z))
                 .map(|r| (Operation::NormalMapZ, r))
         })?;
 
@@ -1192,8 +1202,8 @@ static GEOMETRIC_SPECULAR_AA: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn geometric_specular_aa<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
-    let result = query_nodes(expr, nodes, &GEOMETRIC_SPECULAR_AA.nodes)?;
+fn geometric_specular_aa<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    let result = query_nodes(expr, graph, &GEOMETRIC_SPECULAR_AA)?;
     result.get("glossiness").copied()
 }
 
@@ -1286,16 +1296,14 @@ static SKIN_ATTRIBUTE_XYZ_Z: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn skin_attribute_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
-    query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZ_X.nodes)
+fn skin_attribute_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_X)
         .and_then(|r| r.get("result_x").copied())
         .or_else(|| {
-            query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZ_Y.nodes)
-                .and_then(|r| r.get("result_y").copied())
+            query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_Y).and_then(|r| r.get("result_y").copied())
         })
         .or_else(|| {
-            query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZ_Z.nodes)
-                .and_then(|r| r.get("result_z").copied())
+            query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_Z).and_then(|r| r.get("result_z").copied())
         })
 }
 
@@ -1403,15 +1411,15 @@ static SKIN_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn skin_attribute_xyzw<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
-    query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZW_X.nodes)
+fn skin_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZW_X)
         .and_then(|r| r.get("result_x").copied())
         .or_else(|| {
-            query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZW_Y.nodes)
+            query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZW_Y)
                 .and_then(|r| r.get("result_y").copied())
         })
         .or_else(|| {
-            query_nodes(expr, nodes, &SKIN_ATTRIBUTE_XYZW_Z.nodes)
+            query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZW_Z)
                 .and_then(|r| r.get("result_z").copied())
         })
 }
@@ -1501,9 +1509,9 @@ static SKIN_ATTRIBUTE_CLIP_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn skin_attribute_clip_space_xyzw<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
-    let result = query_nodes(expr, nodes, &SKIN_ATTRIBUTE_CLIP_XYZW.nodes)
-        .or_else(|| query_nodes(expr, nodes, &SKIN_ATTRIBUTE_CLIP_XYZW_Z.nodes))?;
+fn skin_attribute_clip_space_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    let result = query_nodes(expr, graph, &SKIN_ATTRIBUTE_CLIP_XYZW)
+        .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_CLIP_XYZW_Z))?;
     let index = result.get("i")?;
     match index {
         Expr::Int(0) => result.get("result_x").copied(),
@@ -1680,11 +1688,11 @@ static SKIN_ATTRIBUTE_BITANGENT_Z: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn skin_attribute_bitangent<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<Expr> {
-    let channel = query_nodes(expr, nodes, &SKIN_ATTRIBUTE_BITANGENT_X.nodes)
+fn skin_attribute_bitangent<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
+    let channel = query_nodes(expr, graph, &SKIN_ATTRIBUTE_BITANGENT_X)
         .map(|_| 'x')
-        .or_else(|| query_nodes(expr, nodes, &SKIN_ATTRIBUTE_BITANGENT_Y.nodes).map(|_| 'y'))
-        .or_else(|| query_nodes(expr, nodes, &SKIN_ATTRIBUTE_BITANGENT_Z.nodes).map(|_| 'z'))?;
+        .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_BITANGENT_Y).map(|_| 'y'))
+        .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_BITANGENT_Z).map(|_| 'z'))?;
     Some(Expr::Global {
         name: "vBitan".into(),
         channel: Some(channel),
@@ -1739,15 +1747,15 @@ static U_MDL_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn u_mdl_view_attribute_xyzw<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
-    query_nodes(expr, nodes, &U_MDL_ATTRIBUTE_XYZW_X.nodes)
+fn u_mdl_view_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    query_nodes(expr, graph, &U_MDL_ATTRIBUTE_XYZW_X)
         .and_then(|r| r.get("result_x").copied())
         .or_else(|| {
-            query_nodes(expr, nodes, &U_MDL_ATTRIBUTE_XYZW_Y.nodes)
+            query_nodes(expr, graph, &U_MDL_ATTRIBUTE_XYZW_Y)
                 .and_then(|r| r.get("result_y").copied())
         })
         .or_else(|| {
-            query_nodes(expr, nodes, &U_MDL_ATTRIBUTE_XYZW_Z.nodes)
+            query_nodes(expr, graph, &U_MDL_ATTRIBUTE_XYZW_Z)
                 .and_then(|r| r.get("result_z").copied())
         })
 }
@@ -1845,11 +1853,11 @@ static U_MDL_VIEW_BITANGENT_Z: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn u_mdl_view_bitangent_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<Expr> {
-    let channel = query_nodes(expr, nodes, &U_MDL_VIEW_BITANGENT_X.nodes)
+fn u_mdl_view_bitangent_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
+    let channel = query_nodes(expr, graph, &U_MDL_VIEW_BITANGENT_X)
         .map(|_| 'x')
-        .or_else(|| query_nodes(expr, nodes, &U_MDL_VIEW_BITANGENT_Y.nodes).map(|_| 'y'))
-        .or_else(|| query_nodes(expr, nodes, &U_MDL_VIEW_BITANGENT_Z.nodes).map(|_| 'z'))?;
+        .or_else(|| query_nodes(expr, graph, &U_MDL_VIEW_BITANGENT_Y).map(|_| 'y'))
+        .or_else(|| query_nodes(expr, graph, &U_MDL_VIEW_BITANGENT_Z).map(|_| 'z'))?;
     Some(Expr::Global {
         name: "vBitan".into(),
         channel: Some(channel),
@@ -1907,15 +1915,15 @@ static U_MDL_CLIP_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn u_mdl_clip_attribute_xyzw<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
-    query_nodes(expr, nodes, &U_MDL_CLIP_ATTRIBUTE_XYZW_X.nodes)
+fn u_mdl_clip_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    query_nodes(expr, graph, &U_MDL_CLIP_ATTRIBUTE_XYZW_X)
         .and_then(|r| r.get("result_x").copied())
         .or_else(|| {
-            query_nodes(expr, nodes, &U_MDL_CLIP_ATTRIBUTE_XYZW_Y.nodes)
+            query_nodes(expr, graph, &U_MDL_CLIP_ATTRIBUTE_XYZW_Y)
                 .and_then(|r| r.get("result_y").copied())
         })
         .or_else(|| {
-            query_nodes(expr, nodes, &U_MDL_CLIP_ATTRIBUTE_XYZW_Z.nodes)
+            query_nodes(expr, graph, &U_MDL_CLIP_ATTRIBUTE_XYZW_Z)
                 .and_then(|r| r.get("result_z").copied())
         })
 }
@@ -1962,15 +1970,15 @@ static U_MDL_ATTRIBUTE_XYZ_Z: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn u_mdl_attribute_xyz<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<&'a Expr> {
-    query_nodes(expr, nodes, &U_MDL_ATTRIBUTE_XYZ_X.nodes)
+fn u_mdl_attribute_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    query_nodes(expr, graph, &U_MDL_ATTRIBUTE_XYZ_X)
         .and_then(|r| r.get("result_x").copied())
         .or_else(|| {
-            query_nodes(expr, nodes, &U_MDL_ATTRIBUTE_XYZ_Y.nodes)
+            query_nodes(expr, graph, &U_MDL_ATTRIBUTE_XYZ_Y)
                 .and_then(|r| r.get("result_y").copied())
         })
         .or_else(|| {
-            query_nodes(expr, nodes, &U_MDL_ATTRIBUTE_XYZ_Z.nodes)
+            query_nodes(expr, graph, &U_MDL_ATTRIBUTE_XYZ_Z)
                 .and_then(|r| r.get("result_z").copied())
         })
 }
@@ -1987,10 +1995,10 @@ static TEX_MATRIX: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn tex_matrix<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+fn tex_matrix<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // Detect matrix multiplication for the mat4x2 "gTexMat * vec4(u, v, 0.0, 1.0)".
     // U and V have the same pattern but use a different row of the matrix.
-    let result = query_nodes(expr, nodes, &TEX_MATRIX.nodes)?;
+    let result = query_nodes(expr, graph, &TEX_MATRIX)?;
     let u = result.get("u")?;
     let v = result.get("v")?;
     let x = result.get("param_x")?;
@@ -2028,12 +2036,12 @@ static TEX_PARALLAX2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn tex_parallax<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let expr = assign_x_recursive(nodes, expr);
+fn tex_parallax<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let expr = assign_x_recursive(graph, expr);
 
     // Some eye shaders use some form of parallax mapping.
-    let result = query_nodes(expr, nodes, &TEX_PARALLAX.nodes)
-        .or_else(|| query_nodes(expr, nodes, &TEX_PARALLAX2.nodes))?;
+    let result = query_nodes(expr, graph, &TEX_PARALLAX)
+        .or_else(|| query_nodes(expr, graph, &TEX_PARALLAX2))?;
 
     let ratio = result.get("ratio")?;
     let coord = result.get("coord")?;
@@ -2122,10 +2130,10 @@ static TEX_PARALLAX3_Y: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn tex_parallax2<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+fn tex_parallax2<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // Some eye shaders use some form of parallax mapping.
-    let result = query_nodes(expr, nodes, &TEX_PARALLAX3_X.nodes)
-        .or_else(|| query_nodes(expr, nodes, &TEX_PARALLAX3_Y.nodes))?;
+    let result = query_nodes(expr, graph, &TEX_PARALLAX3_X)
+        .or_else(|| query_nodes(expr, graph, &TEX_PARALLAX3_Y))?;
 
     let ratio = result.get("ratio")?;
     let coord = result.get("coord")?;
@@ -2176,11 +2184,11 @@ static REFLECT_Z: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn op_reflect<'a>(nodes: &'a [Node], expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let (op, result) = query_nodes(expr, nodes, &REFLECT_X.nodes)
+fn op_reflect<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let (op, result) = query_nodes(expr, graph, &REFLECT_X)
         .map(|r| (Operation::ReflectX, r))
-        .or_else(|| query_nodes(expr, nodes, &REFLECT_Y.nodes).map(|r| (Operation::ReflectY, r)))
-        .or_else(|| query_nodes(expr, nodes, &REFLECT_Z.nodes).map(|r| (Operation::ReflectZ, r)))?;
+        .or_else(|| query_nodes(expr, graph, &REFLECT_Y).map(|r| (Operation::ReflectY, r)))
+        .or_else(|| query_nodes(expr, graph, &REFLECT_Z).map(|r| (Operation::ReflectZ, r)))?;
 
     let n_x = result.get("n_x")?;
     let n_y = result.get("n_y")?;

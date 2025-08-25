@@ -20,6 +20,8 @@ use super::*;
 struct AssignmentVisitor {
     assignments: Vec<AssignmentDependency>,
 
+    exprs: IndexSet<Expr>,
+
     // Cache the last line where each variable was assigned.
     last_assignment_index: BTreeMap<Output, usize>,
 }
@@ -27,7 +29,7 @@ struct AssignmentVisitor {
 #[derive(Debug, Clone)]
 struct AssignmentDependency {
     output: Output,
-    input: Expr,
+    input: usize,
 }
 
 impl AssignmentVisitor {
@@ -37,7 +39,11 @@ impl AssignmentVisitor {
         output_channels: &str,
         assignment_input: &glsl_lang::ast::Expr,
     ) {
-        let inputs = input_expr(assignment_input, &self.last_assignment_index);
+        let inputs = input_expr(
+            assignment_input,
+            &self.last_assignment_index,
+            &mut self.exprs,
+        );
         let mut channels = if output_channels.is_empty() && inputs.len() > 1 {
             "xyzw".chars()
         } else {
@@ -51,7 +57,7 @@ impl AssignmentVisitor {
                     name: output_name.to_smolstr(),
                     channel: channels.next(),
                 },
-                input,
+                input: self.exprs.insert_full(input).0,
             };
             // The visitor doesn't track line numbers.
             // We only need to look up the assignments, so use the index instead.
@@ -144,7 +150,10 @@ impl Graph {
             })
             .collect();
 
-        Self { nodes }
+        Self {
+            nodes,
+            exprs: visitor.exprs.into_iter().collect(),
+        }
     }
 
     /// Convert  GLSL into a graph representation.
@@ -164,13 +173,13 @@ impl Graph {
     }
 
     pub(crate) fn node_to_glsl(&self, node: &Node) -> String {
-        let input_expr = self.expr_to_glsl(&node.input);
+        let input_expr = self.expr_to_glsl(node.input);
         let channels = channel_swizzle(node.output.channel);
         format!("{}{} = {input_expr};\n", node.output.name, channels)
     }
 
-    pub(crate) fn expr_to_glsl(&self, input: &Expr) -> String {
-        match input {
+    pub(crate) fn expr_to_glsl(&self, input: usize) -> String {
+        match &self.exprs[input] {
             Expr::Node {
                 node_index,
                 channel,
@@ -179,7 +188,7 @@ impl Graph {
                 self.nodes[*node_index].output.name,
                 channel_swizzle(*channel)
             ),
-            Expr::Float(f) => format!("{f:?}"),
+            Expr::Float(f) => format!("{:?}", dbg!(f.0)),
             Expr::Int(i) => i.to_string(),
             Expr::Uint(u) => u.to_string(),
             Expr::Bool(b) => b.to_string(),
@@ -194,19 +203,19 @@ impl Graph {
                     field.as_ref().map(|f| format!(".{f}")).unwrap_or_default(),
                     index
                         .as_ref()
-                        .map(|i| format!("[{}]", self.expr_to_glsl(i)))
+                        .map(|i| format!("[{}]", self.expr_to_glsl(*i)))
                         .unwrap_or_default(),
                     channel_swizzle(*channel)
                 )
             }
             Expr::Global { name, channel } => format!("{name}{}", channel_swizzle(*channel)),
-            Expr::Unary(op, a) => self.unary_to_glsl(*op, a),
-            Expr::Binary(op, a, b) => self.binary_to_glsl(*op, a, b),
+            Expr::Unary(op, a) => self.unary_to_glsl(*op, *a),
+            Expr::Binary(op, a, b) => self.binary_to_glsl(*op, *a, *b),
             Expr::Ternary(a, b, c) => format!(
                 "{} ? {} : {}",
-                self.expr_to_glsl(a),
-                self.expr_to_glsl(b),
-                self.expr_to_glsl(c)
+                self.expr_to_glsl(*a),
+                self.expr_to_glsl(*b),
+                self.expr_to_glsl(*c)
             ),
             Expr::Func {
                 name,
@@ -215,7 +224,7 @@ impl Graph {
             } => format!(
                 "{name}({}){}",
                 args.iter()
-                    .map(|a| self.expr_to_glsl(a))
+                    .map(|a| self.expr_to_glsl(*a))
                     .collect::<Vec<_>>()
                     .join(", "),
                 channel_swizzle(*channel)
@@ -223,7 +232,7 @@ impl Graph {
         }
     }
 
-    fn unary_to_glsl(&self, op: UnaryOp, a: &Expr) -> String {
+    fn unary_to_glsl(&self, op: UnaryOp, a: usize) -> String {
         let op = match op {
             UnaryOp::Negate => "-",
             UnaryOp::Not => "!",
@@ -232,7 +241,7 @@ impl Graph {
         format!("{op}{}", self.expr_to_glsl(a))
     }
 
-    fn binary_to_glsl(&self, op: BinaryOp, a: &Expr, b: &Expr) -> String {
+    fn binary_to_glsl(&self, op: BinaryOp, a: usize, b: usize) -> String {
         let op = match op {
             BinaryOp::Add => "+",
             BinaryOp::Sub => "-",
@@ -274,6 +283,7 @@ fn channel_swizzle(channel: Option<char>) -> String {
 fn input_expr(
     expr: &glsl_lang::ast::Expr,
     last_assignment_index: &BTreeMap<Output, usize>,
+    exprs: &mut IndexSet<Expr>,
 ) -> Vec<Expr> {
     // Collect any variables used in an expression.
     // Code like fma(a, b, c) should return [a, b, c].
@@ -282,16 +292,17 @@ fn input_expr(
         channel
             .as_str()
             .chars()
-            .map(|c| input_expr_inner(e, last_assignment_index, Some(c)))
+            .map(|c| input_expr_inner(e, last_assignment_index, exprs, Some(c)))
             .collect()
     } else {
-        vec![input_expr_inner(expr, last_assignment_index, None)]
+        vec![input_expr_inner(expr, last_assignment_index, exprs, None)]
     }
 }
 
 fn input_expr_inner(
     expr: &glsl_lang::ast::Expr,
     last_assignment_index: &BTreeMap<Output, usize>,
+    exprs: &mut IndexSet<Expr>,
     channel: Option<char>,
 ) -> Expr {
     // Collect any variables used in an expression.
@@ -328,7 +339,8 @@ fn input_expr_inner(
         ExprData::FloatConst(f) => Expr::Float((*f).into()),
         ExprData::DoubleConst(_) => todo!(),
         ExprData::Unary(op, e) => {
-            let a = Box::new(input_expr_inner(e, last_assignment_index, channel));
+            let a = input_expr_inner(e, last_assignment_index, exprs, channel);
+            let a = exprs.insert_full(a).0;
             let op = match op.content {
                 glsl_lang::ast::UnaryOpData::Inc => todo!(),
                 glsl_lang::ast::UnaryOpData::Dec => todo!(),
@@ -340,8 +352,12 @@ fn input_expr_inner(
             Expr::Unary(op, a)
         }
         ExprData::Binary(op, lh, rh) => {
-            let a = Box::new(input_expr_inner(lh, last_assignment_index, None));
-            let b = Box::new(input_expr_inner(rh, last_assignment_index, None));
+            let a = input_expr_inner(lh, last_assignment_index, exprs, None);
+            let a = exprs.insert_full(a).0;
+
+            let b = input_expr_inner(rh, last_assignment_index, exprs, None);
+            let b = exprs.insert_full(b).0;
+
             let op = match &op.content {
                 // TODO: Fill in remaining ops.
                 glsl_lang::ast::BinaryOpData::Or => BinaryOp::Or,
@@ -367,9 +383,15 @@ fn input_expr_inner(
             Expr::Binary(op, a, b)
         }
         ExprData::Ternary(a, b, c) => {
-            let a = Box::new(input_expr_inner(a, last_assignment_index, None));
-            let b = Box::new(input_expr_inner(b, last_assignment_index, None));
-            let c = Box::new(input_expr_inner(c, last_assignment_index, None));
+            let a = input_expr_inner(a, last_assignment_index, exprs, None);
+            let a = exprs.insert_full(a).0;
+
+            let b = input_expr_inner(b, last_assignment_index, exprs, None);
+            let b = exprs.insert_full(b).0;
+
+            let c = input_expr_inner(c, last_assignment_index, exprs, None);
+            let c = exprs.insert_full(c).0;
+
             Expr::Ternary(a, b, c)
         }
         ExprData::Assignment(_, _, _) => todo!(),
@@ -415,12 +437,12 @@ fn input_expr_inner(
                 }
             };
 
-            let index = input_expr_inner(specifier, last_assignment_index, None);
+            let index = input_expr_inner(specifier, last_assignment_index, exprs, None);
 
             Expr::Parameter {
                 name,
                 field,
-                index: Some(Box::new(index)),
+                index: Some(exprs.insert_full(index).0),
                 channel,
             }
         }
@@ -445,7 +467,10 @@ fn input_expr_inner(
             // The function call channels don't affect its arguments.
             let args = es
                 .iter()
-                .map(|e| input_expr_inner(e, last_assignment_index, None))
+                .map(|e| {
+                    let arg = input_expr_inner(e, last_assignment_index, exprs, None);
+                    exprs.insert_full(arg).0
+                })
                 .collect();
 
             Expr::Func {
@@ -457,7 +482,7 @@ fn input_expr_inner(
         ExprData::Dot(e, rh) => {
             // Track the channels accessed by expressions like "value.rgb".
             if rh.as_str().len() == 1 {
-                input_expr_inner(e, last_assignment_index, rh.as_str().chars().next())
+                input_expr_inner(e, last_assignment_index, exprs, rh.as_str().chars().next())
             } else if !rh.as_str().chars().all(|c| "xyzw".contains(c)) {
                 let name = match &e.as_ref().content {
                     ExprData::Variable(id) => id.content.to_smolstr(),
@@ -479,8 +504,8 @@ fn input_expr_inner(
                 panic!("{text}.{rh}\n")
             }
         }
-        ExprData::PostInc(e) => input_expr_inner(e, last_assignment_index, channel),
-        ExprData::PostDec(e) => input_expr_inner(e, last_assignment_index, channel),
+        ExprData::PostInc(e) => input_expr_inner(e, last_assignment_index, exprs, channel),
+        ExprData::PostDec(e) => input_expr_inner(e, last_assignment_index, exprs, channel),
         ExprData::Comma(_, _) => todo!(),
     }
 }
@@ -562,75 +587,120 @@ pub fn merge_vertex_fragment(
     frag: Graph,
     frag_attributes: &Attributes,
 ) -> Graph {
-    let mut graph = vert;
+    let mut graph = Graph::default();
+    let mut exprs = IndexSet::new();
+
+    for n in &vert.nodes {
+        let input = reindex_expr(&vert, &mut exprs, n.input, 0);
+        graph.nodes.push(Node {
+            output: n.output.clone(),
+            input,
+        });
+    }
 
     // Make sure fragment nodes only refer to other fragment nodes.
     let start = graph.nodes.len();
-    for n in frag.nodes {
-        let mut new_node = n;
-        remap_expr_node_indices(&mut new_node.input, start);
+    for n in &frag.nodes {
+        let input =
+            fragment_input_to_vertex_output(&vert, vert_attributes, &frag, frag_attributes, n)
+                .map(|e| exprs.insert_full(e).0)
+                .unwrap_or_else(|| reindex_expr(&frag, &mut exprs, n.input, start));
 
-        if let Expr::Global { name, channel } = &mut new_node.input {
-            // Convert a fragment input like "in_attr4" to its vertex output like "out_attr4".
-            if let Some(fragment_location) =
-                frag_attributes.input_locations.get_by_left(name.as_str())
-            {
-                if let Some(vertex_output_name) = vert_attributes
-                    .output_locations
-                    .get_by_right(fragment_location)
-                {
-                    // This will search vertex nodes first even if a fragment output has the same name.
-                    if let Some(node_index) = graph.nodes.iter().position(|n| {
-                        n.output.name == vertex_output_name && n.output.channel == *channel
-                    }) {
-                        // Link fragment inputs to vertex outputs.
-                        new_node.input = Expr::Node {
-                            node_index,
-                            channel: *channel,
-                        };
-                    }
-                }
-            }
-        }
-
-        graph.nodes.push(new_node);
+        graph.nodes.push(Node {
+            output: n.output.clone(),
+            input,
+        });
     }
+
+    graph.exprs = exprs.into_iter().collect();
 
     graph
 }
 
-fn remap_expr_node_indices(input: &mut Expr, start_index: usize) {
-    // Recursively shift node indices to match their new position.
-    match input {
-        Expr::Node { node_index, .. } => *node_index += start_index,
-        Expr::Float(_) => (),
-        Expr::Int(_) => (),
-        Expr::Uint(_) => (),
-        Expr::Bool(_) => (),
-        Expr::Parameter { index, .. } => {
-            if let Some(index) = index {
-                remap_expr_node_indices(index, start_index);
-            }
-        }
-        Expr::Global { .. } => (),
-        Expr::Unary(_, a) => {
-            remap_expr_node_indices(a, start_index);
-        }
-        Expr::Binary(_, lh, rh) => {
-            remap_expr_node_indices(lh, start_index);
-            remap_expr_node_indices(rh, start_index);
-        }
-        Expr::Ternary(a, b, c) => {
-            remap_expr_node_indices(a, start_index);
-            remap_expr_node_indices(b, start_index);
-            remap_expr_node_indices(c, start_index);
-        }
-        Expr::Func { args, .. } => {
-            for arg in args {
-                remap_expr_node_indices(arg, start_index);
+fn fragment_input_to_vertex_output(
+    vert: &Graph,
+    vert_attributes: &Attributes,
+    frag: &Graph,
+    frag_attributes: &Attributes,
+    new_node: &Node,
+) -> Option<Expr> {
+    if let Expr::Global { name, channel } = &frag.exprs[new_node.input] {
+        // Convert a fragment input like "in_attr4" to its vertex output like "out_attr4".
+        if let Some(fragment_location) = frag_attributes.input_locations.get_by_left(name.as_str())
+        {
+            if let Some(vertex_output_name) = vert_attributes
+                .output_locations
+                .get_by_right(fragment_location)
+            {
+                // This will search vertex nodes first even if a fragment output has the same name.
+                if let Some(node_index) = vert.nodes.iter().position(|n| {
+                    n.output.name == vertex_output_name && n.output.channel == *channel
+                }) {
+                    // Link fragment inputs to vertex outputs.
+                    return Some(Expr::Node {
+                        node_index,
+                        channel: *channel,
+                    });
+                }
             }
         }
     }
+
+    None
+}
+
+fn reindex_expr(
+    old_graph: &Graph,
+    exprs: &mut IndexSet<Expr>,
+    input: usize,
+    start_index: usize,
+) -> usize {
+    // Recursively shift node indices to match their new position.
+    let new_expr = match &old_graph.exprs[input] {
+        Expr::Node {
+            node_index,
+            channel,
+        } => Expr::Node {
+            node_index: *node_index + start_index,
+            channel: *channel,
+        },
+        Expr::Parameter {
+            name,
+            field,
+            index,
+            channel,
+        } => Expr::Parameter {
+            name: name.clone(),
+            field: field.clone(),
+            index: index.map(|i| reindex_expr(old_graph, exprs, i, start_index)),
+            channel: *channel,
+        },
+        Expr::Unary(op, a) => Expr::Unary(*op, reindex_expr(old_graph, exprs, *a, start_index)),
+        Expr::Binary(op, lh, rh) => Expr::Binary(
+            *op,
+            reindex_expr(old_graph, exprs, *lh, start_index),
+            reindex_expr(old_graph, exprs, *rh, start_index),
+        ),
+        Expr::Ternary(a, b, c) => Expr::Ternary(
+            reindex_expr(old_graph, exprs, *a, start_index),
+            reindex_expr(old_graph, exprs, *b, start_index),
+            reindex_expr(old_graph, exprs, *c, start_index),
+        ),
+        Expr::Func {
+            name,
+            args,
+            channel,
+        } => Expr::Func {
+            name: name.clone(),
+            args: args
+                .iter()
+                .map(|a| reindex_expr(old_graph, exprs, *a, start_index))
+                .collect(),
+            channel: *channel,
+        },
+        e => e.clone(),
+    };
+    exprs.insert_full(new_expr).0
 }
 
 #[cfg(test)]
@@ -642,14 +712,14 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn graph_from_glsl() {
+    fn graph_glsl_basic() {
         let glsl = indoc! {"
             layout (binding = 9, std140) uniform fp_c9
             {
                 vec4 fp_c9_data[0x1000];
             };
 
-            void main() 
+            void main()
             {
                 float a = fp_c9_data[0].x;
                 float b = in_attr0.z;
@@ -661,111 +731,6 @@ mod tests {
         "};
         let tu = TranslationUnit::parse(glsl).unwrap();
 
-        assert_eq!(
-            Graph {
-                nodes: vec![
-                    Node {
-                        output: Output {
-                            name: "a".into(),
-                            channel: None,
-                        },
-                        input: Expr::Parameter {
-                            name: "fp_c9_data".into(),
-                            field: None,
-                            index: Some(Box::new(Expr::Int(0))),
-                            channel: Some('x'),
-                        },
-                    },
-                    Node {
-                        output: Output {
-                            name: "b".into(),
-                            channel: None,
-                        },
-                        input: Expr::Global {
-                            name: "in_attr0".into(),
-                            channel: Some('z'),
-                        },
-                    },
-                    Node {
-                        output: Output {
-                            name: "c".into(),
-                            channel: None,
-                        },
-                        input: Expr::Binary(
-                            BinaryOp::Mul,
-                            Box::new(Expr::Node {
-                                node_index: 0,
-                                channel: None,
-                            }),
-                            Box::new(Expr::Node {
-                                node_index: 1,
-                                channel: None,
-                            }),
-                        ),
-                    },
-                    Node {
-                        output: Output {
-                            name: "d".into(),
-                            channel: None,
-                        },
-                        input: Expr::Func {
-                            name: "fma".into(),
-                            args: vec![
-                                Expr::Node {
-                                    node_index: 0,
-                                    channel: None,
-                                },
-                                Expr::Node {
-                                    node_index: 1,
-                                    channel: None,
-                                },
-                                Expr::Node {
-                                    node_index: 2,
-                                    channel: None,
-                                },
-                            ],
-                            channel: None
-                        },
-                    },
-                    Node {
-                        output: Output {
-                            name: "d".into(),
-                            channel: None,
-                        },
-                        input: Expr::Binary(
-                            BinaryOp::Add,
-                            Box::new(Expr::Node {
-                                node_index: 3,
-                                channel: None,
-                            }),
-                            Box::new(Expr::Float(1.0.into())),
-                        ),
-                    },
-                    Node {
-                        output: Output {
-                            name: "OUT_Color".into(),
-                            channel: Some('x'),
-                        },
-                        input: Expr::Binary(
-                            BinaryOp::Sub,
-                            Box::new(Expr::Node {
-                                node_index: 2,
-                                channel: None,
-                            }),
-                            Box::new(Expr::Node {
-                                node_index: 4,
-                                channel: None,
-                            }),
-                        ),
-                    },
-                ]
-            },
-            Graph::from_glsl(&tu)
-        );
-    }
-
-    #[test]
-    fn graph_to_glsl() {
         let graph = Graph {
             nodes: vec![
                 Node {
@@ -773,97 +738,89 @@ mod tests {
                         name: "a".into(),
                         channel: None,
                     },
-                    input: Expr::Parameter {
-                        name: "fp_c9_data".into(),
-                        field: None,
-                        index: Some(Box::new(Expr::Int(0))),
-                        channel: Some('x'),
-                    },
+                    input: 1,
                 },
                 Node {
                     output: Output {
                         name: "b".into(),
                         channel: None,
                     },
-                    input: Expr::Global {
-                        name: "in_attr0".into(),
-                        channel: Some('z'),
-                    },
+                    input: 2,
                 },
                 Node {
                     output: Output {
                         name: "c".into(),
                         channel: None,
                     },
-                    input: Expr::Binary(
-                        BinaryOp::Mul,
-                        Box::new(Expr::Node {
-                            node_index: 0,
-                            channel: None,
-                        }),
-                        Box::new(Expr::Node {
-                            node_index: 1,
-                            channel: None,
-                        }),
-                    ),
+                    input: 5,
                 },
                 Node {
                     output: Output {
                         name: "d".into(),
                         channel: None,
                     },
-                    input: Expr::Func {
-                        name: "fma".into(),
-                        args: vec![
-                            Expr::Node {
-                                node_index: 0,
-                                channel: None,
-                            },
-                            Expr::Node {
-                                node_index: 1,
-                                channel: None,
-                            },
-                            Expr::Node {
-                                node_index: 2,
-                                channel: None,
-                            },
-                        ],
-                        channel: None,
-                    },
+                    input: 7,
                 },
                 Node {
                     output: Output {
                         name: "d".into(),
                         channel: None,
                     },
-                    input: Expr::Binary(
-                        BinaryOp::Add,
-                        Box::new(Expr::Node {
-                            node_index: 3,
-                            channel: None,
-                        }),
-                        Box::new(Expr::Float(1.0.into())),
-                    ),
+                    input: 10,
                 },
                 Node {
                     output: Output {
                         name: "OUT_Color".into(),
                         channel: Some('x'),
                     },
-                    input: Expr::Binary(
-                        BinaryOp::Sub,
-                        Box::new(Expr::Node {
-                            node_index: 2,
-                            channel: None,
-                        }),
-                        Box::new(Expr::Node {
-                            node_index: 4,
-                            channel: None,
-                        }),
-                    ),
+                    input: 12,
                 },
             ],
+            exprs: vec![
+                Expr::Int(0),
+                Expr::Parameter {
+                    name: "fp_c9_data".into(),
+                    field: None,
+                    index: Some(0),
+                    channel: Some('x'),
+                },
+                Expr::Global {
+                    name: "in_attr0".into(),
+                    channel: Some('z'),
+                },
+                Expr::Node {
+                    node_index: 0,
+                    channel: None,
+                },
+                Expr::Node {
+                    node_index: 1,
+                    channel: None,
+                },
+                Expr::Binary(BinaryOp::Mul, 3, 4),
+                Expr::Node {
+                    node_index: 2,
+                    channel: None,
+                },
+                Expr::Func {
+                    name: "fma".into(),
+                    args: vec![3, 4, 6],
+                    channel: None,
+                },
+                Expr::Node {
+                    node_index: 3,
+                    channel: None,
+                },
+                Expr::Float(1.0.into()),
+                Expr::Binary(BinaryOp::Add, 8, 9),
+                Expr::Node {
+                    node_index: 4,
+                    channel: None,
+                },
+                Expr::Binary(BinaryOp::Sub, 6, 11),
+            ],
         };
+        assert_eq!(graph, Graph::from_glsl(&tu));
+
         assert_eq!(
             indoc! {"
                 a = fp_c9_data[0].x;
@@ -878,8 +835,19 @@ mod tests {
     }
 
     #[test]
-    fn graph_to_glsl_textures() {
+    fn graph_glsl_textures() {
         // Test some more varied syntax.
+        let glsl = indoc! {"
+            void main()
+            {
+                float a = 1.0;
+                float a2 = a * 5.0;
+                float b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
+                float c = data[int(b)];
+            }
+        "};
+        let tu = TranslationUnit::parse(glsl).unwrap();
+
         let graph = Graph {
             nodes: vec![
                 Node {
@@ -887,74 +855,77 @@ mod tests {
                         name: "a".into(),
                         channel: None,
                     },
-                    input: Expr::Float(1.0.into()),
+                    input: 0,
                 },
                 Node {
                     output: Output {
                         name: "a2".into(),
                         channel: None,
                     },
-                    input: Expr::Binary(
-                        BinaryOp::Mul,
-                        Box::new(Expr::Node {
-                            node_index: 0,
-                            channel: None,
-                        }),
-                        Box::new(Expr::Float(5.0.into())),
-                    ),
+                    input: 3,
                 },
                 Node {
                     output: Output {
                         name: "b".into(),
                         channel: None,
                     },
-                    input: Expr::Func {
-                        name: "texture".into(),
-                        args: vec![
-                            Expr::Global {
-                                name: "texture1".into(),
-                                channel: None,
-                            },
-                            Expr::Func {
-                                name: "vec2".into(),
-                                args: vec![
-                                    Expr::Binary(
-                                        BinaryOp::Add,
-                                        Box::new(Expr::Node {
-                                            node_index: 1,
-                                            channel: None,
-                                        }),
-                                        Box::new(Expr::Float(2.0.into())),
-                                    ),
-                                    Expr::Float(1.0.into()),
-                                ],
-                                channel: None,
-                            },
-                        ],
-                        channel: Some('x'),
-                    },
+                    input: 9,
                 },
                 Node {
                     output: Output {
                         name: "c".into(),
                         channel: None,
                     },
-                    input: Expr::Parameter {
-                        name: "data".into(),
-                        field: None,
-                        index: Some(Box::new(Expr::Func {
-                            name: "int".into(),
-                            args: vec![Expr::Node {
-                                node_index: 2,
-                                channel: None,
-                            }],
-                            channel: None,
-                        })),
-                        channel: None,
-                    },
+                    input: 12,
+                },
+            ],
+            exprs: vec![
+                Expr::Float(1.0.into()),
+                Expr::Node {
+                    node_index: 0,
+                    channel: None,
+                },
+                Expr::Float(5.0.into()),
+                Expr::Binary(BinaryOp::Mul, 1, 2),
+                Expr::Global {
+                    name: "texture1".into(),
+                    channel: None,
+                },
+                Expr::Node {
+                    node_index: 1,
+                    channel: None,
+                },
+                Expr::Float(2.0.into()),
+                Expr::Binary(BinaryOp::Add, 5, 6),
+                Expr::Func {
+                    name: "vec2".into(),
+                    args: vec![7, 0],
+                    channel: None,
+                },
+                Expr::Func {
+                    name: "texture".into(),
+                    args: vec![4, 8],
+                    channel: Some('x'),
+                },
+                Expr::Node {
+                    node_index: 2,
+                    channel: None,
+                },
+                Expr::Func {
+                    name: "int".into(),
+                    args: vec![10],
+                    channel: None,
+                },
+                Expr::Parameter {
+                    name: "data".into(),
+                    field: None,
+                    index: Some(11),
+                    channel: None,
                 },
             ],
         };
+        assert_eq!(graph, Graph::from_glsl(&tu));
+
         assert_eq!(
             indoc! {"
                 a = 1.0;
@@ -967,100 +938,7 @@ mod tests {
     }
 
     #[test]
-    fn graph_from_glsl_textures() {
-        // Test some more varied syntax.
-        let glsl = indoc! {"
-            void main() 
-            {
-                float a = 1.0;
-                float a2 = a * 5.0;
-                float b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
-                float c = data[int(b)];
-            }
-        "};
-        let tu = TranslationUnit::parse(glsl).unwrap();
-        assert_eq!(
-            Graph {
-                nodes: vec![
-                    Node {
-                        output: Output {
-                            name: "a".into(),
-                            channel: None,
-                        },
-                        input: Expr::Float(1.0.into()),
-                    },
-                    Node {
-                        output: Output {
-                            name: "a2".into(),
-                            channel: None,
-                        },
-                        input: Expr::Binary(
-                            BinaryOp::Mul,
-                            Box::new(Expr::Node {
-                                node_index: 0,
-                                channel: None,
-                            }),
-                            Box::new(Expr::Float(5.0.into())),
-                        ),
-                    },
-                    Node {
-                        output: Output {
-                            name: "b".into(),
-                            channel: None,
-                        },
-                        input: Expr::Func {
-                            name: "texture".into(),
-                            args: vec![
-                                Expr::Global {
-                                    name: "texture1".into(),
-                                    channel: None,
-                                },
-                                Expr::Func {
-                                    name: "vec2".into(),
-                                    args: vec![
-                                        Expr::Binary(
-                                            BinaryOp::Add,
-                                            Box::new(Expr::Node {
-                                                node_index: 1,
-                                                channel: None,
-                                            }),
-                                            Box::new(Expr::Float(2.0.into())),
-                                        ),
-                                        Expr::Float(1.0.into()),
-                                    ],
-                                    channel: None,
-                                },
-                            ],
-                            channel: Some('x'),
-                        },
-                    },
-                    Node {
-                        output: Output {
-                            name: "c".into(),
-                            channel: None,
-                        },
-                        input: Expr::Parameter {
-                            name: "data".into(),
-                            field: None,
-                            index: Some(Box::new(Expr::Func {
-                                name: "int".into(),
-                                args: vec![Expr::Node {
-                                    node_index: 2,
-                                    channel: None,
-                                }],
-                                channel: None,
-                            })),
-                            channel: None,
-                        },
-                    },
-                ]
-            },
-            Graph::from_glsl(&tu)
-        );
-    }
-
-    #[test]
-    fn graph_from_glsl_vector_registers() {
+    fn graph_glsl_vector_registers() {
         let glsl = indoc! {"
             void main() {
                 R12.w = R9.z;
@@ -1068,37 +946,48 @@ mod tests {
             }
         "};
         let tu = TranslationUnit::parse(glsl).unwrap();
+
+        let graph = Graph {
+            nodes: vec![
+                Node {
+                    output: Output {
+                        name: "R12".into(),
+                        channel: Some('w'),
+                    },
+                    input: 0,
+                },
+                Node {
+                    output: Output {
+                        name: "PIX2".into(),
+                        channel: Some('w'),
+                    },
+                    input: 1,
+                },
+            ],
+            exprs: vec![
+                Expr::Global {
+                    name: "R9".into(),
+                    channel: Some('z'),
+                },
+                Expr::Node {
+                    node_index: 0,
+                    channel: Some('w'),
+                },
+            ],
+        };
+        assert_eq!(graph, Graph::from_glsl(&tu));
+
         assert_eq!(
-            Graph {
-                nodes: vec![
-                    Node {
-                        output: Output {
-                            name: "R12".into(),
-                            channel: Some('w'),
-                        },
-                        input: Expr::Global {
-                            name: "R9".into(),
-                            channel: Some('z'),
-                        },
-                    },
-                    Node {
-                        output: Output {
-                            name: "PIX2".into(),
-                            channel: Some('w'),
-                        },
-                        input: Expr::Node {
-                            node_index: 0,
-                            channel: Some('w'),
-                        },
-                    },
-                ],
-            },
-            Graph::from_glsl(&tu)
+            indoc! {"
+                R12.w = R9.z;
+                PIX2.w = R12.w;
+            "},
+            graph.to_glsl()
         );
     }
 
     #[test]
-    fn graph_from_glsl_parameters() {
+    fn graph_glsl_parameters() {
         let glsl = indoc! {"
             void main() {
                 f0 = U_BILL.data[int(temp_4)][temp_5];
@@ -1108,70 +997,89 @@ mod tests {
             }
         "};
         let tu = TranslationUnit::parse(glsl).unwrap();
+
+        let graph = Graph {
+            nodes: vec![
+                Node {
+                    output: Output {
+                        name: "f0".into(),
+                        channel: None,
+                    },
+                    input: 1,
+                },
+                Node {
+                    output: Output {
+                        name: "f1".into(),
+                        channel: None,
+                    },
+                    input: 4,
+                },
+                Node {
+                    output: Output {
+                        name: "f2".into(),
+                        channel: None,
+                    },
+                    input: 5,
+                },
+                Node {
+                    output: Output {
+                        name: "f3".into(),
+                        channel: None,
+                    },
+                    input: 7,
+                },
+            ],
+            exprs: vec![
+                Expr::Global {
+                    name: "temp_5".into(),
+                    channel: None,
+                },
+                Expr::Parameter {
+                    name: "U_BILL".into(),
+                    field: Some("data[int(temp_4)]".into()),
+                    index: Some(0),
+                    channel: None,
+                },
+                Expr::Global {
+                    name: "temp_206".into(),
+                    channel: None,
+                },
+                Expr::Func {
+                    name: "int".into(),
+                    args: vec![2],
+                    channel: None,
+                },
+                Expr::Parameter {
+                    name: "U_POST".into(),
+                    field: Some("data".into()),
+                    index: Some(3),
+                    channel: None,
+                },
+                Expr::Parameter {
+                    name: "U_Mate".into(),
+                    field: Some("gMatCol".into()),
+                    index: None,
+                    channel: Some('x'),
+                },
+                Expr::Int(1),
+                Expr::Parameter {
+                    name: "U_Mate".into(),
+                    field: Some("gWrkCol".into()),
+                    index: Some(6),
+                    channel: Some('w'),
+                },
+            ],
+        };
+        assert_eq!(graph, Graph::from_glsl(&tu));
+
         assert_eq!(
-            Graph {
-                nodes: vec![
-                    Node {
-                        output: Output {
-                            name: "f0".into(),
-                            channel: None,
-                        },
-                        input: Expr::Parameter {
-                            name: "U_BILL".into(),
-                            field: Some("data[int(temp_4)]".into()),
-                            index: Some(Box::new(Expr::Global {
-                                name: "temp_5".into(),
-                                channel: None
-                            })),
-                            channel: None
-                        }
-                    },
-                    Node {
-                        output: Output {
-                            name: "f1".into(),
-                            channel: None,
-                        },
-                        input: Expr::Parameter {
-                            name: "U_POST".into(),
-                            field: Some("data".into()),
-                            index: Some(Box::new(Expr::Func {
-                                name: "int".into(),
-                                args: vec![Expr::Global {
-                                    name: "temp_206".into(),
-                                    channel: None
-                                }],
-                                channel: None
-                            })),
-                            channel: None
-                        }
-                    },
-                    Node {
-                        output: Output {
-                            name: "f2".into(),
-                            channel: None,
-                        },
-                        input: Expr::Parameter {
-                            name: "U_Mate".into(),
-                            field: Some("gMatCol".into()),
-                            index: None,
-                            channel: Some('x')
-                        }
-                    },
-                    Node {
-                        output: Output {
-                            name: "f3".into(),
-                            channel: None,
-                        },
-                        input: Expr::Parameter {
-                            name: "U_Mate".into(),
-                            field: Some("gWrkCol".into()),
-                            index: Some(Box::new(Expr::Int(1))),
-                            channel: Some('w')
-                        }
-                    },
-                ],
-            },
-            Graph::from_glsl(&tu)
+            indoc! {"
+                f0 = U_BILL.data[int(temp_4)][temp_5];
+                f1 = U_POST.data[int(temp_206)];
+                f2 = U_Mate.gMatCol.x;
+                f3 = U_Mate.gWrkCol[1].w;
+            "},
+            graph.to_glsl()
         );
     }
 

@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use indexmap::IndexSet;
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
 
@@ -11,20 +12,23 @@ pub mod query;
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct Graph {
     pub nodes: Vec<Node>,
+    /// Unique [Expr] used for the input values for each [Node].
+    pub exprs: Vec<Expr>,
 }
 
 /// A single assignment statement of the form `output = operation(inputs);`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Node {
     pub output: Output,
-    /// The value assigned in this assignment statement.
-    pub input: Expr,
+    /// Index into [exprs](struct.Graph.html#structfield.exprs) value assigned in this assignment statement.
+    pub input: usize,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Expr {
     /// A value assigned in a previous node.
     Node {
+        /// Index into [nodes](struct.Graph.html#structfield.nodes).
         node_index: usize,
         channel: Option<char>,
     },
@@ -40,7 +44,7 @@ pub enum Expr {
     Parameter {
         name: SmolStr,
         field: Option<SmolStr>,
-        index: Option<Box<Expr>>,
+        index: Option<usize>,
         channel: Option<char>,
     },
     /// A global identifier like `in_attr0.x`.
@@ -48,12 +52,12 @@ pub enum Expr {
         name: SmolStr,
         channel: Option<char>,
     },
-    Unary(UnaryOp, Box<Expr>),
-    Binary(BinaryOp, Box<Expr>, Box<Expr>),
-    Ternary(Box<Expr>, Box<Expr>, Box<Expr>),
+    Unary(UnaryOp, usize),
+    Binary(BinaryOp, usize, usize),
+    Ternary(usize, usize, usize),
     Func {
         name: SmolStr,
-        args: Vec<Expr>,
+        args: Vec<usize>,
         channel: Option<char>,
     },
 }
@@ -127,7 +131,11 @@ impl Graph {
         let mut dependent_lines = BTreeSet::new();
 
         // Follow data dependencies backwards to find all relevant lines.
-        self.add_dependencies(node_index, &mut dependent_lines);
+        if let Some(n) = self.nodes.get(node_index) {
+            if dependent_lines.insert(node_index) {
+                self.add_dependencies(n.input, &mut dependent_lines);
+            }
+        }
 
         let max_depth = recursion_depth.unwrap_or(dependent_lines.len());
         dependent_lines
@@ -138,16 +146,39 @@ impl Graph {
             .collect()
     }
 
-    fn add_dependencies(&self, node_index: usize, dependent_lines: &mut BTreeSet<usize>) {
-        if let Some(n) = self.nodes.get(node_index) {
-            // Avoid processing the subtree rooted at a line more than once.
-            if dependent_lines.insert(node_index) {
-                n.input.visit_exprs(&mut |e| {
-                    if let Expr::Node { node_index, .. } = e {
-                        self.add_dependencies(*node_index, dependent_lines);
+    fn add_dependencies(&self, expr_index: usize, dependent_lines: &mut BTreeSet<usize>) {
+        match &self.exprs[expr_index] {
+            Expr::Node { node_index, .. } => {
+                if let Some(n) = self.nodes.get(*node_index) {
+                    // Avoid processing the subtree rooted at a line more than once.
+                    if dependent_lines.insert(*node_index) {
+                        self.add_dependencies(n.input, dependent_lines)
                     }
-                });
+                }
             }
+            Expr::Parameter { index: Some(i), .. } => {
+                self.add_dependencies(*i, dependent_lines);
+            }
+            Expr::Global { .. } => (),
+            Expr::Unary(.., a) => {
+                self.add_dependencies(*a, dependent_lines);
+            }
+            Expr::Binary(_, a, b) => {
+                for i in [a, b] {
+                    self.add_dependencies(*i, dependent_lines);
+                }
+            }
+            Expr::Ternary(a, b, c) => {
+                for i in [a, b, c] {
+                    self.add_dependencies(*i, dependent_lines);
+                }
+            }
+            Expr::Func { args, .. } => {
+                for arg in args {
+                    self.add_dependencies(*arg, dependent_lines);
+                }
+            }
+            _ => (),
         }
     }
 
@@ -204,8 +235,8 @@ impl Graph {
         if let Some(n) = self.nodes.get(node_index) {
             // Avoid processing the subtree rooted at a line more than once.
             if dependent_lines.insert(node_index) {
-                if let Expr::Node { node_index, .. } = n.input {
-                    self.add_assignments(node_index, dependent_lines);
+                if let Expr::Node { node_index, .. } = &self.exprs[n.input] {
+                    self.add_assignments(*node_index, dependent_lines);
                 }
             }
         }
@@ -234,180 +265,143 @@ impl Graph {
     pub fn simplify(&self, node: &Node) -> Self {
         let mut simplified = BTreeMap::new();
 
+        // TODO: Simplify the entire graph to reuse calculations.
+
+        // TODO: Remove unused exprs and reindex?
+        let mut exprs = self.exprs.iter().cloned().collect();
+
+        let input = self.simplify_expr(node.input, &mut simplified, &mut exprs);
         let nodes = vec![Node {
             output: node.output.clone(),
-            input: simplify(&node.input, &self.nodes, &mut simplified),
+            input: exprs.insert_full(input).0,
         }];
 
-        Self { nodes }
+        Self {
+            nodes,
+            exprs: exprs.into_iter().collect(),
+        }
     }
-}
 
-fn simplify(input: &Expr, nodes: &[Node], simplified: &mut BTreeMap<usize, Expr>) -> Expr {
-    // Recursively simplify an expression.
-    // TODO: perform other simplifications?
-    match input {
-        Expr::Node {
-            node_index,
-            channel,
-        } => {
-            // Simplify assignments using variable substitution.
-            if let Some(expr) = simplified.get(node_index) {
-                expr.clone()
-            } else {
-                let mut expr = simplify(&nodes[*node_index].input, nodes, simplified);
-                // TODO: Is this the right way to apply channels?
-                if expr.channel().is_none() {
-                    expr.set_channel(*channel);
+    fn simplify_expr(
+        &self,
+        input: usize,
+        simplified: &mut BTreeMap<usize, Expr>,
+        exprs: &mut IndexSet<Expr>,
+    ) -> Expr {
+        // Recursively simplify an expression.
+        // TODO: perform other simplifications?
+        if let Some(expr) = simplified.get(&input) {
+            expr.clone()
+        } else {
+            // TODO: avoid clone
+            let result = match &exprs[input].clone() {
+                Expr::Node {
+                    node_index,
+                    channel,
+                } => {
+                    // Simplify assignments using variable substitution.
+                    let mut expr =
+                        self.simplify_expr(self.nodes[*node_index].input, simplified, exprs);
+                    // TODO: Is this the right way to apply channels?
+                    if expr.channel().is_none() {
+                        expr.set_channel(*channel);
+                    }
+                    expr
                 }
-                simplified.insert(*node_index, expr.clone());
-                expr
-            }
-        }
-        Expr::Unary(UnaryOp::Negate, e) => {
-            let e = simplify(e, nodes, simplified);
+                Expr::Unary(UnaryOp::Negate, e) => {
+                    let e = self.simplify_expr(*e, simplified, exprs);
 
-            if let Expr::Float(f) = e {
-                // -(f) == -f
-                Expr::Float(-f)
-            } else {
-                Expr::Unary(UnaryOp::Negate, Box::new(e))
-            }
-        }
-        Expr::Unary(op, e) => Expr::Unary(*op, Box::new(simplify(e, nodes, simplified))),
-        Expr::Binary(BinaryOp::Sub, a, b) => {
-            let a = simplify(a, nodes, simplified);
-            let b = simplify(b, nodes, simplified);
+                    if let Expr::Float(f) = e {
+                        // -(f) == -f
+                        Expr::Float(-f)
+                    } else {
+                        Expr::Unary(UnaryOp::Negate, exprs.insert_full(e).0)
+                    }
+                }
+                Expr::Unary(op, e) => {
+                    let new_e = self.simplify_expr(*e, simplified, exprs);
+                    Expr::Unary(*op, exprs.insert_full(new_e).0)
+                }
+                Expr::Binary(BinaryOp::Sub, a, b) => {
+                    let a = self.simplify_expr(*a, simplified, exprs);
+                    let b = self.simplify_expr(*b, simplified, exprs);
 
-            // TODO: a - -b == a + b
-            if let Expr::Float(OrderedFloat(0.0)) = a {
-                // 0.0 - b == -b
-                simplify(
-                    &Expr::Unary(UnaryOp::Negate, Box::new(b)),
-                    nodes,
-                    simplified,
-                )
-            } else {
-                Expr::Binary(BinaryOp::Sub, Box::new(a), Box::new(b))
-            }
-        }
-        Expr::Binary(BinaryOp::Add, a, b) => {
-            let a = simplify(a, nodes, simplified);
-            let b = simplify(b, nodes, simplified);
+                    // TODO: a - -b == a + b
+                    if let Expr::Float(OrderedFloat(0.0)) = a {
+                        // 0.0 - b == -b
+                        let new_b = Expr::Unary(UnaryOp::Negate, exprs.insert_full(b).0);
+                        self.simplify_expr(exprs.insert_full(new_b).0, simplified, exprs)
+                    } else {
+                        Expr::Binary(
+                            BinaryOp::Sub,
+                            exprs.insert_full(a).0,
+                            exprs.insert_full(b).0,
+                        )
+                    }
+                }
+                Expr::Binary(BinaryOp::Add, a, b) => {
+                    let a = self.simplify_expr(*a, simplified, exprs);
+                    let b = self.simplify_expr(*b, simplified, exprs);
 
-            if let Expr::Float(OrderedFloat(0.0)) = a {
-                // 0.0 + b == b
-                b
-            } else if let Expr::Float(OrderedFloat(0.0)) = b {
-                // a + 0.0 == a
-                a
-            } else if let Expr::Unary(UnaryOp::Negate, a) = a {
-                // -a + b == b - a
-                Expr::Binary(BinaryOp::Sub, Box::new(b), a)
-            } else if let Expr::Unary(UnaryOp::Negate, b) = b {
-                // a + -b == a - b
-                Expr::Binary(BinaryOp::Sub, Box::new(a), b)
-            } else {
-                Expr::Binary(BinaryOp::Add, Box::new(a), Box::new(b))
-            }
+                    if let Expr::Float(OrderedFloat(0.0)) = a {
+                        // 0.0 + b == b
+                        b
+                    } else if let Expr::Float(OrderedFloat(0.0)) = b {
+                        // a + 0.0 == a
+                        a
+                    } else if let Expr::Unary(UnaryOp::Negate, a) = a {
+                        // -a + b == b - a
+                        Expr::Binary(BinaryOp::Sub, exprs.insert_full(b).0, a)
+                    } else if let Expr::Unary(UnaryOp::Negate, b) = b {
+                        // a + -b == a - b
+                        Expr::Binary(BinaryOp::Sub, exprs.insert_full(a).0, b)
+                    } else {
+                        Expr::Binary(
+                            BinaryOp::Add,
+                            exprs.insert_full(a).0,
+                            exprs.insert_full(b).0,
+                        )
+                    }
+                }
+                Expr::Binary(op, a, b) => {
+                    let new_a = self.simplify_expr(*a, simplified, exprs);
+                    let new_b = self.simplify_expr(*b, simplified, exprs);
+                    Expr::Binary(*op, exprs.insert_full(new_a).0, exprs.insert_full(new_b).0)
+                }
+                Expr::Ternary(a, b, c) => {
+                    let new_a = self.simplify_expr(*a, simplified, exprs);
+                    let new_b = self.simplify_expr(*b, simplified, exprs);
+                    let new_c = self.simplify_expr(*c, simplified, exprs);
+                    Expr::Ternary(
+                        exprs.insert_full(new_a).0,
+                        exprs.insert_full(new_b).0,
+                        exprs.insert_full(new_c).0,
+                    )
+                }
+                Expr::Func {
+                    name,
+                    args,
+                    channel,
+                } => Expr::Func {
+                    name: name.clone(),
+                    args: args
+                        .iter()
+                        .map(|arg| {
+                            let new_arg = self.simplify_expr(*arg, simplified, exprs);
+                            exprs.insert_full(new_arg).0
+                        })
+                        .collect(),
+                    channel: *channel,
+                },
+                i => i.clone(),
+            };
+            simplified.insert(input, result.clone());
+            result
         }
-        Expr::Binary(op, a, b) => Expr::Binary(
-            *op,
-            Box::new(simplify(a, nodes, simplified)),
-            Box::new(simplify(b, nodes, simplified)),
-        ),
-        Expr::Ternary(a, b, c) => Expr::Ternary(
-            Box::new(simplify(a, nodes, simplified)),
-            Box::new(simplify(b, nodes, simplified)),
-            Box::new(simplify(c, nodes, simplified)),
-        ),
-        Expr::Func {
-            name,
-            args,
-            channel,
-        } => Expr::Func {
-            name: name.clone(),
-            args: args
-                .iter()
-                .map(|a| simplify(a, nodes, simplified))
-                .collect(),
-            channel: *channel,
-        },
-        i => i.clone(),
     }
 }
 
 impl Expr {
-    /// Apply `visit` to the current expression recursively.
-    pub fn visit_exprs<F: FnMut(&Expr)>(&self, visit: &mut F) {
-        visit(self);
-        match self {
-            Expr::Node { .. } => (),
-            Expr::Float(_) => (),
-            Expr::Int(_) => (),
-            Expr::Uint(_) => (),
-            Expr::Bool(_) => (),
-            Expr::Parameter { index, .. } => {
-                if let Some(index) = index {
-                    index.visit_exprs(visit);
-                }
-            }
-            Expr::Global { .. } => (),
-            Expr::Unary(_, a) => {
-                a.visit_exprs(visit);
-            }
-            Expr::Binary(_, lh, rh) => {
-                lh.visit_exprs(visit);
-                rh.visit_exprs(visit);
-            }
-            Expr::Ternary(a, b, c) => {
-                a.visit_exprs(visit);
-                b.visit_exprs(visit);
-                c.visit_exprs(visit);
-            }
-            Expr::Func { args, .. } => {
-                for arg in args {
-                    arg.visit_exprs(visit);
-                }
-            }
-        }
-    }
-
-    /// Apply `visit` to the current expression recursively.
-    pub fn visit_exprs_mut<F: FnMut(&mut Expr)>(&mut self, visit: &mut F) {
-        visit(self);
-        match self {
-            Expr::Node { .. } => (),
-            Expr::Float(_) => (),
-            Expr::Int(_) => (),
-            Expr::Uint(_) => (),
-            Expr::Bool(_) => (),
-            Expr::Parameter { index, .. } => {
-                if let Some(index) = index {
-                    index.visit_exprs_mut(visit);
-                }
-            }
-            Expr::Global { .. } => (),
-            Expr::Unary(_, a) => {
-                a.visit_exprs_mut(visit);
-            }
-            Expr::Binary(_, lh, rh) => {
-                lh.visit_exprs_mut(visit);
-                rh.visit_exprs_mut(visit);
-            }
-            Expr::Ternary(a, b, c) => {
-                a.visit_exprs_mut(visit);
-                b.visit_exprs_mut(visit);
-                c.visit_exprs_mut(visit);
-            }
-            Expr::Func { args, .. } => {
-                for arg in args {
-                    arg.visit_exprs_mut(visit);
-                }
-            }
-        }
-    }
-
     pub fn channel(&self) -> Option<char> {
         match self {
             Expr::Node { channel, .. } => *channel,
