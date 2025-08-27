@@ -1,7 +1,7 @@
 use crate::{
+    database::output_expr,
     expr::{OutputExpr, Parameter, Texture, Value},
     graph::{Expr, Graph},
-    shader_database::output_expr,
 };
 
 use indexmap::{IndexMap, IndexSet};

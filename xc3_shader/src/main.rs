@@ -5,15 +5,15 @@ use clap::{Parser, Subcommand};
 use glsl_lang::ast::TranslationUnit;
 use glsl_lang::parse::DefaultParse;
 use xc3_model::shader_database::ShaderDatabase;
+use xc3_shader::database::{
+    create_shader_database, create_shader_database_legacy, shader_from_glsl, shader_graphviz,
+    shader_str,
+};
 use xc3_shader::dependencies::latte_dependencies;
 use xc3_shader::extract::{
     annotate_all_legacy_shaders, extract_all_legacy_shaders, extract_and_decompile_shaders,
 };
 use xc3_shader::graph::Graph;
-use xc3_shader::shader_database::{
-    create_shader_database, create_shader_database_legacy, shader_from_glsl, shader_graphviz,
-    shader_str,
-};
 
 use xc3_shader::graph::glsl::{glsl_dependencies, shader_source_no_extensions};
 
