@@ -1,14 +1,21 @@
+use std::borrow::Cow;
+
+use indexmap::{IndexMap, IndexSet};
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
 
-use crate::graph::{Expr, Node};
+use crate::{
+    dependencies::{buffer_dependency, texture_dependency},
+    graph::{Expr, Graph, UnaryOp},
+};
 
+// TODO: Use this for all outputs?
 pub struct ProgramOutputs<Op> {
     pub outputs: Vec<usize>,
     pub exprs: Vec<OutputExpr<Op>>,
 }
 
-/// A tree of computations with [Value] for the leaf values.
+/// An expression tree with [Value] for the leaf nodes.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum OutputExpr<Op> {
     /// A single value.
@@ -57,9 +64,119 @@ pub struct Attribute {
     pub channel: Option<char>,
 }
 
+/// A set of operations like `fma` or matrix multiplication that can be detected from a [Graph].
 pub trait Operation: Sized {
-    fn query_operation_args<'a>(nodes: &'a [Node], expr: &'a Expr)
-        -> Option<(Self, Vec<&'a Expr>)>;
+    /// Detect operations and their arguments from most specific to least specific.
+    fn query_operation_args<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Self, Vec<&'a Expr>)>;
+
+    /// Potentially modify the expr before detecting [OutputExpr::Func] or [OutputExpr::Value].
+    fn preprocess_expr<'a>(graph: &'a Graph, expr: &'a Expr) -> Cow<'a, Expr>;
+
+    /// Potentially modify the expr before detecting [OutputExpr::Value].
+    fn preprocess_value_expr<'a>(graph: &'a Graph, expr: &'a Expr) -> Cow<'a, Expr>;
 }
 
-// TODO: generic function for converting graph to OutputExpr if Op: Operation
+/// Convert `graph` to an expression tree using the [Operation] implementation for `Op`.
+pub fn output_expr<Op>(
+    expr: &Expr,
+    graph: &Graph,
+    exprs: &mut IndexSet<OutputExpr<Op>>,
+    expr_to_index: &mut IndexMap<Expr, usize>,
+) -> usize
+where
+    Op: Operation + std::hash::Hash + Eq + Default,
+{
+    // Cache graph input expressions to avoid processing nodes more than once while recursing.
+    match expr_to_index.get(expr) {
+        Some(i) => *i,
+        None => {
+            let original_expr = expr.clone();
+
+            let expr = Op::preprocess_expr(graph, expr);
+            let output = output_expr_inner(&expr, graph, exprs, expr_to_index);
+
+            let index = exprs.insert_full(output).0;
+            expr_to_index.insert(original_expr, index);
+
+            index
+        }
+    }
+}
+
+fn output_expr_inner<Op>(
+    expr: &Expr,
+    graph: &Graph,
+    exprs: &mut IndexSet<OutputExpr<Op>>,
+    expr_to_index: &mut IndexMap<Expr, usize>,
+) -> OutputExpr<Op>
+where
+    Op: Operation + std::hash::Hash + Eq + Default,
+{
+    if let Some(value) = extract_value(expr, graph, exprs, expr_to_index) {
+        // The base case is a single value.
+        OutputExpr::Value(value)
+    } else {
+        // Detect operations from most specific to least specific.
+        // This results in fewer operations in many cases.
+        if let Some((op, args)) = Op::query_operation_args(&graph, expr) {
+            // Insert values that this operation depends on first.
+            let args: Vec<_> = args
+                .into_iter()
+                .map(|arg| output_expr(arg, graph, exprs, expr_to_index))
+                .collect();
+            OutputExpr::Func { op, args }
+        } else {
+            // TODO: log unsupported expr?
+            OutputExpr::Func {
+                op: Op::default(),
+                args: Vec::new(),
+            }
+        }
+    }
+}
+
+fn extract_value<Op>(
+    expr: &Expr,
+    graph: &Graph,
+    exprs: &mut IndexSet<OutputExpr<Op>>,
+    expr_to_index: &mut IndexMap<Expr, usize>,
+) -> Option<crate::expr::Value>
+where
+    Op: Operation + std::hash::Hash + Eq + Default,
+{
+    let expr = Op::preprocess_expr(graph, expr);
+    dependency_expr(&expr, graph, exprs, expr_to_index)
+}
+
+fn dependency_expr<Op>(
+    e: &Expr,
+    graph: &Graph,
+    exprs: &mut IndexSet<OutputExpr<Op>>,
+    expr_to_index: &mut IndexMap<Expr, usize>,
+) -> Option<crate::expr::Value>
+where
+    Op: Operation + std::hash::Hash + Eq + Default,
+{
+    texture_dependency(e, graph, exprs, expr_to_index).or_else(|| {
+        buffer_dependency(graph, e)
+            .map(crate::expr::Value::Parameter)
+            .or_else(|| match e {
+                Expr::Unary(UnaryOp::Negate, e) => {
+                    if let Expr::Float(f) = &graph.exprs[*e] {
+                        Some(crate::expr::Value::Constant(-f))
+                    } else {
+                        None
+                    }
+                }
+                Expr::Float(f) => Some(crate::expr::Value::Constant(*f)),
+                Expr::Global { name, channel } => {
+                    // TODO: Also check if this matches a vertex input name?
+                    Some(crate::expr::Value::Attribute(crate::expr::Attribute {
+                        name: name.clone(),
+                        channel: *channel,
+                    }))
+                }
+                _ => None,
+            })
+    })
+}

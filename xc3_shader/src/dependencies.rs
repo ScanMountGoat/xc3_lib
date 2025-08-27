@@ -1,21 +1,23 @@
 use crate::{
-    database::output_expr,
-    expr::{OutputExpr, Parameter, Texture, Value},
+    expr::{output_expr, Operation, OutputExpr, Parameter, Texture, Value},
     graph::{Expr, Graph},
 };
 
 use indexmap::{IndexMap, IndexSet};
 
 use xc3_model::shader_database::{
-    AttributeDependency, BufferDependency, Dependency, Operation, TextureDependency,
+    AttributeDependency, BufferDependency, Dependency, TextureDependency,
 };
 
-pub fn texture_dependency(
+pub fn texture_dependency<Op>(
     e: &Expr,
     graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr<Operation>>,
+    exprs: &mut IndexSet<OutputExpr<Op>>,
     expr_to_index: &mut IndexMap<Expr, usize>,
-) -> Option<Value> {
+) -> Option<Value>
+where
+    Op: Operation + std::hash::Hash + Eq + Default,
+{
     if let Expr::Func {
         name,
         args,
@@ -42,12 +44,15 @@ pub fn texture_dependency(
     }
 }
 
-fn texcoord_args(
+fn texcoord_args<Op>(
     args: &[usize],
     graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr<Operation>>,
+    exprs: &mut IndexSet<OutputExpr<Op>>,
     expr_to_index: &mut IndexMap<Expr, usize>,
-) -> Vec<usize> {
+) -> Vec<usize>
+where
+    Op: Operation + std::hash::Hash + Eq + Default,
+{
     // The first arg is always the texture name.
     // texture(arg0, vec2(arg2, arg3, ...))
     if let Some(Expr::Func { args, .. }) = args.get(1).map(|a| &graph.exprs[*a]) {

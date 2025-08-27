@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::Write;
 use std::{collections::BTreeMap, sync::LazyLock};
 
@@ -11,15 +12,15 @@ use xc3_model::shader_database::{
     Dependency, Operation, ProgramHash, ShaderDatabase, ShaderProgram,
 };
 
-use crate::expr::{OutputExpr, Value};
+use crate::expr::{output_expr, OutputExpr, Value};
 use crate::graph::glsl::{find_attribute_locations, merge_vertex_fragment};
 use crate::{
-    dependencies::{buffer_dependency, texture_dependency},
+    dependencies::buffer_dependency,
     extract::nvsd_glsl_name,
     graph::{
         glsl::shader_source_no_extensions,
         query::{assign_x, assign_x_recursive, fma_half_half, normalize, query_nodes},
-        BinaryOp, Expr, Graph, UnaryOp,
+        BinaryOp, Expr, Graph,
     },
 };
 
@@ -221,69 +222,13 @@ fn normal_output_expr(
     Some((value, intensity))
 }
 
-pub(crate) fn output_expr(
-    expr: &Expr,
-    graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr<Operation>>,
-    expr_to_index: &mut IndexMap<Expr, usize>,
-) -> usize {
-    // Cache graph input expressions to avoid processing nodes more than once while recursing.
-    match expr_to_index.get(expr) {
-        Some(i) => *i,
-        None => {
-            let original_expr = expr.clone();
-
-            // Simplify any expressions that would interfere with queries.
-            let mut expr = assign_x_recursive(graph, expr);
-            if let Some(new_expr) = normal_map_fma(graph, expr) {
-                expr = new_expr;
-            }
-            if let Some(new_expr) = normalize(graph, expr) {
-                expr = assign_x_recursive(graph, new_expr);
-            }
-
-            // Detect attributes.
-            // TODO: preserve the space for attributes like clip or view?
-            if let Some(new_expr) = skin_attribute_xyzw(graph, expr)
-                .or_else(|| skin_attribute_xyz(graph, expr))
-                .or_else(|| skin_attribute_clip_space_xyzw(graph, expr))
-                .or_else(|| u_mdl_clip_attribute_xyzw(graph, expr))
-                .or_else(|| u_mdl_view_attribute_xyzw(graph, expr))
-                .or_else(|| u_mdl_attribute_xyz(graph, expr))
-            {
-                expr = new_expr;
-            }
-
-            let mut expr = expr.clone();
-            if let Some(new_expr) = skin_attribute_bitangent(graph, &expr)
-                .or_else(|| u_mdl_view_bitangent_xyz(graph, &expr))
-            {
-                expr = new_expr;
-            }
-
-            let output = output_expr_inner(&expr, graph, exprs, expr_to_index);
-
-            let index = exprs.insert_full(output).0;
-            expr_to_index.insert(original_expr, index);
-
-            index
-        }
-    }
-}
-
-fn output_expr_inner(
-    expr: &Expr,
-    graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr<Operation>>,
-    expr_to_index: &mut IndexMap<Expr, usize>,
-) -> crate::expr::OutputExpr<Operation> {
-    if let Some(value) = extract_value(expr, graph, exprs, expr_to_index) {
-        // The base case is a single value.
-        OutputExpr::Value(value)
-    } else {
+impl crate::expr::Operation for Operation {
+    fn query_operation_args<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Self, Vec<&'a Expr>)> {
         // Detect operations from most specific to least specific.
         // This results in fewer operations in many cases.
-        if let Some((op, args)) = op_add_normal(graph, expr)
+        // TODO: inversesqrt
+        // TODO: exp2 should always be part of a pow expression
+        op_add_normal(graph, expr)
             .or_else(|| op_monochrome(graph, expr))
             .or_else(|| op_fresnel_ratio(graph, expr))
             .or_else(|| op_overlay2(graph, expr))
@@ -316,72 +261,51 @@ fn output_expr_inner(
             .or_else(|| binary_op(graph, expr, BinaryOp::LessEqual, Operation::LessEqual))
             .or_else(|| binary_op(graph, expr, BinaryOp::GreaterEqual, Operation::GreaterEqual))
             .or_else(|| ternary(graph, expr))
-        {
-            // Insert values that this operation depends on first.
-            let args: Vec<_> = args
-                .into_iter()
-                .map(|arg| output_expr(arg, graph, exprs, expr_to_index))
-                .collect();
-            OutputExpr::Func { op, args }
-        } else {
-            // TODO: inversesqrt
-            // TODO: exp2 should always be part of a pow expression
-            // TODO: better fallback for unrecognized function or values?
-            // TODO: log unsupported expr during database creation?
-            // println!("{}", graph.expr_to_glsl(expr));
-            OutputExpr::Func {
-                op: Operation::Unk,
-                args: Vec::new(),
-            }
+    }
+
+    fn preprocess_expr<'a>(graph: &'a Graph, expr: &'a Expr) -> Cow<'a, Expr> {
+        // Simplify any expressions that would interfere with queries.
+        let mut expr = assign_x_recursive(graph, expr);
+        if let Some(new_expr) = normal_map_fma(graph, expr) {
+            expr = new_expr;
         }
-    }
-}
+        if let Some(new_expr) = normalize(graph, expr) {
+            expr = assign_x_recursive(graph, new_expr);
+        }
 
-fn extract_value(
-    expr: &Expr,
-    graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr<Operation>>,
-    expr_to_index: &mut IndexMap<Expr, usize>,
-) -> Option<crate::expr::Value> {
-    let mut expr = assign_x_recursive(graph, expr);
-    if let Some(new_expr) = normalize(graph, expr) {
-        expr = new_expr;
-    }
-    if let Some(new_expr) = normal_map_fma(graph, expr) {
-        expr = new_expr;
+        // Detect attributes.
+        // TODO: preserve the space for attributes like clip or view?
+        if let Some(new_expr) = skin_attribute_xyzw(graph, expr)
+            .or_else(|| skin_attribute_xyz(graph, expr))
+            .or_else(|| skin_attribute_clip_space_xyzw(graph, expr))
+            .or_else(|| u_mdl_clip_attribute_xyzw(graph, expr))
+            .or_else(|| u_mdl_view_attribute_xyzw(graph, expr))
+            .or_else(|| u_mdl_attribute_xyz(graph, expr))
+        {
+            expr = new_expr;
+        }
+
+        let mut expr = expr.clone();
+        if let Some(new_expr) = skin_attribute_bitangent(graph, &expr)
+            .or_else(|| u_mdl_view_bitangent_xyz(graph, &expr))
+        {
+            expr = new_expr;
+        }
+
+        Cow::Owned(expr)
     }
 
-    dependency_expr(expr, graph, exprs, expr_to_index)
-}
+    fn preprocess_value_expr<'a>(graph: &'a Graph, expr: &'a Expr) -> Cow<'a, Expr> {
+        let mut expr = assign_x_recursive(graph, expr);
+        if let Some(new_expr) = normalize(graph, expr) {
+            expr = new_expr;
+        }
+        if let Some(new_expr) = normal_map_fma(graph, expr) {
+            expr = new_expr;
+        }
 
-fn dependency_expr(
-    e: &Expr,
-    graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr<Operation>>,
-    expr_to_index: &mut IndexMap<Expr, usize>,
-) -> Option<crate::expr::Value> {
-    texture_dependency(e, graph, exprs, expr_to_index).or_else(|| {
-        buffer_dependency(graph, e)
-            .map(crate::expr::Value::Parameter)
-            .or_else(|| match e {
-                Expr::Unary(UnaryOp::Negate, e) => {
-                    if let Expr::Float(f) = &graph.exprs[*e] {
-                        Some(crate::expr::Value::Constant(-f))
-                    } else {
-                        None
-                    }
-                }
-                Expr::Float(f) => Some(crate::expr::Value::Constant(*f)),
-                Expr::Global { name, channel } => {
-                    // TODO: Also check if this matches a vertex input name?
-                    Some(crate::expr::Value::Attribute(crate::expr::Attribute {
-                        name: name.clone(),
-                        channel: *channel,
-                    }))
-                }
-                _ => None,
-            })
-    })
+        Cow::Borrowed(expr)
+    }
 }
 
 pub fn create_shader_database(input: &str) -> ShaderDatabase {

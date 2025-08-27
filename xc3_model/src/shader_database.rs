@@ -237,7 +237,7 @@ pub enum Operation {
 
 impl Default for Operation {
     fn default() -> Self {
-        Self::Mix
+        Self::Unk
     }
 }
 

@@ -1,5 +1,5 @@
 ---
-source: xc3_shader/src/shader_database.rs
+source: xc3_shader/src/database.rs
 ---
 "o0.x": "Mix(Mix(Mix(Texture(s0, vTex0.x, vTex0.y).x, Texture(s1, vTex0.x, vTex0.y).x, Mul(Texture(s2, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].x)), Texture(s3, vTex1.x, vTex1.y).x, Texture(s4, vTex1.x, vTex1.y).x), U_Mate.gWrkCol.x, Fresnel(U_Mate.gWrkFl4[0].y))"
 "o0.y": "Mix(Mix(Mix(Texture(s0, vTex0.x, vTex0.y).y, Texture(s1, vTex0.x, vTex0.y).y, Mul(Texture(s2, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].x)), Texture(s3, vTex1.x, vTex1.y).y, Texture(s4, vTex1.x, vTex1.y).x), U_Mate.gWrkCol.y, Fresnel(U_Mate.gWrkFl4[0].y))"

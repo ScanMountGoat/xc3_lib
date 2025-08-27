@@ -1,5 +1,5 @@
 ---
-source: xc3_shader/src/shader_database.rs
+source: xc3_shader/src/database.rs
 ---
 "o0.x": "MonochromeX(U_Mate.gMatCol.x, U_Mate.gMatCol.y, U_Mate.gMatCol.z, U_Mate.gWrkFl4[1].y)"
 "o0.y": "MonochromeY(U_Mate.gMatCol.x, U_Mate.gMatCol.y, U_Mate.gMatCol.z, U_Mate.gWrkFl4[1].y)"

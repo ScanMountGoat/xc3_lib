@@ -282,6 +282,7 @@ impl Graph {
         }
     }
 
+    // TODO: Does this correctly rebuild a new simplified graph in all cases?
     fn simplify_expr(
         &self,
         input: usize,
@@ -391,6 +392,20 @@ impl Graph {
                             exprs.insert_full(new_arg).0
                         })
                         .collect(),
+                    channel: *channel,
+                },
+                Expr::Parameter {
+                    name,
+                    field,
+                    index,
+                    channel,
+                } => Expr::Parameter {
+                    name: name.clone(),
+                    field: field.clone(),
+                    index: index.map(|i| {
+                        let new_index = self.simplify_expr(i, simplified, exprs);
+                        exprs.insert_full(new_index).0
+                    }),
                     channel: *channel,
                 },
                 i => i.clone(),

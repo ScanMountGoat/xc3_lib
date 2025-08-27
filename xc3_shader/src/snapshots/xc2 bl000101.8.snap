@@ -1,5 +1,5 @@
 ---
-source: xc3_shader/src/shader_database.rs
+source: xc3_shader/src/database.rs
 ---
 "o0.x": "Mul(vColor.x, Texture(s0, vTex0.x, vTex0.y).x)"
 "o0.y": "Mul(vColor.y, Texture(s0, vTex0.x, vTex0.y).y)"
