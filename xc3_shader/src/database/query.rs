@@ -9,6 +9,24 @@ use crate::graph::{
     BinaryOp, Expr, Graph, UnaryOp,
 };
 
+pub fn op_func<'a>(
+    graph: &'a Graph,
+    expr: &'a Expr,
+    func: &str,
+    op: Operation,
+) -> Option<(Operation, Vec<&'a Expr>)> {
+    match expr {
+        Expr::Func { name, args, .. } => {
+            if name == func {
+                Some((op, args.iter().map(|a| &graph.exprs[*a]).collect()))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
 static OP_OVER: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
@@ -63,7 +81,7 @@ pub fn op_mul_ratio<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, 
     Some((Operation::MulRatio, vec![a, b, ratio]))
 }
 
-pub fn op_add_ratio<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+pub fn op_fma<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // += getPixelCalcRatio in pcmdo fragment shaders for XC1 and XC3.
     let (a, b, c) = fma_a_b_c(graph, expr)?;
     Some((Operation::Fma, vec![a, b, c]))
@@ -212,37 +230,6 @@ pub fn op_pow<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'
     Some((Operation::Power, vec![a, b]))
 }
 
-static OP_MAX: LazyLock<Graph> =
-    LazyLock::new(|| Graph::parse_glsl("void main() { result = max(a, b); }").unwrap());
-
-pub fn op_max<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(expr, graph, &OP_MAX)?;
-    let a = result.get("a")?;
-    let b = result.get("b")?;
-    Some((Operation::Max, vec![a, b]))
-}
-
-static OP_MIN: LazyLock<Graph> =
-    LazyLock::new(|| Graph::parse_glsl("void main() { result = min(a, b); }").unwrap());
-
-pub fn op_min<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(expr, graph, &OP_MIN)?;
-    let a = result.get("a")?;
-    let b = result.get("b")?;
-    Some((Operation::Min, vec![a, b]))
-}
-
-static OP_CLAMP: LazyLock<Graph> =
-    LazyLock::new(|| Graph::parse_glsl("void main() { result = clamp(a, b, c); }").unwrap());
-
-pub fn op_clamp<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let result = query_nodes(expr, graph, &OP_CLAMP)?;
-    let a = result.get("a")?;
-    let b = result.get("b")?;
-    let c = result.get("c")?;
-    Some((Operation::Clamp, vec![a, b, c]))
-}
-
 static OP_SQRT: LazyLock<Graph> = LazyLock::new(|| {
     // Equivalent to sqrt(result)
     let query = indoc! {"
@@ -287,20 +274,6 @@ pub fn op_dot<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'
     let bw = result.get("bw")?;
 
     Some((Operation::Dot4, vec![ax, ay, az, aw, bx, by, bz, bw]))
-}
-
-pub fn unary_op<'a>(
-    graph: &'a Graph,
-    expr: &'a Expr,
-    fn_name: &str,
-    op: Operation,
-) -> Option<(Operation, Vec<&'a Expr>)> {
-    if let Expr::Func { name, args, .. } = expr {
-        if name == fn_name {
-            return Some((op, vec![&graph.exprs[args[0]]]));
-        }
-    }
-    None
 }
 
 pub fn ternary<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
