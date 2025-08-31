@@ -1262,7 +1262,12 @@ fn alu_src_expr(
     };
 
     if negate {
-        Expr::Unary(UnaryOp::Negate, nodes.insert_expr(expr))
+        if let Expr::Float(f) = expr {
+            // Avoid an issue with -0.0 being equal to 0.0 when hashing ordered_float.
+            Expr::Float(-f)
+        } else {
+            Expr::Unary(UnaryOp::Negate, nodes.insert_expr(expr))
+        }
     } else {
         expr
     }
