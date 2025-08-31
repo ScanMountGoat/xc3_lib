@@ -5,6 +5,7 @@ use crate::{
 
 use indexmap::{IndexMap, IndexSet};
 
+#[cfg(feature = "xc3")]
 use xc3_model::shader_database::{
     AttributeDependency, BufferDependency, Dependency, TextureDependency,
 };
@@ -98,6 +99,7 @@ pub fn latte_dependencies(source: &str, variable: &str, channel: Option<char>) -
         .glsl_dependencies(variable, channel, None)
 }
 
+#[cfg(feature = "xc3")]
 impl From<Value> for Dependency {
     fn from(value: Value) -> Self {
         match value {
