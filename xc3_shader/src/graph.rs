@@ -9,6 +9,7 @@ pub mod glsl;
 #[cfg(feature = "latte")]
 pub mod latte;
 
+#[cfg(feature = "glsl")]
 pub mod query;
 
 /// A directed graph of shader assignments and input expressions to simplify analysis.
