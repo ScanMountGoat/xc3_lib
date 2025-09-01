@@ -246,6 +246,7 @@ impl Graph {
     }
 
     /// Return the GLSL for each line from [Self::assignments_recursive].
+    #[cfg(feature = "glsl")]
     pub fn glsl_dependencies(
         &self,
         variable: &str,
