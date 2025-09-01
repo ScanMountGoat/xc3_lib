@@ -71,7 +71,6 @@ impl ShaderWgsl {
     pub fn create_model_shader(&self) -> String {
         let mut source = crate::shader::model::SOURCE.to_string();
 
-        // TODO: use vars instead of comments.
         source = source.replace("let ASSIGN_VARS = 0.0;", &self.assignments);
 
         for ((from, var), to) in [
