@@ -9,7 +9,6 @@ use xc3_shader::database::{
     create_shader_database, create_shader_database_legacy, shader_from_glsl, shader_graphviz,
     shader_str,
 };
-use xc3_shader::dependencies::latte_dependencies;
 use xc3_shader::extract::{
     annotate_all_legacy_shaders, extract_all_legacy_shaders, extract_and_decompile_shaders,
 };
@@ -156,7 +155,11 @@ fn main() {
         Commands::LatteDependencies { input, output, var } => {
             let source = std::fs::read_to_string(input).unwrap();
             let (var, channels) = var.split_once('.').unwrap_or((&var, ""));
-            let source_out = latte_dependencies(&source, var, channels.chars().next());
+            let source_out = Graph::from_latte_asm(&source).unwrap().glsl_dependencies(
+                var,
+                channels.chars().next(),
+                None,
+            );
             std::fs::write(output, source_out).unwrap();
         }
         Commands::MergeDatabases {

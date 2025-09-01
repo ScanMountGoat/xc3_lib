@@ -93,12 +93,6 @@ pub fn buffer_dependency(graph: &Graph, e: &Expr) -> Option<Parameter> {
     }
 }
 
-pub fn latte_dependencies(source: &str, variable: &str, channel: Option<char>) -> String {
-    Graph::from_latte_asm(source)
-        .unwrap()
-        .glsl_dependencies(variable, channel, None)
-}
-
 #[cfg(feature = "xc3")]
 impl From<Value> for Dependency {
     fn from(value: Value) -> Self {
