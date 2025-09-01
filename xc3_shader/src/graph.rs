@@ -4,8 +4,11 @@ use indexmap::IndexSet;
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
 
+#[cfg(feature = "glsl")]
 pub mod glsl;
+#[cfg(feature = "latte")]
 pub mod latte;
+
 pub mod query;
 
 /// A directed graph of shader assignments and input expressions to simplify analysis.
