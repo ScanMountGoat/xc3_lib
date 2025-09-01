@@ -16,6 +16,7 @@ pub struct ProgramOutputs<Op> {
 }
 
 /// An expression tree with [Value] for the leaf nodes.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum OutputExpr<Op> {
     /// A single value.
@@ -30,6 +31,7 @@ pub enum OutputExpr<Op> {
 }
 
 /// A single access to a constant or global resource like a texture.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Value {
     Constant(OrderedFloat<f32>),
@@ -39,6 +41,7 @@ pub enum Value {
 }
 
 /// A single buffer access like `UniformBuffer.field[0].y` or `UniformBuffer.field.y` in GLSL.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct Parameter {
     pub name: SmolStr,
@@ -48,6 +51,7 @@ pub struct Parameter {
 }
 
 /// A single texture access like `texture(s0, tex0.xy).rgb` in GLSL.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Texture {
     pub name: SmolStr,
@@ -58,6 +62,7 @@ pub struct Texture {
 }
 
 /// A single input attribute like `in_attr0.x` in GLSL.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Attribute {
     pub name: SmolStr,

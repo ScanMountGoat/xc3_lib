@@ -10,7 +10,7 @@ rayon.workspace = true
 globwalk.workspace = true
 clap = { workspace = true, features = ["derive"] }
 glsl-lang = { version = "0.7.2", features = ["lexer-v2-full"], optional = true }
-serde_json = "1.0"
+serde_json.workspace = true
 log.workspace = true
 simple_logger.workspace = true
 bimap = "0.6.3"
@@ -24,6 +24,7 @@ smol_str.workspace = true
 indexmap.workspace = true
 indoc.workspace = true
 thiserror.workspace = true
+serde = { version = "1.0", features = ["derive"], optional = true }
 
 [dev-dependencies]
 pretty_assertions.workspace = true
@@ -34,3 +35,4 @@ default = ["xc3"]
 xc3 = ["dep:xc3_lib", "dep:xc3_model", "glsl", "latte"]
 glsl = ["dep:glsl-lang"]
 latte = ["dep:pest", "dep:pest_derive", "dep:from-pest", "dep:pest-ast"]
+serde = ["dep:serde", "smol_str/serde", "ordered-float/serde"]
