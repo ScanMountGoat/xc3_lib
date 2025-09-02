@@ -1038,7 +1038,7 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
         }
         "MIN" | "MIN_DX10" => Some(add_func("min", 2, &scalar, output, inst_count, nodes)),
         "MAX" | "MAX_DX10" => Some(add_func("max", 2, &scalar, output, inst_count, nodes)),
-        "MUL" | "MUL_IEEE" | "MULLO_INT" => {
+        "MUL" | "MUL_IEEE" | "MULLO_INT" | "MULLO_UINT" => {
             // TODO: _INT shouldn't interpret the bits as float.
             let input = Expr::Binary(
                 BinaryOp::Mul,

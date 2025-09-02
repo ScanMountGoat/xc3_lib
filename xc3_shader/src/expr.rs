@@ -50,6 +50,23 @@ pub struct Parameter {
     pub channel: Option<char>,
 }
 
+impl std::fmt::Display for Parameter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}{}{}{}",
+            self.name,
+            if !self.field.is_empty() {
+                format!(".{}", self.field)
+            } else {
+                String::new()
+            },
+            self.index.map(|i| format!("[{i}]")).unwrap_or_default(),
+            self.channel.map(|c| format!(".{c}")).unwrap_or_default()
+        )
+    }
+}
+
 /// A single texture access like `texture(s0, tex0.xy).rgb` in GLSL.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -67,6 +84,15 @@ pub struct Texture {
 pub struct Attribute {
     pub name: SmolStr,
     pub channel: Option<char>,
+}
+
+impl std::fmt::Display for Attribute {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.channel {
+            Some(c) => write!(f, "{}.{c}", self.name),
+            None => write!(f, "{}", self.name),
+        }
+    }
 }
 
 /// A set of operations like `fma` or matrix multiplication that can be detected from a [Graph].
