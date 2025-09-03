@@ -1297,8 +1297,8 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
         "INT_TO_FLT" => None,
         // TODO: Cube maps
         "CUBE" => None,
-        // TODO: Conditionals
-        "KILLE_INT" | "PRED_SETGE" | "SETNE" | "CNDGE" | "PRED_SETGT" => None,
+        "KILLE_INT" | "PRED_SETGE" | "SETNE" | "PRED_SETGT" => None,
+        // Conditionals
         "SETGE_DX10" => {
             // Floating-point set if geq with an integer result.
             let condition = Expr::Binary(
@@ -1319,7 +1319,24 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
             };
             Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
-        // TODO: Fetch instructions (add to grammar) converted to buffer accesses
+        "CNDGE" => {
+            // Floating-point set if geq 0.0.
+            let condition = Expr::Binary(
+                BinaryOp::GreaterEqual,
+                nodes.insert_expr(scalar.sources[0].clone()),
+                nodes.insert_expr(Expr::Float(0.0.into())),
+            );
+            let input = Expr::Ternary(
+                nodes.insert_expr(condition),
+                nodes.insert_expr(Expr::Float(1.0.into())),
+                nodes.insert_expr(Expr::Float(0.0.into())),
+            );
+            let node = Node {
+                output,
+                input: nodes.insert_expr(input),
+            };
+            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+        }
         opcode => {
             // TODO: Handle additional opcodes?
             error!("Unsupported opcode {opcode}");
