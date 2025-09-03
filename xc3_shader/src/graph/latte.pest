@@ -7,7 +7,7 @@ float      = @{ "-"? ~ ('0'..'9')+ ~ ("." ~ ('0'..'9')+)? ~ ("e-" ~ ('0'..'9')+)
 
 cf_inst        = { inst_count ~ cf_opcode ~ cf_inst_properties }
 cf_exp_inst    = { inst_count ~ exp_opcode ~ ":" ~ (exp_pix_target | exp_pos_target | exp_param_target) ~ "," ~ exp_src ~ cf_inst_properties }
-tex_clause     = { inst_count ~ tex_clause_inst_type ~ ":" ~ tex_clause_properties ~ (tex_inst)* }
+tex_clause     = { inst_count ~ tex_clause_inst_type ~ ":" ~ tex_clause_properties ~ (fetch_inst | tex_inst)* }
 alu_clause     = { inst_count ~ alu_clause_inst_type ~ ":" ~ alu_clause_properties ~ (alu_group)* }
 end_of_program = { "END_OF_PROGRAM" }
 
@@ -135,7 +135,7 @@ tex_src         =  { gpr ~ tex_rel? ~ four_comp_swizzle? }
 tex_rel         =  { "[AL]" }
 tex_resource_id = @{ "t" ~ number }
 tex_sampler_id  = @{ "s" ~ number }
-tex_properties  =  { ((alt_const | bc_frac_mode | denorm | norm | lod | whole_quad_mode | xoffset | yoffset | zoffset))* }
+tex_properties  =  { (alt_const | bc_frac_mode | denorm | norm | lod | whole_quad_mode | xoffset | yoffset | zoffset)* }
 alt_const       =  { "ALT_CONST" }
 bc_frac_mode    =  { "BC_FRAC_MODE" }
 denorm          =  { "DENORM(" ~ ("x" | "y" | "z" | "w" | "X" | "Y" | "Z" | "W")+ ~ ")" }
@@ -145,7 +145,17 @@ xoffset         =  { "XOFFSET(" ~ float ~ ")" }
 yoffset         =  { "YOFFSET(" ~ float ~ ")" }
 zoffset         =  { "ZOFFSET(" ~ float ~ ")" }
 
-alu_group           =  { inst_count ~ ((alu_scalar3 | alu_scalar2 | alu_scalar1 | alu_scalar0))+ }
+// Fetch instructions are not part of the original grammar for some reason.
+fetch_inst       =  { inst_count ~ "FETCH" ~ fetch_dst ~ "," ~ fetch_src ~ "," ~ fetch_buffer_id ~ fetch_properties }
+fetch_dst        =  { gpr ~ four_comp_swizzle? }
+fetch_src        =  { gpr ~ one_comp_swizzle? }
+fetch_buffer_id  =  { "b" ~ number }
+fetch_properties =  { (fetch_type | fetch_mega | fetch_offset)* }
+fetch_type       = { "FETCH_TYPE(NO_INDEX_OFFSET)" }
+fetch_mega       =  { "MEGA(" ~ number ~ ")" }
+fetch_offset     =  { "OFFSET(" ~ number ~ ")" }
+
+alu_group           =  { inst_count ~ (alu_scalar3 | alu_scalar2 | alu_scalar1 | alu_scalar0)+ }
 alu_unit            =  { "x" | "y" | "z" | "w" | "t" }
 alu_scalar0         =  { alu_unit ~ ":" ~ alu_opcode0 ~ alu_output_modifier? ~ alu_dst ~ alu_properties }
 alu_scalar1         =  { alu_unit ~ ":" ~ alu_opcode1 ~ alu_output_modifier? ~ alu_dst ~ "," ~ alu_src ~ alu_properties }

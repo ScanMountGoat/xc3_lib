@@ -12,7 +12,7 @@ use super::*;
 #[derive(Debug, Error)]
 pub enum ParseError {
     #[error("error parsing assembly text")]
-    Parse(#[from] pest::error::Error<Rule>),
+    Parse(#[from] Box<pest::error::Error<Rule>>),
 
     #[error("error converting parsing rules")]
     Convert(#[from] from_pest::ConversionError<from_pest::Void>),
@@ -163,7 +163,7 @@ struct TexClause {
     inst_count: InstCount,
     inst_type: TexClauseInstType,
     properties: TexClauseProperties,
-    instructions: Vec<TexInst>,
+    instructions: Vec<TexInstOrFetchInst>,
 }
 
 #[derive(FromPest)]
@@ -200,6 +200,29 @@ impl<'pest> FromPest<'pest> for TexClauseProperty {
             | Rule::no_barrier
             | Rule::valid_pix => Ok(Self::Unk(next.as_rule())),
             _ => Err(ConversionError::NoMatch),
+        }
+    }
+}
+
+enum TexInstOrFetchInst {
+    Tex(TexInst),
+    Fetch(FetchInst),
+}
+
+// TODO: Is there a way to derive this?
+impl<'pest> FromPest<'pest> for TexInstOrFetchInst {
+    type Rule = Rule;
+
+    type FatalError = Void;
+
+    fn from_pest(
+        pest: &mut Pairs<'pest, Self::Rule>,
+    ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
+        let next = pest.peek().ok_or(ConversionError::NoMatch)?;
+        match next.as_rule() {
+            Rule::tex_inst => TexInst::from_pest(pest).map(Self::Tex),
+            Rule::fetch_inst => FetchInst::from_pest(pest).map(Self::Fetch),
+            _ => todo!(),
         }
     }
 }
@@ -255,6 +278,87 @@ struct TexRel;
 #[derive(FromPest)]
 #[pest_ast(rule(Rule::tex_properties))]
 struct TexProperties;
+
+#[allow(dead_code)]
+#[derive(FromPest)]
+#[pest_ast(rule(Rule::fetch_inst))]
+struct FetchInst {
+    inst_count: InstCount,
+    dst: FetchDst,
+    src: FetchSrc,
+    buffer_id: FetchBufferId,
+    properties: FetchProperties,
+}
+
+#[derive(FromPest)]
+#[pest_ast(rule(Rule::fetch_dst))]
+struct FetchDst {
+    gpr: Gpr,
+    swizzle: FourCompSwizzle,
+}
+
+#[derive(FromPest)]
+#[pest_ast(rule(Rule::fetch_src))]
+struct FetchSrc {
+    gpr: Gpr,
+    swizzle: OneCompSwizzle,
+}
+
+#[derive(FromPest)]
+#[pest_ast(rule(Rule::fetch_buffer_id))]
+struct FetchBufferId {
+    id: Number,
+}
+
+#[derive(FromPest)]
+#[pest_ast(rule(Rule::fetch_type))]
+struct FetchType {}
+
+#[allow(dead_code)]
+#[derive(FromPest)]
+#[pest_ast(rule(Rule::fetch_mega))]
+struct FetchMega {
+    id: Number,
+}
+
+#[allow(dead_code)]
+#[derive(FromPest)]
+#[pest_ast(rule(Rule::fetch_offset))]
+struct FetchOffset {
+    id: Number,
+}
+
+#[allow(dead_code)]
+#[derive(FromPest)]
+#[pest_ast(rule(Rule::fetch_properties))]
+struct FetchProperties(Vec<FetchProperty>);
+
+#[allow(dead_code)]
+enum FetchProperty {
+    Type(FetchType),
+    Mega(FetchMega),
+    Offset(FetchOffset),
+}
+
+// TODO: Is there a way to derive this?
+impl<'pest> FromPest<'pest> for FetchProperty {
+    type Rule = Rule;
+
+    type FatalError = Void;
+
+    fn from_pest(
+        pest: &mut Pairs<'pest, Self::Rule>,
+    ) -> Result<Self, from_pest::ConversionError<Self::FatalError>> {
+        // TODO: error type?
+        let next = pest.peek().ok_or(ConversionError::NoMatch)?;
+        match next.as_rule() {
+            Rule::fetch_type => FetchType::from_pest(pest).map(Self::Type),
+            Rule::fetch_mega => FetchMega::from_pest(pest).map(Self::Mega),
+            Rule::fetch_offset => FetchOffset::from_pest(pest).map(Self::Offset),
+            _ => Err(ConversionError::NoMatch),
+        }
+    }
+}
 
 #[allow(dead_code)]
 #[derive(FromPest)]
@@ -726,22 +830,38 @@ impl Nodes {
     fn insert_expr(&mut self, expr: Expr) -> usize {
         self.exprs.insert_full(expr).0
     }
+
+    fn insert_float_to_int_expr(&mut self, expr: Expr) -> usize {
+        // Convert float literals directly to integers.
+        let result = match expr {
+            Expr::Float(f) => Expr::Int(f.to_bits() as i32),
+            e => Expr::Unary(UnaryOp::FloatBitsToInt, self.insert_expr(e)),
+        };
+        self.insert_expr(result)
+    }
+
+    fn insert_float_to_uint_expr(&mut self, expr: Expr) -> usize {
+        // Convert float literals directly to integers.
+        let result = match expr {
+            Expr::Float(f) => Expr::Uint(f.to_bits()),
+            e => Expr::Unary(UnaryOp::FloatBitsToUint, self.insert_expr(e)),
+        };
+        self.insert_expr(result)
+    }
 }
 
-// TODO: The first registers are always input attributes?
 impl Graph {
     pub fn from_latte_asm(asm: &str) -> Result<Self, ParseError> {
-        // TODO: The FETCH instruction isn't part of the official grammar?
         let asm = asm
             .lines()
-            .filter(|l| !l.is_empty() && !l.contains("FETCH"))
+            .filter(|l| !l.is_empty())
             .collect::<Vec<_>>()
             .join("\n");
         if asm.is_empty() {
             return Ok(Graph::default());
         }
 
-        let mut pairs = LatteParser::parse(Rule::program, &asm)?;
+        let mut pairs = LatteParser::parse(Rule::program, &asm).map_err(Box::new)?;
         let program = Program::from_pest(&mut pairs)?;
 
         let mut nodes = Nodes::default();
@@ -810,9 +930,19 @@ fn add_exp_inst(exp: CfExpInst, nodes: &mut Nodes) {
 
 fn add_tex_clause(clause: TexClause, nodes: &mut Nodes) {
     for tex_instruction in clause.instructions {
-        let tex_nodes = tex_inst_node(tex_instruction, nodes).unwrap();
-        for node in tex_nodes {
-            nodes.add_node(node, None, clause.inst_count.0 .0);
+        match tex_instruction {
+            TexInstOrFetchInst::Tex(tex_inst) => {
+                let tex_nodes = tex_inst_node(tex_inst, nodes).unwrap();
+                for node in tex_nodes {
+                    nodes.add_node(node, None, clause.inst_count.0 .0);
+                }
+            }
+            TexInstOrFetchInst::Fetch(fetch_inst) => {
+                let fetch_nodes = fetch_inst_node(fetch_inst, nodes).unwrap();
+                for node in fetch_nodes {
+                    nodes.add_node(node, None, clause.inst_count.0 .0);
+                }
+            }
         }
     }
 }
@@ -1023,8 +1153,7 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
         "EXP_IEEE" => Some(add_func("exp2", 1, &scalar, output, inst_count, nodes)),
         "LOG_CLAMPED" => Some(add_func("log2", 1, &scalar, output, inst_count, nodes)),
         // scalar2
-        "ADD" | "ADD_INT" => {
-            // TODO: _INT shouldn't interpret the bits as float.
+        "ADD" => {
             let input = Expr::Binary(
                 BinaryOp::Add,
                 nodes.insert_expr(scalar.sources[0].clone()),
@@ -1036,10 +1165,23 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
             };
             Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
+        "ADD_INT" => {
+            let result = Expr::Binary(
+                BinaryOp::Add,
+                nodes.insert_float_to_int_expr(scalar.sources[0].clone()),
+                nodes.insert_float_to_int_expr(scalar.sources[1].clone()),
+            );
+            let input = Expr::Unary(UnaryOp::IntBitsToFloat, nodes.insert_expr(result));
+            let node = Node {
+                output,
+                input: nodes.insert_expr(input),
+            };
+            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+        }
         "MIN" | "MIN_DX10" => Some(add_func("min", 2, &scalar, output, inst_count, nodes)),
         "MAX" | "MAX_DX10" => Some(add_func("max", 2, &scalar, output, inst_count, nodes)),
-        "MUL" | "MUL_IEEE" | "MULLO_INT" | "MULLO_UINT" => {
-            // TODO: _INT shouldn't interpret the bits as float.
+        "MUL" | "MUL_IEEE" => {
+            // Scalar multiplication with floats.
             let input = Expr::Binary(
                 BinaryOp::Mul,
                 nodes.insert_expr(scalar.sources[0].clone()),
@@ -1054,6 +1196,34 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
         "DOT4" | "DOT4_IEEE" => {
             // Handled in a previous check.
             unreachable!()
+        }
+        "MULLO_UINT" => {
+            // Scalar multiplication with signed integers stored in the lower bits.
+            let result = Expr::Binary(
+                BinaryOp::Mul,
+                nodes.insert_float_to_uint_expr(scalar.sources[0].clone()),
+                nodes.insert_float_to_uint_expr(scalar.sources[1].clone()),
+            );
+            let input = Expr::Unary(UnaryOp::UintBitsToFloat, nodes.insert_expr(result));
+            let node = Node {
+                output,
+                input: nodes.insert_expr(input),
+            };
+            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+        }
+        "MULLO_INT" => {
+            // Scalar multiplication with signed integers stored in the lower bits.
+            let result = Expr::Binary(
+                BinaryOp::Mul,
+                nodes.insert_float_to_int_expr(scalar.sources[0].clone()),
+                nodes.insert_float_to_int_expr(scalar.sources[1].clone()),
+            );
+            let input = Expr::Unary(UnaryOp::IntBitsToFloat, nodes.insert_expr(result));
+            let node = Node {
+                output,
+                input: nodes.insert_expr(input),
+            };
+            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
         }
         // scalar3
         "MULADD" | "MULADD_IEEE" => Some(add_func("fma", 3, &scalar, output, inst_count, nodes)),
@@ -1129,6 +1299,27 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
         "CUBE" => None,
         // TODO: Conditionals
         "KILLE_INT" | "PRED_SETGE" | "SETNE" | "CNDGE" | "PRED_SETGT" => None,
+        "SETGE_DX10" => {
+            // Floating-point set if geq with an integer result.
+            let condition = Expr::Binary(
+                BinaryOp::GreaterEqual,
+                nodes.insert_expr(scalar.sources[0].clone()),
+                nodes.insert_expr(scalar.sources[1].clone()),
+            );
+            let a = nodes.insert_expr(Expr::Int(-1));
+            let b = nodes.insert_expr(Expr::Int(0));
+            let input = Expr::Ternary(
+                nodes.insert_expr(condition),
+                nodes.insert_expr(Expr::Unary(UnaryOp::IntBitsToFloat, a)),
+                nodes.insert_expr(Expr::Unary(UnaryOp::IntBitsToFloat, b)),
+            );
+            let node = Node {
+                output,
+                input: nodes.insert_expr(input),
+            };
+            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+        }
+        // TODO: Fetch instructions (add to grammar) converted to buffer accesses
         opcode => {
             // TODO: Handle additional opcodes?
             error!("Unsupported opcode {opcode}");
@@ -1459,6 +1650,48 @@ fn tex_src_coords(src: TexSrc, nodes: &mut Nodes) -> Option<Expr> {
         ],
         channel: None,
     })
+}
+
+fn fetch_inst_node(tex: FetchInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
+    let output_name = tex.dst.gpr.to_smolstr();
+    let output_channels = tex.dst.swizzle.channels();
+
+    let src_name = tex.src.gpr.to_smolstr();
+    let src_channels = tex.src.swizzle.channels();
+
+    // TODO: Is this the correct way to calculate the buffer index?
+    let cb_index = tex.buffer_id.id.0 - 128;
+    let cb_name: SmolStr = format!("CB{cb_index}").into();
+
+    // TODO: How should the OFFSET property be used?
+    let src_expr = previous_assignment(&src_name, src_channels.chars().next(), nodes);
+    let src_index = nodes.insert_float_to_uint_expr(src_expr);
+
+    // Convert vector swizzles to scalar operations to simplify analysis code.
+    Some(
+        output_channels
+            .chars()
+            .filter_map(|c| {
+                if c != '_' {
+                    let input = Expr::Parameter {
+                        name: cb_name.clone(),
+                        field: None,
+                        index: Some(src_index),
+                        channel: Some(c),
+                    };
+                    Some(Node {
+                        output: Output {
+                            name: output_name.clone(),
+                            channel: Some(c),
+                        },
+                        input: nodes.insert_expr(input),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect(),
+    )
 }
 
 #[cfg(test)]

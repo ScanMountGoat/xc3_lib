@@ -233,12 +233,16 @@ impl Graph {
     }
 
     fn unary_to_glsl(&self, op: UnaryOp, a: usize) -> String {
-        let op = match op {
-            UnaryOp::Negate => "-",
-            UnaryOp::Not => "!",
-            UnaryOp::Complement => "~",
-        };
-        format!("{op}{}", self.expr_to_glsl(a))
+        let expr = self.expr_to_glsl(a);
+        match op {
+            UnaryOp::Negate => format!("-{expr}"),
+            UnaryOp::Not => format!("!{expr}"),
+            UnaryOp::Complement => format!("~{expr}"),
+            UnaryOp::IntBitsToFloat => format!("intBitsToFloat({expr})"),
+            UnaryOp::FloatBitsToInt => format!("floatBitsToInt({expr})"),
+            UnaryOp::UintBitsToFloat => format!("uintBitsToFloat({expr})"),
+            UnaryOp::FloatBitsToUint => format!("floatBitsToUint({expr})"),
+        }
     }
 
     fn binary_to_glsl(&self, op: BinaryOp, a: usize, b: usize) -> String {

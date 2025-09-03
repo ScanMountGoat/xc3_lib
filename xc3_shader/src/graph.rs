@@ -71,6 +71,14 @@ pub enum UnaryOp {
     Negate,
     Not,
     Complement,
+    /// Reinterpret the u32 input as a float.
+    UintBitsToFloat,
+    /// Reinterpret the float input as an u32.
+    FloatBitsToUint,
+    /// Reinterpret the i32 input as a float.
+    IntBitsToFloat,
+    /// Reinterpret the float input as an i32.
+    FloatBitsToInt,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]

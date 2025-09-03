@@ -149,7 +149,7 @@ where
     } else {
         // Detect operations from most specific to least specific.
         // This results in fewer operations in many cases.
-        if let Some((op, args)) = Op::query_operation_args(&graph, expr) {
+        if let Some((op, args)) = Op::query_operation_args(graph, expr) {
             // Insert values that this operation depends on first.
             let args: Vec<_> = args
                 .into_iter()
