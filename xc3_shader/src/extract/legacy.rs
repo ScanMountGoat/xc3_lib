@@ -21,15 +21,13 @@ pub fn extract_legacy_shaders<P: AsRef<Path>>(
     // Save the binary for creating the database later.
     std::fs::write(output_folder.join(format!("{index}.cashd")), mths_bytes).unwrap();
 
-    if let Ok(vert) = mths.vertex_shader() {
-        let binary_path = output_folder.join(format!("{index}.vert.bin"));
-        dissassemble_shader(&binary_path, &vert.program_binary, gfd_tool);
-    }
+    let vert = mths.vertex_shader().unwrap();
+    let binary_path = output_folder.join(format!("{index}.vert.bin"));
+    dissassemble_shader(&binary_path, &vert.program_binary, gfd_tool);
 
-    if let Ok(frag) = mths.pixel_shader() {
-        let binary_path = output_folder.join(format!("{index}.frag.bin"));
-        dissassemble_shader(&binary_path, &frag.program_binary, gfd_tool);
-    }
+    let frag = mths.pixel_shader().unwrap();
+    let binary_path = output_folder.join(format!("{index}.frag.bin"));
+    dissassemble_shader(&binary_path, &frag.program_binary, gfd_tool);
 }
 
 pub fn annotate_legacy_shaders<P: AsRef<Path>>(
@@ -44,17 +42,13 @@ pub fn annotate_legacy_shaders<P: AsRef<Path>>(
     // Save the binary for creating the database later.
     std::fs::write(output_folder.join(format!("{index}.cashd")), mths_bytes).unwrap();
 
-    let mut vertex_output_locations = Vec::new();
+    let vert = mths.vertex_shader().unwrap();
+    let binary_path = output_folder.join(format!("{index}.vert.bin"));
+    annotate_vertex_shader(&binary_path, &vert, technique);
 
-    if let Ok(vert) = mths.vertex_shader() {
-        let binary_path = output_folder.join(format!("{index}.vert.bin"));
-        annotate_vertex_shader(&binary_path, &vert, technique, &mut vertex_output_locations);
-    }
-
-    if let Ok(frag) = mths.pixel_shader() {
-        let binary_path = output_folder.join(format!("{index}.frag.bin"));
-        annotate_fragment_shader(&binary_path, &frag, technique, &vertex_output_locations);
-    }
+    let pixel = mths.pixel_shader().unwrap();
+    let binary_path = output_folder.join(format!("{index}.frag.bin"));
+    annotate_fragment_shader(&binary_path, &vert, &pixel);
 }
 
 fn dissassemble_shader(binary_path: &Path, binary: &[u8], gfd_tool: &str) {
@@ -79,7 +73,6 @@ fn annotate_vertex_shader(
     binary_path: &Path,
     shader: &xc3_lib::mths::Gx2VertexShader,
     technique: Option<&xc3_lib::mxmd::legacy::Technique>,
-    vertex_output_locations: &mut Vec<usize>,
 ) {
     // TODO: perform annotation here and output glsl?
     // TODO: annotation will require the technique since attributes and params are just "Q"?
@@ -97,6 +90,7 @@ fn annotate_vertex_shader(
 
     // Vertex output locations be remapped by registers.
     // https://github.com/decaf-emu/decaf-emu/blob/e6c528a20a41c34e0f9eb91dd3da40f119db2dee/src/libgpu/src/spirv/spirv_transpiler.cpp#L280-L301
+    let mut vertex_output_locations = Vec::new();
     for output_index in 0..output_count {
         let mut i = 0;
         for register in &shader.registers.spi_vs_out_id {
@@ -268,9 +262,8 @@ fn attribute_name(d: xc3_lib::vertex::DataType) -> &'static str {
 
 fn annotate_fragment_shader(
     binary_path: &Path,
-    shader: &xc3_lib::mths::Gx2PixelShader,
-    _technique: Option<&xc3_lib::mxmd::legacy::Technique>,
-    vertex_output_locations: &[usize],
+    vertex_shader: &xc3_lib::mths::Gx2VertexShader,
+    pixel_shader: &xc3_lib::mths::Gx2PixelShader,
 ) {
     // TODO: perform annotation here and output glsl?
     // TODO: annotation will require the technique since attributes and params are just "Q"?
@@ -297,7 +290,7 @@ fn annotate_fragment_shader(
             }
         }
 
-        replace_uniform(e, &shader.uniform_blocks);
+        replace_uniform(e, &pixel_shader.uniform_blocks);
     }
 
     let mut fragment_outputs = BTreeSet::new();
@@ -314,9 +307,11 @@ fn annotate_fragment_shader(
 
     let mut annotated = String::new();
 
-    write_uniform_blocks(&mut annotated, &shader.uniform_blocks);
+    write_uniform_blocks(&mut annotated, &pixel_shader.uniform_blocks);
 
-    for (i, location) in vertex_output_locations.iter().enumerate() {
+    let input_locations = fragment_input_locations(vertex_shader, pixel_shader);
+
+    for (i, location) in input_locations.iter().enumerate() {
         writeln!(
             &mut annotated,
             "layout(location = {location}) in vec4 in_attr{i};"
@@ -335,7 +330,7 @@ fn annotate_fragment_shader(
     writeln!(&mut annotated, "void main() {{").unwrap();
 
     // Fragment input attributes initialize R0, R1, ...?
-    for i in 0..vertex_output_locations.len() {
+    for i in 0..input_locations.len() {
         for c in "xyzw".chars() {
             writeln!(&mut annotated, "    R{i}.{c} = in_attr{i}.{c};").unwrap();
         }
@@ -348,4 +343,34 @@ fn annotate_fragment_shader(
     writeln!(&mut annotated, "}}").unwrap();
 
     std::fs::write(binary_path.with_extension(""), annotated).unwrap();
+}
+
+fn fragment_input_locations(
+    vertex_shader: &xc3_lib::mths::Gx2VertexShader,
+    frag_shader: &xc3_lib::mths::Gx2PixelShader,
+) -> Vec<i32> {
+    // Fragment inputs are remapped by vertex and fragment registers.
+    // https://github.com/decaf-emu/decaf-emu/blob/e6c528a20a41c34e0f9eb91dd3da40f119db2dee/src/libgpu/src/spirv/spirv_transpiler.cpp#L280-L301
+    let mut input_locations = Vec::new();
+
+    for input_id in frag_shader
+        .registers
+        .spi_ps_input_cntls
+        .iter()
+        .take(frag_shader.registers.num_spi_ps_input_cntl as usize)
+    {
+        let mut i = 0;
+        for register in &vertex_shader.registers.spi_vs_out_id {
+            // The order is [id3, id2, id1, id0];
+            for id in &register.to_le_bytes() {
+                if *id == (input_id & 0xFF) as u8 {
+                    input_locations.push(i);
+                }
+
+                i += 1;
+            }
+        }
+    }
+
+    input_locations
 }
