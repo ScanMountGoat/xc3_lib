@@ -969,8 +969,11 @@ impl Nodes {
     ) -> usize {
         let input = Expr::Func {
             name: func.into(),
-            args: (0..arg_count)
-                .map(|i| self.expr(scalar.sources[i].clone()))
+            args: scalar
+                .sources
+                .iter()
+                .take(arg_count)
+                .map(|a| self.expr(a.clone()))
                 .collect(),
             channel: None,
         };
@@ -984,16 +987,11 @@ impl Nodes {
 
 impl Graph {
     pub fn from_latte_asm(asm: &str) -> Result<Self, ParseError> {
-        let asm = asm
-            .lines()
-            .filter(|l| !l.is_empty())
-            .collect::<Vec<_>>()
-            .join("\n");
         if asm.is_empty() {
             return Ok(Graph::default());
         }
 
-        let mut pairs = LatteParser::parse(Rule::program, &asm).map_err(Box::new)?;
+        let mut pairs = LatteParser::parse(Rule::program, asm).map_err(Box::new)?;
         let program = Program::from_pest(&mut pairs)?;
 
         let mut nodes = Nodes::default();
@@ -1567,8 +1565,6 @@ fn alu_output_modifier(
     node_index: usize,
     nodes: &mut Nodes,
 ) -> Node {
-    let channel = output.channel;
-
     let (op, f) = match modifier {
         "/2" => (BinaryOp::Div, 2.0),
         "/4" => (BinaryOp::Div, 4.0),
@@ -1577,18 +1573,15 @@ fn alu_output_modifier(
         _ => panic!("unexpected modifier: {modifier}"),
     };
 
-    let input = Expr::Binary(
+    let input = nodes.binary_expr(
         op,
-        nodes.expr(Expr::Node {
+        Expr::Node {
             node_index,
-            channel,
-        }),
-        nodes.expr(Expr::Float(f.into())),
+            channel: output.channel,
+        },
+        Expr::Float(f.into()),
     );
-    Node {
-        output,
-        input: nodes.expr(input),
-    }
+    Node { output, input }
 }
 
 fn alu_src_expr(
@@ -1632,32 +1625,34 @@ fn value_expr(
     kc0: &Option<ConstantBuffer>,
     kc1: &Option<ConstantBuffer>,
 ) -> Expr {
-    // Find a previous assignment that modifies the desired channel for variables.
     match value.0 {
         AluSrcValueInner::Gpr(gpr) => previous_assignment(&gpr.to_string(), channel, nodes),
-        AluSrcValueInner::ConstantCache0(c0) => {
-            constant_buffer_parameter(c0.0, channel, kc0, nodes)
-        }
-        AluSrcValueInner::ConstantCache1(c1) => {
-            constant_buffer_parameter(c1.0, channel, kc1, nodes)
-        }
-        AluSrcValueInner::ConstantFile(cf) => Expr::Global {
-            name: format!("C{}", cf.0 .0).into(), // TODO: how to handle constant file expressions?
-            channel,
-        },
-        AluSrcValueInner::Literal(literal) => {
-            // TODO: how to handle hex literals?
-            match literal.0 {
-                LiteralInner::Hex(_) => todo!(),
-                LiteralInner::Float(f) => Expr::Float(f.trim_end_matches('f').parse().unwrap()),
-            }
-        }
+        AluSrcValueInner::ConstantCache0(c0) => constant_buffer(c0.0, channel, kc0, nodes),
+        AluSrcValueInner::ConstantCache1(c1) => constant_buffer(c1.0, channel, kc1, nodes),
+        AluSrcValueInner::ConstantFile(cf) => constant_file(cf, channel),
+        AluSrcValueInner::Literal(l) => literal(l),
         AluSrcValueInner::PreviousScalar(s) => previous_assignment(&s.to_string(), channel, nodes),
         AluSrcValueInner::PreviousVector(v) => previous_assignment(&v.to_string(), channel, nodes),
     }
 }
 
-fn constant_buffer_parameter(
+fn constant_file(cf: ConstantFile, channel: Option<char>) -> Expr {
+    // TODO: how to handle constant file expressions?
+    Expr::Global {
+        name: format!("C{}", cf.0 .0).into(),
+        channel,
+    }
+}
+
+fn literal(l: Literal) -> Expr {
+    // TODO: how to handle hex literals?
+    match l.0 {
+        LiteralInner::Hex(_) => todo!(),
+        LiteralInner::Float(f) => Expr::Float(f.trim_end_matches('f').parse().unwrap()),
+    }
+}
+
+fn constant_buffer(
     index: Number,
     channel: Option<char>,
     constant_buffer: &Option<ConstantBuffer>,
@@ -1674,48 +1669,16 @@ fn constant_buffer_parameter(
 }
 
 fn previous_assignment(value: &str, channel: Option<char>, nodes: &Nodes) -> Expr {
+    // Find a previous assignment that modifies the desired channel for variables.
     // PV can also refer to an actual register if not all outputs were masked.
     if value.starts_with("PV") {
         let inst_count: usize = value.split_once("PV").unwrap().1.parse().unwrap();
-
-        nodes
-            .node_info
-            .iter()
-            .find_map(|n| {
-                if n.inst_count == inst_count && n.alu_unit == channel {
-                    Some(Expr::Node {
-                        node_index: n.index,
-                        channel: nodes.nodes[n.index].output.channel,
-                    })
-                } else {
-                    None
-                }
-            })
-            .unwrap_or(Expr::Global {
-                name: value.into(),
-                channel,
-            })
+        find_node(nodes, inst_count, channel, value)
     } else if value.starts_with("PS") {
         let inst_count: usize = value.split_once("PS").unwrap().1.parse().unwrap();
-
-        nodes
-            .node_info
-            .iter()
-            .find_map(|n| {
-                if n.inst_count == inst_count && n.alu_unit == Some('t') {
-                    Some(Expr::Node {
-                        node_index: n.index,
-                        channel: nodes.nodes[n.index].output.channel,
-                    })
-                } else {
-                    None
-                }
-            })
-            .unwrap_or(Expr::Global {
-                name: value.into(),
-                channel,
-            })
+        find_node(nodes, inst_count, Some('t'), value)
     } else {
+        // Assume the current node hasn't been added yet.
         nodes
             .nodes
             .iter()
@@ -1729,6 +1692,26 @@ fn previous_assignment(value: &str, channel: Option<char>, nodes: &Nodes) -> Exp
                 channel,
             })
     }
+}
+
+fn find_node(nodes: &Nodes, inst_count: usize, channel: Option<char>, value: &str) -> Expr {
+    nodes
+        .node_info
+        .iter()
+        .find_map(|n| {
+            if n.inst_count == inst_count && n.alu_unit == channel {
+                Some(Expr::Node {
+                    node_index: n.index,
+                    channel: nodes.nodes[n.index].output.channel,
+                })
+            } else {
+                None
+            }
+        })
+        .unwrap_or(Expr::Global {
+            name: value.into(),
+            channel,
+        })
 }
 
 fn tex_inst_node(tex: TexInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
@@ -1832,18 +1815,19 @@ fn fetch_inst_node(tex: FetchInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
     Some(
         output_channels
             .chars()
-            .filter_map(|c| {
-                if c != '_' {
+            .zip("xyzw".chars())
+            .filter_map(|(c_in, c_out)| {
+                if c_in != '_' {
                     let input = Expr::Parameter {
                         name: cb_name.clone(),
                         field: None,
                         index: Some(src_index),
-                        channel: Some(c),
+                        channel: Some(c_in),
                     };
                     Some(Node {
                         output: Output {
                             name: output_name.clone(),
-                            channel: Some(c),
+                            channel: Some(c_out),
                         },
                         input: nodes.expr(input),
                     })
