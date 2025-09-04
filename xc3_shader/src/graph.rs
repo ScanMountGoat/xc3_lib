@@ -71,13 +71,21 @@ pub enum UnaryOp {
     Negate,
     Not,
     Complement,
-    /// Reinterpret the u32 input as a float.
+    /// Cast the i32 input to f32.
+    IntToFloat,
+    /// Cast the u32 input to f32.
+    UintToFloat,
+    /// Cast the f32 input to i32 using truncation.
+    FloatToInt,
+    /// Cast the f32 input to u32 using truncation.
+    FloatToUint,
+    /// Reinterpret the u32 input as f32.
     UintBitsToFloat,
-    /// Reinterpret the float input as an u32.
+    /// Reinterpret the f32 input as u32.
     FloatBitsToUint,
-    /// Reinterpret the i32 input as a float.
+    /// Reinterpret the i32 input as f32.
     IntBitsToFloat,
-    /// Reinterpret the float input as an i32.
+    /// Reinterpret the f32 input as i32.
     FloatBitsToInt,
 }
 

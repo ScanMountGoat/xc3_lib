@@ -242,6 +242,10 @@ impl Graph {
             UnaryOp::FloatBitsToInt => format!("floatBitsToInt({expr})"),
             UnaryOp::UintBitsToFloat => format!("uintBitsToFloat({expr})"),
             UnaryOp::FloatBitsToUint => format!("floatBitsToUint({expr})"),
+            UnaryOp::IntToFloat => format!("float({expr})"),
+            UnaryOp::UintToFloat => format!("float({expr})"),
+            UnaryOp::FloatToInt => format!("int({expr})"),
+            UnaryOp::FloatToUint => format!("uint({expr})"),
         }
     }
 

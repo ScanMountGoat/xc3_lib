@@ -20,7 +20,8 @@ pub enum ParseError {
 
 // Grammar adapted from the cpp-peglib grammer used for decaf-emu:
 // https://github.com/decaf-emu/decaf-emu/blob/master/tools/latte-assembler/resources/grammar.txt
-// Instruction details are available in the ISA https://www.techpowerup.com/gpu-specs/docs/ati-r600-isa.pdf.
+// Instruction details are available in the ISA:
+// https://www.techpowerup.com/gpu-specs/docs/ati-r600-isa.pdf.
 #[derive(Parser)]
 #[grammar = "graph/latte.pest"]
 struct LatteParser;
@@ -816,7 +817,7 @@ struct NodeInfo {
 }
 
 impl Nodes {
-    fn add_node(&mut self, node: Node, alu_unit: Option<char>, inst_count: usize) -> usize {
+    fn node(&mut self, node: Node, alu_unit: Option<char>, inst_count: usize) -> usize {
         let index = self.nodes.len();
         self.nodes.push(node);
         self.node_info.push(NodeInfo {
@@ -827,36 +828,135 @@ impl Nodes {
         index
     }
 
-    fn add_expr(&mut self, expr: Expr) -> usize {
+    fn set_float_node(
+        &mut self,
+        op: BinaryOp,
+        scalar: &AluScalarData,
+        output: Output,
+        inst_count: usize,
+    ) -> usize {
+        let input = Expr::Ternary(
+            self.binary_expr(op, scalar.sources[0].clone(), scalar.sources[1].clone()),
+            self.expr(Expr::Float(1.0.into())),
+            self.expr(Expr::Float(0.0.into())),
+        );
+        let node = Node {
+            output,
+            input: self.expr(input),
+        };
+        self.node(node, Some(scalar.alu_unit), inst_count)
+    }
+
+    fn set_float_dx10_node(
+        &mut self,
+        op: BinaryOp,
+        scalar: &AluScalarData,
+        output: Output,
+        inst_count: usize,
+    ) -> usize {
+        let input = Expr::Ternary(
+            self.binary_expr(op, scalar.sources[0].clone(), scalar.sources[1].clone()),
+            self.unary_expr(UnaryOp::IntBitsToFloat, Expr::Int(-1)),
+            self.unary_expr(UnaryOp::IntBitsToFloat, Expr::Int(0)),
+        );
+        let node = Node {
+            output,
+            input: self.expr(input),
+        };
+        self.node(node, Some(scalar.alu_unit), inst_count)
+    }
+
+    fn set_int_node(
+        &mut self,
+        op: BinaryOp,
+        scalar: &AluScalarData,
+        output: Output,
+        inst_count: usize,
+    ) -> usize {
+        let src0 = self.float_to_int_expr(scalar.sources[0].clone());
+        let src1 = self.float_to_int_expr(scalar.sources[1].clone());
+        let input = Expr::Ternary(
+            self.expr(Expr::Binary(op, src0, src1)),
+            self.unary_expr(UnaryOp::IntBitsToFloat, Expr::Int(-1)),
+            self.unary_expr(UnaryOp::IntBitsToFloat, Expr::Int(0)),
+        );
+        let node = Node {
+            output,
+            input: self.expr(input),
+        };
+        self.node(node, Some(scalar.alu_unit), inst_count)
+    }
+
+    fn cnd_float_node(
+        &mut self,
+        op: BinaryOp,
+        scalar: &AluScalarData,
+        output: Output,
+        inst_count: usize,
+    ) -> usize {
+        let input = Expr::Ternary(
+            self.binary_expr(op, scalar.sources[0].clone(), Expr::Float(0.0.into())),
+            self.expr(scalar.sources[1].clone()),
+            self.expr(scalar.sources[2].clone()),
+        );
+        let node = Node {
+            output,
+            input: self.expr(input),
+        };
+        self.node(node, Some(scalar.alu_unit), inst_count)
+    }
+
+    fn cnd_int_node(
+        &mut self,
+        op: BinaryOp,
+        scalar: &AluScalarData,
+        output: Output,
+        inst_count: usize,
+    ) -> usize {
+        let src0 = self.float_to_int_expr(scalar.sources[0].clone());
+        let cmp = self.expr(Expr::Int(0));
+        let input = Expr::Ternary(
+            self.expr(Expr::Binary(op, src0, cmp)),
+            self.expr(scalar.sources[1].clone()),
+            self.expr(scalar.sources[2].clone()),
+        );
+        let node = Node {
+            output,
+            input: self.expr(input),
+        };
+        self.node(node, Some(scalar.alu_unit), inst_count)
+    }
+
+    fn expr(&mut self, expr: Expr) -> usize {
         self.exprs.insert_full(expr).0
     }
 
-    fn add_unary(&mut self, op: UnaryOp, e: Expr) -> usize {
-        let result = Expr::Unary(op, self.add_expr(e));
-        self.add_expr(result)
+    fn unary_expr(&mut self, op: UnaryOp, e: Expr) -> usize {
+        let result = Expr::Unary(op, self.expr(e));
+        self.expr(result)
     }
 
-    fn add_binary(&mut self, op: BinaryOp, lh: Expr, rh: Expr) -> usize {
-        let result = Expr::Binary(op, self.add_expr(lh), self.add_expr(rh));
-        self.add_expr(result)
+    fn binary_expr(&mut self, op: BinaryOp, lh: Expr, rh: Expr) -> usize {
+        let result = Expr::Binary(op, self.expr(lh), self.expr(rh));
+        self.expr(result)
     }
 
-    fn add_float_to_int(&mut self, expr: Expr) -> usize {
+    fn float_to_int_expr(&mut self, expr: Expr) -> usize {
         // Convert float literals directly to integers.
         let result = match expr {
             Expr::Float(f) => Expr::Int(f.to_bits() as i32),
-            e => Expr::Unary(UnaryOp::FloatBitsToInt, self.add_expr(e)),
+            e => Expr::Unary(UnaryOp::FloatBitsToInt, self.expr(e)),
         };
-        self.add_expr(result)
+        self.expr(result)
     }
 
     fn add_float_to_uint(&mut self, expr: Expr) -> usize {
         // Convert float literals directly to integers.
         let result = match expr {
             Expr::Float(f) => Expr::Uint(f.to_bits()),
-            e => Expr::Unary(UnaryOp::FloatBitsToUint, self.add_expr(e)),
+            e => Expr::Unary(UnaryOp::FloatBitsToUint, self.expr(e)),
         };
-        self.add_expr(result)
+        self.expr(result)
     }
 
     fn add_func(
@@ -870,15 +970,15 @@ impl Nodes {
         let input = Expr::Func {
             name: func.into(),
             args: (0..arg_count)
-                .map(|i| self.add_expr(scalar.sources[i].clone()))
+                .map(|i| self.expr(scalar.sources[i].clone()))
                 .collect(),
             channel: None,
         };
         let node = Node {
             output,
-            input: self.add_expr(input),
+            input: self.expr(input),
         };
-        self.add_node(node, Some(scalar.alu_unit), inst_count)
+        self.node(node, Some(scalar.alu_unit), inst_count)
     }
 }
 
@@ -949,13 +1049,13 @@ fn add_exp_inst(exp: CfExpInst, nodes: &mut Nodes) {
                     name: format!("{target_name}{}", target_index + i).into(),
                     channel: Some(c),
                 },
-                input: nodes.add_expr(previous_assignment(
+                input: nodes.expr(previous_assignment(
                     &format!("{source_name}{}", source_index + i),
                     Some(c),
                     nodes,
                 )),
             };
-            nodes.add_node(node, None, inst_count);
+            nodes.node(node, None, inst_count);
         }
     }
 }
@@ -966,13 +1066,13 @@ fn add_tex_clause(clause: TexClause, nodes: &mut Nodes) {
             TexInstOrFetchInst::Tex(tex_inst) => {
                 let tex_nodes = tex_inst_node(tex_inst, nodes).unwrap();
                 for node in tex_nodes {
-                    nodes.add_node(node, None, clause.inst_count.0 .0);
+                    nodes.node(node, None, clause.inst_count.0 .0);
                 }
             }
             TexInstOrFetchInst::Fetch(fetch_inst) => {
                 let fetch_nodes = fetch_inst_node(fetch_inst, nodes).unwrap();
                 for node in fetch_nodes {
-                    nodes.add_node(node, None, clause.inst_count.0 .0);
+                    nodes.node(node, None, clause.inst_count.0 .0);
                 }
             }
         }
@@ -1085,12 +1185,12 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                 if let Some(node_index) = dot_node_index {
                     let node = Node {
                         output: scalar.output,
-                        input: nodes.add_expr(Expr::Node {
+                        input: nodes.expr(Expr::Node {
                             node_index,
                             channel: None,
                         }),
                     };
-                    nodes.add_node(node, Some(scalar.alu_unit), inst_count);
+                    nodes.node(node, Some(scalar.alu_unit), inst_count);
                 }
             } else {
                 add_scalar(scalar, nodes, inst_count);
@@ -1109,8 +1209,8 @@ fn dot_product_node_index(
         .filter_map(|s| {
             if s.op_code.starts_with("DOT4") {
                 Some((
-                    nodes.add_expr(s.sources[0].clone()),
-                    nodes.add_expr(s.sources[1].clone()),
+                    nodes.expr(s.sources[0].clone()),
+                    nodes.expr(s.sources[1].clone()),
                 ))
             } else {
                 None
@@ -1121,12 +1221,12 @@ fn dot_product_node_index(
         let input = Expr::Func {
             name: "dot".into(),
             args: vec![
-                nodes.add_expr(Expr::Func {
+                nodes.expr(Expr::Func {
                     name: "vec4".into(),
                     args: dot4_a,
                     channel: None,
                 }),
-                nodes.add_expr(Expr::Func {
+                nodes.expr(Expr::Func {
                     name: "vec4".into(),
                     args: dot4_b,
                     channel: None,
@@ -1139,16 +1239,15 @@ fn dot_product_node_index(
                 name: format!("temp{inst_count}").into(),
                 channel: None,
             },
-            input: nodes.add_expr(input),
+            input: nodes.expr(input),
         };
-        let node_index = nodes.add_node(node, None, inst_count);
+        let node_index = nodes.node(node, None, inst_count);
         Some(node_index)
     } else {
         None
     }
 }
 
-// https://www.techpowerup.com/gpu-specs/docs/ati-r600-isa.pdf
 fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
     let output = scalar.output.clone();
     let node_index = match scalar.op_code.as_str() {
@@ -1156,58 +1255,69 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
         "MOV" => {
             let node = Node {
                 output,
-                input: nodes.add_expr(scalar.sources[0].clone()),
+                input: nodes.expr(scalar.sources[0].clone()),
             };
-            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         "FLOOR" => Some(nodes.add_func("floor", 1, &scalar, output, inst_count)),
         "SQRT_IEEE" => Some(nodes.add_func("sqrt", 1, &scalar, output, inst_count)),
         "RECIP_IEEE" => {
-            let input = nodes.add_binary(
+            let input = nodes.binary_expr(
                 BinaryOp::Div,
                 Expr::Float(1.0.into()),
                 scalar.sources[0].clone(),
             );
             let node = Node { output, input };
-            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
+        }
+        "RECIP_FF" => {
+            // TODO: Set result of +inf to +0 and -inf to -0.
+            let input = nodes.binary_expr(
+                BinaryOp::Div,
+                Expr::Float(1.0.into()),
+                scalar.sources[0].clone(),
+            );
+            let node = Node { output, input };
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         "RECIPSQRT_IEEE" => Some(nodes.add_func("inversesqrt", 1, &scalar, output, inst_count)),
+        "RECIPSQRT_FF" => {
+            // TODO: Set result of +inf to +0 and -inf to -0.
+            Some(nodes.add_func("inversesqrt", 1, &scalar, output, inst_count))
+        }
         "EXP_IEEE" => Some(nodes.add_func("exp2", 1, &scalar, output, inst_count)),
         "LOG_CLAMPED" => Some(nodes.add_func("log2", 1, &scalar, output, inst_count)),
         // scalar2
         "ADD" => {
-            let input = nodes.add_binary(
+            let input = nodes.binary_expr(
                 BinaryOp::Add,
                 scalar.sources[0].clone(),
                 scalar.sources[1].clone(),
             );
-            let node = Node {
-                output,
-                input: input,
-            };
-            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+            let node = Node { output, input };
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         "ADD_INT" => {
             let result = Expr::Binary(
                 BinaryOp::Add,
-                nodes.add_float_to_int(scalar.sources[0].clone()),
-                nodes.add_float_to_int(scalar.sources[1].clone()),
+                nodes.float_to_int_expr(scalar.sources[0].clone()),
+                nodes.float_to_int_expr(scalar.sources[1].clone()),
             );
-            let input = nodes.add_unary(UnaryOp::IntBitsToFloat, result);
+            let input = nodes.unary_expr(UnaryOp::IntBitsToFloat, result);
             let node = Node { output, input };
-            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         "MIN" | "MIN_DX10" => Some(nodes.add_func("min", 2, &scalar, output, inst_count)),
         "MAX" | "MAX_DX10" => Some(nodes.add_func("max", 2, &scalar, output, inst_count)),
         "MUL" | "MUL_IEEE" => {
             // Scalar multiplication with floats.
-            let input = nodes.add_binary(
+            let input = nodes.binary_expr(
                 BinaryOp::Mul,
                 scalar.sources[0].clone(),
                 scalar.sources[1].clone(),
             );
             let node = Node { output, input };
-            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         "DOT4" | "DOT4_IEEE" => {
             // Handled in a previous check.
@@ -1220,26 +1330,26 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
                 nodes.add_float_to_uint(scalar.sources[0].clone()),
                 nodes.add_float_to_uint(scalar.sources[1].clone()),
             );
-            let input = nodes.add_unary(UnaryOp::UintBitsToFloat, result);
+            let input = nodes.unary_expr(UnaryOp::UintBitsToFloat, result);
             let node = Node { output, input };
-            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         "MULLO_INT" => {
             // Scalar multiplication with signed integers stored in the lower bits.
             let result = Expr::Binary(
                 BinaryOp::Mul,
-                nodes.add_float_to_int(scalar.sources[0].clone()),
-                nodes.add_float_to_int(scalar.sources[1].clone()),
+                nodes.float_to_int_expr(scalar.sources[0].clone()),
+                nodes.float_to_int_expr(scalar.sources[1].clone()),
             );
-            let input = nodes.add_unary(UnaryOp::IntBitsToFloat, result);
+            let input = nodes.unary_expr(UnaryOp::IntBitsToFloat, result);
             let node = Node { output, input };
-            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         // scalar3
         "MULADD" | "MULADD_IEEE" => Some(nodes.add_func("fma", 3, &scalar, output, inst_count)),
         "MULADD_M2" => {
             let node_index = nodes.add_func("fma", 3, &scalar, output.clone(), inst_count);
-            let input = nodes.add_binary(
+            let input = nodes.binary_expr(
                 BinaryOp::Mul,
                 Expr::Node {
                     node_index,
@@ -1248,11 +1358,11 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
                 Expr::Float(2.0.into()),
             );
             let node = Node { output, input };
-            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         "MULADD_M4" => {
             let node_index = nodes.add_func("fma", 3, &scalar, output.clone(), inst_count);
-            let input = nodes.add_binary(
+            let input = nodes.binary_expr(
                 BinaryOp::Mul,
                 Expr::Node {
                     node_index,
@@ -1260,15 +1370,12 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
                 },
                 Expr::Float(4.0.into()),
             );
-            let node = Node {
-                output,
-                input: input,
-            };
-            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+            let node = Node { output, input };
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         "MULADD_D2" => {
             let node_index = nodes.add_func("fma", 3, &scalar, output.clone(), inst_count);
-            let input = nodes.add_binary(
+            let input = nodes.binary_expr(
                 BinaryOp::Div,
                 Expr::Node {
                     node_index,
@@ -1277,11 +1384,11 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
                 Expr::Float(2.0.into()),
             );
             let node = Node { output, input };
-            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         "MULADD_D4" => {
             let node_index = nodes.add_func("fma", 3, &scalar, output.clone(), inst_count);
-            let input = nodes.add_binary(
+            let input = nodes.binary_expr(
                 BinaryOp::Div,
                 Expr::Node {
                     node_index,
@@ -1290,49 +1397,111 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
                 Expr::Float(4.0.into()),
             );
             let node = Node { output, input };
-            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         "NOP" => None,
-        // TODO: handle conversions.
-        "FLT_TO_INT" => None,
-        "INT_TO_FLT" => None,
-        // TODO: Cube maps
-        "CUBE" => None,
-        "KILLE_INT" | "PRED_SETGE" | "SETNE" | "PRED_SETGT" => None,
+        "FLT_TO_INT" => {
+            let input = nodes.unary_expr(UnaryOp::FloatToInt, scalar.sources[0].clone());
+            let node = Node { output, input };
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
+        }
+        "FLT_TO_UINT" => {
+            let input = nodes.unary_expr(UnaryOp::FloatToUint, scalar.sources[0].clone());
+            let node = Node { output, input };
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
+        }
+        "INT_TO_FLT" => {
+            let input = nodes.unary_expr(UnaryOp::IntToFloat, scalar.sources[0].clone());
+            let node = Node { output, input };
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
+        }
+        "UINT_TO_FLT" => {
+            let input = nodes.unary_expr(UnaryOp::UintToFloat, scalar.sources[0].clone());
+            let node = Node { output, input };
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
+        }
+        "SIN" => Some(nodes.add_func("sin", 1, &scalar, output, inst_count)),
+        "COS" => Some(nodes.add_func("cos", 1, &scalar, output, inst_count)),
+        "FRACT" => Some(nodes.add_func("fract", 1, &scalar, output, inst_count)),
+        "CUBE" => None, // TODO: Cube maps
+        // TODO: push/pop and predicates
+        "PRED_SETGE" | "PRED_SETGT" => None,
         // Conditionals
+        "KILLE_INT" => {
+            // TODO: if src0 == src1 kill and set dst to 1.0 else set dst to 0.0
+            None
+        }
+        "SETE" => {
+            // Floating-point set if equal.
+            Some(nodes.set_float_node(BinaryOp::Equal, &scalar, output, inst_count))
+        }
+        "SETE_INT" => {
+            // Integer set if equal.
+            Some(nodes.set_int_node(BinaryOp::Equal, &scalar, output, inst_count))
+        }
+        "SETE_DX10" => {
+            // Floating-point set if equal with an integer result.
+            Some(nodes.set_float_dx10_node(BinaryOp::Equal, &scalar, output, inst_count))
+        }
+        "SETNE" => {
+            // Floating-point set if not equal.
+            Some(nodes.set_float_node(BinaryOp::NotEqual, &scalar, output, inst_count))
+        }
+        "SETNE_INT" => {
+            // Integer set if not equal.
+            Some(nodes.set_int_node(BinaryOp::NotEqual, &scalar, output, inst_count))
+        }
+        "SETNE_DX10" => {
+            // Floating-point set if not equal with an integer result.
+            Some(nodes.set_float_dx10_node(BinaryOp::Equal, &scalar, output, inst_count))
+        }
+        "SETGT" => {
+            // Floating-point set if greater than.
+            Some(nodes.set_float_node(BinaryOp::Greater, &scalar, output, inst_count))
+        }
+        "SETGT_INT" => {
+            // Integer set if greater than.
+            Some(nodes.set_int_node(BinaryOp::Greater, &scalar, output, inst_count))
+        }
+        "SETGT_DX10" => {
+            // Floating-point set if greater than with an integer result.
+            Some(nodes.set_float_dx10_node(BinaryOp::Greater, &scalar, output, inst_count))
+        }
+        "SETGE" => {
+            // Floating-point set if greater than or equal.
+            Some(nodes.set_float_node(BinaryOp::GreaterEqual, &scalar, output, inst_count))
+        }
+        "SETGE_INT" => {
+            // Integer set if greater than or equal.
+            Some(nodes.set_int_node(BinaryOp::GreaterEqual, &scalar, output, inst_count))
+        }
         "SETGE_DX10" => {
             // Floating-point set if geq with an integer result.
-            let input = Expr::Ternary(
-                nodes.add_binary(
-                    BinaryOp::GreaterEqual,
-                    scalar.sources[0].clone(),
-                    scalar.sources[1].clone(),
-                ),
-                nodes.add_unary(UnaryOp::IntBitsToFloat, Expr::Int(-1)),
-                nodes.add_unary(UnaryOp::IntBitsToFloat, Expr::Int(0)),
-            );
-            let node = Node {
-                output,
-                input: nodes.add_expr(input),
-            };
-            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+            Some(nodes.set_float_dx10_node(BinaryOp::GreaterEqual, &scalar, output, inst_count))
+        }
+        "CNDE" => {
+            // Floating-point conditional move if equal 0.0.
+            Some(nodes.cnd_float_node(BinaryOp::Equal, &scalar, output, inst_count))
+        }
+        "CNDE_INT" => {
+            // Integer conditional move if equal 0.
+            Some(nodes.cnd_int_node(BinaryOp::Equal, &scalar, output, inst_count))
+        }
+        "CNDGT" => {
+            // Floating-point conditional move if greater than 0.0.
+            Some(nodes.cnd_float_node(BinaryOp::Greater, &scalar, output, inst_count))
+        }
+        "CNDGT_INT" => {
+            // Integer conditional move if greater than 0.
+            Some(nodes.cnd_int_node(BinaryOp::Greater, &scalar, output, inst_count))
         }
         "CNDGE" => {
-            // Floating-point set if geq 0.0.
-            let input = Expr::Ternary(
-                nodes.add_binary(
-                    BinaryOp::GreaterEqual,
-                    scalar.sources[0].clone(),
-                    Expr::Float(0.0.into()),
-                ),
-                nodes.add_expr(Expr::Float(1.0.into())),
-                nodes.add_expr(Expr::Float(0.0.into())),
-            );
-            let node = Node {
-                output,
-                input: nodes.add_expr(input),
-            };
-            Some(nodes.add_node(node, Some(scalar.alu_unit), inst_count))
+            // Floating-point conditional move if greater than or equal 0.0.
+            Some(nodes.cnd_float_node(BinaryOp::GreaterEqual, &scalar, output, inst_count))
+        }
+        "CNDGE_INT" => {
+            // Integer conditional move if greater than or equal 0.
+            Some(nodes.cnd_int_node(BinaryOp::GreaterEqual, &scalar, output, inst_count))
         }
         opcode => {
             // TODO: Handle additional opcodes?
@@ -1344,7 +1513,7 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: usize) {
     if let Some(modifier) = scalar.output_modifier {
         if let Some(node_index) = node_index {
             let node = alu_output_modifier(&modifier, scalar.output, node_index, nodes);
-            nodes.add_node(node, Some(scalar.alu_unit), inst_count);
+            nodes.node(node, Some(scalar.alu_unit), inst_count);
         }
     }
 }
@@ -1410,15 +1579,15 @@ fn alu_output_modifier(
 
     let input = Expr::Binary(
         op,
-        nodes.add_expr(Expr::Node {
+        nodes.expr(Expr::Node {
             node_index,
             channel,
         }),
-        nodes.add_expr(Expr::Float(f.into())),
+        nodes.expr(Expr::Float(f.into())),
     );
     Node {
         output,
-        input: nodes.add_expr(input),
+        input: nodes.expr(input),
     }
 }
 
@@ -1437,7 +1606,7 @@ fn alu_src_expr(
             let arg = value_expr(nodes, channel, abs_value.value, kc0, kc1);
             Expr::Func {
                 name: "abs".into(),
-                args: vec![nodes.add_expr(arg)],
+                args: vec![nodes.expr(arg)],
                 channel: abs_value.swizzle.and_then(|s| s.channels().chars().next()),
             }
         }
@@ -1449,7 +1618,7 @@ fn alu_src_expr(
             // Avoid an issue with -0.0 being equal to 0.0 when hashing ordered_float.
             Expr::Float(-f)
         } else {
-            Expr::Unary(UnaryOp::Negate, nodes.add_expr(expr))
+            Expr::Unary(UnaryOp::Negate, nodes.expr(expr))
         }
     } else {
         expr
@@ -1497,7 +1666,7 @@ fn constant_buffer_parameter(
     Expr::Parameter {
         name: format!("CB{}", constant_buffer.as_ref().unwrap().index).into(),
         field: None,
-        index: Some(nodes.add_expr(Expr::Int(
+        index: Some(nodes.expr(Expr::Int(
             (index.0 + constant_buffer.as_ref().unwrap().start_index) as i32,
         ))),
         channel,
@@ -1571,13 +1740,13 @@ fn tex_inst_node(tex: TexInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
     let output_channels = tex.dst.swizzle.channels();
 
     let texcoords = tex_src_coords(tex.src, nodes)?;
-    let texcoords = nodes.add_expr(texcoords);
+    let texcoords = nodes.expr(texcoords);
 
     // TODO: make these rules not atomic and format similar to gpr?
     let texture = tex.resource_id.0;
     let _sampler = tex.sampler_id.0;
 
-    let texture_name = nodes.add_expr(Expr::Global {
+    let texture_name = nodes.expr(Expr::Global {
         name: texture.into(),
         channel: None,
     });
@@ -1593,7 +1762,7 @@ fn tex_inst_node(tex: TexInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
                 name: output_name,
                 channel: None,
             },
-            input: nodes.add_expr(input),
+            input: nodes.expr(input),
         }])
     } else {
         // Convert vector swizzles to scalar operations to simplify analysis code.
@@ -1615,7 +1784,7 @@ fn tex_inst_node(tex: TexInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
                                 name: output_name.clone(),
                                 channel: Some(c_out),
                             },
-                            input: nodes.add_expr(input),
+                            input: nodes.expr(input),
                         })
                     } else {
                         None
@@ -1637,8 +1806,8 @@ fn tex_src_coords(src: TexSrc, nodes: &mut Nodes) -> Option<Expr> {
     Some(Expr::Func {
         name: "vec2".into(),
         args: vec![
-            nodes.add_expr(previous_assignment(&gpr, channels.next(), nodes)),
-            nodes.add_expr(previous_assignment(&gpr, channels.next(), nodes)),
+            nodes.expr(previous_assignment(&gpr, channels.next(), nodes)),
+            nodes.expr(previous_assignment(&gpr, channels.next(), nodes)),
         ],
         channel: None,
     })
@@ -1676,7 +1845,7 @@ fn fetch_inst_node(tex: FetchInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
                             name: output_name.clone(),
                             channel: Some(c),
                         },
-                        input: nodes.add_expr(input),
+                        input: nodes.expr(input),
                     })
                 } else {
                     None
