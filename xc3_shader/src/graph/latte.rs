@@ -1040,7 +1040,7 @@ fn add_exp_inst(exp: CfExpInst, nodes: &mut Nodes) {
 
     // BURSTCNT assigns consecutive input and output registers.
     for i in 0..=burst_count {
-        // TODO: use out_attr{i} for consistency with GLSL?
+        // Output names don't conflict with register names, so we don't need to backup any values.
         for c in channels.chars() {
             let node = Node {
                 output: Output {
@@ -1051,6 +1051,7 @@ fn add_exp_inst(exp: CfExpInst, nodes: &mut Nodes) {
                     &format!("{source_name}{}", source_index + i),
                     Some(c),
                     nodes,
+                    inst_count,
                 )),
             };
             nodes.node(node, None, inst_count);
@@ -1142,7 +1143,13 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         op_code: s.opcode.0,
                         output_modifier: s.modifier.map(|m| m.0),
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
-                        sources: vec![alu_src_expr(s.src1, nodes, &kc0_buffer, &kc1_buffer)],
+                        sources: vec![alu_src_expr(
+                            s.src1,
+                            nodes,
+                            &kc0_buffer,
+                            &kc1_buffer,
+                            inst_count,
+                        )],
                     }
                 }
                 AluScalar::Scalar2(s) => {
@@ -1153,8 +1160,8 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         output_modifier: s.modifier.map(|m| m.0),
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
                         sources: vec![
-                            alu_src_expr(s.src1, nodes, &kc0_buffer, &kc1_buffer),
-                            alu_src_expr(s.src2, nodes, &kc0_buffer, &kc1_buffer),
+                            alu_src_expr(s.src1, nodes, &kc0_buffer, &kc1_buffer, inst_count),
+                            alu_src_expr(s.src2, nodes, &kc0_buffer, &kc1_buffer, inst_count),
                         ],
                     }
                 }
@@ -1166,9 +1173,9 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         output_modifier: None,
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
                         sources: vec![
-                            alu_src_expr(s.src1, nodes, &kc0_buffer, &kc1_buffer),
-                            alu_src_expr(s.src2, nodes, &kc0_buffer, &kc1_buffer),
-                            alu_src_expr(s.src3, nodes, &kc0_buffer, &kc1_buffer),
+                            alu_src_expr(s.src1, nodes, &kc0_buffer, &kc1_buffer, inst_count),
+                            alu_src_expr(s.src2, nodes, &kc0_buffer, &kc1_buffer, inst_count),
+                            alu_src_expr(s.src3, nodes, &kc0_buffer, &kc1_buffer, inst_count),
                         ],
                     }
                 }
@@ -1589,6 +1596,7 @@ fn alu_src_expr(
     nodes: &mut Nodes,
     kc0: &Option<ConstantBuffer>,
     kc1: &Option<ConstantBuffer>,
+    inst_count: usize,
 ) -> Expr {
     let negate = source.negate.is_some();
 
@@ -1596,14 +1604,14 @@ fn alu_src_expr(
 
     let expr = match source.value {
         AluSrcValueOrAbs::Abs(abs_value) => {
-            let arg = value_expr(nodes, channel, abs_value.value, kc0, kc1);
+            let arg = value_expr(nodes, channel, abs_value.value, kc0, kc1, inst_count);
             Expr::Func {
                 name: "abs".into(),
                 args: vec![nodes.expr(arg)],
                 channel: abs_value.swizzle.and_then(|s| s.channels().chars().next()),
             }
         }
-        AluSrcValueOrAbs::Value(value) => value_expr(nodes, channel, value, kc0, kc1),
+        AluSrcValueOrAbs::Value(value) => value_expr(nodes, channel, value, kc0, kc1, inst_count),
     };
 
     if negate {
@@ -1624,15 +1632,22 @@ fn value_expr(
     value: AluSrcValue,
     kc0: &Option<ConstantBuffer>,
     kc1: &Option<ConstantBuffer>,
+    inst_count: usize,
 ) -> Expr {
     match value.0 {
-        AluSrcValueInner::Gpr(gpr) => previous_assignment(&gpr.to_string(), channel, nodes),
+        AluSrcValueInner::Gpr(gpr) => {
+            previous_assignment(&gpr.to_string(), channel, nodes, inst_count)
+        }
         AluSrcValueInner::ConstantCache0(c0) => constant_buffer(c0.0, channel, kc0, nodes),
         AluSrcValueInner::ConstantCache1(c1) => constant_buffer(c1.0, channel, kc1, nodes),
         AluSrcValueInner::ConstantFile(cf) => constant_file(cf, channel),
         AluSrcValueInner::Literal(l) => literal(l),
-        AluSrcValueInner::PreviousScalar(s) => previous_assignment(&s.to_string(), channel, nodes),
-        AluSrcValueInner::PreviousVector(v) => previous_assignment(&v.to_string(), channel, nodes),
+        AluSrcValueInner::PreviousScalar(s) => {
+            previous_assignment(&s.to_string(), channel, nodes, inst_count)
+        }
+        AluSrcValueInner::PreviousVector(v) => {
+            previous_assignment(&v.to_string(), channel, nodes, inst_count)
+        }
     }
 }
 
@@ -1668,7 +1683,12 @@ fn constant_buffer(
     }
 }
 
-fn previous_assignment(value: &str, channel: Option<char>, nodes: &Nodes) -> Expr {
+fn previous_assignment(
+    value: &str,
+    channel: Option<char>,
+    nodes: &Nodes,
+    inst_count: usize,
+) -> Expr {
     // Find a previous assignment that modifies the desired channel for variables.
     // PV can also refer to an actual register if not all outputs were masked.
     if value.starts_with("PV") {
@@ -1678,11 +1698,16 @@ fn previous_assignment(value: &str, channel: Option<char>, nodes: &Nodes) -> Exp
         let inst_count: usize = value.split_once("PS").unwrap().1.parse().unwrap();
         find_node(nodes, inst_count, Some('t'), value)
     } else {
-        // Assume the current node hasn't been added yet.
+        // Search starting from before the current clause.
         nodes
             .nodes
             .iter()
-            .rposition(|n| n.output.name == value && n.output.channel == channel)
+            .zip(&nodes.node_info)
+            .rposition(|(node, info)| {
+                node.output.name == value
+                    && node.output.channel == channel
+                    && info.inst_count != inst_count
+            })
             .map(|node_index| Expr::Node {
                 node_index,
                 channel,
@@ -1715,6 +1740,8 @@ fn find_node(nodes: &Nodes, inst_count: usize, channel: Option<char>, value: &st
 }
 
 fn tex_inst_node(tex: TexInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
+    let inst_count = tex.inst_count.0 .0;
+
     // TODO: Check that op code is SAMPLE?
 
     // TODO: Get the input names and channels.
@@ -1722,7 +1749,7 @@ fn tex_inst_node(tex: TexInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
     let output_name = tex.dst.gpr.to_smolstr();
     let output_channels = tex.dst.swizzle.channels();
 
-    let texcoords = tex_src_coords(tex.src, nodes)?;
+    let texcoords = tex_src_coords(&tex, nodes, inst_count)?;
     let texcoords = nodes.expr(texcoords);
 
     // TODO: make these rules not atomic and format similar to gpr?
@@ -1734,69 +1761,103 @@ fn tex_inst_node(tex: TexInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
         channel: None,
     });
 
-    if output_channels.is_empty() {
-        let input = Expr::Func {
-            name: "texture".into(),
-            args: vec![texture_name, texcoords],
-            channel: None,
-        };
-        Some(vec![Node {
-            output: Output {
-                name: output_name,
-                channel: None,
-            },
-            input: nodes.expr(input),
-        }])
-    } else {
-        // Convert vector swizzles to scalar operations to simplify analysis code.
-        // The output and input channels aren't always the same.
-        // For example, ___x should assign src.x to dst.w.
-        Some(
-            output_channels
-                .chars()
-                .zip("xyzw".chars())
-                .filter_map(|(c_in, c_out)| {
-                    if c_in != '_' {
-                        let input = Expr::Func {
-                            name: "texture".into(),
-                            args: vec![texture_name, texcoords],
-                            channel: Some(c_in),
-                        };
-                        Some(Node {
-                            output: Output {
-                                name: output_name.clone(),
-                                channel: Some(c_out),
-                            },
-                            input: nodes.expr(input),
-                        })
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
-        )
-    }
+    // Convert vector swizzles to scalar operations to simplify analysis code.
+    // The output and input channels aren't always the same.
+    // For example, ___x should assign src.x to dst.w.
+    Some(
+        output_channels
+            .chars()
+            .zip("xyzw".chars())
+            .filter_map(|(c_in, c_out)| {
+                if c_in != '_' {
+                    let input = Expr::Func {
+                        name: "texture".into(),
+                        args: vec![texture_name, texcoords],
+                        channel: Some(c_in),
+                    };
+                    Some(Node {
+                        output: Output {
+                            name: output_name.clone(),
+                            channel: Some(c_out),
+                        },
+                        input: nodes.expr(input),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect(),
+    )
 }
 
-fn tex_src_coords(src: TexSrc, nodes: &mut Nodes) -> Option<Expr> {
+fn tex_src_coords(tex: &TexInst, nodes: &mut Nodes, inst_count: usize) -> Option<Expr> {
     // TODO: Handle other cases from grammar.
-    let gpr = src.gpr.to_string();
+    let gpr = tex.src.gpr.to_string();
 
     // TODO: Handle write masks.
-    let mut channels = src.swizzle.channels().chars();
+    let args = if tex.dst.gpr.0 .0 == tex.src.gpr.0 .0 {
+        // Backup values if input and output are the same when converting to scalar.
+        // For example, R1.xyz = texture(s5, R1.xy) should use the previous value for R1.
+        let node_indices: Vec<_> = tex
+            .src
+            .swizzle
+            .channels()
+            .chars()
+            .take(2)
+            .map(|c| {
+                let input = nodes.expr(previous_assignment(&gpr, Some(c), nodes, inst_count));
+                let node = Node {
+                    output: Output {
+                        name: format!("{gpr}_backup").into(),
+                        channel: Some(c),
+                    },
+                    input,
+                };
+                nodes.node(node, None, tex.inst_count.0 .0)
+            })
+            .collect();
+
+        let mut channels = tex.src.swizzle.channels().chars();
+        vec![
+            nodes.expr(Expr::Node {
+                node_index: node_indices[0],
+                channel: channels.next(),
+            }),
+            nodes.expr(Expr::Node {
+                node_index: node_indices[1],
+                channel: channels.next(),
+            }),
+        ]
+    } else {
+        let mut channels = tex.src.swizzle.channels().chars();
+
+        vec![
+            nodes.expr(previous_assignment(
+                &gpr,
+                channels.next(),
+                nodes,
+                inst_count,
+            )),
+            nodes.expr(previous_assignment(
+                &gpr,
+                channels.next(),
+                nodes,
+                inst_count,
+            )),
+        ]
+    };
 
     // TODO: Also handle cube maps.
     Some(Expr::Func {
         name: "vec2".into(),
-        args: vec![
-            nodes.expr(previous_assignment(&gpr, channels.next(), nodes)),
-            nodes.expr(previous_assignment(&gpr, channels.next(), nodes)),
-        ],
+        args,
         channel: None,
     })
 }
 
 fn fetch_inst_node(tex: FetchInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
+    let inst_count = tex.inst_count.0 .0;
+
     let output_name = tex.dst.gpr.to_smolstr();
     let output_channels = tex.dst.swizzle.channels();
 
@@ -1808,7 +1869,7 @@ fn fetch_inst_node(tex: FetchInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
     let cb_name: SmolStr = format!("CB{cb_index}").into();
 
     // TODO: How should the OFFSET property be used?
-    let src_expr = previous_assignment(&src_name, src_channels.chars().next(), nodes);
+    let src_expr = previous_assignment(&src_name, src_channels.chars().next(), nodes, inst_count);
     let src_index = nodes.add_float_to_uint(src_expr);
 
     // Convert vector swizzles to scalar operations to simplify analysis code.

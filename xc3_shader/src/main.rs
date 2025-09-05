@@ -116,7 +116,6 @@ fn main() {
     let cli = Cli::parse();
 
     let start = std::time::Instant::now();
-    // TODO: make annotation optional
     match cli.command {
         Commands::DecompileShaders {
             input_folder,

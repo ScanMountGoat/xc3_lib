@@ -48,6 +48,7 @@ pub enum Expr {
     Parameter {
         name: SmolStr,
         field: Option<SmolStr>,
+        /// Index into [exprs](struct.Graph.html#structfield.exprs) for the array index if present.
         index: Option<usize>,
         channel: Option<char>,
     },
@@ -61,6 +62,7 @@ pub enum Expr {
     Ternary(usize, usize, usize),
     Func {
         name: SmolStr,
+        /// Indices into [exprs](struct.Graph.html#structfield.exprs) for function arguments.
         args: Vec<usize>,
         channel: Option<char>,
     },
