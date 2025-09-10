@@ -1,7 +1,6 @@
 use std::{
     io::Cursor,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
 };
 
 use approx::RelativeEq;
@@ -9,7 +8,6 @@ use binrw::{BinRead, BinReaderExt, Endian};
 use clap::Parser;
 use glam::Mat4;
 use rayon::prelude::*;
-use tracing_subscriber::layer::SubscriberExt;
 use xc3_lib::{
     apmd::Apmd,
     bc::Bc,
@@ -32,7 +30,7 @@ use xc3_lib::{
     mths::Mths,
     mtxt::Mtxt,
     mxmd::{legacy::MxmdLegacy, Mxmd, MxmdV112},
-    offset::{OffsetLayer, OffsetRange, OffsetValidationError},
+    offset::{read_type_get_offsets, OffsetRange, OffsetValidationError},
     sar1::{ChCl, Csvb, Sar1},
     spch::Spch,
     xbc1::{MaybeXbc1, Xbc1},
@@ -1269,7 +1267,12 @@ where
                         OffsetValidationError::GapWithNonPaddingBytes { .. } => gap_count += 1,
                     }
                 }
-                println!("GapWithNonPaddingBytes: {gap_count}, OverlappingRange: {overlap_count}, {path:?}");
+                if gap_count > 0 {
+                    println!("GapWithNonPaddingBytes: {gap_count}, {path:?}");
+                }
+                if overlap_count > 0 {
+                    println!("OverlappingRange: {overlap_count}, {path:?}");
+                }
             }
         });
 }
@@ -1544,24 +1547,6 @@ where
         .write_full(&mut writer, 0, &mut 0, xc3_write::Endian::Big, ())
         .unwrap();
     writer.into_inner() == original_bytes
-}
-
-fn read_type_get_offsets<T>(bytes: &[u8], endian: Endian) -> (binrw::BinResult<T>, Vec<OffsetRange>)
-where
-    for<'a> T: BinRead<Args<'a> = ()>,
-{
-    // Log offsets for just this type on this thread.
-    let ranges = Arc::new(Mutex::new(Vec::new()));
-    let subscriber = tracing_subscriber::registry().with(OffsetLayer(ranges.clone()));
-
-    let mut reader = Cursor::new(bytes);
-    let result = tracing::subscriber::with_default(subscriber, || reader.read_type(endian));
-
-    let mut ranges = ranges.lock().unwrap().clone();
-    // Sort to make validation easier later.
-    ranges.sort_by_key(|r| r.start);
-
-    (result, ranges.clone())
 }
 
 fn validate_offset_write_order(

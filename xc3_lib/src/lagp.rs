@@ -96,18 +96,12 @@ pub struct Unk13 {
     #[xc3(offset_count(u32, u32), align(1))]
     pub unk1: Vec<Unk13Unk1>,
 
-    #[br(temp, restore_position)]
-    offsets: [u32; 2],
-
-    // TODO: type and count?
-    #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: (offsets[1] - offsets[0]) as usize / 4 }})]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(1))]
-    pub unk2: Option<Vec<i32>>,
+    pub unk2: Option<Unk13Unk2>,
 
-    // TODO: can be string or vec<u16>?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: 0 }})]
+    #[br(args { offset: base_offset, inner: args! { count: unk13_unk3_count(unk2.as_ref()) } })]
     #[xc3(offset(u32), align(1))]
     pub unk3: Option<Vec<u16>>,
 
@@ -296,6 +290,27 @@ pub struct Unk13Unk1Unk6 {
 
     // TODO: Padding?
     pub unk: [u32; 4],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct Unk13Unk2 {
+    pub count1: u32,
+    pub unk2: u32,
+    pub total_count: u32,
+    pub unk4: i32,
+    pub unk5: [u32; 4],
+
+    #[br(count = count1)]
+    pub items1: Vec<[u32; 8]>,
+
+    // TODO: is this the correct count?
+    #[br(count = total_count - count1)]
+    pub items2: Vec<[u32; 8]>,
+}
+
+fn unk13_unk3_count(unk2: Option<&Unk13Unk2>) -> usize {
+    unk2.map(|u| u.total_count as usize).unwrap_or_default()
 }
 
 // TODO: identical to dhal?

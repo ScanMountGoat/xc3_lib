@@ -1,7 +1,11 @@
 //! Utilities for validating offsets during parsing.
-use std::sync::{Arc, Mutex};
+use std::{
+    io::Cursor,
+    sync::{Arc, Mutex},
+};
 
-use tracing_subscriber::Layer;
+use binrw::{BinRead, BinReaderExt};
+use tracing_subscriber::{layer::SubscriberExt, Layer};
 
 /// Named byte range for `[start, end)`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -173,6 +177,27 @@ where
             ctx.span(id).unwrap().extensions_mut().insert(TypeName(n));
         }
     }
+}
+
+pub fn read_type_get_offsets<T>(
+    bytes: &[u8],
+    endian: binrw::Endian,
+) -> (binrw::BinResult<T>, Vec<OffsetRange>)
+where
+    for<'a> T: BinRead<Args<'a> = ()>,
+{
+    // Log offsets for just this type on this thread.
+    let ranges = Arc::new(Mutex::new(Vec::new()));
+    let subscriber = tracing_subscriber::registry().with(OffsetLayer(ranges.clone()));
+
+    let mut reader = Cursor::new(bytes);
+    let result = tracing::subscriber::with_default(subscriber, || reader.read_type(endian));
+
+    let mut ranges = ranges.lock().unwrap().clone();
+    // Sort to make validation easier later.
+    ranges.sort_by_key(|r| r.start);
+
+    (result, ranges.clone())
 }
 
 #[cfg(test)]
