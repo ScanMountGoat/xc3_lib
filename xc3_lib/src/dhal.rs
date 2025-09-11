@@ -359,7 +359,7 @@ pub struct Unk4Extra {
     // TODO: type?
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk1: Option<[u32; 4]>,
+    pub unk1: Option<[u32; 2]>,
 
     // TODO: padding?
     pub unk: u32,

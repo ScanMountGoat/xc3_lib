@@ -119,20 +119,15 @@ pub struct Unk13 {
     pub unk: [u32; 4],
 }
 
-#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk13Unk1 {
     pub unk1: u32,
 
-    #[br(temp, restore_position)]
-    offsets: [u32; 3],
-
-    #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: (offsets[2] - offsets[0]) as usize / 2 }})]
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(1))]
-    pub unk2: Vec<i16>,
+    pub unk2: Unk13Unk1Unk2,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(1))]
@@ -154,6 +149,20 @@ pub struct Unk13Unk1 {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(1))]
     pub unk7: String,
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct Unk13Unk1Unk2 {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32), align(1))]
+    pub items: Vec<[u32; 2]>,
 }
 
 #[binread]
@@ -339,20 +348,15 @@ pub struct Unk13Legacy {
     pub unk: [u32; 4],
 }
 
-#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Unk13Unk1Legacy {
     pub unk1: u32,
 
-    #[br(temp, restore_position)]
-    offsets: [u32; 3],
-
-    #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: (offsets[2] - offsets[0]) as usize / 2 }})]
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(1))]
-    pub unk2: Vec<i16>,
+    pub unk2: Unk13Unk1Unk2,
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(1))]
