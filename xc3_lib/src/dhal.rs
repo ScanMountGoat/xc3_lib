@@ -579,8 +579,7 @@ pub struct Textures {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Texture {
-    // TODO: 1000, 1001, 1002?
-    pub unk1: u32,
+    pub unk1: u32, // TODO: 1000, 1001, 1002?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32), align(4096))]
     pub mibl_data: Vec<u8>,

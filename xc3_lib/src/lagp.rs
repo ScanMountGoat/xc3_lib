@@ -47,6 +47,7 @@ pub struct Lagp {
     #[xc3(offset(u32), align(4))]
     pub unk3: Option<Unk3>,
 
+    // TODO: this isn't correct for 10002 for XC1 DE.
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { inner: args! { offset: offsets[0], version } })]
     #[xc3(offset(u32), align(16))]
@@ -71,14 +72,23 @@ pub struct Lagp {
 
     pub unk12: u32,
 
-    // TODO: This type is slightly different in 10002 for xc1.
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(if(version > 10002))]
+    #[br(args { inner: version })]
     #[xc3(offset(u32), align(1))]
-    pub unk13: Option<Unk13>,
+    pub unk13: Option<Unk13Versioned>,
 
     // TODO: padding?
     pub unk: [u32; 11],
+}
+
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(version: u32))]
+pub enum Unk13Versioned {
+    #[br(pre_assert(version > 10002))]
+    Modern(Unk13),
+
+    #[br(pre_assert(version == 10002))]
+    Legacy(Unk13Legacy),
 }
 
 // TODO: fix writing.
@@ -257,7 +267,6 @@ pub struct Unk13Unk1Unk5 {
     pub items: Vec<Unk13Unk1Unk5Item>,
 }
 
-// TODO: This doesn't work for version 10002?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
@@ -271,7 +280,6 @@ pub struct Unk13Unk1Unk5Item {
     pub unk5: f32,
     pub unk6: f32,
     pub unk7: u32,
-    // TODO: not in version 10002?
     pub unk8: u32,
 }
 
@@ -311,6 +319,92 @@ pub struct Unk13Unk2 {
 
 fn unk13_unk3_count(unk2: Option<&Unk13Unk2>) -> usize {
     unk2.map(|u| u.total_count as usize).unwrap_or_default()
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct Unk13Legacy {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count(u32, u32), align(1))]
+    pub unk1: Vec<Unk13Unk1Legacy>,
+
+    // TODO: padding?
+    pub unk: [u32; 4],
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Unk13Unk1Legacy {
+    pub unk1: u32,
+
+    #[br(temp, restore_position)]
+    offsets: [u32; 3],
+
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: (offsets[2] - offsets[0]) as usize / 2 }})]
+    #[xc3(offset(u32), align(1))]
+    pub unk2: Vec<i16>,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32), align(1))]
+    pub unk3: Option<Unk13Unk1Unk3>,
+
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset(u32), align(1))]
+    pub unk4: Unk13Unk1Unk4,
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32), align(1))]
+    pub unk5: Option<Unk13Unk1Unk5Legacy>,
+
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[xc3(offset(u32), align(1))]
+    pub unk6: Option<Unk13Unk1Unk6>,
+
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32), align(1))]
+    pub unk7: String,
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(stream = r)]
+#[br(import_raw(parent_base_offset: u64))]
+#[xc3(base_offset)]
+pub struct Unk13Unk1Unk5Legacy {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count32_offset32)]
+    #[br(args { offset: base_offset, inner: parent_base_offset })]
+    #[xc3(count_offset(u32, u32), align(1))]
+    pub items: Vec<Unk13Unk1Unk5ItemLegacy>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Unk13Unk1Unk5ItemLegacy {
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub unk1: String,
+    pub unk2: u32, // index?
+    pub unk3: f32,
+    pub unk4: f32,
+    pub unk5: f32,
+    pub unk6: f32,
+    pub unk7: u32,
 }
 
 // TODO: identical to dhal?
@@ -467,6 +561,54 @@ impl Xc3Write for UnkString {
         let size = end - start;
         let aligned_size = size.next_multiple_of(4);
         vec![0u8; (aligned_size - size) as usize].xc3_write(writer, endian)?;
+        Ok(())
+    }
+}
+
+impl Xc3WriteOffsets for Unk13LegacyOffsets<'_> {
+    type Args = ();
+
+    fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
+        &self,
+        writer: &mut W,
+        _base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        _args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        let base_offset = self.base_offset;
+
+        // Some strings are grouped at the end.
+        // Strings should use insertion order instead of alphabetical.
+        let mut string_section = StringSectionUnique::default();
+
+        let unk1 = self.unk1.write(writer, base_offset, data_ptr, endian)?;
+        for u in &unk1.0 {
+            u.unk6
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
+            u.unk2
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
+            u.unk4
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
+            string_section.insert_offset32(&u.unk7);
+            if let Some(unk5) = u.unk5.write(writer, base_offset, data_ptr, endian)? {
+                let base_offset = unk5.base_offset;
+                let items = unk5.items.write(writer, base_offset, data_ptr, endian)?;
+                for item in items.0 {
+                    string_section.insert_offset32(&item.unk1);
+                }
+            }
+            u.unk3
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
+        }
+
+        string_section.write(
+            writer,
+            base_offset,
+            data_ptr,
+            &WriteOptions::default(),
+            endian,
+        )?;
         Ok(())
     }
 }
