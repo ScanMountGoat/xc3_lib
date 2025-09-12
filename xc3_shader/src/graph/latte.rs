@@ -82,9 +82,9 @@ grammar latte_parser() for str {
     rule four_comp_swizzle() -> &'input str = s:$("." ['x' | 'y' | 'z' | 'w' | 'X' | 'Y' | 'Z' | 'W' | '0' | '1' | '_']+) { s }
     // TODO: always preserve hex?
     rule literal() -> Literal
-        = n:hex_number() { Literal(LiteralInner::Hex(n.to_string())) }
-        / f:float() { Literal(LiteralInner::Float(f.to_string())) }
-        / "(" _ hex_number() _ "," _ f:float() _ ")" { Literal(LiteralInner::Float(f.to_string())) }
+        = n:hex_number() { Literal::Hex(n.to_string()) }
+        / f:float() { Literal::Float(f.to_string()) }
+        / "(" _ hex_number() _ "," _ f:float() _ ")" { Literal::Float(f.to_string()) }
     rule write_mask() -> &'input str = s:$("_"+) { s }
     rule negate() -> Negate = "-" { Negate }
 
@@ -160,13 +160,13 @@ grammar latte_parser() for str {
     rule cnt() -> usize = "CNT(" _ n:number() _ ")" { n }
     rule cnd() = "CND(" _ ("ACTIVE" / "FALSE" / "BOOL" / "NOT_BOOL") _ ")"
     rule elem_size() -> usize = "ELEM_SIZE(" _ n:number() _ ")" { n }
-    rule kcache0() -> KCache0
+    rule kcache0() -> ConstantBuffer
         = "KCACHE0" _ "(" _ "CB" _ n1:number() _ ":" _ n2:number() _ "-" n3:number() _ ")" {
-            KCache0 { constant_buffer: n1, start_index: n2, end_index: n3 }
+            ConstantBuffer { index: n1, start_index: n2, end_index: n3 }
         }
-    rule kcache1() -> KCache1
+    rule kcache1() -> ConstantBuffer
         = "KCACHE1" _ "(" _ "CB" _ n1:number() _ ":" _ n2:number() _ "-" n3:number() _ ")" {
-            KCache1 { constant_buffer: n1, start_index: n2, end_index: n3 }
+            ConstantBuffer { index: n1, start_index: n2, end_index: n3 }
         }
     rule no_barrier() = "NO_BARRIER"
     rule pop_cnt() -> usize = "POPCNT(" _ n:number() _ ")" { n }
@@ -259,13 +259,13 @@ grammar latte_parser() for str {
     rule tex_or_fetch_inst() -> TexInstOrFetchInst
         = f:fetch_inst() { TexInstOrFetchInst::Fetch(f) } / t:tex_inst() { TexInstOrFetchInst::Tex(t) }
     rule fetch_inst() -> FetchInst
-        = inst_count:inst_count() _ "FETCH" _ dst:fetch_dst() _ "," _ src:fetch_src() _ "," _ buffer_id:fetch_buffer_id() _ fetch_properties() {
+        = inst_count:inst_count() _ "FETCH" _ dst:fetch_dst() _ "," _ src:fetch_src() _ "," _ buffer_id:fetch_buffer_id() _ properties:fetch_properties() {
             FetchInst {
                 inst_count,
                 dst,
                 src,
                 buffer_id,
-                properties: FetchProperties(Vec::new())
+                properties
             }
         }
     rule fetch_dst() -> FetchDst
@@ -273,10 +273,13 @@ grammar latte_parser() for str {
     rule fetch_src() -> FetchSrc
         = gpr:gpr() _ s:one_comp_swizzle()? { FetchSrc { gpr, swizzle: OneCompSwizzle(s.unwrap_or_default().to_string()) }}
     rule fetch_buffer_id() -> usize = "b" _ n:number() { n }
-    rule fetch_properties() = (fetch_type() / fetch_mega() / fetch_offset()) ** _
-    rule fetch_type() = "FETCH_TYPE(NO_INDEX_OFFSET)"
-    rule fetch_mega() = "MEGA(" _ number() _ ")"
-    rule fetch_offset() = "OFFSET(" _ number() _ ")"
+    rule fetch_properties() -> Vec<FetchProperty>
+        = (f:fetch_type() { FetchProperty::Type(f)}
+        / m:fetch_mega() { FetchProperty::Mega(m) }
+        / o:fetch_offset() { FetchProperty::Offset(o) }) ** _
+    rule fetch_type() -> FetchType = "FETCH_TYPE(NO_INDEX_OFFSET)" { FetchType {} }
+    rule fetch_mega() -> FetchMega = "MEGA(" _ n:number() _ ")" { FetchMega(n) }
+    rule fetch_offset() -> FetchOffset = "OFFSET(" _ n:number() _ ")" { FetchOffset(n) }
 
     rule alu_group() -> AluGroup
         = inst_count:inst_count() _ scalars:(alu_scalar() ++ _) {
@@ -554,6 +557,7 @@ enum Instruction {
     AluClause(AluClause),
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct CfInst {
     inst_count: InstCount,
@@ -576,6 +580,7 @@ enum CfInstProperty {
 #[derive(Debug)]
 struct BurstCnt(usize);
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct CfExpInst {
     inst_count: InstCount,
@@ -585,6 +590,7 @@ struct CfExpInst {
     properties: CfInstProperties,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct ExpOpcode(String);
 
@@ -610,6 +616,7 @@ struct ExpSrc {
     swizzle: FourCompSwizzle,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct TexClause {
     inst_count: InstCount,
@@ -621,6 +628,7 @@ struct TexClause {
 #[derive(Debug)]
 struct TexClauseInstType;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct TexClauseProperties(Vec<TexClauseProperty>);
 
@@ -635,6 +643,7 @@ enum TexInstOrFetchInst {
     Fetch(FetchInst),
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct TexInst {
     inst_count: InstCount,
@@ -646,6 +655,7 @@ struct TexInst {
     properties: TexProperties,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct TexOpcode(String);
 
@@ -655,6 +665,7 @@ struct TexResourceId(String);
 #[derive(Debug)]
 struct TexSamplerId(String);
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct TexDst {
     gpr: Gpr,
@@ -662,6 +673,7 @@ struct TexDst {
     swizzle: FourCompSwizzle,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct TexSrc {
     gpr: Gpr,
@@ -675,13 +687,14 @@ struct TexRel;
 #[derive(Debug)]
 struct TexProperties;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct FetchInst {
     inst_count: InstCount,
     dst: FetchDst,
     src: FetchSrc,
     buffer_id: usize,
-    properties: FetchProperties,
+    properties: Vec<FetchProperty>,
 }
 
 #[derive(Debug)]
@@ -697,26 +710,17 @@ struct FetchSrc {
 }
 
 #[derive(Debug)]
-struct FetchBufferId {
-    id: usize,
-}
-
-#[derive(Debug)]
 struct FetchType {}
 
+#[allow(dead_code)]
 #[derive(Debug)]
-struct FetchMega {
-    id: usize,
-}
+struct FetchMega(usize);
 
+#[allow(dead_code)]
 #[derive(Debug)]
-struct FetchOffset {
-    id: usize,
-}
+struct FetchOffset(usize);
 
-#[derive(Debug)]
-struct FetchProperties(Vec<FetchProperty>);
-
+#[allow(dead_code)]
 #[derive(Debug)]
 enum FetchProperty {
     Type(FetchType),
@@ -724,6 +728,7 @@ enum FetchProperty {
     Offset(FetchOffset),
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct AluClause {
     inst_count: InstCount,
@@ -740,23 +745,9 @@ struct AluClauseProperties(Vec<AluClauseProperty>);
 
 #[derive(Debug)]
 enum AluClauseProperty {
-    KCache0(KCache0),
-    KCache1(KCache1),
+    KCache0(ConstantBuffer),
+    KCache1(ConstantBuffer),
     Unk,
-}
-
-#[derive(Debug)]
-struct KCache0 {
-    constant_buffer: usize,
-    start_index: usize,
-    end_index: usize,
-}
-
-#[derive(Debug)]
-struct KCache1 {
-    constant_buffer: usize,
-    start_index: usize,
-    end_index: usize,
 }
 
 #[derive(Debug)]
@@ -773,6 +764,7 @@ enum AluScalar {
     Scalar3(AluScalar3),
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct AluScalar0 {
     alu_unit: AluUnit,
@@ -782,6 +774,7 @@ struct AluScalar0 {
     properties: AluProperties,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct AluScalar1 {
     alu_unit: AluUnit,
@@ -792,6 +785,7 @@ struct AluScalar1 {
     properties: AluProperties,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct AluScalar2 {
     alu_unit: AluUnit,
@@ -803,6 +797,7 @@ struct AluScalar2 {
     properties: AluProperties,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct AluScalar3 {
     alu_unit: AluUnit,
@@ -814,9 +809,11 @@ struct AluScalar3 {
     properties: AluProperties,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct WriteMask(String);
 
+#[allow(dead_code)]
 #[derive(Debug)]
 enum AluDst {
     Value {
@@ -827,6 +824,7 @@ enum AluDst {
     WriteMask(WriteMask),
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct AluSrc {
     negate: Option<Negate>,
@@ -852,11 +850,9 @@ enum AluSrcValue {
     PreviousVector(PreviousVector),
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
-struct Literal(LiteralInner);
-
-#[derive(Debug)]
-enum LiteralInner {
+enum Literal {
     Hex(String),
     Float(String),
 }
@@ -906,9 +902,11 @@ struct AluOpCode2(String);
 #[derive(Debug)]
 struct AluOpCode3(String);
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct AluProperties(Vec<AluProperty>);
 
+#[allow(dead_code)]
 #[derive(Debug)]
 enum AluProperty {
     Unk,
@@ -1238,6 +1236,8 @@ struct AluScalarData {
     sources: Vec<Expr>,
 }
 
+#[allow(dead_code)]
+#[derive(Debug)]
 struct ConstantBuffer {
     index: usize,
     start_index: usize,
@@ -1254,20 +1254,8 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
         let mut kc1_buffer = None;
         for prop in &clause.properties.0 {
             match prop {
-                AluClauseProperty::KCache0(kc) => {
-                    kc0_buffer = Some(ConstantBuffer {
-                        index: kc.constant_buffer,
-                        start_index: kc.start_index,
-                        end_index: kc.end_index,
-                    })
-                }
-                AluClauseProperty::KCache1(kc) => {
-                    kc1_buffer = Some(ConstantBuffer {
-                        index: kc.constant_buffer,
-                        start_index: kc.start_index,
-                        end_index: kc.end_index,
-                    })
-                }
+                AluClauseProperty::KCache0(kc) => kc0_buffer = Some(kc),
+                AluClauseProperty::KCache1(kc) => kc1_buffer = Some(kc),
                 _ => (),
             }
         }
@@ -1295,11 +1283,7 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         output_modifier: s.modifier.map(|m| m.0),
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
                         sources: vec![alu_src_expr(
-                            s.src1,
-                            nodes,
-                            &kc0_buffer,
-                            &kc1_buffer,
-                            inst_count,
+                            s.src1, nodes, kc0_buffer, kc1_buffer, inst_count,
                         )],
                     }
                 }
@@ -1311,8 +1295,8 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         output_modifier: s.modifier.map(|m| m.0),
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
                         sources: vec![
-                            alu_src_expr(s.src1, nodes, &kc0_buffer, &kc1_buffer, inst_count),
-                            alu_src_expr(s.src2, nodes, &kc0_buffer, &kc1_buffer, inst_count),
+                            alu_src_expr(s.src1, nodes, kc0_buffer, kc1_buffer, inst_count),
+                            alu_src_expr(s.src2, nodes, kc0_buffer, kc1_buffer, inst_count),
                         ],
                     }
                 }
@@ -1324,9 +1308,9 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         output_modifier: None,
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
                         sources: vec![
-                            alu_src_expr(s.src1, nodes, &kc0_buffer, &kc1_buffer, inst_count),
-                            alu_src_expr(s.src2, nodes, &kc0_buffer, &kc1_buffer, inst_count),
-                            alu_src_expr(s.src3, nodes, &kc0_buffer, &kc1_buffer, inst_count),
+                            alu_src_expr(s.src1, nodes, kc0_buffer, kc1_buffer, inst_count),
+                            alu_src_expr(s.src2, nodes, kc0_buffer, kc1_buffer, inst_count),
+                            alu_src_expr(s.src3, nodes, kc0_buffer, kc1_buffer, inst_count),
                         ],
                     }
                 }
@@ -1745,8 +1729,8 @@ fn alu_output_modifier(
 fn alu_src_expr(
     source: AluSrc,
     nodes: &mut Nodes,
-    kc0: &Option<ConstantBuffer>,
-    kc1: &Option<ConstantBuffer>,
+    kc0: Option<&ConstantBuffer>,
+    kc1: Option<&ConstantBuffer>,
     inst_count: InstCount,
 ) -> Expr {
     let negate = source.negate.is_some();
@@ -1781,8 +1765,8 @@ fn value_expr(
     nodes: &mut Nodes,
     channel: Option<char>,
     value: AluSrcValue,
-    kc0: &Option<ConstantBuffer>,
-    kc1: &Option<ConstantBuffer>,
+    kc0: Option<&ConstantBuffer>,
+    kc1: Option<&ConstantBuffer>,
     inst_count: InstCount,
 ) -> Expr {
     match value {
@@ -1810,16 +1794,16 @@ fn constant_file(cf: ConstantFile, channel: Option<char>) -> Expr {
 
 fn literal(l: Literal) -> Expr {
     // TODO: how to handle hex literals?
-    match l.0 {
-        LiteralInner::Hex(_) => todo!(),
-        LiteralInner::Float(f) => Expr::Float(f.trim().trim_end_matches('f').parse().unwrap()),
+    match l {
+        Literal::Hex(_) => todo!(),
+        Literal::Float(f) => Expr::Float(f.trim().trim_end_matches('f').parse().unwrap()),
     }
 }
 
 fn constant_buffer(
     index: usize,
     channel: Option<char>,
-    constant_buffer: &Option<ConstantBuffer>,
+    constant_buffer: Option<&ConstantBuffer>,
     nodes: &mut Nodes,
 ) -> Expr {
     Expr::Parameter {
