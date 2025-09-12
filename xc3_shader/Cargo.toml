@@ -14,10 +14,7 @@ serde_json.workspace = true
 log.workspace = true
 simple_logger.workspace = true
 bimap = "0.6.3"
-pest = { version = "2.7.11", optional = true }
-pest_derive = { version = "2.7.11", optional = true }
-from-pest = { version = "0.3.3", optional = true }
-pest-ast = { version = "0.3.5", optional = true }
+peg = { version = "0.8.5", optional = true }
 approx.workspace = true
 ordered-float.workspace = true
 smol_str.workspace = true
@@ -34,5 +31,5 @@ insta.workspace = true
 default = ["xc3"]
 xc3 = ["dep:xc3_lib", "dep:xc3_model", "glsl", "latte"]
 glsl = ["dep:glsl-lang"]
-latte = ["dep:pest", "dep:pest_derive", "dep:from-pest", "dep:pest-ast"]
+latte = ["dep:peg"]
 serde = ["dep:serde", "smol_str/serde", "ordered-float/serde"]
