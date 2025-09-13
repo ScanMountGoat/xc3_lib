@@ -72,30 +72,6 @@ pub struct ShaderDatabaseIndexed {
 
 #[binrw]
 #[derive(Debug, PartialEq, Clone)]
-struct MapIndexed {
-    #[br(parse_with = parse_vec)]
-    #[bw(write_with = write_vec)]
-    map_models: Vec<ModelIndexed>,
-
-    #[br(parse_with = parse_vec)]
-    #[bw(write_with = write_vec)]
-    prop_models: Vec<ModelIndexed>,
-
-    #[br(parse_with = parse_vec)]
-    #[bw(write_with = write_vec)]
-    env_models: Vec<ModelIndexed>,
-}
-
-#[binrw]
-#[derive(Debug, PartialEq, Clone)]
-struct ModelIndexed {
-    #[br(parse_with = parse_vec)]
-    #[bw(write_with = write_vec)]
-    programs: Vec<ShaderProgramIndexed>,
-}
-
-#[binrw]
-#[derive(Debug, PartialEq, Clone)]
 struct ShaderProgramIndexed {
     // There are very few unique dependencies across all shaders in a game dump.
     // Normalize the data to greatly reduce the size file size.
@@ -200,33 +176,6 @@ struct TextureDependencyIndexed {
     #[br(parse_with = parse_vec)]
     #[bw(write_with = write_vec)]
     texcoords: Vec<VarInt>,
-}
-
-#[binrw]
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-struct TexCoordIndexed {
-    name: VarInt,
-    channel: Channel,
-    params: TexCoordParamsIndexed,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, BinRead, BinWrite)]
-enum TexCoordParamsIndexed {
-    #[brw(magic(0u8))]
-    None,
-
-    #[brw(magic(1u8))]
-    Scale(VarInt),
-
-    #[brw(magic(2u8))]
-    Matrix([VarInt; 4]),
-
-    #[brw(magic(3u8))]
-    Parallax {
-        mask_a: VarInt,
-        mask_b: VarInt,
-        ratio: VarInt,
-    },
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, BinRead, BinWrite)]
