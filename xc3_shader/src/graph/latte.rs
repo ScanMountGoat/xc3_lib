@@ -169,7 +169,7 @@ grammar latte_parser() for str {
             ConstantBuffer { index: n1, start_index: n2, end_index: n3 }
         }
     rule no_barrier() = "NO_BARRIER"
-    rule pop_cnt() -> usize = "POPCNT(" _ n:number() _ ")" { n }
+    rule pop_cnt() -> usize = "POP_CNT(" _ n:number() _ ")" { n }
     rule uses_waterfall() = "USES_WATERFALL"
     rule valid_pix() = "VALID_PIX"
     rule whole_quad_mode() = "WHOLE_QUAD_MODE" / "WHOLE_QUAD"
@@ -526,7 +526,7 @@ grammar latte_parser() for str {
         = src:alu_abs_src_value() { AluSrcValueOrAbs::Abs(src) }
         / src:alu_src_value() { AluSrcValueOrAbs::Value(src) }
     rule alu_abs_src_value() -> AluAbsSrcValue
-        = "/" _ value:alu_src_value() _ s:one_comp_swizzle()? _ "/" {
+        = "|" _ value:alu_src_value() _ s:one_comp_swizzle()? _ "|" {
             AluAbsSrcValue { value, swizzle: s.map(|s| OneCompSwizzle(s.to_string())) }
         }
     rule alu_src_value() -> AluSrcValue
