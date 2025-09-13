@@ -39,7 +39,7 @@ For Linux and MacOS, an easy way to identify performance bottlenecks is by using
 debug = true
 ```
 
-Some projects have [tracing](https://github.com/tokio-rs/tracing) support for profiling with `#[tracing::instrument]`. This can be used to generate spans, which are helpful for understanding the performance of multithreaded code. When compiling with `--features=tracing`, xc3_viewer can use `tracing-tracy` to connect to the profiling tool and trace viewer [tracy](https://github.com/wolfpld/tracy/releases/tag/v0.10).
+Some projects have [tracing](https://github.com/tokio-rs/tracing) support for profiling with `#[tracing::instrument]`. This can be used to generate spans, which are helpful for understanding the performance of multithreaded code. When compiling with `--features=tracing`, xc3_viewer can use `tracing-tracy` to connect to the profiling tool and trace viewer [tracy](https://github.com/wolfpld/tracy/releases/tag/v0.11.1).
 
 ## GPU Debugging
 [RenderDoc](https://renderdoc.org/) is a powerful GPU debugging tool for Windows and Linux. 

@@ -586,6 +586,7 @@ impl Renderer {
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.textures.depth_stencil,
@@ -735,6 +736,7 @@ impl Renderer {
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.textures.depth_stencil,
@@ -817,6 +819,7 @@ impl Renderer {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.textures.mat_id_depth,
@@ -859,6 +862,7 @@ impl Renderer {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.textures.mat_id_depth,
@@ -894,6 +898,7 @@ impl Renderer {
                     load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.textures.depth_stencil,
@@ -940,6 +945,7 @@ impl Renderer {
                     load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.textures.depth_stencil,
@@ -1070,6 +1076,7 @@ fn color_attachment(
             load: wgpu::LoadOp::Clear(color),
             store: wgpu::StoreOp::Store,
         },
+        depth_slice: None,
     })
 }
 
@@ -1081,6 +1088,7 @@ fn color_attachment_load(view: &wgpu::TextureView) -> Option<wgpu::RenderPassCol
             load: wgpu::LoadOp::Load,
             store: wgpu::StoreOp::Store,
         },
+        depth_slice: None,
     })
 }
 

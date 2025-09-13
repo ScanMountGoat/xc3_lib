@@ -9,7 +9,7 @@ xc3_model = { path = "../xc3_model", optional = true }
 rayon.workspace = true
 globwalk.workspace = true
 clap = { workspace = true, features = ["derive"] }
-glsl-lang = { version = "0.7.2", features = ["lexer-v2-full"], optional = true }
+glsl-lang = { version = "0.8.0", optional = true }
 serde_json.workspace = true
 log.workspace = true
 simple_logger.workspace = true

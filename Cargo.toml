@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.dependencies]
 glam = "0.30.3"
-wgpu = "25.0.0"
+wgpu = "26.0.1"
 log = "0.4.22"
 image_dds = { version = "0.7.1", default-features = false }
 indexmap = "2.1.0"
