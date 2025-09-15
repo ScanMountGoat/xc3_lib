@@ -50,23 +50,6 @@ pub struct Parameter {
     pub channel: Option<char>,
 }
 
-impl std::fmt::Display for Parameter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}{}{}{}",
-            self.name,
-            if !self.field.is_empty() {
-                format!(".{}", self.field)
-            } else {
-                String::new()
-            },
-            self.index.map(|i| format!("[{i}]")).unwrap_or_default(),
-            self.channel.map(|c| format!(".{c}")).unwrap_or_default()
-        )
-    }
-}
-
 /// A single texture access like `texture(s0, tex0.xy).rgb` in GLSL.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -84,15 +67,6 @@ pub struct Texture {
 pub struct Attribute {
     pub name: SmolStr,
     pub channel: Option<char>,
-}
-
-impl std::fmt::Display for Attribute {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.channel {
-            Some(c) => write!(f, "{}.{c}", self.name),
-            None => write!(f, "{}", self.name),
-        }
-    }
 }
 
 /// A set of operations like `fma` or matrix multiplication that can be detected from a [Graph].
@@ -210,4 +184,70 @@ where
                 _ => None,
             })
     })
+}
+
+impl<Op> std::fmt::Display for OutputExpr<Op>
+where
+    Op: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OutputExpr::Value(d) => write!(f, "{d}"),
+            OutputExpr::Func { op, args } => {
+                let args: Vec<_> = args.iter().map(|a| format!("var{a}")).collect();
+                write!(f, "{op}({})", args.join(", "))
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            &Value::Constant(c) => write!(f, "{c:?}"),
+            Value::Parameter(p) => write!(f, "{p}"),
+            Value::Texture(t) => write!(f, "{t}"),
+            Value::Attribute(a) => write!(f, "{a}"),
+        }
+    }
+}
+
+impl std::fmt::Display for Parameter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}{}{}{}",
+            self.name,
+            if !self.field.is_empty() {
+                format!(".{}", self.field)
+            } else {
+                String::new()
+            },
+            self.index.map(|i| format!("[{i}]")).unwrap_or_default(),
+            channels(self.channel)
+        )
+    }
+}
+
+impl std::fmt::Display for Texture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let args: Vec<_> = self.texcoords.iter().map(|t| format!("var{t}")).collect();
+        write!(
+            f,
+            "Texture({}, {}){}",
+            &self.name,
+            args.join(", "),
+            channels(self.channel)
+        )
+    }
+}
+
+impl std::fmt::Display for Attribute {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.name, channels(self.channel))
+    }
+}
+
+fn channels(c: Option<char>) -> String {
+    c.map(|c| format!(".{c}")).unwrap_or_default()
 }
