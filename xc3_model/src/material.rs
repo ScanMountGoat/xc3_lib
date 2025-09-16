@@ -478,7 +478,7 @@ fn get_shader_legacy<S: GetProgramHash>(
                     // Undo the multiply by 0.5 used for XCX and XCX DE.
                     // This avoids needing to modify the actual database file.
                     let const_index = exprs.len();
-                    exprs.push(OutputExpr::Value(Dependency::Constant(2.0.into())));
+                    exprs.push(OutputExpr::Value(Dependency::Float(2.0.into())));
                     let index = exprs.len();
                     exprs.push(OutputExpr::Func {
                         op: Operation::Mul,

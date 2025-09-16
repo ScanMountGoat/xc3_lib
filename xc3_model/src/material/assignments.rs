@@ -73,6 +73,7 @@ pub enum AssignmentValue {
         channel: Option<char>,
     },
     Float(OrderedFloat<f32>),
+    Int(i32),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -150,7 +151,8 @@ impl AssignmentValue {
         assignments: &mut IndexSet<Assignment>,
     ) -> Option<Self> {
         match d {
-            Dependency::Constant(f) => Some(Self::Float(f.0.into())),
+            Dependency::Int(i) => Some(Self::Int(*i)),
+            Dependency::Float(f) => Some(Self::Float(f.0.into())),
             Dependency::Buffer(b) => parameters.get_dependency(b).map(|f| Self::Float(f.into())),
             Dependency::Texture(texture) => Some(Self::Texture(texture_assignment(
                 texture,

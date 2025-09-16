@@ -216,6 +216,7 @@ fn func_wgsl(op: &Operation, args: &[usize]) -> Option<String> {
             "monochrome({}, {}, {}, {}).z",
             arg0?, arg1?, arg2?, arg3?
         )),
+        Operation::Negate => Some(format!("-{}", arg0?))
     }
 }
 
@@ -390,6 +391,11 @@ fn assignment_value_wgsl(
                 None
             }
         }
+        // TODO: handle proper int/float conversions.
+        AssignmentValue::Int(i) => {
+            error!("Unsupported int literal {i:?}");
+            None
+        }
     }
 }
 
@@ -524,6 +530,7 @@ fn func_xyz_wgsl(op: &Operation, args: &[usize], output_index: usize) -> Option<
             "monochrome_xyz_z({}, {}, {}, {})",
             arg0?, arg1?, arg2?, arg3?
         )),
+        Operation::Negate => Some(format!("-{}", arg0?))
     }
 }
 

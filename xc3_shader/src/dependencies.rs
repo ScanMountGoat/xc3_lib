@@ -97,7 +97,8 @@ pub fn buffer_dependency(graph: &Graph, e: &Expr) -> Option<Parameter> {
 impl From<Value> for Dependency {
     fn from(value: Value) -> Self {
         match value {
-            Value::Constant(f) => Self::Constant(f),
+            Value::Int(i) => Self::Int(i),
+            Value::Float(f) => Self::Float(f),
             Value::Parameter(parameter) => Self::Buffer(BufferDependency {
                 name: parameter.name,
                 field: parameter.field,

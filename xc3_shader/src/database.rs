@@ -14,6 +14,7 @@ use xc3_model::shader_database::{
 
 use crate::expr::{output_expr, OutputExpr, Value};
 use crate::graph::glsl::{find_attribute_locations, merge_vertex_fragment};
+use crate::graph::UnaryOp;
 use crate::{
     dependencies::buffer_dependency,
     extract::nvsd_glsl_name,
@@ -157,12 +158,12 @@ fn color_or_param_output_expr(
     // matCol.xyz in pcmdo shaders.
     let mut current = &frag.exprs[last_node.input];
 
-    // Remove some redundant conversions found in some shaders.
+    // Remove some redundant float -> int float -> conversions found in some shaders.
     if let Expr::Func { name, args, .. } = current {
         if name == "intBitsToFloat" {
-            current = assign_x_recursive(frag, &frag.exprs[args[0]]);
+            let new_current = assign_x_recursive(frag, &frag.exprs[args[0]]);
 
-            if let Expr::Func { name, args, .. } = current {
+            if let Expr::Func { name, args, .. } = new_current {
                 if name == "floatBitsToInt" {
                     current = &frag.exprs[args[0]];
                 }
@@ -261,6 +262,7 @@ impl crate::expr::Operation for Operation {
             .or_else(|| binary_op(graph, expr, BinaryOp::LessEqual, Operation::LessEqual))
             .or_else(|| binary_op(graph, expr, BinaryOp::GreaterEqual, Operation::GreaterEqual))
             .or_else(|| ternary(graph, expr))
+            .or_else(|| unary_op(graph, expr, UnaryOp::Negate, Operation::Negate))
     }
 
     fn preprocess_expr<'a>(graph: &'a Graph, expr: &'a Expr) -> Cow<'a, Expr> {

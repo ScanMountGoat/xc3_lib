@@ -21,11 +21,9 @@ type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
 pub struct ShaderDatabaseIndexed {
     // File version numbers should be updated with each release.
     // This improves the error when parsing an incompatible version.
-    #[br(assert(major_version == 3))]
-    #[bw(calc = 3)]
-    major_version: u16,
-    #[bw(calc = 0)]
-    _minor_version: u16,
+    #[br(assert(version == 4))]
+    #[bw(calc = 4)]
+    version: u32,
 
     // Store unique shader programs across all models and maps.
     // This results in significantly fewer unique entries,
@@ -143,7 +141,7 @@ impl From<Option<char>> for Channel {
 #[derive(Debug, PartialEq, Eq, Hash, Clone, BinRead, BinWrite)]
 enum DependencyIndexed {
     #[brw(magic(0u8))]
-    Constant(
+    Float(
         #[br(map(|f: f32| f.into()))]
         #[bw(map(|f| f.0))]
         OrderedFloat<f32>,
@@ -157,6 +155,9 @@ enum DependencyIndexed {
 
     #[brw(magic(3u8))]
     Attribute(AttributeDependencyIndexed),
+
+    #[brw(magic(4u8))]
+    Int(i32),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, BinRead, BinWrite)]
@@ -373,7 +374,8 @@ impl ShaderDatabaseIndexed {
         expr_to_index: &mut IndexMap<usize, usize>,
     ) -> Dependency {
         match d {
-            DependencyIndexed::Constant(f) => Dependency::Constant(*f),
+            DependencyIndexed::Int(i) => Dependency::Int(*i),
+            DependencyIndexed::Float(f) => Dependency::Float(*f),
             DependencyIndexed::Buffer(b) => Dependency::Buffer(
                 self.buffer_dependency_from_indexed(&self.buffer_dependencies[b.0]),
             ),
@@ -400,7 +402,8 @@ impl ShaderDatabaseIndexed {
         expr_indices: &mut IndexMap<&'a OutputExpr, VarInt>,
     ) -> DependencyIndexed {
         match d {
-            Dependency::Constant(c) => DependencyIndexed::Constant(c),
+            Dependency::Int(i) => DependencyIndexed::Int(i),
+            Dependency::Float(c) => DependencyIndexed::Float(c),
             Dependency::Buffer(b) => DependencyIndexed::Buffer(self.add_buffer_dependency(b)),
             Dependency::Texture(t) => DependencyIndexed::Texture(TextureDependencyIndexed {
                 name: add_string(&mut self.texture_names, t.name),

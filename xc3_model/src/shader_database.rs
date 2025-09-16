@@ -115,7 +115,8 @@ pub struct ShaderProgram {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Dependency {
-    Constant(OrderedFloat<f32>),
+    Int(i32),
+    Float(OrderedFloat<f32>),
     Buffer(BufferDependency),
     Texture(TextureDependency),
     Attribute(AttributeDependency),
@@ -233,6 +234,8 @@ pub enum Operation {
     MonochromeY,
     /// `monochrome(arg0, arg1, arg2, arg3).z`
     MonochromeZ,
+    /// `-arg0`
+    Negate,
 }
 
 impl Default for Operation {
@@ -316,7 +319,8 @@ impl std::fmt::Display for TextureDependency {
 impl std::fmt::Display for Dependency {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Dependency::Constant(c) => write!(f, "{c:?}"),
+            Dependency::Int(i) => write!(f, "{i:?}"),
+            Dependency::Float(c) => write!(f, "{c:?}"),
             Dependency::Buffer(b) => write!(f, "{b}"),
             Dependency::Texture(t) => write!(f, "{t}"),
             Dependency::Attribute(a) => write!(f, "{a}"),

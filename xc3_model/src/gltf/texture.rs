@@ -503,6 +503,7 @@ fn assignment_image_index(
         }
         AssignmentValue::Attribute { .. } => None,
         AssignmentValue::Float(v) => Some(ImageIndex::Value(*v)),
+        AssignmentValue::Int(_) => None,
     }
 }
 

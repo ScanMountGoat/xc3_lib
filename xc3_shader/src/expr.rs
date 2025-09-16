@@ -34,7 +34,8 @@ pub enum OutputExpr<Op> {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Value {
-    Constant(OrderedFloat<f32>),
+    Int(i32),
+    Float(OrderedFloat<f32>),
     Parameter(Parameter),
     Texture(Texture),
     Attribute(Attribute),
@@ -166,14 +167,13 @@ where
         buffer_dependency(graph, e)
             .map(crate::expr::Value::Parameter)
             .or_else(|| match e {
-                Expr::Unary(UnaryOp::Negate, e) => {
-                    if let Expr::Float(f) = &graph.exprs[*e] {
-                        Some(crate::expr::Value::Constant(-f))
-                    } else {
-                        None
-                    }
-                }
-                Expr::Float(f) => Some(crate::expr::Value::Constant(*f)),
+                Expr::Unary(UnaryOp::Negate, e) => match &graph.exprs[*e] {
+                    Expr::Float(f) => Some(crate::expr::Value::Float(-f)),
+                    Expr::Int(i) => Some(crate::expr::Value::Int(-i)),
+                    _ => None,
+                },
+                Expr::Float(f) => Some(crate::expr::Value::Float(*f)),
+                Expr::Int(i) => Some(crate::expr::Value::Int(*i)),
                 Expr::Global { name, channel } => {
                     // TODO: Also check if this matches a vertex input name?
                     Some(crate::expr::Value::Attribute(crate::expr::Attribute {
@@ -204,7 +204,8 @@ where
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            &Value::Constant(c) => write!(f, "{c:?}"),
+            Value::Int(i) => write!(f, "{i:?}"),
+            Value::Float(c) => write!(f, "{c:?}"),
             Value::Parameter(p) => write!(f, "{p}"),
             Value::Texture(t) => write!(f, "{t}"),
             Value::Attribute(a) => write!(f, "{a}"),

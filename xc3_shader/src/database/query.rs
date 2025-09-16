@@ -330,6 +330,20 @@ pub fn op_div<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'
     Some((Operation::Div, vec![a, b]))
 }
 
+pub fn unary_op<'a>(
+    graph: &'a Graph,
+    expr: &'a Expr,
+    unary_op: UnaryOp,
+    operation: Operation,
+) -> Option<(Operation, Vec<&'a Expr>)> {
+    if let Expr::Unary(op, e) = expr {
+        if *op == unary_op {
+            return Some((operation, vec![&graph.exprs[*e]]));
+        }
+    }
+    None
+}
+
 pub fn binary_op<'a>(
     graph: &'a Graph,
     expr: &'a Expr,
@@ -673,6 +687,7 @@ pub fn calc_normal_map_w_intensity<'a>(
 }
 
 fn calc_normal_map_val_inf_xcx_query(c: char) -> String {
+    // TODO: Fix this
     formatdoc! {"
         void main() {{
             inverse_length_tangent = inversesqrt(tangent_length);
