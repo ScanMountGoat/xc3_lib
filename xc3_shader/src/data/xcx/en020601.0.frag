@@ -20,6 +20,7 @@ PV5.y = temp5;
 PV5.z = temp5;
 PV5.w = temp5;
 R124.w = -PS4 + 1.0;
+R124.w = clamp(R124.w, 0.0, 1.0);
 temp6 = dot(vec4(R4.x, R4.y, R4.z, 0.0), vec4(R4.x, R4.y, R4.z, 0.0));
 PV6.x = temp6;
 PV6.y = temp6;

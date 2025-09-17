@@ -295,28 +295,28 @@ grammar latte_parser() for str {
         / s:alu_scalar2() { AluScalar::Scalar2(s) }
         / s:alu_scalar3() { AluScalar::Scalar3(s) }
     rule alu_scalar0() -> AluScalar0
-        = u:alu_unit() _ ":" _ op:alu_opcode0() _ m:alu_output_modifier()? _ dst:alu_dst() _ alu_properties() {
+        = u:alu_unit() _ ":" _ op:alu_opcode0() _ m:alu_output_modifier()? _ dst:alu_dst() _ properties:alu_properties() {
             AluScalar0 {
                 alu_unit: AluUnit(u.to_string()),
                 opcode: AluOpCode0(op.to_string()),
                 modifier: m.map(|m| AluOutputModifier(m.to_string())),
                 dst,
-                properties: AluProperties(Vec::new())
+                properties
             }
         }
     rule alu_scalar1() -> AluScalar1
-        = u:alu_unit() _ ":" _ op:alu_opcode1() _ m:alu_output_modifier()? _ dst:alu_dst() _ "," _ src1:alu_src() _ alu_properties() {
+        = u:alu_unit() _ ":" _ op:alu_opcode1() _ m:alu_output_modifier()? _ dst:alu_dst() _ "," _ src1:alu_src() _ properties:alu_properties() {
             AluScalar1 {
                 alu_unit: AluUnit(u.to_string()),
                 opcode: AluOpCode1(op.to_string()),
                 modifier: m.map(|m| AluOutputModifier(m.to_string())),
                 dst,
                 src1,
-                properties: AluProperties(Vec::new())
+                properties
             }
         }
     rule alu_scalar2() -> AluScalar2
-        = u:alu_unit() _ ":" _ op:alu_opcode2() _ m:alu_output_modifier()? _ dst:alu_dst() _ "," _ src1:alu_src() _ "," _ src2:alu_src() _ alu_properties() {
+        = u:alu_unit() _ ":" _ op:alu_opcode2() _ m:alu_output_modifier()? _ dst:alu_dst() _ "," _ src1:alu_src() _ "," _ src2:alu_src() _ properties:alu_properties() {
             AluScalar2 {
                 alu_unit: AluUnit(u.to_string()),
                 opcode: AluOpCode2(op.to_string()),
@@ -324,11 +324,11 @@ grammar latte_parser() for str {
                 dst,
                 src1,
                 src2,
-                properties: AluProperties(Vec::new())
+                properties
             }
         }
     rule alu_scalar3() -> AluScalar3
-        = u:alu_unit() _ ":" _ op:alu_opcode3() _ dst:alu_dst() _ "," _ src1:alu_src() _ "," _ src2:alu_src() _ "," _ src3:alu_src() _ alu_properties() {
+        = u:alu_unit() _ ":" _ op:alu_opcode3() _ dst:alu_dst() _ "," _ src1:alu_src() _ "," _ src2:alu_src() _ "," _ src3:alu_src() _ properties:alu_properties() {
             AluScalar3 {
                 alu_unit: AluUnit(u.to_string()),
                 opcode: AluOpCode3(op.to_string()),
@@ -336,7 +336,7 @@ grammar latte_parser() for str {
                 src1,
                 src2,
                 src3,
-                properties: AluProperties(Vec::new())
+                properties
             }
         }
     rule alu_opcode0() -> &'input str = s:$("NOP" / "SET_MODE" / "SET_CF_IDX0" / "SET_CF_IDX1") { s }
@@ -537,7 +537,10 @@ grammar latte_parser() for str {
         / v:literal() { AluSrcValue::Literal(v) }
         / v:previous_scalar() { AluSrcValue::PreviousScalar(PreviousScalar(v)) }
         / v:previous_vector() { AluSrcValue::PreviousVector(PreviousVector(v)) }
-    rule alu_properties() = (bank_swizzle() / update_exec_mask() / update_pred() / pred_sel() / clamp()) ** _
+    rule alu_properties() -> Vec<AluProperty> = props:(alu_property() ** _) { props }
+    rule alu_property() -> AluProperty
+        = clamp() { AluProperty::Clamp }
+        / (bank_swizzle() / update_exec_mask() / update_pred() / pred_sel()) { AluProperty::Unk }
     rule update_pred() = "UPDATE_PRED"
     rule pred_sel() = "PRED_SEL_OFF" / "PRED_SEL_ZERO" / "PRED_SEL_ONE"
     rule clamp() = "CLAMP"
@@ -771,7 +774,7 @@ struct AluScalar0 {
     opcode: AluOpCode0,
     modifier: Option<AluOutputModifier>,
     dst: AluDst,
-    properties: AluProperties,
+    properties: Vec<AluProperty>,
 }
 
 #[allow(dead_code)]
@@ -782,7 +785,7 @@ struct AluScalar1 {
     modifier: Option<AluOutputModifier>,
     dst: AluDst,
     src1: AluSrc,
-    properties: AluProperties,
+    properties: Vec<AluProperty>,
 }
 
 #[allow(dead_code)]
@@ -794,7 +797,7 @@ struct AluScalar2 {
     dst: AluDst,
     src1: AluSrc,
     src2: AluSrc,
-    properties: AluProperties,
+    properties: Vec<AluProperty>,
 }
 
 #[allow(dead_code)]
@@ -806,7 +809,7 @@ struct AluScalar3 {
     src1: AluSrc,
     src2: AluSrc,
     src3: AluSrc,
-    properties: AluProperties,
+    properties: Vec<AluProperty>,
 }
 
 #[allow(dead_code)]
@@ -902,13 +905,9 @@ struct AluOpCode2(String);
 #[derive(Debug)]
 struct AluOpCode3(String);
 
-#[allow(dead_code)]
-#[derive(Debug)]
-struct AluProperties(Vec<AluProperty>);
-
-#[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum AluProperty {
+    Clamp,
     Unk,
 }
 
@@ -1079,6 +1078,31 @@ impl Nodes {
         self.node(node, Some(scalar.alu_unit), inst_count)
     }
 
+    fn func_node(
+        &mut self,
+        func: &str,
+        arg_count: usize,
+        scalar: &AluScalarData,
+        output: Output,
+        inst_count: InstCount,
+    ) -> usize {
+        let input = Expr::Func {
+            name: func.into(),
+            args: scalar
+                .sources
+                .iter()
+                .take(arg_count)
+                .map(|a| self.expr(a.clone()))
+                .collect(),
+            channel: None,
+        };
+        let node = Node {
+            output,
+            input: self.expr(input),
+        };
+        self.node(node, Some(scalar.alu_unit), inst_count)
+    }
+
     fn expr(&mut self, expr: Expr) -> usize {
         self.exprs.insert_full(expr).0
     }
@@ -1102,38 +1126,13 @@ impl Nodes {
         self.expr(result)
     }
 
-    fn add_float_to_uint(&mut self, expr: Expr) -> usize {
+    fn float_to_uint_expr(&mut self, expr: Expr) -> usize {
         // Convert float literals directly to integers.
         let result = match expr {
             Expr::Float(f) => Expr::Uint(f.to_bits()),
             e => Expr::Unary(UnaryOp::FloatBitsToUint, self.expr(e)),
         };
         self.expr(result)
-    }
-
-    fn add_func(
-        &mut self,
-        func: &str,
-        arg_count: usize,
-        scalar: &AluScalarData,
-        output: Output,
-        inst_count: InstCount,
-    ) -> usize {
-        let input = Expr::Func {
-            name: func.into(),
-            args: scalar
-                .sources
-                .iter()
-                .take(arg_count)
-                .map(|a| self.expr(a.clone()))
-                .collect(),
-            channel: None,
-        };
-        let node = Node {
-            output,
-            input: self.expr(input),
-        };
-        self.node(node, Some(scalar.alu_unit), inst_count)
     }
 }
 
@@ -1233,6 +1232,7 @@ struct AluScalarData {
     alu_unit: char,
     op_code: String,
     output_modifier: Option<String>,
+    properties: Vec<AluProperty>,
     output: Output,
     sources: Vec<Expr>,
 }
@@ -1272,6 +1272,7 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         alu_unit,
                         op_code: s.opcode.0,
                         output_modifier: s.modifier.map(|m| m.0),
+                        properties: s.properties,
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
                         sources: Vec::new(),
                     }
@@ -1282,6 +1283,7 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         alu_unit,
                         op_code: s.opcode.0,
                         output_modifier: s.modifier.map(|m| m.0),
+                        properties: s.properties,
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
                         sources: vec![alu_src_expr(
                             s.src1, nodes, kc0_buffer, kc1_buffer, inst_count,
@@ -1294,6 +1296,7 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         alu_unit,
                         op_code: s.opcode.0,
                         output_modifier: s.modifier.map(|m| m.0),
+                        properties: s.properties,
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
                         sources: vec![
                             alu_src_expr(s.src1, nodes, kc0_buffer, kc1_buffer, inst_count),
@@ -1307,6 +1310,7 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         alu_unit,
                         op_code: s.opcode.0,
                         output_modifier: None,
+                        properties: s.properties,
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
                         sources: vec![
                             alu_src_expr(s.src1, nodes, kc0_buffer, kc1_buffer, inst_count),
@@ -1401,8 +1405,8 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
             };
             Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
-        "FLOOR" => Some(nodes.add_func("floor", 1, &scalar, output, inst_count)),
-        "SQRT_IEEE" => Some(nodes.add_func("sqrt", 1, &scalar, output, inst_count)),
+        "FLOOR" => Some(nodes.func_node("floor", 1, &scalar, output, inst_count)),
+        "SQRT_IEEE" => Some(nodes.func_node("sqrt", 1, &scalar, output, inst_count)),
         "RECIP_IEEE" => {
             let input = nodes.binary_expr(
                 BinaryOp::Div,
@@ -1422,13 +1426,13 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
             let node = Node { output, input };
             Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
-        "RECIPSQRT_IEEE" => Some(nodes.add_func("inversesqrt", 1, &scalar, output, inst_count)),
+        "RECIPSQRT_IEEE" => Some(nodes.func_node("inversesqrt", 1, &scalar, output, inst_count)),
         "RECIPSQRT_FF" => {
             // TODO: Set result of +inf to +0 and -inf to -0.
-            Some(nodes.add_func("inversesqrt", 1, &scalar, output, inst_count))
+            Some(nodes.func_node("inversesqrt", 1, &scalar, output, inst_count))
         }
-        "EXP_IEEE" => Some(nodes.add_func("exp2", 1, &scalar, output, inst_count)),
-        "LOG_CLAMPED" => Some(nodes.add_func("log2", 1, &scalar, output, inst_count)),
+        "EXP_IEEE" => Some(nodes.func_node("exp2", 1, &scalar, output, inst_count)),
+        "LOG_CLAMPED" => Some(nodes.func_node("log2", 1, &scalar, output, inst_count)),
         // scalar2
         "ADD" => {
             let input = nodes.binary_expr(
@@ -1449,8 +1453,8 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
             let node = Node { output, input };
             Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
-        "MIN" | "MIN_DX10" => Some(nodes.add_func("min", 2, &scalar, output, inst_count)),
-        "MAX" | "MAX_DX10" => Some(nodes.add_func("max", 2, &scalar, output, inst_count)),
+        "MIN" | "MIN_DX10" => Some(nodes.func_node("min", 2, &scalar, output, inst_count)),
+        "MAX" | "MAX_DX10" => Some(nodes.func_node("max", 2, &scalar, output, inst_count)),
         "MUL" | "MUL_IEEE" => {
             // Scalar multiplication with floats.
             let input = nodes.binary_expr(
@@ -1469,8 +1473,8 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
             // Scalar multiplication with unsigned integers stored in the lower bits.
             let result = Expr::Binary(
                 BinaryOp::Mul,
-                nodes.add_float_to_uint(scalar.sources[0].clone()),
-                nodes.add_float_to_uint(scalar.sources[1].clone()),
+                nodes.float_to_uint_expr(scalar.sources[0].clone()),
+                nodes.float_to_uint_expr(scalar.sources[1].clone()),
             );
             let input = nodes.unary_expr(UnaryOp::UintBitsToFloat, result);
             let node = Node { output, input };
@@ -1488,9 +1492,9 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
             Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         // scalar3
-        "MULADD" | "MULADD_IEEE" => Some(nodes.add_func("fma", 3, &scalar, output, inst_count)),
+        "MULADD" | "MULADD_IEEE" => Some(nodes.func_node("fma", 3, &scalar, output, inst_count)),
         "MULADD_M2" => {
-            let node_index = nodes.add_func("fma", 3, &scalar, output.clone(), inst_count);
+            let node_index = nodes.func_node("fma", 3, &scalar, output.clone(), inst_count);
             let input = nodes.binary_expr(
                 BinaryOp::Mul,
                 Expr::Node {
@@ -1503,7 +1507,7 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
             Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         "MULADD_M4" => {
-            let node_index = nodes.add_func("fma", 3, &scalar, output.clone(), inst_count);
+            let node_index = nodes.func_node("fma", 3, &scalar, output.clone(), inst_count);
             let input = nodes.binary_expr(
                 BinaryOp::Mul,
                 Expr::Node {
@@ -1516,7 +1520,7 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
             Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         "MULADD_D2" => {
-            let node_index = nodes.add_func("fma", 3, &scalar, output.clone(), inst_count);
+            let node_index = nodes.func_node("fma", 3, &scalar, output.clone(), inst_count);
             let input = nodes.binary_expr(
                 BinaryOp::Div,
                 Expr::Node {
@@ -1529,7 +1533,7 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
             Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         "MULADD_D4" => {
-            let node_index = nodes.add_func("fma", 3, &scalar, output.clone(), inst_count);
+            let node_index = nodes.func_node("fma", 3, &scalar, output.clone(), inst_count);
             let input = nodes.binary_expr(
                 BinaryOp::Div,
                 Expr::Node {
@@ -1562,9 +1566,9 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
             let node = Node { output, input };
             Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
-        "SIN" => Some(nodes.add_func("sin", 1, &scalar, output, inst_count)),
-        "COS" => Some(nodes.add_func("cos", 1, &scalar, output, inst_count)),
-        "FRACT" => Some(nodes.add_func("fract", 1, &scalar, output, inst_count)),
+        "SIN" => Some(nodes.func_node("sin", 1, &scalar, output, inst_count)),
+        "COS" => Some(nodes.func_node("cos", 1, &scalar, output, inst_count)),
+        "FRACT" => Some(nodes.func_node("fract", 1, &scalar, output, inst_count)),
         "CUBE" => {
             // TODO: proper reduction instruction for cube maps
             let input = nodes.expr(Expr::Float(0.0.into()));
@@ -1657,11 +1661,8 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
         }
     };
 
-    if let Some(modifier) = scalar.output_modifier {
-        if let Some(node_index) = node_index {
-            let node = alu_output_modifier(&modifier, scalar.output, node_index, nodes);
-            nodes.node(node, Some(scalar.alu_unit), inst_count);
-        }
+    if let Some(node_index) = node_index {
+        add_alu_output_modifiers(nodes, &scalar, node_index, inst_count);
     }
 }
 
@@ -1708,12 +1709,45 @@ fn alu_dst_output(dst: AluDst, inst_count: InstCount, alu_unit: char) -> Output 
     }
 }
 
-fn alu_output_modifier(
-    modifier: &str,
-    output: Output,
+fn add_alu_output_modifiers(
+    nodes: &mut Nodes,
+    scalar: &AluScalarData,
+    node_index: usize,
+    inst_count: InstCount,
+) {
+    let node_index =
+        alu_output_modifier_scale(scalar, node_index, nodes, inst_count).unwrap_or(node_index);
+
+    if scalar.properties.iter().any(|p| p == &AluProperty::Clamp) {
+        let arg0 = nodes.expr(Expr::Node {
+            node_index,
+            channel: scalar.output.channel,
+        });
+        let arg1 = nodes.expr(Expr::Float(0.0.into()));
+        let arg2 = nodes.expr(Expr::Float(1.0.into()));
+        let input = nodes.expr(Expr::Func {
+            name: "clamp".into(),
+            args: vec![arg0, arg1, arg2],
+            channel: None,
+        });
+        nodes.node(
+            Node {
+                output: scalar.output.clone(),
+                input,
+            },
+            Some(scalar.alu_unit),
+            inst_count,
+        );
+    }
+}
+
+fn alu_output_modifier_scale(
+    scalar: &AluScalarData,
     node_index: usize,
     nodes: &mut Nodes,
-) -> Node {
+    inst_count: InstCount,
+) -> Option<usize> {
+    let modifier = scalar.output_modifier.as_ref()?.as_str();
     let (op, f) = match modifier {
         "/2" => (BinaryOp::Div, 2.0),
         "/4" => (BinaryOp::Div, 4.0),
@@ -1726,11 +1760,19 @@ fn alu_output_modifier(
         op,
         Expr::Node {
             node_index,
-            channel: output.channel,
+            channel: scalar.output.channel,
         },
         Expr::Float(f.into()),
     );
-    Node { output, input }
+    let node_index = nodes.node(
+        Node {
+            output: scalar.output.clone(),
+            input,
+        },
+        None,
+        inst_count,
+    );
+    Some(node_index)
 }
 
 fn alu_src_expr(
@@ -2018,7 +2060,7 @@ fn fetch_inst_node(tex: FetchInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
 
     // TODO: How should the OFFSET property be used?
     let src_expr = previous_assignment(&src_name, src_channels.chars().next(), nodes, inst_count);
-    let src_index = nodes.add_float_to_uint(src_expr);
+    let src_index = nodes.float_to_uint_expr(src_expr);
 
     // Convert vector swizzles to scalar operations to simplify analysis code.
     Some(
