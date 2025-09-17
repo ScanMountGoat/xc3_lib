@@ -961,6 +961,7 @@ struct Nodes {
     exprs: IndexSet<Expr>,
 }
 
+#[derive(Debug)]
 struct NodeInfo {
     index: usize,
     alu_unit: Option<char>,
@@ -1320,8 +1321,9 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
         let dot_node_index = dot_product_node_index(&scalars, inst_count, nodes);
 
         for scalar in scalars {
+            // Reduction instructions write a single result to all vector outputs.
+            // TODO: Cube instructions are also reduction instructions.
             if scalar.op_code.starts_with("DOT4") {
-                // Dot products write the result to all vector components.
                 if let Some(node_index) = dot_node_index {
                     let node = Node {
                         output: scalar.output,
@@ -1460,7 +1462,7 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
             Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
         }
         "DOT4" | "DOT4_IEEE" => {
-            // Handled in a previous check.
+            // Reduction instructions handled in a previous check.
             unreachable!()
         }
         "MULLO_UINT" => {
@@ -1563,7 +1565,12 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
         "SIN" => Some(nodes.add_func("sin", 1, &scalar, output, inst_count)),
         "COS" => Some(nodes.add_func("cos", 1, &scalar, output, inst_count)),
         "FRACT" => Some(nodes.add_func("fract", 1, &scalar, output, inst_count)),
-        "CUBE" => None, // TODO: Cube maps
+        "CUBE" => {
+            // TODO: proper reduction instruction for cube maps
+            let input = nodes.expr(Expr::Float(0.0.into()));
+            let node = Node { output, input };
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
+        }
         // TODO: push/pop and predicates
         "PRED_SETGE" | "PRED_SETGT" => None,
         // Conditionals
@@ -1735,18 +1742,20 @@ fn alu_src_expr(
 ) -> Expr {
     let negate = source.negate.is_some();
 
-    let channel = source.swizzle.and_then(|s| s.channels().chars().next());
-
     let expr = match source.value {
         AluSrcValueOrAbs::Abs(abs_value) => {
+            let channel = abs_value.swizzle.and_then(|s| s.channels().chars().next());
             let arg = value_expr(nodes, channel, abs_value.value, kc0, kc1, inst_count);
             Expr::Func {
                 name: "abs".into(),
                 args: vec![nodes.expr(arg)],
-                channel: abs_value.swizzle.and_then(|s| s.channels().chars().next()),
+                channel: None,
             }
         }
-        AluSrcValueOrAbs::Value(value) => value_expr(nodes, channel, value, kc0, kc1, inst_count),
+        AluSrcValueOrAbs::Value(value) => {
+            let channel = source.swizzle.and_then(|s| s.channels().chars().next());
+            value_expr(nodes, channel, value, kc0, kc1, inst_count)
+        }
     };
 
     if negate {
@@ -1845,7 +1854,7 @@ fn previous_assignment(
                 node_index,
                 channel,
             })
-            .unwrap_or(Expr::Global {
+            .unwrap_or_else(|| Expr::Global {
                 name: value.into(),
                 channel,
             })
@@ -1866,9 +1875,15 @@ fn find_node(nodes: &Nodes, inst_count: InstCount, channel: Option<char>, value:
                 None
             }
         })
-        .unwrap_or(Expr::Global {
-            name: value.into(),
-            channel,
+        .unwrap_or_else(|| {
+            error!(
+                "Unable to find previous value for {value}{}",
+                channel.map(|c| format!(".{c}")).unwrap_or_default()
+            );
+            Expr::Global {
+                name: value.into(),
+                channel,
+            }
         })
 }
 
