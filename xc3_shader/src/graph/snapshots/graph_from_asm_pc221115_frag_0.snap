@@ -1,3 +1,6 @@
+---
+source: xc3_shader/src/graph/latte.rs
+---
 R2.x = texture(t3, vec2(R6.x, R6.y)).x;
 R2.y = texture(t3, vec2(R6.x, R6.y)).y;
 R8.x = texture(t2, vec2(R6.x, R6.y)).x;

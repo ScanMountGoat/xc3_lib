@@ -2094,39 +2094,40 @@ fn fetch_inst_node(tex: FetchInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
 mod tests {
     use super::*;
 
-    use pretty_assertions::assert_eq;
+    use insta::assert_snapshot;
+
+    macro_rules! assert_glsl_snapshot {
+        ($glsl:expr) => {
+            let mut settings = insta::Settings::new();
+            settings.set_prepend_module_to_snapshot(false);
+            settings.set_omit_expression(true);
+            settings.bind(|| {
+                assert_snapshot!($glsl);
+            });
+        };
+    }
 
     #[test]
     fn graph_from_asm_pc221115_frag_0() {
         // Elma's legs (visible on title screen).
         let asm = include_str!("../data/xcx/pc221115.0.frag.txt");
-        let expected = include_str!("../data/xcx/pc221115.0.frag");
-
-        // TODO: Figure out the expected nodes to test previous node references.
-        // TODO: Test expected nodes on a handwritten example?
         let graph = Graph::from_latte_asm(asm).unwrap();
-        assert_eq!(expected, graph.to_glsl());
+        assert_glsl_snapshot!(graph.to_glsl());
     }
 
     #[test]
     fn graph_from_asm_pc221115_vert_0() {
         // Elma's legs (visible on title screen).
         let asm = include_str!("../data/xcx/pc221115.0.vert.txt");
-        let expected = include_str!("../data/xcx/pc221115.0.vert");
-
-        // TODO: Figure out the expected nodes to test previous node references.
-        // TODO: Test expected nodes on a handwritten example?
         let graph = Graph::from_latte_asm(asm).unwrap();
-        assert_eq!(expected, graph.to_glsl());
+        assert_glsl_snapshot!(graph.to_glsl());
     }
 
     #[test]
     fn graph_from_asm_en020601_frag_0() {
         // Tree enemy.
         let asm = include_str!("../data/xcx/en020601.0.frag.txt");
-        let expected = include_str!("../data/xcx/en020601.0.frag");
-
         let graph = Graph::from_latte_asm(asm).unwrap();
-        assert_eq!(expected, graph.to_glsl());
+        assert_glsl_snapshot!(graph.to_glsl());
     }
 }

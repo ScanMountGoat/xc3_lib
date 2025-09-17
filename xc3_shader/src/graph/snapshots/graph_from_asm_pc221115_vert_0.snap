@@ -1,3 +1,6 @@
+---
+source: xc3_shader/src/graph/latte.rs
+---
 R1.x = R5.x;
 R1.y = R5.y;
 R5.w = 1.0;
