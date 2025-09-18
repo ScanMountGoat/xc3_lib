@@ -1581,7 +1581,7 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
             let node_index = nodes.func_node("log2", 1, &scalar, output.clone(), inst_count);
             let input = nodes.clamp_expr(Expr::Node {
                 node_index,
-                channel: None,
+                channel: output.channel,
             });
             let node = Node { output, input };
             Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
