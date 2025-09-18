@@ -1397,7 +1397,7 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
             if scalar.op_code.starts_with("DOT4") {
                 if let Some(node_index) = dot_node_index {
                     let node = Node {
-                        output: scalar.output,
+                        output: scalar.output.clone(),
                         input: nodes.expr(Expr::Node {
                             node_index,
                             channel: None,
@@ -1406,7 +1406,7 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                     nodes.node(node, Some(scalar.alu_unit), inst_count);
                 }
             } else {
-                add_scalar(scalar, nodes, inst_count);
+                add_scalar(&scalar, nodes, inst_count);
             }
         }
     }
@@ -1525,21 +1525,44 @@ fn dot_product_node_index(
             ],
             channel: None,
         };
+        let temp_name: SmolStr = format!("temp{}", inst_count.0).into();
         let node = Node {
             output: Output {
-                name: format!("temp{}", inst_count.0).into(),
+                name: temp_name.clone(),
                 channel: None,
             },
             input: nodes.expr(input),
         };
-        let node_index = nodes.node(node, None, inst_count);
+        let mut node_index = nodes.node(node, None, inst_count);
+
+        // Assume the clamp is applied to all xyzw scalars.
+        if scalars.iter().any(|s| {
+            s.op_code.starts_with("DOT4") && s.properties.iter().any(|p| p == &AluProperty::Clamp)
+        }) {
+            let input = nodes.clamp_expr(Expr::Node {
+                node_index,
+                channel: None,
+            });
+            node_index = nodes.node(
+                Node {
+                    output: Output {
+                        name: temp_name,
+                        channel: None,
+                    },
+                    input,
+                },
+                None,
+                inst_count,
+            )
+        }
+
         Some(node_index)
     } else {
         None
     }
 }
 
-fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
+fn add_scalar(scalar: &AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
     let output = scalar.output.clone();
     let node_index = match scalar.op_code.as_str() {
         // scalar1
