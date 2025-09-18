@@ -1134,6 +1134,17 @@ impl Nodes {
         };
         self.expr(result)
     }
+
+    fn clamp_expr(&mut self, e: Expr) -> usize {
+        let arg0 = self.expr(e);
+        let arg1 = self.expr(Expr::Float(0.0.into()));
+        let arg2 = self.expr(Expr::Float(1.0.into()));
+        self.expr(Expr::Func {
+            name: "clamp".into(),
+            args: vec![arg0, arg1, arg2],
+            channel: None,
+        })
+    }
 }
 
 impl Graph {
@@ -1261,7 +1272,23 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
             }
         }
 
-        // TODO: backup values if assigned value is used for another channel
+        // Backup values if the assigned value is read after being modified.
+        let backup_gprs = backup_gprs(&group);
+
+        for (i, channel) in &backup_gprs {
+            let name = format!("R{i}");
+            let e = previous_assignment(&name, *channel, nodes, inst_count);
+            let input = nodes.expr(e);
+            let node = Node {
+                output: Output {
+                    name: format!("{name}_backup").into(),
+                    channel: *channel,
+                },
+                input,
+            };
+            nodes.node(node, None, inst_count);
+        }
+
         let scalars: Vec<_> = group
             .scalars
             .into_iter()
@@ -1286,7 +1313,12 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         properties: s.properties,
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
                         sources: vec![alu_src_expr(
-                            s.src1, nodes, kc0_buffer, kc1_buffer, inst_count,
+                            s.src1,
+                            nodes,
+                            kc0_buffer,
+                            kc1_buffer,
+                            &backup_gprs,
+                            inst_count,
                         )],
                     }
                 }
@@ -1299,8 +1331,22 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         properties: s.properties,
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
                         sources: vec![
-                            alu_src_expr(s.src1, nodes, kc0_buffer, kc1_buffer, inst_count),
-                            alu_src_expr(s.src2, nodes, kc0_buffer, kc1_buffer, inst_count),
+                            alu_src_expr(
+                                s.src1,
+                                nodes,
+                                kc0_buffer,
+                                kc1_buffer,
+                                &backup_gprs,
+                                inst_count,
+                            ),
+                            alu_src_expr(
+                                s.src2,
+                                nodes,
+                                kc0_buffer,
+                                kc1_buffer,
+                                &backup_gprs,
+                                inst_count,
+                            ),
                         ],
                     }
                 }
@@ -1313,9 +1359,30 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                         properties: s.properties,
                         output: alu_dst_output(s.dst, inst_count, alu_unit),
                         sources: vec![
-                            alu_src_expr(s.src1, nodes, kc0_buffer, kc1_buffer, inst_count),
-                            alu_src_expr(s.src2, nodes, kc0_buffer, kc1_buffer, inst_count),
-                            alu_src_expr(s.src3, nodes, kc0_buffer, kc1_buffer, inst_count),
+                            alu_src_expr(
+                                s.src1,
+                                nodes,
+                                kc0_buffer,
+                                kc1_buffer,
+                                &backup_gprs,
+                                inst_count,
+                            ),
+                            alu_src_expr(
+                                s.src2,
+                                nodes,
+                                kc0_buffer,
+                                kc1_buffer,
+                                &backup_gprs,
+                                inst_count,
+                            ),
+                            alu_src_expr(
+                                s.src3,
+                                nodes,
+                                kc0_buffer,
+                                kc1_buffer,
+                                &backup_gprs,
+                                inst_count,
+                            ),
                         ],
                     }
                 }
@@ -1342,6 +1409,84 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                 add_scalar(scalar, nodes, inst_count);
             }
         }
+    }
+}
+
+fn backup_gprs(group: &AluGroup) -> BTreeSet<(usize, Option<char>)> {
+    let mut write_gprs = BTreeSet::new();
+    let mut backup_gprs = BTreeSet::new();
+    for s in &group.scalars {
+        match s {
+            AluScalar::Scalar0(s) => {
+                insert_write_gpr(&mut write_gprs, &s.dst);
+            }
+            AluScalar::Scalar1(s) => {
+                insert_backup_gprs(&write_gprs, &mut backup_gprs, &s.src1);
+
+                insert_write_gpr(&mut write_gprs, &s.dst);
+            }
+            AluScalar::Scalar2(s) => {
+                insert_backup_gprs(&write_gprs, &mut backup_gprs, &s.src1);
+                insert_backup_gprs(&write_gprs, &mut backup_gprs, &s.src2);
+
+                insert_write_gpr(&mut write_gprs, &s.dst);
+            }
+            AluScalar::Scalar3(s) => {
+                insert_backup_gprs(&write_gprs, &mut backup_gprs, &s.src1);
+                insert_backup_gprs(&write_gprs, &mut backup_gprs, &s.src2);
+                insert_backup_gprs(&write_gprs, &mut backup_gprs, &s.src3);
+
+                insert_write_gpr(&mut write_gprs, &s.dst);
+            }
+        }
+    }
+    backup_gprs
+}
+
+fn insert_backup_gprs(
+    write_gprs: &BTreeSet<(usize, Option<char>)>,
+    backup_gprs: &mut BTreeSet<(usize, Option<char>)>,
+    src: &AluSrc,
+) {
+    // Registers that are read after being written need to be backed up.
+    // The reads should still use the old value for this ALU group.
+    match &src.value {
+        AluSrcValueOrAbs::Abs(v) => {
+            if let AluSrcValue::Gpr(gpr) = &v.value {
+                let key = (
+                    gpr.0,
+                    v.swizzle.as_ref().and_then(|s| s.channels().chars().next()),
+                );
+                if write_gprs.contains(&key) {
+                    backup_gprs.insert(key);
+                }
+            }
+        }
+        AluSrcValueOrAbs::Value(v) => {
+            if let AluSrcValue::Gpr(gpr) = v {
+                let key = (
+                    gpr.0,
+                    src.swizzle
+                        .as_ref()
+                        .and_then(|s| s.channels().chars().next()),
+                );
+                if write_gprs.contains(&key) {
+                    backup_gprs.insert(key);
+                }
+            }
+        }
+    }
+}
+
+fn insert_write_gpr(write_gprs: &mut BTreeSet<(usize, Option<char>)>, dst: &AluDst) {
+    match dst {
+        AluDst::Value { gpr, swizzle, .. } => {
+            write_gprs.insert((
+                gpr.0,
+                swizzle.as_ref().and_then(|s| s.channels().chars().next()),
+            ));
+        }
+        AluDst::WriteMask(_) => (),
     }
 }
 
@@ -1432,7 +1577,15 @@ fn add_scalar(scalar: AluScalarData, nodes: &mut Nodes, inst_count: InstCount) {
             Some(nodes.func_node("inversesqrt", 1, &scalar, output, inst_count))
         }
         "EXP_IEEE" => Some(nodes.func_node("exp2", 1, &scalar, output, inst_count)),
-        "LOG_CLAMPED" => Some(nodes.func_node("log2", 1, &scalar, output, inst_count)),
+        "LOG_CLAMPED" => {
+            let node_index = nodes.func_node("log2", 1, &scalar, output.clone(), inst_count);
+            let input = nodes.clamp_expr(Expr::Node {
+                node_index,
+                channel: None,
+            });
+            let node = Node { output, input };
+            Some(nodes.node(node, Some(scalar.alu_unit), inst_count))
+        }
         // scalar2
         "ADD" => {
             let input = nodes.binary_expr(
@@ -1671,9 +1824,9 @@ fn alu_dst_output(dst: AluDst, inst_count: InstCount, alu_unit: char) -> Output 
         AluDst::Value {
             gpr,
             alu_rel: _,
-            swizzle: one_comp_swizzle,
+            swizzle,
         } => {
-            let channel = one_comp_swizzle.and_then(|s| s.channels().chars().next());
+            let channel = swizzle.and_then(|s| s.channels().chars().next());
             Output {
                 name: gpr.to_smolstr(),
                 channel,
@@ -1719,16 +1872,9 @@ fn add_alu_output_modifiers(
         alu_output_modifier_scale(scalar, node_index, nodes, inst_count).unwrap_or(node_index);
 
     if scalar.properties.iter().any(|p| p == &AluProperty::Clamp) {
-        let arg0 = nodes.expr(Expr::Node {
+        let input = nodes.clamp_expr(Expr::Node {
             node_index,
             channel: scalar.output.channel,
-        });
-        let arg1 = nodes.expr(Expr::Float(0.0.into()));
-        let arg2 = nodes.expr(Expr::Float(1.0.into()));
-        let input = nodes.expr(Expr::Func {
-            name: "clamp".into(),
-            args: vec![arg0, arg1, arg2],
-            channel: None,
         });
         nodes.node(
             Node {
@@ -1780,6 +1926,7 @@ fn alu_src_expr(
     nodes: &mut Nodes,
     kc0: Option<&ConstantBuffer>,
     kc1: Option<&ConstantBuffer>,
+    backup_gprs: &BTreeSet<(usize, Option<char>)>,
     inst_count: InstCount,
 ) -> Expr {
     let negate = source.negate.is_some();
@@ -1787,7 +1934,15 @@ fn alu_src_expr(
     let expr = match source.value {
         AluSrcValueOrAbs::Abs(abs_value) => {
             let channel = abs_value.swizzle.and_then(|s| s.channels().chars().next());
-            let arg = value_expr(nodes, channel, abs_value.value, kc0, kc1, inst_count);
+            let arg = value_expr(
+                nodes,
+                channel,
+                abs_value.value,
+                kc0,
+                kc1,
+                backup_gprs,
+                inst_count,
+            );
             Expr::Func {
                 name: "abs".into(),
                 args: vec![nodes.expr(arg)],
@@ -1796,7 +1951,7 @@ fn alu_src_expr(
         }
         AluSrcValueOrAbs::Value(value) => {
             let channel = source.swizzle.and_then(|s| s.channels().chars().next());
-            value_expr(nodes, channel, value, kc0, kc1, inst_count)
+            value_expr(nodes, channel, value, kc0, kc1, backup_gprs, inst_count)
         }
     };
 
@@ -1818,10 +1973,18 @@ fn value_expr(
     value: AluSrcValue,
     kc0: Option<&ConstantBuffer>,
     kc1: Option<&ConstantBuffer>,
+    backup_gprs: &BTreeSet<(usize, Option<char>)>,
     inst_count: InstCount,
 ) -> Expr {
     match value {
-        AluSrcValue::Gpr(gpr) => previous_assignment(&gpr.to_string(), channel, nodes, inst_count),
+        AluSrcValue::Gpr(gpr) => {
+            if backup_gprs.contains(&(gpr.0, channel)) {
+                // Find the backed up value from before this ALU group.
+                previous_assignment(&format!("{gpr}_backup"), channel, nodes, inst_count)
+            } else {
+                previous_assignment(&gpr.to_string(), channel, nodes, inst_count)
+            }
+        }
         AluSrcValue::ConstantCache0(c0) => constant_buffer(c0.0, channel, kc0, nodes),
         AluSrcValue::ConstantCache1(c1) => constant_buffer(c1.0, channel, kc1, nodes),
         AluSrcValue::ConstantFile(cf) => constant_file(cf, channel),
@@ -1942,7 +2105,6 @@ fn tex_inst_node(tex: TexInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
     let texcoords = tex_src_coords(&tex, nodes, inst_count)?;
     let texcoords = nodes.expr(texcoords);
 
-    // TODO: make these rules not atomic and format similar to gpr?
     let texture = tex.resource_id.0;
     let _sampler = tex.sampler_id.0;
 

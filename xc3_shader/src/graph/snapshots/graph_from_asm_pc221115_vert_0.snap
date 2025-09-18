@@ -1,10 +1,11 @@
 ---
 source: xc3_shader/src/graph/latte.rs
 ---
+R1_backup.x = R1.x;
 R1.x = R5.x;
 R1.y = R5.y;
 R5.w = 1.0;
-R0.w = intBitsToFloat(floatBitsToInt(R1.x) * 3);
+R0.w = intBitsToFloat(floatBitsToInt(R1_backup.x) * 3);
 R0.z = intBitsToFloat(floatBitsToInt(R0.w) + 1065353216);
 R1.w = intBitsToFloat(floatBitsToInt(R0.w) + 2);
 R9.w = R2.w;
@@ -100,8 +101,9 @@ R2.y = R4.w * R123.x;
 R123.z = fma(-R1.y, R9.z, PV16.y);
 R2.w = R4.w * R123.w;
 R122.x = fma(R6.z, R0.z, PV16.z);
+R0_backup.x = R0.x;
 R0.x = fma(R6.x, R7.x, R123.x);
-R0.y = fma(R6.x, R0.x, R122.x);
+R0.y = fma(R6.x, R0_backup.x, R122.x);
 PV18.z = R6.z * R8.z;
 R2.x = R4.w * R123.z;
 temp19 = dot(vec4(R6.x, R6.y, PV18.z, -0.0), vec4(R8.x, R8.y, 1.0, -0.0));
