@@ -217,7 +217,7 @@ fn check_exprs<'a>(
             // 0.0 - x == -x
             query_graph.exprs[*a1] == Expr::Float(OrderedFloat(0.0)) && check(&[*b1], &[*a2])
         }
-        _ => query_graph.exprs[query] == input_graph.exprs[input],
+        (q, i) => q == i,
     }
 }
 

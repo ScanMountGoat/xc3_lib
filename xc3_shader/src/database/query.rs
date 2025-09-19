@@ -924,6 +924,7 @@ pub fn skin_attribute_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Ex
         })
 }
 
+// TODO: combine these queries and only check the integer values?
 static SKIN_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
@@ -958,7 +959,7 @@ static SKIN_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-static SKIN_ATTRIBUTE_XYZW_Y: LazyLock<Graph> = LazyLock::new(|| {
+static SKIN_ATTRIBUTE_XYZW_YZ: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
             temp_0 = nWgtIdx.x;
@@ -969,7 +970,7 @@ static SKIN_ATTRIBUTE_XYZW_Y: LazyLock<Graph> = LazyLock::new(|| {
             temp_6 = temp_5 << 16;
             temp_7 = temp_6 + temp_2;
             temp_9 = result_x;
-            temp_13 = temp_7 + 16;
+            temp_13 = temp_7 + offset;
             temp_16 = result_y;
             temp_41 = uint(temp_13) >> 2;
             temp_42 = uintBitsToFloat(U_Bone.data[int(temp_41)]);
@@ -993,51 +994,19 @@ static SKIN_ATTRIBUTE_XYZW_Y: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-static SKIN_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        void main() {
-            temp_0 = nWgtIdx.x;
-            temp_1 = floatBitsToInt(temp_0) & 65535;
-            temp_2 = temp_1 * 48;
-            temp_4 = floatBitsToUint(temp_0) >> 16;
-            temp_5 = int(temp_4) * 48;
-            temp_6 = temp_5 << 16;
-            temp_7 = temp_6 + temp_2;
-            temp_9 = result_x;
-            temp_10 = temp_7 + 32;
-            temp_16 = result_y;
-            temp_18 = uint(temp_10) >> 2;
-            temp_19 = uintBitsToFloat(U_Bone.data[int(temp_18)]);
-            temp_20 = temp_10 + 4;
-            temp_21 = uint(temp_20) >> 2;
-            temp_22 = uintBitsToFloat(U_Bone.data[int(temp_21)]);
-            temp_23 = temp_10 + 8;
-            temp_24 = uint(temp_23) >> 2;
-            temp_25 = uintBitsToFloat(U_Bone.data[int(temp_24)]);
-            temp_26 = temp_10 + 12;
-            temp_27 = uint(temp_26) >> 2;
-            temp_28 = uintBitsToFloat(U_Bone.data[int(temp_27)]);
-            temp_52 = result_z;
-            temp_53 = result_w;
-            temp_58 = temp_19 * temp_9;
-            temp_76 = fma(temp_22, temp_16, temp_58);
-            temp_85 = fma(temp_25, temp_52, temp_76);
-            temp_89 = fma(temp_28, temp_53, temp_85);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
-});
-
 pub fn skin_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    // TODO: Combine these queries
     query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZW_X)
         .and_then(|r| r.get("result_x").copied())
         .or_else(|| {
-            query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZW_Y)
-                .and_then(|r| r.get("result_y").copied())
-        })
-        .or_else(|| {
-            query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZW_Z)
-                .and_then(|r| r.get("result_z").copied())
+            query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZW_YZ).and_then(|r| {
+                let offset = r.get("offset")?;
+                match offset {
+                    Expr::Int(16) => r.get("result_y").copied(),
+                    Expr::Int(32) => r.get("result_z").copied(),
+                    _ => None,
+                }
+            })
         })
 }
 
@@ -1316,65 +1285,31 @@ pub fn skin_attribute_bitangent<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<
     })
 }
 
-static U_MDL_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
+static U_MDL_ATTRIBUTE_XYZW: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
             temp_0 = result_x;
             temp_1 = result_y;
             temp_2 = result_z;
             temp_3 = result_w;
-            temp_24 = temp_0 * U_Mdl.gmWorldView[0].x;
-            temp_28 = fma(temp_1, U_Mdl.gmWorldView[0].y, temp_24);
-            temp_34 = fma(temp_2, U_Mdl.gmWorldView[0].z, temp_28);
-            temp_40 = fma(temp_3, U_Mdl.gmWorldView[0].w, temp_34);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
-});
-
-static U_MDL_ATTRIBUTE_XYZW_Y: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        void main() {
-            temp_0 = result_x;
-            temp_1 = result_y;
-            temp_2 = result_z;
-            temp_3 = result_w;
-            temp_23 = temp_0 * U_Mdl.gmWorldView[1].x;
-            temp_27 = fma(temp_1, U_Mdl.gmWorldView[1].y, temp_23);
-            temp_33 = fma(temp_2, U_Mdl.gmWorldView[1].z, temp_27);
-            temp_39 = fma(temp_3, U_Mdl.gmWorldView[1].w, temp_33);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
-});
-
-static U_MDL_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        void main() {
-            temp_0 = result_x;
-            temp_1 = result_y;
-            temp_2 = result_z;
-            temp_3 = result_w;
-            temp_22 = temp_0 * U_Mdl.gmWorldView[2].x;
-            temp_26 = fma(temp_1, U_Mdl.gmWorldView[2].y, temp_22);
-            temp_31 = fma(temp_2, U_Mdl.gmWorldView[2].z, temp_26);
-            temp_37 = fma(temp_3, U_Mdl.gmWorldView[2].w, temp_31);
+            temp_24 = temp_0 * U_Mdl.gmWorldView[index].x;
+            temp_28 = fma(temp_1, U_Mdl.gmWorldView[index].y, temp_24);
+            temp_34 = fma(temp_2, U_Mdl.gmWorldView[index].z, temp_28);
+            temp_40 = fma(temp_3, U_Mdl.gmWorldView[index].w, temp_34);
         }
     "};
     Graph::parse_glsl(query).unwrap()
 });
 
 pub fn u_mdl_view_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
-    query_nodes(expr, graph, &U_MDL_ATTRIBUTE_XYZW_X)
-        .and_then(|r| r.get("result_x").copied())
-        .or_else(|| {
-            query_nodes(expr, graph, &U_MDL_ATTRIBUTE_XYZW_Y)
-                .and_then(|r| r.get("result_y").copied())
-        })
-        .or_else(|| {
-            query_nodes(expr, graph, &U_MDL_ATTRIBUTE_XYZW_Z)
-                .and_then(|r| r.get("result_z").copied())
-        })
+    let result = query_nodes(expr, graph, &U_MDL_ATTRIBUTE_XYZW)?;
+    let index = result.get("index")?;
+    match index {
+        Expr::Int(0) => result.get("result_x").copied(),
+        Expr::Int(1) => result.get("result_y").copied(),
+        Expr::Int(2) => result.get("result_z").copied(),
+        _ => None,
+    }
 }
 
 static U_MDL_VIEW_BITANGENT_X: LazyLock<Graph> = LazyLock::new(|| {
@@ -1545,59 +1480,29 @@ pub fn u_mdl_clip_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option
         })
 }
 
-static U_MDL_ATTRIBUTE_XYZ_X: LazyLock<Graph> = LazyLock::new(|| {
+static U_MDL_ATTRIBUTE_XYZ: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
             temp_0 = result_x;
             temp_1 = result_y;
             temp_2 = result_z;
-            temp_24 = temp_0 * U_Mdl.gmWorldView[0].x;
-            temp_28 = fma(temp_1, U_Mdl.gmWorldView[0].y, temp_24);
-            temp_34 = fma(temp_2, U_Mdl.gmWorldView[0].z, temp_28);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
-});
-
-static U_MDL_ATTRIBUTE_XYZ_Y: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        void main() {
-            temp_0 = result_x;
-            temp_1 = result_y;
-            temp_2 = result_z;
-            temp_23 = temp_0 * U_Mdl.gmWorldView[1].x;
-            temp_27 = fma(temp_1, U_Mdl.gmWorldView[1].y, temp_23);
-            temp_33 = fma(temp_2, U_Mdl.gmWorldView[1].z, temp_27);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap()
-});
-
-static U_MDL_ATTRIBUTE_XYZ_Z: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        void main() {
-            temp_0 = result_x;
-            temp_1 = result_y;
-            temp_2 = result_z;
-            temp_22 = temp_0 * U_Mdl.gmWorldView[2].x;
-            temp_26 = fma(temp_1, U_Mdl.gmWorldView[2].y, temp_22);
-            temp_31 = fma(temp_2, U_Mdl.gmWorldView[2].z, temp_26);
+            temp_24 = temp_0 * U_Mdl.gmWorldView[index].x;
+            temp_28 = fma(temp_1, U_Mdl.gmWorldView[index].y, temp_24);
+            temp_34 = fma(temp_2, U_Mdl.gmWorldView[index].z, temp_28);
         }
     "};
     Graph::parse_glsl(query).unwrap()
 });
 
 pub fn u_mdl_attribute_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
-    query_nodes(expr, graph, &U_MDL_ATTRIBUTE_XYZ_X)
-        .and_then(|r| r.get("result_x").copied())
-        .or_else(|| {
-            query_nodes(expr, graph, &U_MDL_ATTRIBUTE_XYZ_Y)
-                .and_then(|r| r.get("result_y").copied())
-        })
-        .or_else(|| {
-            query_nodes(expr, graph, &U_MDL_ATTRIBUTE_XYZ_Z)
-                .and_then(|r| r.get("result_z").copied())
-        })
+    let result = query_nodes(expr, graph, &U_MDL_ATTRIBUTE_XYZ)?;
+    let index = result.get("index")?;
+    match index {
+        Expr::Int(0) => result.get("result_x").copied(),
+        Expr::Int(1) => result.get("result_y").copied(),
+        Expr::Int(2) => result.get("result_z").copied(),
+        _ => None,
+    }
 }
 
 static TEX_MATRIX: LazyLock<Graph> = LazyLock::new(|| {
