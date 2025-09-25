@@ -239,12 +239,12 @@ fn check_args<'a>(
     let mut local_vars = IndexMap::new();
     query.len() == input.len()
         && query.iter().zip(input).all(|(q, i)| {
-            if let Expr::Global { name, .. } = &query_graph.exprs[*q] {
-                if let Some(i_prev) = local_vars.insert(name.clone(), i) {
-                    // TODO: Should this check equivalent exprs?
-                    if i_prev != i {
-                        return false;
-                    }
+            if let Expr::Global { name, .. } = &query_graph.exprs[*q]
+                && let Some(i_prev) = local_vars.insert(name.clone(), i)
+            {
+                // TODO: Should this check equivalent exprs?
+                if i_prev != i {
+                    return false;
                 }
             }
             check_exprs(*q, *i, query_graph, input_graph, vars)

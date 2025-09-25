@@ -340,17 +340,17 @@ fn check_all_mibl(root: &Path, check_read_write: bool) {
                 let path = entry.as_ref().unwrap().path();
                 let (original_bytes, mibl) = read_wismt_single_tex(path);
 
-                if let Some(base_mip_path) = base_mip_path(path) {
-                    if let Ok(base_mip) = Xbc1::from_file(base_mip_path) {
-                        // Test joining and splitting base mip levels.
-                        let base_mip = base_mip.decompress().unwrap();
-                        let combined = mibl.to_surface_with_base_mip(&base_mip).unwrap();
-                        let combined_mibl = Mibl::from_surface(combined).unwrap();
+                if let Some(base_mip_path) = base_mip_path(path)
+                    && let Ok(base_mip) = Xbc1::from_file(base_mip_path)
+                {
+                    // Test joining and splitting base mip levels.
+                    let base_mip = base_mip.decompress().unwrap();
+                    let combined = mibl.to_surface_with_base_mip(&base_mip).unwrap();
+                    let combined_mibl = Mibl::from_surface(combined).unwrap();
 
-                        let (new_mibl, new_base_mip) = combined_mibl.split_base_mip();
-                        if new_base_mip != base_mip || new_mibl != mibl {
-                            println!("Join/split Mibl not 1:1 for {path:?}");
-                        }
+                    let (new_mibl, new_base_mip) = combined_mibl.split_base_mip();
+                    if new_base_mip != base_mip || new_mibl != mibl {
+                        println!("Join/split Mibl not 1:1 for {path:?}");
                     }
                 }
 
@@ -1463,37 +1463,33 @@ fn check_model_export(
     if new_mxmd.models.models != mxmd.models.models {
         println!("Model list not 1:1 for {path:?}");
     }
-    if let Some(skinning) = &mxmd.models.skinning {
-        if let Some(new_skinning) = &new_mxmd.models.skinning {
-            if new_skinning.bones != skinning.bones {
-                println!("Skinning bones not 1:1 for {path:?}");
-            }
-            if new_skinning.constraints != skinning.constraints {
-                println!("Skinning constraints not 1:1 for {path:?}");
-            }
-            if new_skinning.bounds != skinning.bounds {
-                println!("Skinning bounds not 1:1 for {path:?}");
-            }
-            // Use a generous tolerance to allow for inaccuracies in computations.
-            // TODO: Find a more accurate method for inverting bone transforms.
-            let count = new_skinning
-                .inverse_bind_transforms
-                .iter()
-                .zip(&skinning.inverse_bind_transforms)
-                .filter(|(m1, m2)| {
-                    !Mat4::from_cols_array_2d(m1).relative_eq(
-                        &Mat4::from_cols_array_2d(m2),
-                        0.5,
-                        0.1,
-                    )
-                })
-                .count();
-            if count > 0 {
-                println!(
-                    "Skinning transforms not within tolerances for {count} of {} bones for {path:?}",
-                    skinning.bones.len()
-                );
-            }
+    if let Some(skinning) = &mxmd.models.skinning
+        && let Some(new_skinning) = &new_mxmd.models.skinning
+    {
+        if new_skinning.bones != skinning.bones {
+            println!("Skinning bones not 1:1 for {path:?}");
+        }
+        if new_skinning.constraints != skinning.constraints {
+            println!("Skinning constraints not 1:1 for {path:?}");
+        }
+        if new_skinning.bounds != skinning.bounds {
+            println!("Skinning bounds not 1:1 for {path:?}");
+        }
+        // Use a generous tolerance to allow for inaccuracies in computations.
+        // TODO: Find a more accurate method for inverting bone transforms.
+        let count = new_skinning
+            .inverse_bind_transforms
+            .iter()
+            .zip(&skinning.inverse_bind_transforms)
+            .filter(|(m1, m2)| {
+                !Mat4::from_cols_array_2d(m1).relative_eq(&Mat4::from_cols_array_2d(m2), 0.5, 0.1)
+            })
+            .count();
+        if count > 0 {
+            println!(
+                "Skinning transforms not within tolerances for {count} of {} bones for {path:?}",
+                skinning.bones.len()
+            );
         }
     }
 }

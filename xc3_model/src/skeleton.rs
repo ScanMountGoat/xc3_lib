@@ -132,10 +132,10 @@ impl Skeleton {
 
         // Check ordering constraints to enable more efficient animation code.
         for (i, bone) in bones.iter().enumerate() {
-            if let Some(p) = bone.parent_index {
-                if i < p {
-                    warn!("Bone {i} appears before parent {p} and will not animate properly.")
-                }
+            if let Some(p) = bone.parent_index
+                && i < p
+            {
+                warn!("Bone {i} appears before parent {p} and will not animate properly.")
             }
         }
 

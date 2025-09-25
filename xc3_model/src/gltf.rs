@@ -291,10 +291,10 @@ impl GltfData {
         data.scene_nodes
             .push(gltf::json::Index::new(root_node_index));
 
-        if let Some(root_bone_index) = root_bone_index {
-            if let Some(skeleton) = &combined_skeleton {
-                add_animations(&mut data, animations, skeleton, root_bone_index)?;
-            }
+        if let Some(root_bone_index) = root_bone_index
+            && let Some(skeleton) = &combined_skeleton
+        {
+            add_animations(&mut data, animations, skeleton, root_bone_index)?;
         }
 
         Ok(data)

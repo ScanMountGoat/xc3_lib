@@ -531,50 +531,45 @@ pub struct Attributes {
 
 impl Visitor for AttributeVisitor {
     fn visit_single_declaration(&mut self, declaration: &SingleDeclaration) -> Visit {
-        if let Some(name) = &declaration.name {
-            if let Some(qualifier) = &declaration.ty.content.qualifier {
-                let mut is_input = None;
-                let mut location = None;
+        if let Some(name) = &declaration.name
+            && let Some(qualifier) = &declaration.ty.content.qualifier
+        {
+            let mut is_input = None;
+            let mut location = None;
 
-                for q in &qualifier.qualifiers {
-                    match &q.content {
-                        TypeQualifierSpecData::Storage(storage) => match &storage.content {
-                            StorageQualifierData::In => {
-                                is_input = Some(true);
-                            }
-                            StorageQualifierData::Out => {
-                                is_input = Some(false);
-                            }
-                            _ => (),
-                        },
-                        TypeQualifierSpecData::Layout(layout) => {
-                            if let Some(id) = layout.content.ids.first() {
-                                if let LayoutQualifierSpecData::Identifier(key, value) = &id.content
-                                {
-                                    if key.0 == "location" {
-                                        if let Some(ExprData::IntConst(i)) =
-                                            value.as_ref().map(|v| &v.content)
-                                        {
-                                            location = Some(*i);
-                                        }
-                                    }
-                                }
-                            }
+            for q in &qualifier.qualifiers {
+                match &q.content {
+                    TypeQualifierSpecData::Storage(storage) => match &storage.content {
+                        StorageQualifierData::In => {
+                            is_input = Some(true);
+                        }
+                        StorageQualifierData::Out => {
+                            is_input = Some(false);
                         }
                         _ => (),
+                    },
+                    TypeQualifierSpecData::Layout(layout) => {
+                        if let Some(id) = layout.content.ids.first()
+                            && let LayoutQualifierSpecData::Identifier(key, value) = &id.content
+                            && key.0 == "location"
+                            && let Some(ExprData::IntConst(i)) = value.as_ref().map(|v| &v.content)
+                        {
+                            location = Some(*i);
+                        }
                     }
+                    _ => (),
                 }
+            }
 
-                if let (Some(is_input), Some(location)) = (is_input, location) {
-                    if is_input {
-                        self.attributes
-                            .input_locations
-                            .insert(name.0.to_string(), location);
-                    } else {
-                        self.attributes
-                            .output_locations
-                            .insert(name.0.to_string(), location);
-                    }
+            if let (Some(is_input), Some(location)) = (is_input, location) {
+                if is_input {
+                    self.attributes
+                        .input_locations
+                        .insert(name.0.to_string(), location);
+                } else {
+                    self.attributes
+                        .output_locations
+                        .insert(name.0.to_string(), location);
                 }
             }
         }
@@ -635,21 +630,21 @@ fn fragment_input_to_vertex_output(
     if let Expr::Global { name, channel } = &frag.exprs[new_node.input] {
         // Convert a fragment input like "in_attr4" to its vertex output like "out_attr4".
         if let Some(fragment_location) = frag_attributes.input_locations.get_by_left(name.as_str())
-        {
-            if let Some(vertex_output_name) = vert_attributes
+            && let Some(vertex_output_name) = vert_attributes
                 .output_locations
                 .get_by_right(fragment_location)
+        {
+            // This will search vertex nodes first even if a fragment output has the same name.
+            if let Some(node_index) = vert
+                .nodes
+                .iter()
+                .position(|n| n.output.name == vertex_output_name && n.output.channel == *channel)
             {
-                // This will search vertex nodes first even if a fragment output has the same name.
-                if let Some(node_index) = vert.nodes.iter().position(|n| {
-                    n.output.name == vertex_output_name && n.output.channel == *channel
-                }) {
-                    // Link fragment inputs to vertex outputs.
-                    return Some(Expr::Node {
-                        node_index,
-                        channel: *channel,
-                    });
-                }
+                // Link fragment inputs to vertex outputs.
+                return Some(Expr::Node {
+                    node_index,
+                    channel: *channel,
+                });
             }
         }
     }

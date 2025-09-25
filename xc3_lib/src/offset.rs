@@ -138,29 +138,28 @@ where
     fn on_event(&self, event: &tracing::Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
         let mut visitor = OffsetRangeVisitor::default();
         event.record(&mut visitor);
-        if let Some(start) = visitor.start {
-            if let Some(end) = visitor.end {
-                if let Some(type_name) = visitor.type_name {
-                    let mut parent_type_names = Vec::new();
+        if let Some(start) = visitor.start
+            && let Some(end) = visitor.end
+            && let Some(type_name) = visitor.type_name
+        {
+            let mut parent_type_names = Vec::new();
 
-                    let scope = ctx.event_scope(event).unwrap();
-                    for span in scope.from_root() {
-                        if let Some(TypeName(n)) = span.extensions().get() {
-                            // TODO: Is there a better way to not include the current span?
-                            if n != &type_name {
-                                parent_type_names.push(n.clone());
-                            }
-                        }
-                    }
-
-                    self.0.lock().unwrap().push(OffsetRange {
-                        start,
-                        end,
-                        type_name,
-                        parent_type_names,
-                    });
+            let scope = ctx.event_scope(event).unwrap();
+            for span in scope.from_root() {
+                // TODO: Is there a better way to not include the current span?
+                if let Some(TypeName(n)) = span.extensions().get()
+                    && n != &type_name
+                {
+                    parent_type_names.push(n.clone());
                 }
             }
+
+            self.0.lock().unwrap().push(OffsetRange {
+                start,
+                end,
+                type_name,
+                parent_type_names,
+            });
         }
     }
 

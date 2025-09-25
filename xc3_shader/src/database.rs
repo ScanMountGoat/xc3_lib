@@ -159,15 +159,15 @@ fn color_or_param_output_expr(
     let mut current = &frag.exprs[last_node.input];
 
     // Remove some redundant float -> int float -> conversions found in some shaders.
-    if let Expr::Func { name, args, .. } = current {
-        if name == "intBitsToFloat" {
-            let new_current = assign_x_recursive(frag, &frag.exprs[args[0]]);
+    if let Expr::Func { name, args, .. } = current
+        && name == "intBitsToFloat"
+    {
+        let new_current = assign_x_recursive(frag, &frag.exprs[args[0]]);
 
-            if let Expr::Func { name, args, .. } = new_current {
-                if name == "floatBitsToInt" {
-                    current = &frag.exprs[args[0]];
-                }
-            }
+        if let Expr::Func { name, args, .. } = new_current
+            && name == "floatBitsToInt"
+        {
+            current = &frag.exprs[args[0]];
         }
     }
 

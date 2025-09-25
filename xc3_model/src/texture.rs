@@ -263,27 +263,25 @@ pub fn load_textures_legacy(
     let mut low_texture_indices: Vec<_> = (0..image_textures.len() as u16).collect();
 
     // TODO: Share code for loading streaming data with legacy mibl data?
-    if let Some(streaming) = &mxmd.streaming {
-        if let Some(casmt) = casmt {
-            // TODO: Why are the sizes sometimes 0?
-            let low_data = get_bytes(&casmt, streaming.low_texture_data_offset, None)
-                .map_err(binrw::Error::Io)?;
-            let high_data =
-                get_bytes(&casmt, streaming.texture_data_offset, None).map_err(binrw::Error::Io)?;
+    if let Some(streaming) = &mxmd.streaming
+        && let Some(casmt) = casmt
+    {
+        // TODO: Why are the sizes sometimes 0?
+        let low_data =
+            get_bytes(&casmt, streaming.low_texture_data_offset, None).map_err(binrw::Error::Io)?;
+        let high_data =
+            get_bytes(&casmt, streaming.texture_data_offset, None).map_err(binrw::Error::Io)?;
 
-            let (indices, textures) =
-                streaming
-                    .inner
-                    .extract_textures(low_data, high_data, |bytes| Mtxt::from_bytes(bytes))?;
+        let (indices, textures) =
+            streaming
+                .inner
+                .extract_textures(low_data, high_data, |bytes| Mtxt::from_bytes(bytes))?;
 
-            image_textures = textures
-                .into_iter()
-                .map(|t| {
-                    ImageTexture::from_mtxt(t.mtxt_final(), Some(t.name.clone()), Some(t.usage))
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            low_texture_indices = indices;
-        }
+        image_textures = textures
+            .into_iter()
+            .map(|t| ImageTexture::from_mtxt(t.mtxt_final(), Some(t.name.clone()), Some(t.usage)))
+            .collect::<Result<Vec<_>, _>>()?;
+        low_texture_indices = indices;
     }
 
     Ok((low_texture_indices, image_textures))

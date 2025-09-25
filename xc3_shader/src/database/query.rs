@@ -336,10 +336,10 @@ pub fn unary_op<'a>(
     unary_op: UnaryOp,
     operation: Operation,
 ) -> Option<(Operation, Vec<&'a Expr>)> {
-    if let Expr::Unary(op, e) = expr {
-        if *op == unary_op {
-            return Some((operation, vec![&graph.exprs[*e]]));
-        }
+    if let Expr::Unary(op, e) = expr
+        && *op == unary_op
+    {
+        return Some((operation, vec![&graph.exprs[*e]]));
     }
     None
 }
@@ -350,10 +350,10 @@ pub fn binary_op<'a>(
     binary_op: BinaryOp,
     operation: Operation,
 ) -> Option<(Operation, Vec<&'a Expr>)> {
-    if let Expr::Binary(op, a0, a1) = expr {
-        if *op == binary_op {
-            return Some((operation, vec![&graph.exprs[*a0], &graph.exprs[*a1]]));
-        }
+    if let Expr::Binary(op, a0, a1) = expr
+        && *op == binary_op
+    {
+        return Some((operation, vec![&graph.exprs[*a0], &graph.exprs[*a1]]));
     }
     None
 }

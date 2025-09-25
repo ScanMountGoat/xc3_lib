@@ -191,16 +191,14 @@ fn annotate_vertex_shader(
 }
 
 fn replace_uniform(e: &mut Expr, blocks: &[xc3_lib::mths::UniformBlock]) {
-    if let Expr::Parameter { name, field, .. } = e {
-        if let Some(block_index) = name
+    if let Expr::Parameter { name, field, .. } = e
+        && let Some(block_index) = name
             .strip_prefix("CB")
             .and_then(|i| i.parse::<usize>().ok())
-        {
-            if let Some(block) = blocks.iter().find(|b| b.offset as usize == block_index) {
-                *field = Some("values".into());
-                *name = (&block.name).into();
-            }
-        }
+        && let Some(block) = blocks.iter().find(|b| b.offset as usize == block_index)
+    {
+        *field = Some("values".into());
+        *name = (&block.name).into();
     }
 }
 
@@ -273,21 +271,20 @@ fn annotate_fragment_shader(
 
     let mut texture_names = Vec::new();
     for e in &graph.exprs {
-        if let Expr::Func { name, args, .. } = e {
-            if name.starts_with("texture") {
-                if let Some(Expr::Global { name, .. }) = args.first().map(|a| &graph.exprs[*a]) {
-                    texture_names.push(name.clone());
-                }
-            }
+        if let Expr::Func { name, args, .. } = e
+            && name.starts_with("texture")
+            && let Some(Expr::Global { name, .. }) = args.first().map(|a| &graph.exprs[*a])
+        {
+            texture_names.push(name.clone());
         }
     }
 
     for e in &mut graph.exprs {
-        if let Expr::Global { name, .. } = e {
-            if texture_names.contains(name) {
-                // texture(t1, ...) -> texture(s1, ...)
-                *name = name.replace("t", "s").into();
-            }
+        if let Expr::Global { name, .. } = e
+            && texture_names.contains(name)
+        {
+            // texture(t1, ...) -> texture(s1, ...)
+            *name = name.replace("t", "s").into();
         }
 
         replace_uniform(e, &pixel_shader.uniform_blocks);

@@ -153,10 +153,10 @@ impl Graph {
         let mut dependent_lines = BTreeSet::new();
 
         // Follow data dependencies backwards to find all relevant lines.
-        if let Some(n) = self.nodes.get(node_index) {
-            if dependent_lines.insert(node_index) {
-                self.add_dependencies(n.input, &mut dependent_lines);
-            }
+        if let Some(n) = self.nodes.get(node_index)
+            && dependent_lines.insert(node_index)
+        {
+            self.add_dependencies(n.input, &mut dependent_lines);
         }
 
         let max_depth = recursion_depth.unwrap_or(dependent_lines.len());
@@ -254,13 +254,12 @@ impl Graph {
     }
 
     fn add_assignments(&self, node_index: usize, dependent_lines: &mut BTreeSet<usize>) {
-        if let Some(n) = self.nodes.get(node_index) {
-            // Avoid processing the subtree rooted at a line more than once.
-            if dependent_lines.insert(node_index) {
-                if let Expr::Node { node_index, .. } = &self.exprs[n.input] {
-                    self.add_assignments(*node_index, dependent_lines);
-                }
-            }
+        // Avoid processing the subtree rooted at a line more than once.
+        if dependent_lines.insert(node_index)
+            && let Some(n) = self.nodes.get(node_index)
+            && let Expr::Node { node_index, .. } = &self.exprs[n.input]
+        {
+            self.add_assignments(*node_index, dependent_lines);
         }
     }
 

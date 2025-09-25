@@ -49,15 +49,10 @@ pub fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Op
                         if mxmd.streaming.is_some() {
                             match Msrd::from_file(path.with_extension("wismt")) {
                                 Ok(msrd) => {
-                                    if let Ok((_, spco, _)) = msrd.extract_files_legacy(None) {
-                                        if let Some(spch) = spco.spch() {
-                                            extract_shaders(
-                                                spch,
-                                                &output_folder,
-                                                shader_tools,
-                                                false,
-                                            );
-                                        }
+                                    if let Ok((_, spco, _)) = msrd.extract_files_legacy(None)
+                                        && let Some(spch) = spco.spch()
+                                    {
+                                        extract_shaders(spch, &output_folder, shader_tools, false);
                                     }
                                 }
                                 Err(e) => println!("Error reading {path:?}: {e}"),
@@ -348,7 +343,7 @@ fn extract_shaders<P: AsRef<Path>>(
 pub fn nvsd_glsl_name(spch: &Spch, slct_index: usize, nvsd_index: usize) -> String {
     // Not all programs have associated names.
     // Generate the name to avoid any ambiguity.
-    let name = match spch
+    match spch
         .string_section
         .as_ref()
         .and_then(|s| s.program_names.get(slct_index).map(|n| &n.name))
@@ -357,8 +352,7 @@ pub fn nvsd_glsl_name(spch: &Spch, slct_index: usize, nvsd_index: usize) -> Stri
             format!("slct{slct_index}_nvsd{nvsd_index}_{program_name}")
         }
         None => format!("slct{slct_index}_nvsd{nvsd_index}"),
-    };
-    name
+    }
 }
 
 fn process_shader<F>(

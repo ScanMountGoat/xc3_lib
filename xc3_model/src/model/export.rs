@@ -200,20 +200,21 @@ impl ModelRoot {
             }
         }
 
-        if let Some(skinning) = &self.models.skinning {
-            if let Some(new_skinning) = &mut new_mxmd.models.skinning {
-                apply_skinning(new_skinning, skinning);
-            }
+        if let Some(skinning) = &self.models.skinning
+            && let Some(new_skinning) = &mut new_mxmd.models.skinning
+        {
+            apply_skinning(new_skinning, skinning);
         }
 
         // TODO: Is it possible to calculate transforms without a skeleton?
-        if let Some(skeleton) = &self.skeleton {
-            if let Some(skinning) = &mut new_mxmd.models.skinning {
-                let transforms = skeleton.model_space_transforms();
+        if let Some(skeleton) = &self.skeleton
+            && let Some(skinning) = &mut new_mxmd.models.skinning
+        {
+            let transforms = skeleton.model_space_transforms();
 
-                // Rebuild all transforms to support adding new bones.
-                // TODO: is it safe to assume all bones are part of the skeleton?
-                skinning.inverse_bind_transforms = skinning
+            // Rebuild all transforms to support adding new bones.
+            // TODO: is it safe to assume all bones are part of the skeleton?
+            skinning.inverse_bind_transforms = skinning
                     .bones
                     .iter()
                     .map(|bone| {
@@ -226,7 +227,6 @@ impl ModelRoot {
                         }
                     })
                     .collect();
-            }
         }
 
         self.apply_materials(&mut new_mxmd);

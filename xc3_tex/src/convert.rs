@@ -307,15 +307,15 @@ fn replace_wilay_mibl(
 
     for entry in std::fs::read_dir(input_folder)? {
         let path = entry?.path();
-        if path.extension().and_then(|e| e.to_str()) == Some("dds") {
-            if let Some(i) = image_index(&path, input) {
-                let dds = Dds::from_file(&path)
-                    .with_context(|| format!("{path:?} is not a valid DDS file"))?;
-                let mibl = Mibl::from_dds(&dds).with_context(|| "failed to convert DDS to Mibl")?;
-                textures.textures[i].mibl_data = mibl.to_bytes()?;
+        if path.extension().and_then(|e| e.to_str()) == Some("dds")
+            && let Some(i) = image_index(&path, input)
+        {
+            let dds = Dds::from_file(&path)
+                .with_context(|| format!("{path:?} is not a valid DDS file"))?;
+            let mibl = Mibl::from_dds(&dds).with_context(|| "failed to convert DDS to Mibl")?;
+            textures.textures[i].mibl_data = mibl.to_bytes()?;
 
-                count += 1;
-            }
+            count += 1;
         }
     }
 
@@ -331,12 +331,12 @@ fn replace_wilay_jpeg(
 
     for entry in std::fs::read_dir(input_folder)? {
         let path = entry?.path();
-        if path.extension().and_then(|e| e.to_str()) == Some("jpeg") {
-            if let Some(i) = image_index(&path, input) {
-                textures.textures[i].jpeg_data = std::fs::read(&path)
-                    .with_context(|| format!("{path:?} is not a valid JPEG file"))?;
-                count += 1;
-            }
+        if path.extension().and_then(|e| e.to_str()) == Some("jpeg")
+            && let Some(i) = image_index(&path, input)
+        {
+            textures.textures[i].jpeg_data = std::fs::read(&path)
+                .with_context(|| format!("{path:?} is not a valid JPEG file"))?;
+            count += 1;
         }
     }
 

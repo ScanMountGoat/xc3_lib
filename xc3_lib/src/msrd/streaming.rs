@@ -545,20 +545,20 @@ impl StreamingData {
             {
                 textures[*i as usize].high = Some(high);
             }
-        } else if let Some(chr_textures) = &self.texture_resources.chr_textures {
-            if let Some(tex_folder) = tex_folder {
-                let chr_folder = tex_folder.as_ref();
+        } else if let Some(chr_textures) = &self.texture_resources.chr_textures
+            && let Some(tex_folder) = tex_folder
+        {
+            let chr_folder = tex_folder.as_ref();
 
-                let high_textures = chr_textures
-                    .chr_textures
-                    .par_iter()
-                    .map(|chr_tex| {
-                        let hash = format!("{:08x}", chr_tex.hash);
+            let high_textures = chr_textures
+                .chr_textures
+                .par_iter()
+                .map(|chr_tex| {
+                    let hash = format!("{:08x}", chr_tex.hash);
 
-                        let chr_tex = chr_folder.join("tex").join("nx");
-                        let (mid, base_mip) = if chr_tex.join("m").exists()
-                            && chr_tex.join("h").exists()
-                        {
+                    let chr_tex = chr_folder.join("tex").join("nx");
+                    let (mid, base_mip) =
+                        if chr_tex.join("m").exists() && chr_tex.join("h").exists() {
                             // XC3: chr/tex/nx/m/abcdefgh.wismt, chr/tex/nx/h/abcdefgh.wismt
                             let m_path = chr_tex.join("m").join(format!("{hash}.wismt"));
                             let mid = read_chr_tex_m_texture(&m_path)?;
@@ -577,19 +577,18 @@ impl StreamingData {
                             (mid, base_mip)
                         };
 
-                        Ok(HighTexture {
-                            mid,
-                            base_mip: Some(base_mip),
-                        })
+                    Ok(HighTexture {
+                        mid,
+                        base_mip: Some(base_mip),
                     })
-                    .collect::<Result<Vec<_>, ExtractStreamFilesError>>()?;
+                })
+                .collect::<Result<Vec<_>, ExtractStreamFilesError>>()?;
 
-                for (high, i) in high_textures
-                    .into_iter()
-                    .zip(&self.texture_resources.texture_indices)
-                {
-                    textures[*i as usize].high = Some(high);
-                }
+            for (high, i) in high_textures
+                .into_iter()
+                .zip(&self.texture_resources.texture_indices)
+            {
+                textures[*i as usize].high = Some(high);
             }
         }
 

@@ -211,10 +211,9 @@ impl VisitorMut for Annotator {
             .as_ref()
             .map(|ident| &ident.ident.0)
             .and_then(|i| self.struct_fields.get(i.as_str()))
+            && !fields.is_empty()
         {
-            if !fields.is_empty() {
-                block.fields = fields.iter().map(field).collect();
-            }
+            block.fields = fields.iter().map(field).collect();
         }
 
         Visit::Children
@@ -229,69 +228,61 @@ impl VisitorMut for Annotator {
                         // TODO: How to handle this case?
                     }
                     ExprData::Dot(e, _c) => {
-                        if let ExprData::Variable(id) = &e.content {
-                            // buffer.field[index].x
-                            if let Some(buffer_name) = self.replacements.get(id.as_str()) {
-                                if let Some(fields) = self.struct_fields.get(id.as_str()) {
-                                    if let Some((uniform, array_index)) =
-                                        find_field(fields, *index as u32)
-                                    {
-                                        // Assume the field is always "data" for now to match Ryujinx.
-                                        let variable = ExprData::Variable(Identifier::new(
-                                            buffer_name.as_str().into(),
-                                            None,
-                                        ));
+                        // buffer.field[index].x
+                        if let ExprData::Variable(id) = &e.content
+                            && let Some(buffer_name) = self.replacements.get(id.as_str())
+                            && let Some(fields) = self.struct_fields.get(id.as_str())
+                            && let Some((uniform, array_index)) = find_field(fields, *index as u32)
+                        {
+                            // Assume the field is always "data" for now to match Ryujinx.
+                            let variable = ExprData::Variable(Identifier::new(
+                                buffer_name.as_str().into(),
+                                None,
+                            ));
 
-                                        // buffer.uniform
-                                        let new_expr = Expr::new(
-                                            ExprData::Dot(
-                                                Box::new(Expr::new(variable, None)),
-                                                Identifier::new(uniform.as_str().into(), None),
-                                            ),
-                                            None,
-                                        );
+                            // buffer.uniform
+                            let new_expr = Expr::new(
+                                ExprData::Dot(
+                                    Box::new(Expr::new(variable, None)),
+                                    Identifier::new(uniform.as_str().into(), None),
+                                ),
+                                None,
+                            );
 
-                                        *expr = match array_index {
-                                            // buffer.uniform[array_index].x
-                                            Some(array_index) => Expr::new(
-                                                ExprData::Bracket(
-                                                    Box::new(new_expr),
-                                                    Box::new(Node::new(
-                                                        ExprData::IntConst(array_index as i32),
-                                                        None,
-                                                    )),
-                                                ),
-                                                None,
-                                            ),
-                                            // buffer.uniform.x
-                                            None => new_expr,
-                                        };
-                                    }
-                                }
-                            }
+                            *expr = match array_index {
+                                // buffer.uniform[array_index].x
+                                Some(array_index) => Expr::new(
+                                    ExprData::Bracket(
+                                        Box::new(new_expr),
+                                        Box::new(Node::new(
+                                            ExprData::IntConst(array_index as i32),
+                                            None,
+                                        )),
+                                    ),
+                                    None,
+                                ),
+                                // buffer.uniform.x
+                                None => new_expr,
+                            };
                         }
                     }
                     _ => (),
                 }
             }
-        } else if let ExprData::Dot(e1, c) = &mut expr.content {
-            if let ExprData::Bracket(var, specifier) = &mut e1.content {
-                if let ExprData::IntConst(index) = &specifier.content {
-                    if let ExprData::Dot(id, field) = &var.content {
-                        if let ExprData::Variable(id) = &id.content {
-                            // TODO: Don't hard code the constant buffer name and field?
-                            if id.as_str() == "fp_c1" && field.as_str() == "data" {
-                                if let Some(constant) = self.constant_values.get(&(
-                                    (*index).try_into().unwrap(),
-                                    c.as_str().chars().next().unwrap(),
-                                )) {
-                                    *expr = Expr::new(ExprData::FloatConst(*constant), None);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        } else if let ExprData::Dot(e1, c) = &mut expr.content
+            && let ExprData::Bracket(var, specifier) = &mut e1.content
+            && let ExprData::IntConst(index) = &specifier.content
+            && let ExprData::Dot(id, field) = &var.content
+            && let ExprData::Variable(id) = &id.content
+            && id.as_str() == "fp_c1"
+            && field.as_str() == "data"
+            && let Some(constant) = self.constant_values.get(&(
+                (*index).try_into().unwrap(),
+                c.as_str().chars().next().unwrap(),
+            ))
+        {
+            // TODO: Don't hard code the constant buffer name and field?
+            *expr = Expr::new(ExprData::FloatConst(*constant), None);
         }
 
         Visit::Children

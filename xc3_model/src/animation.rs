@@ -281,20 +281,18 @@ impl Animation {
                     // TODO: Why is this sometimes out of range?
                     // TODO: log errors?
                     let len = weights.len();
-                    if let Some(weight) = weights.get_mut(target_index % len) {
-                        if let Ok(track_index) = usize::try_from(*track_index) {
-                            // TODO: Is this how to handle multiple frames?
-                            let frame_value = morphs.track_values.get(track_index * frame_index);
+                    if let Some(weight) = weights.get_mut(target_index % len)
+                        && let Ok(track_index) = usize::try_from(*track_index)
+                    {
+                        // TODO: Is this how to handle multiple frames?
+                        let frame_value = morphs.track_values.get(track_index * frame_index);
 
-                            let next_frame_value =
-                                morphs.track_values.get(track_index * next_frame_index);
-                            if let Some(value) = frame_value {
-                                *weight = match next_frame_value {
-                                    Some(next_value) => {
-                                        *value * (1.0 - factor) + *next_value * factor
-                                    }
-                                    None => *value,
-                                }
+                        let next_frame_value =
+                            morphs.track_values.get(track_index * next_frame_index);
+                        if let Some(value) = frame_value {
+                            *weight = match next_frame_value {
+                                Some(next_value) => *value * (1.0 - factor) + *next_value * factor,
+                                None => *value,
                             }
                         }
                     }
@@ -887,10 +885,10 @@ fn animated_bone_names<'a>(animation: &'a Animation, skeleton: &'a Skeleton) -> 
         .collect();
 
     // Include the root motion even if there is no track for the root bone.
-    if animation.root_translation.is_some() {
-        if let Some(root_bone) = skeleton.bones.first() {
-            names.insert(&root_bone.name);
-        }
+    if animation.root_translation.is_some()
+        && let Some(root_bone) = skeleton.bones.first()
+    {
+        names.insert(&root_bone.name);
     }
 
     names

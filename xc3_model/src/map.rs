@@ -672,7 +672,7 @@ fn load_foliage_model(
 }
 
 fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
-    let materials = materials
+    materials
         .materials
         .iter()
         .map(|material| {
@@ -722,9 +722,7 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                 fur_params: None,
             }
         })
-        .collect();
-
-    materials
+        .collect()
 }
 
 fn apply_material_texture_indices(
