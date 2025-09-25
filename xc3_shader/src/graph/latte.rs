@@ -1039,20 +1039,14 @@ impl Nodes {
         scalar: &AluScalarData,
         output: Output,
     ) -> usize {
-        let input = Expr::Func {
-            name: func.into(),
-            args: scalar
-                .sources
-                .iter()
-                .take(arg_count)
-                .map(|a| self.expr(a.clone()))
-                .collect(),
-            channel: None,
-        };
-        let node = Node {
-            output,
-            input: self.expr(input),
-        };
+        let args = scalar
+            .sources
+            .iter()
+            .take(arg_count)
+            .map(|a| self.expr(a.clone()))
+            .collect();
+        let input = self.func_expr(func.into(), args);
+        let node = Node { output, input };
         self.node(node)
     }
 
@@ -1092,9 +1086,13 @@ impl Nodes {
         let arg0 = self.expr(e);
         let arg1 = self.expr(Expr::Float(0.0.into()));
         let arg2 = self.expr(Expr::Float(1.0.into()));
+        self.func_expr("clamp".into(), vec![arg0, arg1, arg2])
+    }
+
+    fn func_expr(&mut self, name: &str, args: Vec<usize>) -> usize {
         self.expr(Expr::Func {
-            name: "clamp".into(),
-            args: vec![arg0, arg1, arg2],
+            name: name.into(),
+            args,
             channel: None,
         })
     }
@@ -1499,29 +1497,18 @@ fn dot_product_node_index(
         })
         .unzip();
     if !dot4_a.is_empty() && !dot4_b.is_empty() {
-        let input = Expr::Func {
-            name: "dot".into(),
-            args: vec![
-                nodes.expr(Expr::Func {
-                    name: "vec4".into(),
-                    args: dot4_a,
-                    channel: None,
-                }),
-                nodes.expr(Expr::Func {
-                    name: "vec4".into(),
-                    args: dot4_b,
-                    channel: None,
-                }),
-            ],
-            channel: None,
-        };
+        let args = vec![
+            nodes.func_expr("vec4".into(), dot4_a),
+            nodes.func_expr("vec4".into(), dot4_b),
+        ];
+        let input = nodes.func_expr("dot".into(), args);
         let temp_name: SmolStr = format!("temp{inst_count}").into();
         let node = Node {
             output: Output {
                 name: temp_name.clone(),
                 channel: None,
             },
-            input: nodes.expr(input),
+            input,
         };
         let mut node_index = nodes.node(node);
 
@@ -2029,7 +2016,6 @@ fn tex_inst_node(tex: TexInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
     let output_channels = &tex.dst.swizzle.0;
 
     let texcoords = tex_src_coords(&tex, nodes)?;
-    let texcoords = nodes.expr(texcoords);
 
     let texture_name = nodes.expr(Expr::Global {
         name: tex.resource_id.0.into(),
@@ -2065,7 +2051,7 @@ fn tex_inst_node(tex: TexInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
     )
 }
 
-fn tex_src_coords(tex: &TexInst, nodes: &mut Nodes) -> Option<Expr> {
+fn tex_src_coords(tex: &TexInst, nodes: &mut Nodes) -> Option<usize> {
     // TODO: Handle other cases from grammar.
     let gpr = tex.src.gpr.to_string();
 
@@ -2112,11 +2098,7 @@ fn tex_src_coords(tex: &TexInst, nodes: &mut Nodes) -> Option<Expr> {
     };
 
     // TODO: Also handle cube maps.
-    Some(Expr::Func {
-        name: "vec2".into(),
-        args,
-        channel: None,
-    })
+    Some(nodes.func_expr("vec2".into(), args))
 }
 
 fn fetch_inst_node(tex: FetchInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
