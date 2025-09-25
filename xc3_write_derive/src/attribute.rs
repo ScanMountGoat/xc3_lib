@@ -105,7 +105,7 @@ fn parse_padding(meta: &syn::meta::ParseNestedMeta<'_>) -> Result<Padding, syn::
     // Default to 0 for padding if not present.
     let value = content
         .parse::<Token![,]>()
-        .and_then(|_| (content.parse::<LitInt>()?.base10_parse()))
+        .and_then(|_| content.parse::<LitInt>()?.base10_parse())
         .unwrap_or_default();
 
     Ok(Padding { size, value })

@@ -78,8 +78,8 @@ grammar latte_parser() for str {
     rule constant_cache1() -> usize = "KC1" _ "[" _ n:number() _ "]" { n }
     rule previous_scalar() -> usize = "PS" n:number() { n }
     rule previous_vector() -> usize = "PV" n:number() { n }
-    rule one_comp_swizzle() -> &'input str = s:$("." ['x' | 'y' | 'z' | 'w' | 'X' | 'Y' | 'Z' | 'W']) { s }
-    rule four_comp_swizzle() -> &'input str = s:$("." ['x' | 'y' | 'z' | 'w' | 'X' | 'Y' | 'Z' | 'W' | '0' | '1' | '_']+) { s }
+    rule one_comp_swizzle() -> char = "." c:$(['x' | 'y' | 'z' | 'w' | 'X' | 'Y' | 'Z' | 'W']) { c.chars().next().unwrap() }
+    rule four_comp_swizzle() -> &'input str = "." s:$(['x' | 'y' | 'z' | 'w' | 'X' | 'Y' | 'Z' | 'W' | '0' | '1' | '_']+) { s }
     // TODO: always preserve hex?
     rule literal() -> Literal
         = n:hex_number() { Literal::Hex(n.to_string()) }
@@ -271,7 +271,7 @@ grammar latte_parser() for str {
     rule fetch_dst() -> FetchDst
         = gpr:gpr() _ s:four_comp_swizzle()? { FetchDst { gpr, swizzle: FourCompSwizzle(s.unwrap_or_default().to_string()) }}
     rule fetch_src() -> FetchSrc
-        = gpr:gpr() _ s:one_comp_swizzle()? { FetchSrc { gpr, swizzle: OneCompSwizzle(s.unwrap_or_default().to_string()) }}
+        = gpr:gpr() _ swizzle:one_comp_swizzle()? { FetchSrc { gpr, swizzle }}
     rule fetch_buffer_id() -> usize = "b" _ n:number() { n }
     rule fetch_properties() -> Vec<FetchProperty>
         = (f:fetch_type() { FetchProperty::Type(f)}
@@ -505,29 +505,29 @@ grammar latte_parser() for str {
             AluRel
         }
     rule alu_dst() -> AluDst
-        = gpr:gpr() _ alu_rel:alu_rel()? _ s:one_comp_swizzle()? {
+        = gpr:gpr() _ alu_rel:alu_rel()? _ swizzle:one_comp_swizzle()? {
             AluDst::Value {
                 gpr,
                 alu_rel,
-                swizzle: s.map(|s| OneCompSwizzle(s.to_string()))
+                swizzle,
             }
         }
         / m:write_mask() { AluDst::WriteMask(WriteMask(m.to_string())) }
     rule alu_src() -> AluSrc
-        = negate:negate()? _ value:alu_src_value_or_abs() _ alu_rel:alu_rel()? _ s:one_comp_swizzle()? {
+        = negate:negate()? _ value:alu_src_value_or_abs() _ alu_rel:alu_rel()? _ swizzle:one_comp_swizzle()? {
             AluSrc {
                 negate,
                 value,
                 alu_rel,
-                swizzle: s.map(|s| OneCompSwizzle(s.to_string()))
+                swizzle,
             }
         }
     rule alu_src_value_or_abs() -> AluSrcValueOrAbs
         = src:alu_abs_src_value() { AluSrcValueOrAbs::Abs(src) }
         / src:alu_src_value() { AluSrcValueOrAbs::Value(src) }
     rule alu_abs_src_value() -> AluAbsSrcValue
-        = "|" _ value:alu_src_value() _ s:one_comp_swizzle()? _ "|" {
-            AluAbsSrcValue { value, swizzle: s.map(|s| OneCompSwizzle(s.to_string())) }
+        = "|" _ value:alu_src_value() _ swizzle:one_comp_swizzle()? _ "|" {
+            AluAbsSrcValue { value, swizzle }
         }
     rule alu_src_value() -> AluSrcValue
         = v:gpr() { AluSrcValue::Gpr(v) }
@@ -665,6 +665,7 @@ struct TexOpcode(String);
 #[derive(Debug)]
 struct TexResourceId(String);
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct TexSamplerId(String);
 
@@ -709,7 +710,7 @@ struct FetchDst {
 #[derive(Debug)]
 struct FetchSrc {
     gpr: Gpr,
-    swizzle: OneCompSwizzle,
+    swizzle: Option<char>,
 }
 
 #[derive(Debug)]
@@ -822,7 +823,7 @@ enum AluDst {
     Value {
         gpr: Gpr,
         alu_rel: Option<AluRel>,
-        swizzle: Option<OneCompSwizzle>,
+        swizzle: Option<char>,
     },
     WriteMask(WriteMask),
 }
@@ -833,7 +834,7 @@ struct AluSrc {
     negate: Option<Negate>,
     value: AluSrcValueOrAbs,
     alu_rel: Option<AluRel>,
-    swizzle: Option<OneCompSwizzle>,
+    swizzle: Option<char>,
 }
 
 #[derive(Debug)]
@@ -878,7 +879,7 @@ struct PreviousVector(usize);
 #[derive(Debug)]
 struct AluAbsSrcValue {
     value: AluSrcValue,
-    swizzle: Option<OneCompSwizzle>,
+    swizzle: Option<char>,
 }
 
 #[derive(Debug)]
@@ -917,11 +918,14 @@ struct InstCount(usize);
 #[derive(Debug)]
 struct FourCompSwizzle(String);
 
-#[derive(Debug)]
-struct OneCompSwizzle(String);
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 struct Gpr(usize);
+
+impl std::fmt::Display for InstCount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl std::fmt::Display for Gpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -938,18 +942,6 @@ impl std::fmt::Display for PreviousVector {
 impl std::fmt::Display for PreviousScalar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PS{}", self.0)
-    }
-}
-
-impl FourCompSwizzle {
-    fn channels(&self) -> &str {
-        self.0.trim_start_matches('.')
-    }
-}
-
-impl OneCompSwizzle {
-    fn channels(&self) -> &str {
-        self.0.trim_start_matches('.')
     }
 }
 
@@ -1106,6 +1098,10 @@ impl Nodes {
             channel: None,
         })
     }
+
+    fn previous_assignment_expr(&mut self, value: &str, channel: Option<char>) -> usize {
+        self.expr(previous_assignment(value, channel, self))
+    }
 }
 
 impl Graph {
@@ -1143,7 +1139,7 @@ fn add_exp_inst(exp: CfExpInst, nodes: &mut Nodes) {
 
     let source_name = "R";
     let source_index = exp.src.gpr.0;
-    let channels = exp.src.swizzle.channels();
+    let channels = exp.src.swizzle.0;
 
     let burst_count = exp
         .properties
@@ -1167,11 +1163,10 @@ fn add_exp_inst(exp: CfExpInst, nodes: &mut Nodes) {
                     name: format!("{target_name}{}", target_index + i).into(),
                     channel: Some(c),
                 },
-                input: nodes.expr(previous_assignment(
+                input: nodes.previous_assignment_expr(
                     &format!("{source_name}{}", source_index + i),
                     Some(c),
-                    nodes,
-                )),
+                ),
             };
             nodes.node(node);
         }
@@ -1253,11 +1248,8 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                 // TODO: Is there a better way to handle alu units with write masks?
                 if !scalar.output.name.starts_with("PV") && !scalar.output.name.starts_with("PS") {
                     let (name, channel): (SmolStr, _) = match scalar.alu_unit {
-                        'x' => (format!("PV{}", inst_count.0).into(), Some('x')),
-                        'y' => (format!("PV{}", inst_count.0).into(), Some('y')),
-                        'z' => (format!("PV{}", inst_count.0).into(), Some('z')),
-                        'w' => (format!("PV{}", inst_count.0).into(), Some('w')),
-                        't' => (format!("PS{}", inst_count.0).into(), None),
+                        c @ ('x' | 'y' | 'z' | 'w') => (format!("PV{inst_count}").into(), Some(c)),
+                        't' => (format!("PS{inst_count}").into(), None),
                         _ => unreachable!(),
                     };
                     if previous_vectors_scalars.contains(&(name.clone(), channel)) {
@@ -1299,14 +1291,12 @@ fn get_scalar_data(
 
     for (i, channel) in &backup_gprs {
         let name = format!("R{i}");
-        let e = previous_assignment(&name, *channel, nodes);
-        let input = nodes.expr(e);
         let node = Node {
             output: Output {
                 name: format!("{name}_backup").into(),
                 channel: *channel,
             },
-            input,
+            input: nodes.previous_assignment_expr(&name, *channel),
         };
         nodes.node(node);
     }
@@ -1417,10 +1407,7 @@ fn insert_backup_gprs(
     match &src.value {
         AluSrcValueOrAbs::Abs(v) => {
             if let AluSrcValue::Gpr(gpr) = &v.value {
-                let key = (
-                    gpr.0,
-                    v.swizzle.as_ref().and_then(|s| s.channels().chars().next()),
-                );
+                let key = (gpr.0, v.swizzle);
                 if write_gprs.contains(&key) {
                     backup_gprs.insert(key);
                 }
@@ -1428,12 +1415,7 @@ fn insert_backup_gprs(
         }
         AluSrcValueOrAbs::Value(v) => {
             if let AluSrcValue::Gpr(gpr) = v {
-                let key = (
-                    gpr.0,
-                    src.swizzle
-                        .as_ref()
-                        .and_then(|s| s.channels().chars().next()),
-                );
+                let key = (gpr.0, src.swizzle);
                 if write_gprs.contains(&key) {
                     backup_gprs.insert(key);
                 }
@@ -1445,10 +1427,7 @@ fn insert_backup_gprs(
 fn insert_write_gpr(write_gprs: &mut BTreeSet<(usize, Option<char>)>, dst: &AluDst) {
     match dst {
         AluDst::Value { gpr, swizzle, .. } => {
-            write_gprs.insert((
-                gpr.0,
-                swizzle.as_ref().and_then(|s| s.channels().chars().next()),
-            ));
+            write_gprs.insert((gpr.0, *swizzle));
         }
         AluDst::WriteMask(_) => (),
     }
@@ -1479,26 +1458,22 @@ fn used_previous_vectors_scalars(groups: &[AluGroup]) -> BTreeSet<(SmolStr, Opti
 }
 
 fn insert_previous_vector_scalars(values: &mut BTreeSet<(SmolStr, Option<char>)>, src: &AluSrc) {
-    let channel = src
-        .swizzle
-        .as_ref()
-        .and_then(|s| s.channels().chars().next());
     match &src.value {
         AluSrcValueOrAbs::Abs(v) => match &v.value {
             AluSrcValue::PreviousScalar(ps) => {
-                values.insert((ps.to_string().into(), channel));
+                values.insert((ps.to_string().into(), src.swizzle));
             }
             AluSrcValue::PreviousVector(pv) => {
-                values.insert((pv.to_string().into(), channel));
+                values.insert((pv.to_string().into(), src.swizzle));
             }
             _ => (),
         },
         AluSrcValueOrAbs::Value(v) => match v {
             AluSrcValue::PreviousScalar(ps) => {
-                values.insert((ps.to_string().into(), channel));
+                values.insert((ps.to_string().into(), src.swizzle));
             }
             AluSrcValue::PreviousVector(pv) => {
-                values.insert((pv.to_string().into(), channel));
+                values.insert((pv.to_string().into(), src.swizzle));
             }
             _ => (),
         },
@@ -1540,7 +1515,7 @@ fn dot_product_node_index(
             ],
             channel: None,
         };
-        let temp_name: SmolStr = format!("temp{}", inst_count.0).into();
+        let temp_name: SmolStr = format!("temp{inst_count}").into();
         let node = Node {
             output: Output {
                 name: temp_name.clone(),
@@ -1858,35 +1833,20 @@ fn alu_dst_output(dst: AluDst, inst_count: InstCount, alu_unit: char) -> Output 
             gpr,
             alu_rel: _,
             swizzle,
-        } => {
-            let channel = swizzle.and_then(|s| s.channels().chars().next());
-            Output {
-                name: gpr.to_smolstr(),
-                channel,
-            }
-        }
+        } => Output {
+            name: gpr.to_smolstr(),
+            channel: swizzle,
+        },
         AluDst::WriteMask(_write_mask) => {
-            // ____ mask for xyzw writes to a previous vector "PV".
-            // ____ mask for t writes to a previous scalar "PS".
             match alu_unit {
-                'x' => Output {
-                    name: format!("PV{}", inst_count.0).into(),
-                    channel: Some('x'),
+                // ____ mask for xyzw writes to a previous vector "PV".
+                c @ ('x' | 'y' | 'z' | 'w') => Output {
+                    name: format!("PV{inst_count}").into(),
+                    channel: Some(c),
                 },
-                'y' => Output {
-                    name: format!("PV{}", inst_count.0).into(),
-                    channel: Some('y'),
-                },
-                'z' => Output {
-                    name: format!("PV{}", inst_count.0).into(),
-                    channel: Some('z'),
-                },
-                'w' => Output {
-                    name: format!("PV{}", inst_count.0).into(),
-                    channel: Some('w'),
-                },
+                // ____ mask for t writes to a previous scalar "PS".
                 't' => Output {
-                    name: format!("PS{}", inst_count.0).into(),
+                    name: format!("PS{inst_count}").into(),
                     channel: None,
                 },
                 _ => unreachable!(),
@@ -1952,7 +1912,7 @@ fn alu_src_expr(
 
     let expr = match source.value {
         AluSrcValueOrAbs::Abs(abs_value) => {
-            let channel = abs_value.swizzle.and_then(|s| s.channels().chars().next());
+            let channel = abs_value.swizzle;
             let arg = value_expr(nodes, channel, abs_value.value, kc0, kc1, backup_gprs);
             Expr::Func {
                 name: "abs".into(),
@@ -1961,7 +1921,7 @@ fn alu_src_expr(
             }
         }
         AluSrcValueOrAbs::Value(value) => {
-            let channel = source.swizzle.and_then(|s| s.channels().chars().next());
+            let channel = source.swizzle;
             value_expr(nodes, channel, value, kc0, kc1, backup_gprs)
         }
     };
@@ -2066,16 +2026,13 @@ fn tex_inst_node(tex: TexInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
     // TODO: Get the input names and channels.
     // TODO: register or mask?
     let output_name = tex.dst.gpr.to_smolstr();
-    let output_channels = tex.dst.swizzle.channels();
+    let output_channels = &tex.dst.swizzle.0;
 
     let texcoords = tex_src_coords(&tex, nodes)?;
     let texcoords = nodes.expr(texcoords);
 
-    let texture = tex.resource_id.0;
-    let _sampler = tex.sampler_id.0;
-
     let texture_name = nodes.expr(Expr::Global {
-        name: texture.into(),
+        name: tex.resource_id.0.into(),
         channel: None,
     });
 
@@ -2119,23 +2076,22 @@ fn tex_src_coords(tex: &TexInst, nodes: &mut Nodes) -> Option<Expr> {
         let node_indices: Vec<_> = tex
             .src
             .swizzle
-            .channels()
+            .0
             .chars()
             .take(2)
             .map(|c| {
-                let input = nodes.expr(previous_assignment(&gpr, Some(c), nodes));
                 let node = Node {
                     output: Output {
                         name: format!("{gpr}_backup").into(),
                         channel: Some(c),
                     },
-                    input,
+                    input: nodes.previous_assignment_expr(&gpr, Some(c)),
                 };
                 nodes.node(node)
             })
             .collect();
 
-        let mut channels = tex.src.swizzle.channels().chars();
+        let mut channels = tex.src.swizzle.0.chars();
         vec![
             nodes.expr(Expr::Node {
                 node_index: node_indices[0],
@@ -2147,11 +2103,11 @@ fn tex_src_coords(tex: &TexInst, nodes: &mut Nodes) -> Option<Expr> {
             }),
         ]
     } else {
-        let mut channels = tex.src.swizzle.channels().chars();
+        let mut channels = tex.src.swizzle.0.chars();
 
         vec![
-            nodes.expr(previous_assignment(&gpr, channels.next(), nodes)),
-            nodes.expr(previous_assignment(&gpr, channels.next(), nodes)),
+            nodes.previous_assignment_expr(&gpr, channels.next()),
+            nodes.previous_assignment_expr(&gpr, channels.next()),
         ]
     };
 
@@ -2165,17 +2121,17 @@ fn tex_src_coords(tex: &TexInst, nodes: &mut Nodes) -> Option<Expr> {
 
 fn fetch_inst_node(tex: FetchInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
     let output_name = tex.dst.gpr.to_smolstr();
-    let output_channels = tex.dst.swizzle.channels();
+    let output_channels = tex.dst.swizzle.0;
 
     let src_name = tex.src.gpr.to_smolstr();
-    let src_channels = tex.src.swizzle.channels();
+    let src_channel = tex.src.swizzle;
 
     // TODO: Is this the correct way to calculate the buffer index?
     let cb_index = tex.buffer_id - 128;
     let cb_name: SmolStr = format!("CB{cb_index}").into();
 
     // TODO: How should the OFFSET property be used?
-    let src_expr = previous_assignment(&src_name, src_channels.chars().next(), nodes);
+    let src_expr = previous_assignment(&src_name, src_channel, nodes);
     let src_index = nodes.float_to_uint_expr(src_expr);
 
     // Convert vector swizzles to scalar operations to simplify analysis code.

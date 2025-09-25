@@ -20,7 +20,7 @@ pub fn create_texture(
     // TODO: How to handle not being a multiple of the block dimensions?
     // Always choose a smaller size to avoid indexing out of bounds.
     let round_dimension = |x: u32, d: u32| {
-        if x % d == 0 {
+        if x.is_multiple_of(d) {
             x
         } else if x <= d {
             d
@@ -33,8 +33,8 @@ pub fn create_texture(
     let rounded_width = round_dimension(texture.width, block_width);
     let rounded_height = round_dimension(texture.height, block_height);
 
-    if texture.width % block_width != 0
-        || texture.height % block_height != 0
+    if !texture.width.is_multiple_of(block_width)
+        || !texture.height.is_multiple_of(block_height)
         || texture.width < block_width
         || texture.height < block_height
     {
