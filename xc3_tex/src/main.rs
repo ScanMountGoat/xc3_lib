@@ -4,12 +4,12 @@ use std::{
 };
 
 use anyhow::Context;
-use clap::{builder::PossibleValuesParser, Parser, Subcommand};
+use clap::{Parser, Subcommand, builder::PossibleValuesParser};
 use convert::{
-    batch_convert_files, extract_wilay_to_folder, extract_wimdo_to_folder, update_wifnt,
-    update_wilay_from_folder, update_wimdo_from_folder, File, SaveImageExt, Wilay,
+    File, SaveImageExt, Wilay, batch_convert_files, extract_wilay_to_folder,
+    extract_wimdo_to_folder, update_wifnt, update_wilay_from_folder, update_wimdo_from_folder,
 };
-use image_dds::{ddsfile::Dds, image, ImageFormat, Quality};
+use image_dds::{ImageFormat, Quality, ddsfile::Dds, image};
 use strum::IntoEnumIterator;
 use xc3_lib::{
     bmn::Bmn,
@@ -18,7 +18,7 @@ use xc3_lib::{
     laft::Laft,
     mibl::Mibl,
     mtxt::Mtxt,
-    mxmd::{legacy::MxmdLegacy, Mxmd},
+    mxmd::{Mxmd, legacy::MxmdLegacy},
     xbc1::MaybeXbc1,
 };
 
@@ -249,7 +249,9 @@ fn main() -> anyhow::Result<()> {
                             .save(&output)?;
                     }
                     "wismt" => {
-                        anyhow::bail!("Creating .wismt files is not supported. Edit an existing model's textures with the edit-wimdo command.");
+                        anyhow::bail!(
+                            "Creating .wismt files is not supported. Edit an existing model's textures with the edit-wimdo command."
+                        );
                     }
                     // TODO: Resave xenoblade x textures?
                     _ => {

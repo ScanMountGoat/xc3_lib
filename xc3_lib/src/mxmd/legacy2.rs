@@ -5,8 +5,8 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 use crate::{msrd::Streaming, parse_opt_ptr32, parse_ptr32, spco::Spco};
 
 use super::{
-    legacy::{Materials, Models, Unk1, VertexData},
     PackedTextures,
+    legacy::{Materials, Models, Unk1, VertexData},
 };
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

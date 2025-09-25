@@ -1,4 +1,4 @@
-use glam::{vec4, Mat4, Vec3};
+use glam::{Mat4, Vec3, vec4};
 use wgpu::util::DeviceExt;
 
 pub struct Bounds {

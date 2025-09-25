@@ -8,19 +8,18 @@ use xc3_lib::{
     error::ReadFileError,
     hkt::Hkt,
     msrd::Msrd,
-    mxmd::{legacy::MxmdLegacy, AlphaTable, Materials, MeshRenderFlags2, MeshRenderPass},
+    mxmd::{AlphaTable, Materials, MeshRenderFlags2, MeshRenderPass, legacy::MxmdLegacy},
 };
 
 use crate::{
-    create_materials, create_materials_samplers_legacy,
+    ExtractedTextures, LodData, LodGroup, LodItem, Mesh, Model, ModelRoot, Models, Sampler,
+    Skeleton, create_materials, create_materials_samplers_legacy,
     error::{LoadModelError, LoadModelLegacyError},
     material::GetProgramHash,
     shader_database::ShaderDatabase,
     skinning::create_skinning,
     texture::{load_packed_textures, load_textures, load_textures_legacy},
     vertex::ModelBuffers,
-    ExtractedTextures, LodData, LodGroup, LodItem, Mesh, Model, ModelRoot, Models, Sampler,
-    Skeleton,
 };
 
 // Use Cow::Borrowed to avoid copying data embedded in the mxmd.

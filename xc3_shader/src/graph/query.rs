@@ -443,56 +443,62 @@ mod tests {
 
     #[test]
     fn query_multiple_statements() {
-        assert!(query_glsl(
-            indoc! {"
-                a = 1.0;
-                a2 = a * 5.0;
-                b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
-                c = data[int(b)];
-            "},
-            indoc! {"
-                temp_4 = 1.0;
-                temp_5 = temp_4 * 5.0;
-                temp_6 = texture(texture1, vec2(temp_5 + 2.0, 1.0)).x;
-                temp_7 = data[int(temp_6)];
-            "}
-        )
-        .is_some());
+        assert!(
+            query_glsl(
+                indoc! {"
+                    a = 1.0;
+                    a2 = a * 5.0;
+                    b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
+                    c = data[int(b)];
+                "},
+                indoc! {"
+                    temp_4 = 1.0;
+                    temp_5 = temp_4 * 5.0;
+                    temp_6 = texture(texture1, vec2(temp_5 + 2.0, 1.0)).x;
+                    temp_7 = data[int(temp_6)];
+                "}
+            )
+            .is_some()
+        );
     }
 
     #[test]
     fn query_parameters() {
-        assert!(query_glsl(
-            indoc! {"
-                PS32 = log2(R4.z);
-                PV33.w = KC0[2].w * PS32;
-                PS34 = exp2(PV33.w);
-            "},
-            indoc! {"
-                result = log2(a);
-                result = result * b;
-                result = exp2(result);
-            "},
-        )
-        .is_some());
+        assert!(
+            query_glsl(
+                indoc! {"
+                    PS32 = log2(R4.z);
+                    PV33.w = KC0[2].w * PS32;
+                    PS34 = exp2(PV33.w);
+                "},
+                indoc! {"
+                    result = log2(a);
+                    result = result * b;
+                    result = exp2(result);
+                "},
+            )
+            .is_some()
+        );
     }
 
     #[test]
     fn query_multiple_statements_missing_assignment() {
-        assert!(query_glsl(
-            indoc! {"
-                a = 1.0;
-                a2 = a * 5.0;
-                b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
-                c = data[int(b)];
-            "},
-            indoc! {"
-                temp_5 = 1.0 * 5.0;
-                temp_6 = texture(texture1, vec2(temp_5 + 2.0, 1.0)).x;
-                temp_7 = data[int(temp_6)];
-            "}
-        )
-        .is_none());
+        assert!(
+            query_glsl(
+                indoc! {"
+                    a = 1.0;
+                    a2 = a * 5.0;
+                    b = texture(texture1, vec2(a2 + 2.0, 1.0)).x;
+                    c = data[int(b)];
+                "},
+                indoc! {"
+                    temp_5 = 1.0 * 5.0;
+                    temp_6 = texture(texture1, vec2(temp_5 + 2.0, 1.0)).x;
+                    temp_7 = data[int(temp_6)];
+                "}
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -505,19 +511,21 @@ mod tests {
 
     #[test]
     fn query_repeated_args_multiple_assignments() {
-        assert!(query_glsl(
-            indoc! {"
-                temp0 = 4.0;
-                temp1 = temp0 + 3.0;
-                result = fma(temp1, 2.0, temp1);
-            "},
-            indoc! {"
-                a = 4.0;
-                b = a + 3.0;
-                result = fma(b, c, b);
-            "}
-        )
-        .is_some());
+        assert!(
+            query_glsl(
+                indoc! {"
+                    temp0 = 4.0;
+                    temp1 = temp0 + 3.0;
+                    result = fma(temp1, 2.0, temp1);
+                "},
+                indoc! {"
+                    a = 4.0;
+                    b = a + 3.0;
+                    result = fma(b, c, b);
+                "}
+            )
+            .is_some()
+        );
     }
 
     #[test]
@@ -535,20 +543,24 @@ mod tests {
             result = result;
         "};
 
-        assert!(query_glsl_simplified(
-            graph,
-            indoc! {"
-                result = 1.0 + (0.0 - texture(s0, vec2(0.0, 0.5)).x);
-                result = clamp(result, 0.0, 1.0);
-                result = 1.0 + (0.0 - sqrt(result));
-            "}
-        )
-        .is_some());
+        assert!(
+            query_glsl_simplified(
+                graph,
+                indoc! {"
+                    result = 1.0 + (0.0 - texture(s0, vec2(0.0, 0.5)).x);
+                    result = clamp(result, 0.0, 1.0);
+                    result = 1.0 + (0.0 - sqrt(result));
+                "}
+            )
+            .is_some()
+        );
 
-        assert!(query_glsl_simplified(
-            graph,
-            "result = 1.0 - sqrt(clamp(1.0 - texture(s0, vec2(0.0, 0.5)).x, 0.0, 1.0));"
-        )
-        .is_some());
+        assert!(
+            query_glsl_simplified(
+                graph,
+                "result = 1.0 - sqrt(clamp(1.0 - texture(s0, vec2(0.0, 0.5)).x, 0.0, 1.0));"
+            )
+            .is_some()
+        );
     }
 }

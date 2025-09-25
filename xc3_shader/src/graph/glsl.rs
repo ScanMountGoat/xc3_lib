@@ -8,7 +8,7 @@ use glsl_lang::{
         TypeQualifierSpecData,
     },
     parse::DefaultParse,
-    transpiler::glsl::{show_expr, show_type_specifier, FormattingState},
+    transpiler::glsl::{FormattingState, show_expr, show_type_specifier},
     visitor::{Host, Visit, Visitor},
 };
 use log::error;

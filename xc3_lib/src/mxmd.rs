@@ -11,15 +11,16 @@
 //! | Xenoblade 3 | 10112 | `chr/{bt,ch,en,oj,wp}/*.wimdo`, `map/*.wimdo`, `monolib/shader/*.wimdo` |
 //! | Xenoblade X DE | 10040 | `chr/{dl,en,fc,mb,np,oj,pc,un,wd,wdb,we,ws}/*.wimdo` |
 use crate::{
+    StringOffset32,
     msrd::Streaming,
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_opt_ptr32, parse_string_ptr32,
     spch::Spch,
     vertex::{DataType, VertexData},
-    xc3_write_binwrite_impl, StringOffset32,
+    xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
-use binrw::{args, binread, BinRead, BinWrite};
+use binrw::{BinRead, BinWrite, args, binread};
 use legacy2::MxmdV40;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 

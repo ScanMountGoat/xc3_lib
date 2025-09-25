@@ -5,7 +5,7 @@ use std::{
 };
 
 use binrw::{BinRead, BinReaderExt};
-use tracing_subscriber::{layer::SubscriberExt, Layer};
+use tracing_subscriber::{Layer, layer::SubscriberExt};
 
 /// Named byte range for `[start, end)`.
 #[derive(Debug, Clone, PartialEq, Eq)]

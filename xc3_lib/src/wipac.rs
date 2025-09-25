@@ -7,8 +7,8 @@
 //! | Xenoblade 1 DE | |  |
 //! | Xenoblade 2 |  |  |
 //! | Xenoblade 3 |  | `effect/**/*.wipac`  |
-use crate::{parse_ptr32, xc3_write_binwrite_impl, Offset32};
-use binrw::{binread, BinRead, BinWrite, NullString};
+use crate::{Offset32, parse_ptr32, xc3_write_binwrite_impl};
+use binrw::{BinRead, BinWrite, NullString, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: Come up with a better name

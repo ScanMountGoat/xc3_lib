@@ -7,7 +7,7 @@
 //! | Xenoblade 1 DE |  |
 //! | Xenoblade 2 |  |
 //! | Xenoblade 3 |  `event/**/*.beb` |
-use crate::{xbc1::Xbc1, Offset32};
+use crate::{Offset32, xbc1::Xbc1};
 use binrw::BinRead;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 

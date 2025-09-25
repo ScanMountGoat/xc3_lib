@@ -8,7 +8,7 @@
 //! | Xenoblade 2 | | `effect/**/*.wiefb` |
 //! | Xenoblade 3 |  |  |
 use crate::{parse_opt_ptr32, xc3_write_binwrite_impl};
-use binrw::{binread, BinRead, BinWrite, NullString};
+use binrw::{BinRead, BinWrite, NullString, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: .wieab also has data?

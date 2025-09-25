@@ -1,5 +1,5 @@
 use crate::{parse_count32_offset32, parse_ptr32, spch::Spch};
-use binrw::{binread, BinRead};
+use binrw::{BinRead, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: Add example code for extracting shaders.

@@ -41,8 +41,8 @@ use std::{
 };
 
 use binrw::{
-    file_ptr::FilePtrArgs, BinRead, BinReaderExt, BinResult, BinWrite, Endian, FilePtr32,
-    NullString, VecArgs,
+    BinRead, BinReaderExt, BinResult, BinWrite, Endian, FilePtr32, NullString, VecArgs,
+    file_ptr::FilePtrArgs,
 };
 use tracing::{trace, trace_span};
 use xc3_write::{WriteFull, Xc3Write, Xc3WriteOffsets};

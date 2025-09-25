@@ -3,16 +3,16 @@ use indexmap::IndexMap;
 use log::warn;
 use xc3_lib::{
     mibl::Mibl,
-    msrd::{streaming::ExtractedTexture, Msrd},
+    msrd::{Msrd, streaming::ExtractedTexture},
     mxmd::{AlphaTable, LodData, LodGroup, LodItem, Mxmd, MxmdV112, TextureUsage, VertexAttribute},
     vertex::{DataType, VertexData},
 };
 
 use crate::{
+    ImageTexture, IndexMapExt, ModelRoot,
     error::CreateModelError,
     skinning::BoneConstraintType,
     vertex::{AttributeData, ModelBuffers},
-    ImageTexture, IndexMapExt, ModelRoot,
 };
 
 /// Apply the values from this model onto the original `mxmd` and `msrd`.

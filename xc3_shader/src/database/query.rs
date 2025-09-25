@@ -5,8 +5,8 @@ use indoc::{formatdoc, indoc};
 use xc3_model::shader_database::Operation;
 
 use crate::graph::{
-    query::{assign_x_recursive, fma_a_b_c, normalize, query_nodes},
     BinaryOp, Expr, Graph, UnaryOp,
+    query::{assign_x_recursive, fma_a_b_c, normalize, query_nodes},
 };
 
 pub fn op_func<'a>(

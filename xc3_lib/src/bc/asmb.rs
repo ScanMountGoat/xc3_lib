@@ -1,8 +1,8 @@
 use crate::{parse_ptr64, parse_string_opt_ptr64, parse_string_ptr64};
 use binrw::BinRead;
 use xc3_write::{
-    strings::{StringSectionUniqueSorted, WriteOptions},
     Xc3Write, Xc3WriteOffsets,
+    strings::{StringSectionUniqueSorted, WriteOptions},
 };
 
 use super::{BcList, BcOffset, StringOffset};

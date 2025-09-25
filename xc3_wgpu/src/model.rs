@@ -1,23 +1,23 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use glam::{uvec4, Mat4, Vec3, Vec4};
+use glam::{Mat4, Vec3, Vec4, uvec4};
 use log::{error, info};
 use rayon::prelude::*;
 use wgpu::util::DeviceExt;
-use xc3_model::{vertex::AttributeData, ImageTexture, MeshRenderFlags2, MeshRenderPass};
+use xc3_model::{ImageTexture, MeshRenderFlags2, MeshRenderPass, vertex::AttributeData};
 
 mod bounds;
 mod vertex;
 
 use crate::{
+    CameraData, DeviceBufferExt, MonolibShaderTextures, QueueBufferExt,
     culling::is_within_frustum,
-    material::{create_material, Material},
+    material::{Material, create_material},
     model::{bounds::Bounds, vertex::ModelBuffers},
-    pipeline::{model_pipeline, ModelPipelineData, Output5Type, PipelineKey},
+    pipeline::{ModelPipelineData, Output5Type, PipelineKey, model_pipeline},
     sampler::create_sampler,
     shader,
     texture::create_texture,
-    CameraData, DeviceBufferExt, MonolibShaderTextures, QueueBufferExt,
 };
 
 // Organize the model data to ensure shared resources are created only once.
@@ -796,10 +796,16 @@ fn per_mesh_bind_group(
                 .unwrap_or_default() as usize;
             if max_index + start >= skin_weight_count {
                 error!(
-                "Weight index start {} and max weight index {} exceed weight count {} with {:?}",
-                start, max_index, skin_weight_count,
-                (mesh.flags2, mesh.lod_item_index, material.pipeline_key.pass_type)
-            );
+                    "Weight index start {} and max weight index {} exceed weight count {} with {:?}",
+                    start,
+                    max_index,
+                    skin_weight_count,
+                    (
+                        mesh.flags2,
+                        mesh.lod_item_index,
+                        material.pipeline_key.pass_type
+                    )
+                );
             }
         }
     }

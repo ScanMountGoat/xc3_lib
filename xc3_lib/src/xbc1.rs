@@ -13,7 +13,7 @@ use std::{
 };
 
 use binrw::{BinRead, BinReaderExt, BinWrite, NullString};
-use flate2::{bufread::ZlibEncoder, Compression};
+use flate2::{Compression, bufread::ZlibEncoder};
 use zune_inflate::{DeflateDecoder, DeflateOptions};
 
 use xc3_write::{WriteFull, Xc3Write};

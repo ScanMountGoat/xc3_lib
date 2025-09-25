@@ -1,19 +1,19 @@
 use std::collections::HashSet;
 
-use glam::{uvec4, vec3, vec4, Vec3, Vec4};
+use glam::{Vec3, Vec4, uvec4, vec3, vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use xc3_model::{
-    material::assignments::{Assignment, AssignmentValue, OutputAssignments},
     ImageTexture, IndexMapExt,
+    material::assignments::{Assignment, AssignmentValue, OutputAssignments},
 };
 
 use crate::{
+    DeviceBufferExt, MonolibShaderTextures,
     pipeline::{Output5Type, PipelineKey},
     shader::model::TEXTURE_SAMPLER_COUNT,
     shadergen::ShaderWgsl,
     texture::{default_black_3d_texture, default_black_cube_texture, default_black_texture},
-    DeviceBufferExt, MonolibShaderTextures,
 };
 
 #[derive(Debug)]

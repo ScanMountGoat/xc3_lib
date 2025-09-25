@@ -1,7 +1,7 @@
 [package]
 name = "xc3_wgpu_batch"
 version = "0.20.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 xc3_wgpu = { path = "../xc3_wgpu" }

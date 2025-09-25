@@ -1,10 +1,10 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{parse_ptr64, parse_string_ptr64};
-use binrw::{binread, BinRead};
+use binrw::{BinRead, binread};
 use xc3_write::{
-    strings::{StringSectionUniqueSorted, WriteOptions},
     Xc3Write, Xc3WriteOffsets,
+    strings::{StringSectionUniqueSorted, WriteOptions},
 };
 
 use super::{BcList, BcList2, BcListN};

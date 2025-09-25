@@ -3,12 +3,12 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use clap::Parser;
 use xc3_model::{
+    MapRoot, ModelRoot,
     animation::Animation,
     gltf::{GlbFile, GltfFile},
     load_animations, load_model, load_model_legacy,
     monolib::ShaderTextures,
     shader_database::ShaderDatabase,
-    MapRoot, ModelRoot,
 };
 
 /// Convert wimdo, pmcdo, camdo, or wismhd models to glTF or glb for

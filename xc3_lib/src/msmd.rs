@@ -12,7 +12,7 @@ use std::{
     marker::PhantomData,
 };
 
-use binrw::{binread, BinRead, BinWrite};
+use binrw::{BinRead, BinWrite, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use crate::{

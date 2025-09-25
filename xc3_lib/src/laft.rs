@@ -13,7 +13,7 @@ use std::io::{Cursor, SeekFrom};
 use crate::mibl::Mibl;
 use crate::{parse_offset32_count32, parse_ptr32, parse_vec};
 use binrw::file_ptr::FilePtrArgs;
-use binrw::{binread, BinRead, BinResult};
+use binrw::{BinRead, BinResult, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 const VERSION: u32 = 10001;

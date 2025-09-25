@@ -2,7 +2,7 @@ use glam::{UVec4, Vec4};
 use wgpu::util::DeviceExt;
 use xc3_model::vertex::AttributeData;
 
-use crate::{shader, DeviceBufferExt};
+use crate::{DeviceBufferExt, shader};
 
 pub struct ModelBuffers {
     pub vertex_buffers: Vec<VertexBuffer>,

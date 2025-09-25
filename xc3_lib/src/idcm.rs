@@ -7,10 +7,10 @@
 //! | Xenoblade 2 | 10003 | `map/*.wiidcm` |
 //! | Xenoblade 3 | 10003 | `map/*.idcm` |
 use crate::{
-    parse_offset32_count32, parse_offset32_inner_count32, parse_offset32_inner_count8, parse_ptr32,
-    parse_string_ptr32, StringOffset32,
+    StringOffset32, parse_offset32_count32, parse_offset32_inner_count8,
+    parse_offset32_inner_count32, parse_ptr32, parse_string_ptr32,
 };
-use binrw::{args, binread, BinRead};
+use binrw::{BinRead, args, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 #[binread]

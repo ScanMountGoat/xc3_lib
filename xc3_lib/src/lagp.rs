@@ -14,10 +14,10 @@ use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32,
 };
-use binrw::{args, binread, BinRead, NullString};
+use binrw::{BinRead, NullString, args, binread};
 use xc3_write::{
-    strings::{StringSectionUnique, WriteOptions},
     Xc3Write, Xc3WriteOffsets,
+    strings::{StringSectionUnique, WriteOptions},
 };
 
 // TODO: How much of this is shared with LAHD?

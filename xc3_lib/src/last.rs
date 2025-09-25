@@ -12,8 +12,8 @@
 use crate::{
     parse_offset32_count32, parse_string_opt_ptr32, parse_string_ptr32, xc3_write_binwrite_impl,
 };
-use bilge::{arbitrary_int::u30, bitsize, prelude::Number, Bitsized, DebugBits, FromBits};
-use binrw::{binread, BinRead, BinWrite};
+use bilge::{Bitsized, DebugBits, FromBits, arbitrary_int::u30, bitsize, prelude::Number};
+use binrw::{BinRead, BinWrite, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 const VERSION: u32 = 10001;

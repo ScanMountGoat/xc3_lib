@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
 use hexlit::hex;
-use xc3_write::{assert_hex_eq, Endian, WriteFull, Xc3Write, Xc3WriteOffsets};
+use xc3_write::{Endian, WriteFull, Xc3Write, Xc3WriteOffsets, assert_hex_eq};
 
 #[test]
 fn write_offset_count() {

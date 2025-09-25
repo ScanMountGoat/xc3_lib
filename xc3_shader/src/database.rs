@@ -12,16 +12,16 @@ use xc3_model::shader_database::{
     Dependency, Operation, ProgramHash, ShaderDatabase, ShaderProgram,
 };
 
-use crate::expr::{output_expr, OutputExpr, Value};
-use crate::graph::glsl::{find_attribute_locations, merge_vertex_fragment};
+use crate::expr::{OutputExpr, Value, output_expr};
 use crate::graph::UnaryOp;
+use crate::graph::glsl::{find_attribute_locations, merge_vertex_fragment};
 use crate::{
     dependencies::buffer_dependency,
     extract::nvsd_glsl_name,
     graph::{
+        BinaryOp, Expr, Graph,
         glsl::shader_source_no_extensions,
         query::{assign_x, assign_x_recursive, fma_half_half, normalize, query_nodes},
-        BinaryOp, Expr, Graph,
     },
 };
 

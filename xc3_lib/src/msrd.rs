@@ -40,7 +40,7 @@ use crate::{
     xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
-use binrw::{args, binread, BinRead, BinResult, BinWrite};
+use binrw::{BinRead, BinResult, BinWrite, args, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 /// Utilities for extracting and rebuilding streaming data.

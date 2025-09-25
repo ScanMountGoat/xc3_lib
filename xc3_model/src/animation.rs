@@ -2,7 +2,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Bound::*;
 
-use glam::{vec3, vec4, Mat4, Quat, Vec3, Vec4, Vec4Swizzles};
+use glam::{Mat4, Quat, Vec3, Vec4, Vec4Swizzles, vec3, vec4};
 use log::error;
 use ordered_float::OrderedFloat;
 pub use xc3_lib::bc::anim::{BlendMode, PlayMode, SpaceMode};
@@ -1034,9 +1034,11 @@ mod tests {
             root_translation: None,
         };
 
-        assert!(animation
-            .model_space_transforms(&Skeleton { bones: Vec::new() }, 0.0)
-            .is_empty());
+        assert!(
+            animation
+                .model_space_transforms(&Skeleton { bones: Vec::new() }, 0.0)
+                .is_empty()
+        );
     }
 
     #[test]
@@ -1053,9 +1055,11 @@ mod tests {
             root_translation: Some(vec![Vec3::ONE]),
         };
 
-        assert!(animation
-            .model_space_transforms(&Skeleton { bones: Vec::new() }, 0.0)
-            .is_empty());
+        assert!(
+            animation
+                .model_space_transforms(&Skeleton { bones: Vec::new() }, 0.0)
+                .is_empty()
+        );
     }
 
     fn keyframe(x: f32, y: f32, z: f32, w: f32) -> (OrderedFloat<f32>, Keyframe) {

@@ -7,7 +7,7 @@ use glsl_lang::{
         TypeSpecifierData, TypeSpecifierNonArrayData,
     },
     parse::DefaultParse,
-    transpiler::glsl::{show_translation_unit, FormattingState},
+    transpiler::glsl::{FormattingState, show_translation_unit},
     visitor::{HostMut, Visit, VisitorMut},
 };
 #[cfg(feature = "xc3")]

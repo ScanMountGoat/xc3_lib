@@ -35,7 +35,7 @@ use error::{LoadModelError, LoadModelLegacyError};
 use glam::{Mat4, Vec3};
 use indexmap::IndexMap;
 use material::{create_materials, create_materials_samplers_legacy};
-use model::import::{ModelFilesV111, ModelFilesV112, ModelFilesV40};
+use model::import::{ModelFilesV40, ModelFilesV111, ModelFilesV112};
 use shader_database::ShaderDatabase;
 use skinning::Skinning;
 use vertex::ModelBuffers;
@@ -45,7 +45,7 @@ use xc3_lib::{
     error::{DecompressStreamError, ReadFileError},
     hkt::Hkt,
     msrd::streaming::chr_folder,
-    mxmd::{legacy::MxmdLegacy, Mxmd},
+    mxmd::{Mxmd, legacy::MxmdLegacy},
     sar1::Sar1,
     xbc1::MaybeXbc1,
 };

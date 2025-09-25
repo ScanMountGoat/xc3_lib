@@ -7,8 +7,8 @@
 //! | Xenoblade 1 DE |  |
 //! | Xenoblade 2 |  |
 //! | Xenoblade 3 |  `event/**/*.beh` |
-use crate::{datasheet::DataSheet, parse_opt_ptr32, Offset32};
-use binrw::{binread, BinRead};
+use crate::{Offset32, datasheet::DataSheet, parse_opt_ptr32};
+use binrw::{BinRead, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

@@ -8,8 +8,8 @@ use std::io::Cursor;
 
 use binrw::{BinRead, BinResult, BinWrite};
 use xc3_write::{
-    strings::{StringSectionUnique, WriteOptions},
     Xc3Write, Xc3WriteOffsets,
+    strings::{StringSectionUnique, WriteOptions},
 };
 
 use crate::{

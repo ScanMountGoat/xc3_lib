@@ -6,7 +6,7 @@
 //! | --- | --- | --- |
 //! | Xenoblade X | | `menu/**/*.bmn` |
 use crate::{parse_offset32_count32, parse_opt_ptr32};
-use binrw::{binread, BinRead};
+use binrw::{BinRead, binread};
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, PartialEq, Clone)]

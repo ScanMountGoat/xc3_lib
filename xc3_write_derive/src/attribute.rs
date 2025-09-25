@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, TokenStream};
-use syn::{parenthesized, Attribute, LitInt, Token};
+use syn::{Attribute, LitInt, Token, parenthesized};
 
 pub struct FieldOptions {
     pub field_type: Option<FieldType>,

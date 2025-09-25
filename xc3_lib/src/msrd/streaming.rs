@@ -3,12 +3,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use image_dds::{ddsfile::Dds, Surface};
+use image_dds::{Surface, ddsfile::Dds};
 use rayon::prelude::*;
 use xc3_write::{WriteFull, Xc3Result};
 
 use crate::{
-    align,
+    FromBytes, align,
     error::{CreateXbc1Error, DecompressStreamError, ExtractStreamFilesError, ReadFileError},
     get_bytes,
     mibl::Mibl,
@@ -18,7 +18,6 @@ use crate::{
     spco::Spco,
     vertex::VertexData,
     xbc1::CompressionType,
-    FromBytes,
 };
 
 use super::*;

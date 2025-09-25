@@ -1,11 +1,11 @@
-use glam::{vec2, vec4, Mat4, Vec2, Vec4};
+use glam::{Mat4, Vec2, Vec4, vec2, vec4};
 use wgpu::util::DeviceExt;
 use xc3_model::MeshRenderPass;
 
 use crate::{
-    model::ModelGroup, pipeline::Output5Type, skeleton::BoneRenderer, Collision, DeviceBufferExt,
-    MonolibShaderTextures, QueueBufferExt, COLOR_FORMAT, GBUFFER_COLOR_FORMAT,
-    GBUFFER_NORMAL_FORMAT,
+    COLOR_FORMAT, Collision, DeviceBufferExt, GBUFFER_COLOR_FORMAT, GBUFFER_NORMAL_FORMAT,
+    MonolibShaderTextures, QueueBufferExt, model::ModelGroup, pipeline::Output5Type,
+    skeleton::BoneRenderer,
 };
 
 const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24PlusStencil8;

@@ -2,9 +2,8 @@ use std::io::Cursor;
 
 use hexlit::hex;
 use xc3_write::{
-    assert_hex_eq,
+    Endian, Offset, assert_hex_eq,
     strings::{StringSectionUniqueSorted, WriteOptions},
-    Endian, Offset,
 };
 
 #[test]

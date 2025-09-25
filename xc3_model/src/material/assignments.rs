@@ -4,8 +4,8 @@ use smol_str::SmolStr;
 use xc3_lib::mxmd::TextureUsage;
 
 use crate::{
-    shader_database::{Dependency, Operation, OutputExpr, ShaderProgram, TextureDependency},
     ImageTexture,
+    shader_database::{Dependency, Operation, OutputExpr, ShaderProgram, TextureDependency},
 };
 
 use super::{MaterialParameters, Texture};

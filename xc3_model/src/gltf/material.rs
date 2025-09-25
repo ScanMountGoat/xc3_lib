@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
 use crate::gltf::texture::{
-    albedo_generated_key, metallic_roughness_generated_key, normal_generated_key, TextureCache,
+    TextureCache, albedo_generated_key, metallic_roughness_generated_key, normal_generated_key,
 };
 use crate::{AddressMode, ImageTexture, Sampler};
 use gltf::json::validation::Checked::Valid;
 
-use super::texture::{emissive_generated_key, GeneratedImageKey, ImageIndex};
+use super::texture::{GeneratedImageKey, ImageIndex, emissive_generated_key};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MaterialKey {

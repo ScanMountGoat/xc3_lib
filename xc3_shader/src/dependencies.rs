@@ -1,5 +1,5 @@
 use crate::{
-    expr::{output_expr, Operation, OutputExpr, Parameter, Texture, Value},
+    expr::{Operation, OutputExpr, Parameter, Texture, Value, output_expr},
     graph::{Expr, Graph},
 };
 

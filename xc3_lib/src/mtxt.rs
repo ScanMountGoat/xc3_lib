@@ -7,8 +7,8 @@
 //! | Xenoblade X | 10001, 10002 | `chrfc_tex/*.catex`, `chrfc_eye/*.catex`, `menu/tex/*.catex`, `menu/tex/avatar/*.caavp`, `monolib/shader/*.{calut, catex}` |
 use std::io::SeekFrom;
 
-use binrw::{binrw, BinRead, BinWrite};
-use image_dds::{ddsfile::Dds, Surface};
+use binrw::{BinRead, BinWrite, binrw};
+use image_dds::{Surface, ddsfile::Dds};
 use xc3_write::Xc3Write;
 
 pub use wiiu_swizzle::SwizzleError;

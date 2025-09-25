@@ -25,8 +25,8 @@
 //! | Xenoblade 3 | `chr/tex/nx/{h,m}/*.wismt`, `monolib/shader/*.{witex,witx}`, `monolib/shader/ft/*.wilut` |
 use std::{borrow::Cow, io::SeekFrom};
 
-use binrw::{binrw, BinRead, BinWrite};
-use image_dds::{ddsfile::Dds, Surface};
+use binrw::{BinRead, BinWrite, binrw};
+use image_dds::{Surface, ddsfile::Dds};
 use tegra_swizzle::surface::BlockDim;
 use xc3_write::Xc3Write;
 

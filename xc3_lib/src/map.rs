@@ -14,7 +14,7 @@
 //! | Xenoblade 3 | `map/*.wismda` |
 //! | Xenoblade X DE | `map/*.wismda` |
 use bilge::prelude::*;
-use binrw::{binread, BinRead, BinWrite};
+use binrw::{BinRead, BinWrite, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use crate::{

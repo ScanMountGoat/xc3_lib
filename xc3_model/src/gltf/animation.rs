@@ -1,5 +1,5 @@
-use super::{buffer::WriteBytes, CreateGltfError, GltfData};
-use crate::{animation::Animation, Skeleton};
+use super::{CreateGltfError, GltfData, buffer::WriteBytes};
+use crate::{Skeleton, animation::Animation};
 use gltf::json::validation::Checked::Valid;
 use xc3_lib::hash::murmur3;
 

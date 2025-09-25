@@ -36,11 +36,7 @@ impl Sampler {
     /// The highest rendered texture mipmap LOD.
     pub fn lod_max_clamp(&self) -> f32 {
         // Values taken from tests using Ryujinx with Vulkan.
-        if self.mipmaps {
-            15.0
-        } else {
-            0.25
-        }
+        if self.mipmaps { 15.0 } else { 0.25 }
     }
 
     /// Returns `true` if the sampler uses anisotropic filtering.

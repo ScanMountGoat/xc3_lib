@@ -14,7 +14,7 @@ use xc3_lib::{
     msmd::Msmd,
     msrd::Msrd,
     mths::Mths,
-    mxmd::{legacy::MxmdLegacy, Mxmd},
+    mxmd::{Mxmd, legacy::MxmdLegacy},
     spch::{Nvsd, ShaderBinary, Spch},
 };
 

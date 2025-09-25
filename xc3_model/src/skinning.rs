@@ -538,22 +538,26 @@ mod tests {
 
     #[test]
     fn bone_influences_empty() {
-        assert!(SkinWeights {
-            bone_indices: Vec::new(),
-            weights: Vec::new(),
-        }
-        .to_influences(&[], &[])
-        .is_empty());
+        assert!(
+            SkinWeights {
+                bone_indices: Vec::new(),
+                weights: Vec::new(),
+            }
+            .to_influences(&[], &[])
+            .is_empty()
+        );
     }
 
     #[test]
     fn bone_influences_zero_weights() {
-        assert!(SkinWeights {
-            bone_indices: vec![[0u8; 4], [0u8; 4]],
-            weights: vec![Vec4::ZERO, Vec4::ZERO],
-        }
-        .to_influences(&[[0, 0], [1, 0]], &["root".to_string()])
-        .is_empty());
+        assert!(
+            SkinWeights {
+                bone_indices: vec![[0u8; 4], [0u8; 4]],
+                weights: vec![Vec4::ZERO, Vec4::ZERO],
+            }
+            .to_influences(&[[0, 0], [1, 0]], &["root".to_string()])
+            .is_empty()
+        );
     }
 
     #[test]

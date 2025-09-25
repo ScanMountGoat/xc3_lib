@@ -1,11 +1,11 @@
 use binrw::BinResult;
-use image_dds::{ddsfile::Dds, error::CreateImageError, CreateDdsError, Surface};
+use image_dds::{CreateDdsError, Surface, ddsfile::Dds, error::CreateImageError};
 use xc3_lib::{
     error::CreateMiblError,
     mibl::Mibl,
     msrd::streaming::ExtractedTexture,
     mtxt::Mtxt,
-    mxmd::{legacy::MxmdLegacy, PackedTexture},
+    mxmd::{PackedTexture, legacy::MxmdLegacy},
 };
 
 pub use xc3_lib::mibl::{ImageFormat, ViewDimension};

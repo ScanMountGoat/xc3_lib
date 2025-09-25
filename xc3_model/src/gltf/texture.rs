@@ -1,9 +1,9 @@
 use crate::{
+    ImageTexture, IndexMapExt,
     material::assignments::{Assignment, AssignmentValue, OutputAssignments, TextureAssignment},
     monolib::ShaderTextures,
-    ImageTexture, IndexMapExt,
 };
-use image_dds::image::{codecs::png::PngEncoder, RgbaImage};
+use image_dds::image::{RgbaImage, codecs::png::PngEncoder};
 use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;

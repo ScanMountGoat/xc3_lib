@@ -10,10 +10,10 @@
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use crate::{
-    get_bytes, parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_string_ptr32,
-    xc3_write_binwrite_impl, StringOffset32,
+    StringOffset32, get_bytes, parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32,
+    parse_string_ptr32, xc3_write_binwrite_impl,
 };
-use binrw::{args, binread, BinRead, BinReaderExt, BinResult, BinWrite};
+use binrw::{BinRead, BinReaderExt, BinResult, BinWrite, args, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: Add example code for extracting shaders.

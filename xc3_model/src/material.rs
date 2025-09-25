@@ -1,4 +1,4 @@
-use assignments::{infer_assignment_from_textures, output_assignments, OutputAssignments};
+use assignments::{OutputAssignments, infer_assignment_from_textures, output_assignments};
 use log::warn;
 
 pub use xc3_lib::mxmd::{
@@ -8,11 +8,11 @@ pub use xc3_lib::mxmd::{
 };
 
 use crate::{
+    ImageTexture, Sampler,
     shader_database::{
         BufferDependency, Dependency, Operation, OutputExpr, ProgramHash, ShaderDatabase,
         ShaderProgram,
     },
-    ImageTexture, Sampler,
 };
 
 pub mod assignments;

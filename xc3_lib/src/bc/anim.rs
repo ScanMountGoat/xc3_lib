@@ -4,10 +4,10 @@ use crate::{
     parse_offset64_count32, parse_opt_ptr64, parse_ptr64, parse_string_ptr64,
     xc3_write_binwrite_impl,
 };
-use binrw::{binread, BinRead, BinWrite};
+use binrw::{BinRead, BinWrite, binread};
 use xc3_write::{
-    strings::{StringSectionUniqueSorted, WriteOptions},
     Xc3Write, Xc3WriteOffsets,
+    strings::{StringSectionUniqueSorted, WriteOptions},
 };
 
 use super::{BcList, BcList2, BcList8, BcListCount, StringOffset, Transform};

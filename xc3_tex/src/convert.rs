@@ -1,11 +1,11 @@
 use std::path::Path;
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use binrw::BinRead;
 use image_dds::{
+    ImageFormat, Mipmaps, Quality, Surface,
     ddsfile::Dds,
     image::{DynamicImage, RgbaImage},
-    ImageFormat, Mipmaps, Quality, Surface,
 };
 use rayon::prelude::*;
 use xc3_lib::{
@@ -18,11 +18,11 @@ use xc3_lib::{
     laps::Laps,
     mibl::Mibl,
     msrd::{
-        streaming::{chr_folder, ExtractedTexture},
         Msrd,
+        streaming::{ExtractedTexture, chr_folder},
     },
     mtxt::Mtxt,
-    mxmd::{legacy::MxmdLegacy, Mxmd},
+    mxmd::{Mxmd, legacy::MxmdLegacy},
     xbc1::{CompressionType, MaybeXbc1, Xbc1},
 };
 

@@ -5,15 +5,15 @@ use indoc::formatdoc;
 use log::{error, warn};
 use smol_str::SmolStr;
 use xc3_model::{
+    IndexMapExt,
     material::{
+        TextureAlphaTest,
         assignments::{
             Assignment, AssignmentValue, AssignmentValueXyz, AssignmentXyz, ChannelXyz,
             OutputAssignment, OutputAssignmentXyz, OutputAssignments,
         },
-        TextureAlphaTest,
     },
     shader_database::Operation,
-    IndexMapExt,
 };
 
 use crate::shader::model::TEXTURE_SAMPLER_COUNT;
@@ -154,20 +154,14 @@ fn func_wgsl(op: &Operation, args: &[usize]) -> Option<String> {
         Operation::Fma => Some(format!("{} * {} + {}", arg0?, arg1?, arg2?)),
         Operation::Abs => Some(format!("abs({})", arg0?)),
         Operation::Fresnel => Some(format!("fresnel_ratio({}, n_dot_v)", arg0?)),
-        Operation::MulRatio => {
-            Some(format!("mix({0}, {0} * {1}, {2})", arg0?, arg1?, arg2?))
-        }
+        Operation::MulRatio => Some(format!("mix({0}, {0} * {1}, {2})", arg0?, arg1?, arg2?)),
         Operation::Sqrt => Some(format!("sqrt({})", arg0?)),
         Operation::TexMatrix => Some(format!(
             "dot(vec4({}, {}, 0.0, 1.0), vec4({}, {}, {}, {}))",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
         )),
-        Operation::TexParallaxX => {
-            Some(format!("{} + uv_parallax(in, {}).x", arg0?, arg1?))
-        }
-        Operation::TexParallaxY => {
-            Some(format!("{} + uv_parallax(in, {}).y", arg0?, arg1?))
-        }
+        Operation::TexParallaxX => Some(format!("{} + uv_parallax(in, {}).x", arg0?, arg1?)),
+        Operation::TexParallaxY => Some(format!("{} + uv_parallax(in, {}).y", arg0?, arg1?)),
         Operation::ReflectX => Some(format!(
             "reflect(vec3({}, {}, {}), vec3({}, {}, {})).x",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
@@ -216,7 +210,7 @@ fn func_wgsl(op: &Operation, args: &[usize]) -> Option<String> {
             "monochrome({}, {}, {}, {}).z",
             arg0?, arg1?, arg2?, arg3?
         )),
-        Operation::Negate => Some(format!("-{}", arg0?))
+        Operation::Negate => Some(format!("-{}", arg0?)),
     }
 }
 
@@ -468,20 +462,14 @@ fn func_xyz_wgsl(op: &Operation, args: &[usize], output_index: usize) -> Option<
         Operation::Fma => Some(format!("{} * {} + {}", arg0?, arg1?, arg2?)),
         Operation::Abs => Some(format!("abs({})", arg0?)),
         Operation::Fresnel => Some(format!("fresnel_ratio_xyz({}, n_dot_v)", arg0?)),
-        Operation::MulRatio => {
-            Some(format!("mix({0}, {0} * {1}, {2})", arg0?, arg1?, arg2?))
-        }
+        Operation::MulRatio => Some(format!("mix({0}, {0} * {1}, {2})", arg0?, arg1?, arg2?)),
         Operation::Sqrt => Some(format!("sqrt({})", arg0?)),
         Operation::TexMatrix => Some(format!(
             "dot(vec4({}, {}, 0.0, 1.0), vec4({}, {}, {}, {}))",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
         )),
-        Operation::TexParallaxX => {
-            Some(format!("{} + uv_parallax(in, {}).x", arg0?, arg1?))
-        }
-        Operation::TexParallaxY => {
-            Some(format!("{} + uv_parallax(in, {}).y", arg0?, arg1?))
-        }
+        Operation::TexParallaxX => Some(format!("{} + uv_parallax(in, {}).x", arg0?, arg1?)),
+        Operation::TexParallaxY => Some(format!("{} + uv_parallax(in, {}).y", arg0?, arg1?)),
         Operation::ReflectX => Some(format!(
             "reflect(vec3({}, {}, {}), vec3({}, {}, {})).x",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
@@ -530,7 +518,7 @@ fn func_xyz_wgsl(op: &Operation, args: &[usize], output_index: usize) -> Option<
             "monochrome_xyz_z({}, {}, {}, {})",
             arg0?, arg1?, arg2?, arg3?
         )),
-        Operation::Negate => Some(format!("-{}", arg0?))
+        Operation::Negate => Some(format!("-{}", arg0?)),
     }
 }
 

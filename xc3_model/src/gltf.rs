@@ -32,11 +32,11 @@
 use std::{borrow::Cow, collections::BTreeMap, io::BufWriter, path::Path};
 
 use crate::{
+    MapRoot, ModelRoot, Transform,
     animation::Animation,
     error::{CreateGltfError, SaveGltfError},
     monolib::ShaderTextures,
     skeleton::merge_skeletons,
-    MapRoot, ModelRoot, Transform,
 };
 use animation::add_animations;
 use glam::Mat4;
@@ -46,7 +46,7 @@ use rayon::prelude::*;
 use self::{
     buffer::{BufferKey, Buffers, WeightGroupKey},
     material::{MaterialCache, MaterialKey},
-    texture::{image_name, TextureCache},
+    texture::{TextureCache, image_name},
 };
 
 mod animation;

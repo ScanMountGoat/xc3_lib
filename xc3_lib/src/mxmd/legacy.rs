@@ -2,11 +2,11 @@
 use std::io::SeekFrom;
 
 use crate::{
-    msrd::StreamingDataLegacyInner, parse_count32_offset32, parse_offset, parse_offset32_count32,
-    parse_opt_ptr32, parse_ptr32, parse_string_ptr32, vertex::VertexAttribute,
-    xc3_write_binwrite_impl, StringOffset32,
+    StringOffset32, msrd::StreamingDataLegacyInner, parse_count32_offset32, parse_offset,
+    parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
+    vertex::VertexAttribute, xc3_write_binwrite_impl,
 };
-use binrw::{args, binread, BinRead, BinWrite};
+use binrw::{BinRead, BinWrite, args, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use super::{MaterialFlags, ModelUnk3, SamplerFlags, StateFlags};

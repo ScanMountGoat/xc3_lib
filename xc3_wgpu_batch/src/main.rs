@@ -2,7 +2,7 @@ use std::{path::Path, sync::Mutex};
 
 use clap::{Parser, ValueEnum};
 use futures::executor::block_on;
-use glam::{vec3, Mat4, Vec3};
+use glam::{Mat4, Vec3, vec3};
 use image::ImageBuffer;
 use rayon::prelude::*;
 use xc3_model::{load_animations, shader_database::ShaderDatabase};

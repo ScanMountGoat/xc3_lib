@@ -14,13 +14,13 @@ use xc3_lib::{
 };
 
 use crate::{
+    IndexMapExt, MapRoot, Material, Model, ModelBuffers, ModelGroup, Models, Texture,
     create_materials,
     error::{CreateImageTextureError, LoadMapError},
     model::import::{create_samplers, lod_data},
     shader_database::ShaderDatabase,
     skinning::create_skinning,
     texture::ImageTexture,
-    IndexMapExt, MapRoot, Material, Model, ModelBuffers, ModelGroup, Models, Texture,
 };
 
 /// Load a map from a `.wismhd` file.

@@ -3,10 +3,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use clap::Parser;
 use futures::executor::block_on;
-use glam::{vec3, Mat4, Vec3};
+use glam::{Mat4, Vec3, vec3};
 use log::{error, info};
 use winit::{
     dpi::PhysicalPosition,

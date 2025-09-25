@@ -1,6 +1,6 @@
 [workspace]
 members = ["xc3_lib", "xc3_tex", "xc3_test", "xc3_shader", "xc3_write", "xc3_write_derive", "xc3_wgpu", "xc3_viewer", "xc3_model", "xc3_wgpu_batch", "xc3_gltf"]
-resolver = "2"
+resolver = "3"
 
 [workspace.dependencies]
 glam = "0.30.3"

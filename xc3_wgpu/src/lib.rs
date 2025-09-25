@@ -50,12 +50,12 @@ mod shadergen;
 mod skeleton;
 mod texture;
 
-pub use collision::{load_collisions, Collision};
-pub use model::{load_map, load_model, Mesh, Model, ModelGroup, Models};
+pub use collision::{Collision, load_collisions};
+pub use model::{Mesh, Model, ModelGroup, Models, load_map, load_model};
 pub use monolib::MonolibShaderTextures;
 pub use renderer::{CameraData, RenderMode, Renderer};
 
-use encase::{internal::WriteInto, ShaderSize, ShaderType, StorageBuffer, UniformBuffer};
+use encase::{ShaderSize, ShaderType, StorageBuffer, UniformBuffer, internal::WriteInto};
 use wgpu::util::DeviceExt;
 
 // TODO: How is sRGB gamma handled in game?

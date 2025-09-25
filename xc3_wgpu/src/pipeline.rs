@@ -1,7 +1,7 @@
 use xc3_model::material::{BlendMode, ColorWriteMode, CullMode, RenderPassType, StateFlags};
 
 use crate::{
-    shadergen::ShaderWgsl, DEPTH_STENCIL_FORMAT, GBUFFER_COLOR_FORMAT, GBUFFER_NORMAL_FORMAT,
+    DEPTH_STENCIL_FORMAT, GBUFFER_COLOR_FORMAT, GBUFFER_NORMAL_FORMAT, shadergen::ShaderWgsl,
 };
 
 #[derive(Debug)]

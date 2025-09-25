@@ -26,21 +26,20 @@ use xc3_lib::{
     ltpc::Ltpc,
     mibl::Mibl,
     msmd::Msmd,
-    msrd::{streaming::chr_folder, Msrd},
+    msrd::{Msrd, streaming::chr_folder},
     mths::Mths,
     mtxt::Mtxt,
-    mxmd::{legacy::MxmdLegacy, Mxmd, MxmdV112},
-    offset::{read_type_get_offsets, OffsetRange, OffsetValidationError},
+    mxmd::{Mxmd, MxmdV112, legacy::MxmdLegacy},
+    offset::{OffsetRange, OffsetValidationError, read_type_get_offsets},
     sar1::{ChCl, Csvb, Sar1},
     spch::Spch,
     xbc1::{MaybeXbc1, Xbc1},
 };
 use xc3_model::{
-    load_skel,
-    model::import::{ModelFilesV111, ModelFilesV112, ModelFilesV40},
+    ModelRoot, load_skel,
+    model::import::{ModelFilesV40, ModelFilesV111, ModelFilesV112},
     monolib::ShaderTextures,
     shader_database::ShaderDatabase,
-    ModelRoot,
 };
 use xc3_write::WriteFull;
 
@@ -1228,7 +1227,9 @@ impl CheckFile for Fnt {
         check_read_write: bool,
     ) {
         if self.font.get_glyph_by_utf16(0x2a).is_none() {
-            println!("{path:?} has no \"*\" character registered! The game will crash on unsupported characters.");
+            println!(
+                "{path:?} has no \"*\" character registered! The game will crash on unsupported characters."
+            );
         }
         if check_read_write && !write_be_bytes_equals(&self, original_bytes) {
             println!("Fnt read/write not 1:1 for {path:?}");

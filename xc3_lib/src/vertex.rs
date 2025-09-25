@@ -52,7 +52,7 @@ use crate::{
     parse_ptr32, xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
-use binrw::{args, binread, BinRead, BinWrite};
+use binrw::{BinRead, BinWrite, args, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 /// Vertex and vertex index buffer data used by a [ModelV112](crate::mxmd::ModelV112).

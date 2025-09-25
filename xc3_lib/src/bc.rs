@@ -1,6 +1,6 @@
 //! Animation and skeleton data in `.anm` or `.motstm_data` files or [Sar1](crate::sar1::Sar1) archives.
 use crate::{parse_offset64_count32, parse_ptr64, parse_string_ptr64};
-use binrw::{args, binread, BinRead};
+use binrw::{BinRead, args, binread};
 use xc3_write::{WriteFull, Xc3Write, Xc3WriteOffsets};
 
 use anim::Anim;

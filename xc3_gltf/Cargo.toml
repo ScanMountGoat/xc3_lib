@@ -1,7 +1,7 @@
 [package]
 name = "xc3_gltf"
 version = "0.20.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 xc3_model = { path = "../xc3_model", features = ["gltf"] }
