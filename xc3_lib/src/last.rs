@@ -12,7 +12,7 @@
 use crate::{
     parse_offset32_count32, parse_string_opt_ptr32, parse_string_ptr32, xc3_write_binwrite_impl,
 };
-use bilge::{Bitsized, DebugBits, FromBits, arbitrary_int::u30, bitsize, prelude::Number};
+use bilge::prelude::*;
 use binrw::{BinRead, BinWrite, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
