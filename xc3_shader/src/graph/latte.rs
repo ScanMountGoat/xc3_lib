@@ -1582,13 +1582,8 @@ fn add_scalar(scalar: &AluScalarData, nodes: &mut Nodes) -> Option<usize> {
         }
         "EXP_IEEE" => Some(nodes.func_node("exp2", 1, scalar, output)),
         "LOG_CLAMPED" => {
-            let node_index = nodes.func_node("log2", 1, scalar, output.clone());
-            let input = nodes.clamp_expr(Expr::Node {
-                node_index,
-                channel: output.channel,
-            });
-            let node = Node { output, input };
-            Some(nodes.node(node))
+            // TODO: -inf to -max_float
+            Some(nodes.func_node("log2", 1, scalar, output.clone()))
         }
         // scalar2
         "ADD" => Some(nodes.binary_node(

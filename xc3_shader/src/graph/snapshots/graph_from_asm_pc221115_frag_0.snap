@@ -186,7 +186,6 @@ R123.z = fma(CB1[0].w, R3.w, 0.0);
 PV32.z = R123.z;
 R126.w = fma(CB1[0].x, R3.x, 0.0);
 PS32 = log2(R4.z);
-PS32 = clamp(PS32, 0.0, 1.0);
 R2.x = fma(R8.x, R1.x, R7.x);
 R2.y = fma(R8.x, R1.y, R7.y);
 R2.z = fma(R8.x, R1.z, R7.z);
