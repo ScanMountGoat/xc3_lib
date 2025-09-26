@@ -1583,7 +1583,7 @@ fn add_scalar(scalar: &AluScalarData, nodes: &mut Nodes) -> Option<usize> {
         "EXP_IEEE" => Some(nodes.func_node("exp2", 1, scalar, output)),
         "LOG_CLAMPED" => {
             // TODO: -inf to -max_float
-            Some(nodes.func_node("log2", 1, scalar, output.clone()))
+            Some(nodes.func_node("log2", 1, scalar, output))
         }
         // scalar2
         "ADD" => Some(nodes.binary_node(
@@ -1604,15 +1604,13 @@ fn add_scalar(scalar: &AluScalarData, nodes: &mut Nodes) -> Option<usize> {
         }
         "MIN" | "MIN_DX10" => Some(nodes.func_node("min", 2, scalar, output)),
         "MAX" | "MAX_DX10" => Some(nodes.func_node("max", 2, scalar, output)),
-        "MUL" | "MUL_IEEE" => {
-            // Scalar multiplication with floats.
-            Some(nodes.binary_node(
-                BinaryOp::Mul,
-                scalar.sources[0].clone(),
-                scalar.sources[1].clone(),
-                output,
-            ))
-        }
+        // Scalar multiplication with floats.
+        "MUL" | "MUL_IEEE" => Some(nodes.binary_node(
+            BinaryOp::Mul,
+            scalar.sources[0].clone(),
+            scalar.sources[1].clone(),
+            output,
+        )),
         // Reduction instructions handled in a previous check.
         "DOT4" | "DOT4_IEEE" => unreachable!(),
         "MULLO_UINT" => {
@@ -1814,23 +1812,18 @@ fn alu_output_modifier_scale(
     nodes: &mut Nodes,
 ) -> Option<usize> {
     let modifier = scalar.output_modifier.as_ref()?.as_str();
-    let (op, f) = match modifier {
-        "/2" => (BinaryOp::Div, 2.0),
-        "/4" => (BinaryOp::Div, 4.0),
-        "*2" => (BinaryOp::Mul, 2.0),
-        "*4" => (BinaryOp::Mul, 4.0),
-        _ => panic!("unexpected modifier: {modifier}"),
+    let lh = Expr::Node {
+        node_index,
+        channel: scalar.output.channel,
     };
-
-    Some(nodes.binary_node(
-        op,
-        Expr::Node {
-            node_index,
-            channel: scalar.output.channel,
-        },
-        Expr::Float(f.into()),
-        scalar.output.clone(),
-    ))
+    let output = scalar.output.clone();
+    match modifier {
+        "/2" => Some(nodes.binary_node(BinaryOp::Div, lh, Expr::Float(2.0.into()), output)),
+        "/4" => Some(nodes.binary_node(BinaryOp::Div, lh, Expr::Float(4.0.into()), output)),
+        "*2" => Some(nodes.binary_node(BinaryOp::Mul, lh, Expr::Float(2.0.into()), output)),
+        "*4" => Some(nodes.binary_node(BinaryOp::Mul, lh, Expr::Float(4.0.into()), output)),
+        _ => unreachable!(),
+    }
 }
 
 fn alu_src_expr(
@@ -1918,12 +1911,11 @@ fn constant_buffer(
     constant_buffer: Option<&ConstantBuffer>,
     nodes: &mut Nodes,
 ) -> Expr {
+    let cb = constant_buffer.as_ref().unwrap();
     Expr::Parameter {
-        name: format!("CB{}", constant_buffer.as_ref().unwrap().index).into(),
+        name: format!("CB{}", cb.index).into(),
         field: None,
-        index: Some(nodes.expr(Expr::Int(
-            (index + constant_buffer.as_ref().unwrap().start_index) as i32,
-        ))),
+        index: Some(nodes.expr(Expr::Int((index + cb.start_index) as i32))),
         channel,
     }
 }
