@@ -33,7 +33,10 @@ fn main() {
     ] {
         println!("cargo:rerun-if-changed=src/shader/{name}.wgsl");
 
-        let wgsl = wesl.compile(format!("{name}.wgsl")).unwrap().to_string();
+        let wgsl = wesl
+            .compile(&wesl::ModulePath::from_path(format!("/{name}.wgsl")))
+            .unwrap()
+            .to_string();
         module
             .add_shader_module(
                 &wgsl,
@@ -58,7 +61,7 @@ fn demangle_wesl(name: &str) -> wgsl_to_wgpu::TypePath {
         let mangler = wesl::EscapeMangler;
         let (path, name) = mangler
             .unmangle(name)
-            .unwrap_or((wesl::ModulePath::default(), name.to_string()));
+            .unwrap_or((wesl::ModulePath::new_root(), name.to_string()));
 
         // Assume all wesl paths are absolute paths.
         wgsl_to_wgpu::TypePath {

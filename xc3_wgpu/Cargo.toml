@@ -24,4 +24,4 @@ indoc.workspace = true
 
 [build-dependencies]
 wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu", rev = "f99fb80" }
-wesl = { git = "https://github.com/wgsl-tooling-wg/wesl-rs", rev = "ba49b86", features = ["naga_ext"] }
+wesl = { version = "0.2.0", features = ["naga_ext"] }
