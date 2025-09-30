@@ -1232,15 +1232,15 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
 
         let scalars = get_scalar_data(properties, nodes, group, inst_count);
 
-        let dot_node_index = dot_product_node_index(&scalars, inst_count, nodes);
+        let reduction_node_index = reduction_node_index(&scalars, inst_count, nodes);
 
         for scalar in scalars {
             let mut final_node_index = None;
 
             // Reduction instructions write a single result to all vector outputs.
             // TODO: Cube instructions are also reduction instructions.
-            if scalar.op_code.starts_with("DOT4") {
-                if let Some(node_index) = dot_node_index {
+            if is_reduction_instruction(&scalar.op_code) {
+                if let Some(node_index) = reduction_node_index {
                     let node = Node {
                         output: scalar.output.clone(),
                         input: nodes.expr(Expr::Node {
@@ -1276,6 +1276,11 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
             }
         }
     }
+}
+
+fn is_reduction_instruction(op: &str) -> bool {
+    // TODO: CUBE
+    matches!(op, "DOT4" | "DOT4_IEEE" | "MAX4")
 }
 
 fn get_scalar_data(
@@ -1471,10 +1476,10 @@ fn insert_previous_vector_scalars(values: &mut BTreeSet<(SmolStr, Option<char>)>
     match &src.value {
         AluSrcValueOrAbs::Abs(v) => match &v.value {
             AluSrcValue::PreviousScalar(ps) => {
-                values.insert((ps.to_string().into(), src.swizzle));
+                values.insert((ps.to_string().into(), v.swizzle));
             }
             AluSrcValue::PreviousVector(pv) => {
-                values.insert((pv.to_string().into(), src.swizzle));
+                values.insert((pv.to_string().into(), v.swizzle));
             }
             _ => (),
         },
@@ -1490,15 +1495,15 @@ fn insert_previous_vector_scalars(values: &mut BTreeSet<(SmolStr, Option<char>)>
     }
 }
 
-fn dot_product_node_index(
+fn reduction_node_index(
     scalars: &[AluScalarData],
     inst_count: InstCount,
     nodes: &mut Nodes,
 ) -> Option<usize> {
-    let (dot4_a, dot4_b): (Vec<_>, Vec<_>) = scalars
+    let (args_a, args_b): (Vec<_>, Vec<_>) = scalars
         .iter()
         .filter_map(|s| {
-            if s.op_code.starts_with("DOT4") {
+            if is_reduction_instruction(&s.op_code) {
                 Some((
                     nodes.expr(s.sources[0].clone()),
                     nodes.expr(s.sources[1].clone()),
@@ -1508,12 +1513,19 @@ fn dot_product_node_index(
             }
         })
         .unzip();
-    if !dot4_a.is_empty() && !dot4_b.is_empty() {
+    if !args_a.is_empty() && !args_b.is_empty() {
         let args = vec![
-            nodes.func_expr("vec4", dot4_a),
-            nodes.func_expr("vec4", dot4_b),
+            nodes.func_expr("vec4", args_a),
+            nodes.func_expr("vec4", args_b),
         ];
-        let input = nodes.func_expr("dot", args);
+        // TODO: Function for component max?
+        // TODO: handle CUBE instructions.
+        let input = match scalars.first()?.op_code.as_str() {
+            "DOT4" | "DOT4_IEEE" => nodes.func_expr("dot", args),
+            "MAX4" => nodes.func_expr("max", args),
+            _ => unreachable!(),
+        };
+
         let temp_name: SmolStr = format!("temp{inst_count}").into();
         let node = Node {
             output: Output {
@@ -1526,7 +1538,8 @@ fn dot_product_node_index(
 
         // Assume the clamp is applied to all xyzw scalars.
         if scalars.iter().any(|s| {
-            s.op_code.starts_with("DOT4") && s.properties.iter().any(|p| p == &AluProperty::Clamp)
+            is_reduction_instruction(&s.op_code)
+                && s.properties.iter().any(|p| p == &AluProperty::Clamp)
         }) {
             let input = nodes.clamp_expr(Expr::Node {
                 node_index,
@@ -1612,7 +1625,9 @@ fn add_scalar(scalar: &AluScalarData, nodes: &mut Nodes) -> Option<usize> {
             output,
         )),
         // Reduction instructions handled in a previous check.
-        "DOT4" | "DOT4_IEEE" => unreachable!(),
+        // TODO: CUBE is also a reduction instruction.
+        "DOT4" | "DOT4_IEEE" | "MAX4" => unreachable!(),
+        "CUBE" => Some(nodes.func_node("cube", 2, scalar, output)),
         "MULLO_UINT" => {
             // Scalar multiplication with unsigned integers stored in the lower bits.
             let result = Expr::Binary(
@@ -1701,12 +1716,6 @@ fn add_scalar(scalar: &AluScalarData, nodes: &mut Nodes) -> Option<usize> {
         "SIN" => Some(nodes.func_node("sin", 1, scalar, output)),
         "COS" => Some(nodes.func_node("cos", 1, scalar, output)),
         "FRACT" => Some(nodes.func_node("fract", 1, scalar, output)),
-        "CUBE" => {
-            // TODO: proper reduction instruction for cube maps
-            let input = nodes.expr(Expr::Float(0.0.into()));
-            let node = Node { output, input };
-            Some(nodes.node(node))
-        }
         // TODO: push/pop and predicates
         "PRED_SETGE" | "PRED_SETGT" => None,
         // Conditionals
