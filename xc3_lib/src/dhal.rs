@@ -283,14 +283,17 @@ pub struct Unk4 {
     #[xc3(offset(u32))]
     pub unk5: Option<Vec<Unk4Unk5>>, // items?
 
+    #[br(temp, restore_position)]
+    unk6_offset_count: [u32; 2],
+
     // TODO: Not all values are floats?
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32), align(64))]
+    #[xc3(count_offset(u32, u32), align(16))]
     pub unk6: Vec<[[f32; 4]; 8]>,
 
     // TODO: Is this the right check?
     #[br(if(version > 10001))]
-    #[br(args_raw(base_offset))]
+    #[br(args { base_offset, next_offset: unk6_offset_count[1] })]
     pub extra: Option<Unk4Extra>,
 
     // TODO: Should xc3 be treated as a separate format?
@@ -352,14 +355,19 @@ pub enum Unk4Unk5ValueType {
     Unk2 = 2,
 }
 
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import_raw(base_offset: u64))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import { base_offset: u64, next_offset: u32 })]
 pub struct Unk4Extra {
-    // TODO: type?
-    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
+    #[br(temp, restore_position)]
+    offset: u32,
+
+    // TODO: padding?
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: (dbg!(next_offset) - dbg!(offset)) as usize / 4 }})]
     #[xc3(offset(u32))]
-    pub unk1: Option<[u32; 2]>,
+    pub unk1: Option<Vec<u32>>,
 
     // TODO: padding?
     pub unk: u32,
