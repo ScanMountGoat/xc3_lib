@@ -179,6 +179,7 @@ impl Graph {
     }
 
     pub(crate) fn expr_to_glsl(&self, input: usize) -> String {
+        // TODO: Add parentheses for nested expressions.
         match &self.exprs[input] {
             Expr::Node {
                 node_index,

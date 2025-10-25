@@ -21,7 +21,7 @@ use crate::{
     graph::{
         BinaryOp, Expr, Graph,
         glsl::shader_source_no_extensions,
-        query::{assign_x, assign_x_recursive, fma_half_half, normalize, query_nodes},
+        query::{assign_x_recursive, fma_half_half, normalize, query_nodes},
     },
 };
 
@@ -189,7 +189,7 @@ fn normal_output_expr(
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
-    let mut view_normal = assign_x(frag, &frag.exprs[last_node.input])?;
+    let mut view_normal = assign_x_recursive(frag, &frag.exprs[last_node.input]);
 
     // setMrtNormal in pcmdo shaders.
     // Xenoblade X uses RG16Float and doesn't require remapping the value range.

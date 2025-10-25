@@ -282,21 +282,37 @@ impl Graph {
         output
     }
 
-    /// Simplify the `node` using variable substitution to eliminate assignments
-    /// and other algebraic identities.
-    pub fn simplify(&self, node: &Node) -> Self {
+    /// Simplify all output nodes not referenced by any other nodes.
+    ///
+    /// This uses substitution to eliminate assignments and other algebraic identities.
+    pub fn simplify(&self) -> Self {
         let mut simplified = BTreeMap::new();
-
-        // TODO: Simplify the entire graph to reuse calculations.
 
         // TODO: Remove unused exprs and reindex?
         let mut exprs = self.exprs.iter().cloned().collect();
 
-        let input = self.simplify_expr(node.input, &mut simplified, &mut exprs);
-        let nodes = vec![Node {
-            output: node.output.clone(),
-            input: exprs.insert_full(input).0,
-        }];
+        // Identify outputs (leaf nodes).
+        let mut referenced_node_indices = BTreeSet::new();
+        for node in &self.nodes {
+            self.add_dependencies(node.input, &mut referenced_node_indices);
+        }
+
+        let nodes = self
+            .nodes
+            .iter()
+            .enumerate()
+            .filter_map(|(i, node)| {
+                if !referenced_node_indices.contains(&i) {
+                    let input = self.simplify_expr(node.input, &mut simplified, &mut exprs);
+                    Some(Node {
+                        output: node.output.clone(),
+                        input: exprs.insert_full(input).0,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         Self {
             nodes,
@@ -493,7 +509,32 @@ mod tests {
 
         assert_eq!(
             "result = 1.0 - sqrt(clamp(1.0 - texture(s0, vec2(0.0, 0.5)).x, 0.0, 1.0));\n",
-            graph.simplify(graph.nodes.last().unwrap()).to_glsl()
+            graph.simplify().to_glsl()
+        );
+    }
+
+    #[test]
+    fn simplify_multiple_outputs() {
+        let glsl = indoc! {"
+            void main() {       
+                a = 1.0;
+                b = 2.0;
+                out_attr0.x = a * b;
+                out_attr0.y = a / b;
+                out_attr0.z = 3.0;
+                out_attr0.w = b + 4.0;
+            }
+        "};
+        let graph = Graph::parse_glsl(glsl).unwrap();
+
+        assert_eq!(
+            indoc! {"
+                out_attr0.x = 1.0 * 2.0;
+                out_attr0.y = 1.0 / 2.0;
+                out_attr0.z = 3.0;
+                out_attr0.w = 2.0 + 4.0;
+            "},
+            graph.simplify().to_glsl()
         );
     }
 }

@@ -251,21 +251,21 @@ fn check_args<'a>(
         })
 }
 
-pub fn assign_x<'a>(graph: &'a Graph, expr: &Expr) -> Option<&'a Expr> {
-    match expr {
-        Expr::Node { node_index, .. } => {
-            graph.nodes.get(*node_index).map(|n| &graph.exprs[n.input])
-        }
-        _ => None,
-    }
-}
-
 pub fn assign_x_recursive<'a>(graph: &'a Graph, expr: &'a Expr) -> &'a Expr {
     let mut node = expr;
     while let Some(new_node) = assign_x(graph, node) {
         node = new_node;
     }
     node
+}
+
+fn assign_x<'a>(graph: &'a Graph, expr: &Expr) -> Option<&'a Expr> {
+    match expr {
+        Expr::Node { node_index, .. } => {
+            graph.nodes.get(*node_index).map(|n| &graph.exprs[n.input])
+        }
+        _ => None,
+    }
 }
 
 static MIX_A_B_RATIO: LazyLock<Graph> = LazyLock::new(|| {
@@ -377,8 +377,8 @@ mod tests {
         let graph = Graph::parse_glsl(&format!("void main() {{ {graph_glsl} }}")).unwrap();
         let query = Graph::parse_glsl(&format!("void main() {{ {query_glsl} }}")).unwrap();
 
-        let graph = graph.simplify(graph.nodes.last().unwrap());
-        let query = query.simplify(query.nodes.last().unwrap());
+        let graph = graph.simplify();
+        let query = query.simplify();
 
         // TODO: Check vars?
         graph.query(&query).map(|v| {
