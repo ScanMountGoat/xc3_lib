@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::fmt::Write;
 
 use bimap::BiBTreeMap;
 use glsl_lang::{
@@ -167,90 +168,140 @@ impl Graph {
     pub fn to_glsl(&self) -> String {
         let mut output = String::new();
         for node in &self.nodes {
-            output += &self.node_to_glsl(node);
+            self.write_node_glsl(&mut output, node);
         }
         output
     }
 
-    pub(crate) fn node_to_glsl(&self, node: &Node) -> String {
-        let input_expr = self.expr_to_glsl(node.input);
+    pub(crate) fn write_node_glsl(&self, output: &mut String, node: &Node) {
         let channels = channel_swizzle(node.output.channel);
-        format!("{}{} = {input_expr};\n", node.output.name, channels)
+        write!(output, "{}{} = ", node.output.name, channels).unwrap();
+        self.write_expr_glsl(output, node.input);
+        write!(output, ";\n").unwrap();
     }
 
-    pub(crate) fn expr_to_glsl(&self, input: usize) -> String {
+    pub fn write_expr_glsl(&self, output: &mut String, input: usize) {
         // TODO: Add parentheses for nested expressions.
+        // TODO: write the strings instead for faster performance?
+        // write ( write inner write )?
         match &self.exprs[input] {
             Expr::Node {
                 node_index,
                 channel,
-            } => format!(
+            } => write!(
+                output,
                 "{}{}",
                 self.nodes[*node_index].output.name,
                 channel_swizzle(*channel)
-            ),
-            Expr::Float(f) => format!("{f:?}"),
-            Expr::Int(i) => i.to_string(),
-            Expr::Uint(u) => u.to_string(),
-            Expr::Bool(b) => b.to_string(),
+            )
+            .unwrap(),
+            Expr::Float(f) => write!(output, "{f:?}").unwrap(),
+            Expr::Int(i) => write!(output, "{}", i).unwrap(),
+            Expr::Uint(u) => write!(output, "{}", u).unwrap(),
+            Expr::Bool(b) => write!(output, "{}", b).unwrap(),
             Expr::Parameter {
                 name,
                 field,
                 index,
                 channel,
             } => {
-                format!(
-                    "{name}{}{}{}",
-                    field.as_ref().map(|f| format!(".{f}")).unwrap_or_default(),
-                    index
-                        .as_ref()
-                        .map(|i| format!("[{}]", self.expr_to_glsl(*i)))
-                        .unwrap_or_default(),
-                    channel_swizzle(*channel)
-                )
+                write!(output, "{name}",).unwrap();
+                if let Some(f) = field {
+                    write!(output, ".{f}").unwrap();
+                }
+                if let Some(i) = index {
+                    write!(output, "[").unwrap();
+                    self.write_expr_glsl(output, *i);
+                    write!(output, "]").unwrap();
+                }
+                write!(output, "{}", channel_swizzle(*channel)).unwrap();
             }
-            Expr::Global { name, channel } => format!("{name}{}", channel_swizzle(*channel)),
-            Expr::Unary(op, a) => self.unary_to_glsl(*op, *a),
-            Expr::Binary(op, a, b) => self.binary_to_glsl(*op, *a, *b),
-            Expr::Ternary(a, b, c) => format!(
-                "{} ? {} : {}",
-                self.expr_to_glsl(*a),
-                self.expr_to_glsl(*b),
-                self.expr_to_glsl(*c)
-            ),
+            Expr::Global { name, channel } => {
+                write!(output, "{name}{}", channel_swizzle(*channel)).unwrap()
+            }
+            Expr::Unary(op, a) => self.write_unary_glsl(output, *op, *a),
+            Expr::Binary(op, a, b) => self.write_binary_glsl(output, *op, *a, *b),
+            Expr::Ternary(a, b, c) => {
+                self.write_expr_glsl(output, *a);
+                write!(output, " ? ").unwrap();
+                self.write_expr_glsl(output, *b);
+                write!(output, " : ").unwrap();
+                self.write_expr_glsl(output, *c);
+            }
             Expr::Func {
                 name,
                 args,
                 channel,
-            } => format!(
-                "{name}({}){}",
-                args.iter()
-                    .map(|a| self.expr_to_glsl(*a))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                channel_swizzle(*channel)
-            ),
+            } => {
+                write!(output, "{name}(").unwrap();
+                if let Some((last, args)) = args.split_last() {
+                    for a in args {
+                        self.write_expr_glsl(output, *a);
+                        write!(output, ", ").unwrap();
+                    }
+                    self.write_expr_glsl(output, *last);
+                }
+                write!(output, "){}", channel_swizzle(*channel)).unwrap();
+            }
         }
     }
 
-    fn unary_to_glsl(&self, op: UnaryOp, a: usize) -> String {
-        let expr = self.expr_to_glsl(a);
+    fn write_unary_glsl(&self, output: &mut String, op: UnaryOp, a: usize) {
         match op {
-            UnaryOp::Negate => format!("-{expr}"),
-            UnaryOp::Not => format!("!{expr}"),
-            UnaryOp::Complement => format!("~{expr}"),
-            UnaryOp::IntBitsToFloat => format!("intBitsToFloat({expr})"),
-            UnaryOp::FloatBitsToInt => format!("floatBitsToInt({expr})"),
-            UnaryOp::UintBitsToFloat => format!("uintBitsToFloat({expr})"),
-            UnaryOp::FloatBitsToUint => format!("floatBitsToUint({expr})"),
-            UnaryOp::IntToFloat => format!("float({expr})"),
-            UnaryOp::UintToFloat => format!("float({expr})"),
-            UnaryOp::FloatToInt => format!("int({expr})"),
-            UnaryOp::FloatToUint => format!("uint({expr})"),
+            UnaryOp::Negate => {
+                write!(output, "-").unwrap();
+                self.write_expr_glsl(output, a);
+            }
+            UnaryOp::Not => write!(output, "!").unwrap(),
+            UnaryOp::Complement => {
+                write!(output, "~").unwrap();
+                self.write_expr_glsl(output, a);
+                write!(output, ")").unwrap();
+            }
+            UnaryOp::IntBitsToFloat => {
+                write!(output, "intBitsToFloat(").unwrap();
+                self.write_expr_glsl(output, a);
+                write!(output, ")").unwrap();
+            }
+            UnaryOp::FloatBitsToInt => {
+                write!(output, "floatBitsToInt(").unwrap();
+                self.write_expr_glsl(output, a);
+                write!(output, ")").unwrap();
+            }
+            UnaryOp::UintBitsToFloat => {
+                write!(output, "uintBitsToFloat(").unwrap();
+                self.write_expr_glsl(output, a);
+                write!(output, ")").unwrap();
+            }
+            UnaryOp::FloatBitsToUint => {
+                write!(output, "floatBitsToUint(").unwrap();
+                self.write_expr_glsl(output, a);
+                write!(output, ")").unwrap();
+            }
+            UnaryOp::IntToFloat => {
+                write!(output, "float(").unwrap();
+                self.write_expr_glsl(output, a);
+                write!(output, ")").unwrap();
+            }
+            UnaryOp::UintToFloat => {
+                write!(output, "float(").unwrap();
+                self.write_expr_glsl(output, a);
+                write!(output, ")").unwrap();
+            }
+            UnaryOp::FloatToInt => {
+                write!(output, "int(").unwrap();
+                self.write_expr_glsl(output, a);
+                write!(output, ")").unwrap();
+            }
+            UnaryOp::FloatToUint => {
+                write!(output, "uint(").unwrap();
+                self.write_expr_glsl(output, a);
+                write!(output, ")").unwrap();
+            }
         }
     }
 
-    fn binary_to_glsl(&self, op: BinaryOp, a: usize, b: usize) -> String {
+    fn write_binary_glsl(&self, output: &mut String, op: BinaryOp, a: usize, b: usize) {
         let op = match op {
             BinaryOp::Add => "+",
             BinaryOp::Sub => "-",
@@ -270,7 +321,9 @@ impl Graph {
             BinaryOp::Or => "||",
             BinaryOp::And => "&&",
         };
-        format!("{} {op} {}", self.expr_to_glsl(a), self.expr_to_glsl(b))
+        self.write_expr_glsl(output, a);
+        write!(output, " {op} ").unwrap();
+        self.write_expr_glsl(output, b);
     }
 }
 
@@ -595,7 +648,7 @@ pub fn merge_vertex_fragment(
     let mut exprs = IndexSet::new();
 
     for n in &vert.nodes {
-        let input = reindex_expr(&vert, &mut exprs, n.input, 0);
+        let input = reindex_node_expr(&vert, &mut exprs, n.input, 0);
         graph.nodes.push(Node {
             output: n.output.clone(),
             input,
@@ -608,7 +661,7 @@ pub fn merge_vertex_fragment(
         let input =
             fragment_input_to_vertex_output(&vert, vert_attributes, &frag, frag_attributes, n)
                 .map(|e| exprs.insert_full(e).0)
-                .unwrap_or_else(|| reindex_expr(&frag, &mut exprs, n.input, start));
+                .unwrap_or_else(|| reindex_node_expr(&frag, &mut exprs, n.input, start));
 
         graph.nodes.push(Node {
             output: n.output.clone(),
@@ -653,7 +706,7 @@ fn fragment_input_to_vertex_output(
     None
 }
 
-fn reindex_expr(
+fn reindex_node_expr(
     old_graph: &Graph,
     exprs: &mut IndexSet<Expr>,
     input: usize,
@@ -676,19 +729,21 @@ fn reindex_expr(
         } => Expr::Parameter {
             name: name.clone(),
             field: field.clone(),
-            index: index.map(|i| reindex_expr(old_graph, exprs, i, start_index)),
+            index: index.map(|i| reindex_node_expr(old_graph, exprs, i, start_index)),
             channel: *channel,
         },
-        Expr::Unary(op, a) => Expr::Unary(*op, reindex_expr(old_graph, exprs, *a, start_index)),
+        Expr::Unary(op, a) => {
+            Expr::Unary(*op, reindex_node_expr(old_graph, exprs, *a, start_index))
+        }
         Expr::Binary(op, lh, rh) => Expr::Binary(
             *op,
-            reindex_expr(old_graph, exprs, *lh, start_index),
-            reindex_expr(old_graph, exprs, *rh, start_index),
+            reindex_node_expr(old_graph, exprs, *lh, start_index),
+            reindex_node_expr(old_graph, exprs, *rh, start_index),
         ),
         Expr::Ternary(a, b, c) => Expr::Ternary(
-            reindex_expr(old_graph, exprs, *a, start_index),
-            reindex_expr(old_graph, exprs, *b, start_index),
-            reindex_expr(old_graph, exprs, *c, start_index),
+            reindex_node_expr(old_graph, exprs, *a, start_index),
+            reindex_node_expr(old_graph, exprs, *b, start_index),
+            reindex_node_expr(old_graph, exprs, *c, start_index),
         ),
         Expr::Func {
             name,
@@ -698,7 +753,7 @@ fn reindex_expr(
             name: name.clone(),
             args: args
                 .iter()
-                .map(|a| reindex_expr(old_graph, exprs, *a, start_index))
+                .map(|a| reindex_node_expr(old_graph, exprs, *a, start_index))
                 .collect(),
             channel: *channel,
         },
