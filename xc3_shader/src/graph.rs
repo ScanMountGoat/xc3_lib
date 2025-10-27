@@ -276,7 +276,7 @@ impl Graph {
         for i in self.dependencies_recursive(variable, channel, recursion_depth) {
             // Some nodes may be repeated with different tracked channels.
             if visited.insert(i) {
-                output += &self.node_to_glsl(&self.nodes[i]);
+                self.write_node_glsl(&mut output, &self.nodes[i]);
             }
         }
         output
@@ -315,8 +315,9 @@ impl Graph {
 
         // Remove unused exprs and reindex.
         let mut new_exprs = IndexSet::new();
+        let mut new_to_old_index = BTreeMap::new();
         for n in &mut nodes {
-            n.input = reindex_expr(n.input, &exprs, &mut new_exprs)
+            n.input = reindex_expr(n.input, &exprs, &mut new_exprs, &mut new_to_old_index)
         }
 
         Self {
@@ -459,48 +460,62 @@ impl Graph {
     }
 }
 
-fn reindex_expr(expr: usize, exprs: &IndexSet<Expr>, new_exprs: &mut IndexSet<Expr>) -> usize {
-    let result = match exprs[expr].clone() {
-        Expr::Parameter {
-            name,
-            field,
-            index,
-            channel,
-        } => Expr::Parameter {
-            name,
-            field,
-            index: index.map(|i| reindex_expr(i, exprs, new_exprs)),
-            channel,
-        },
-        Expr::Unary(unary_op, a) => Expr::Unary(unary_op, reindex_expr(a, exprs, new_exprs)),
-        Expr::Binary(binary_op, a, b) => Expr::Binary(
-            binary_op,
-            reindex_expr(a, exprs, new_exprs),
-            reindex_expr(b, exprs, new_exprs),
-        ),
-        Expr::Ternary(a, b, c) => Expr::Ternary(
-            reindex_expr(a, exprs, new_exprs),
-            reindex_expr(b, exprs, new_exprs),
-            reindex_expr(c, exprs, new_exprs),
-        ),
-        Expr::Func {
-            name,
-            args,
-            channel,
-        } => {
-            let args = args
-                .into_iter()
-                .map(|a| reindex_expr(a, exprs, new_exprs))
-                .collect();
-            Expr::Func {
-                name,
-                args,
-                channel,
-            }
+fn reindex_expr(
+    expr: usize,
+    exprs: &IndexSet<Expr>,
+    new_exprs: &mut IndexSet<Expr>,
+    new_to_old_indices: &mut BTreeMap<usize, usize>,
+) -> usize {
+    match new_to_old_indices.get(&expr) {
+        Some(i) => *i,
+        None => {
+            let result = match &exprs[expr] {
+                Expr::Parameter {
+                    name,
+                    field,
+                    index,
+                    channel,
+                } => Expr::Parameter {
+                    name: name.clone(),
+                    field: field.clone(),
+                    index: index.map(|i| reindex_expr(i, exprs, new_exprs, new_to_old_indices)),
+                    channel: *channel,
+                },
+                Expr::Unary(op, a) => {
+                    Expr::Unary(*op, reindex_expr(*a, exprs, new_exprs, new_to_old_indices))
+                }
+                Expr::Binary(op, a, b) => Expr::Binary(
+                    *op,
+                    reindex_expr(*a, exprs, new_exprs, new_to_old_indices),
+                    reindex_expr(*b, exprs, new_exprs, new_to_old_indices),
+                ),
+                Expr::Ternary(a, b, c) => Expr::Ternary(
+                    reindex_expr(*a, exprs, new_exprs, new_to_old_indices),
+                    reindex_expr(*b, exprs, new_exprs, new_to_old_indices),
+                    reindex_expr(*c, exprs, new_exprs, new_to_old_indices),
+                ),
+                Expr::Func {
+                    name,
+                    args,
+                    channel,
+                } => {
+                    let args = args
+                        .into_iter()
+                        .map(|a| reindex_expr(*a, exprs, new_exprs, new_to_old_indices))
+                        .collect();
+                    Expr::Func {
+                        name: name.clone(),
+                        args,
+                        channel: *channel,
+                    }
+                }
+                e => e.clone(),
+            };
+            let index = new_exprs.insert_full(result).0;
+            new_to_old_indices.insert(expr, index);
+            index
         }
-        e => e,
-    };
-    new_exprs.insert_full(result).0
+    }
 }
 
 impl Expr {
