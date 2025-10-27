@@ -77,7 +77,7 @@ pub fn query_nodes<'a>(
     // TODO: Is this the right way to handle multiple query nodes?
     let is_match = check_exprs(
         query_graph.nodes.last()?.input,
-        input_graph.exprs.iter().position(|e| e == input)?,
+        input,
         query_graph,
         input_graph,
         &mut vars,
@@ -88,14 +88,14 @@ pub fn query_nodes<'a>(
 
 fn check_exprs<'a>(
     query: usize,
-    input: usize,
+    input: &'a Expr,
     query_graph: &Graph,
     input_graph: &'a Graph,
     vars: &mut BTreeMap<SmolStr, &'a Expr>,
 ) -> bool {
     let mut check = |a, b| check_args(a, b, query_graph, input_graph, vars);
 
-    match (&query_graph.exprs[query], &input_graph.exprs[input]) {
+    match (&query_graph.exprs[query], input) {
         (Expr::Binary(BinaryOp::Sub, a1, b1), Expr::Binary(BinaryOp::Add, a2, b2)) => {
             // a - b == a + (-b) == a + (0.0 - b)
             // TODO: Find a way to avoid repetition.
@@ -247,7 +247,7 @@ fn check_args<'a>(
                     return false;
                 }
             }
-            check_exprs(*q, *i, query_graph, input_graph, vars)
+            check_exprs(*q, &input_graph.exprs[*i], query_graph, input_graph, vars)
         })
 }
 
