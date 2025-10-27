@@ -288,7 +288,6 @@ impl Graph {
     pub fn simplify(&self) -> Self {
         let mut simplified = BTreeMap::new();
 
-        // TODO: Remove unused exprs and reindex?
         let mut exprs = self.exprs.iter().cloned().collect();
 
         // Identify outputs (leaf nodes).
@@ -297,7 +296,7 @@ impl Graph {
             self.add_dependencies(node.input, &mut referenced_node_indices);
         }
 
-        let nodes = self
+        let mut nodes: Vec<_> = self
             .nodes
             .iter()
             .enumerate()
@@ -314,9 +313,15 @@ impl Graph {
             })
             .collect();
 
+        // Remove unused exprs and reindex.
+        let mut new_exprs = IndexSet::new();
+        for n in &mut nodes {
+            n.input = reindex_expr(n.input, &exprs, &mut new_exprs)
+        }
+
         Self {
             nodes,
-            exprs: exprs.into_iter().collect(),
+            exprs: new_exprs.into_iter().collect(),
         }
     }
 
@@ -452,6 +457,50 @@ impl Graph {
             result
         }
     }
+}
+
+fn reindex_expr(expr: usize, exprs: &IndexSet<Expr>, new_exprs: &mut IndexSet<Expr>) -> usize {
+    let result = match exprs[expr].clone() {
+        Expr::Parameter {
+            name,
+            field,
+            index,
+            channel,
+        } => Expr::Parameter {
+            name,
+            field,
+            index: index.map(|i| reindex_expr(i, exprs, new_exprs)),
+            channel,
+        },
+        Expr::Unary(unary_op, a) => Expr::Unary(unary_op, reindex_expr(a, exprs, new_exprs)),
+        Expr::Binary(binary_op, a, b) => Expr::Binary(
+            binary_op,
+            reindex_expr(a, exprs, new_exprs),
+            reindex_expr(b, exprs, new_exprs),
+        ),
+        Expr::Ternary(a, b, c) => Expr::Ternary(
+            reindex_expr(a, exprs, new_exprs),
+            reindex_expr(b, exprs, new_exprs),
+            reindex_expr(c, exprs, new_exprs),
+        ),
+        Expr::Func {
+            name,
+            args,
+            channel,
+        } => {
+            let args = args
+                .into_iter()
+                .map(|a| reindex_expr(a, exprs, new_exprs))
+                .collect();
+            Expr::Func {
+                name,
+                args,
+                channel,
+            }
+        }
+        e => e,
+    };
+    new_exprs.insert_full(result).0
 }
 
 impl Expr {
