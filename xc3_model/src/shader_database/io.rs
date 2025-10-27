@@ -234,6 +234,9 @@ impl ShaderDatabaseIndexed {
     fn program_indexed(&mut self, p: ShaderProgram) -> ShaderProgramIndexed {
         // Remap exprs indexed for this program to exprs indexed for all programs.
         let mut expr_indices = IndexMap::default();
+        for i in 0..p.exprs.len() {
+            self.add_output_expr(i, &p.exprs, &mut expr_indices);
+        }
 
         ShaderProgramIndexed {
             output_dependencies: p
@@ -241,34 +244,29 @@ impl ShaderDatabaseIndexed {
                 .into_iter()
                 .map(|(output, value)| {
                     let output_index = add_string(&mut self.outputs, output);
-                    (
-                        output_index,
-                        self.add_output_expr(&p.exprs[value], &p.exprs, &mut expr_indices),
-                    )
+                    (output_index, expr_indices[value])
                 })
                 .collect(),
             outline_width: OptVarInt(
                 p.outline_width
                     .map(|d| self.add_dependency(d, &p.exprs, &mut expr_indices).0),
             ),
-            normal_intensity: OptVarInt(p.normal_intensity.map(|i| {
-                self.add_output_expr(&p.exprs[i], &p.exprs, &mut expr_indices)
-                    .0
-            })),
+            normal_intensity: OptVarInt(p.normal_intensity.map(|i| expr_indices[i].0)),
         }
     }
 
     fn add_output_expr<'a>(
         &mut self,
-        value: &'a OutputExpr,
+        value: usize,
         exprs: &'a [OutputExpr],
-        expr_indices: &mut IndexMap<&'a OutputExpr, VarInt>,
+        expr_indices: &mut IndexMap<usize, VarInt>,
     ) -> VarInt {
-        match expr_indices.get(value) {
+        // Use the index as the key since hashing nested expressions is slow.
+        match expr_indices.get(&value) {
             Some(i) => *i,
             None => {
                 // Insert values that this value depends on first.
-                let v = match &value {
+                let v = match &exprs[value] {
                     OutputExpr::Value(d) => OutputExprIndexed::Value(self.add_dependency(
                         d.clone(),
                         exprs,
@@ -278,7 +276,7 @@ impl ShaderDatabaseIndexed {
                         op: *op,
                         args: args
                             .iter()
-                            .map(|a| self.add_output_expr(&exprs[*a], exprs, expr_indices))
+                            .map(|a| self.add_output_expr(*a, exprs, expr_indices))
                             .collect(),
                     },
                 };
@@ -295,7 +293,7 @@ impl ShaderDatabaseIndexed {
         &mut self,
         d: Dependency,
         exprs: &'a [OutputExpr],
-        expr_indices: &mut IndexMap<&'a OutputExpr, VarInt>,
+        expr_indices: &mut IndexMap<usize, VarInt>,
     ) -> VarInt {
         let dependency = self.dependency_indexed(d, exprs, expr_indices);
         let (index, _) = self.dependencies.insert_full(dependency);
@@ -399,7 +397,7 @@ impl ShaderDatabaseIndexed {
         &mut self,
         d: Dependency,
         exprs: &'a [OutputExpr],
-        expr_indices: &mut IndexMap<&'a OutputExpr, VarInt>,
+        expr_indices: &mut IndexMap<usize, VarInt>,
     ) -> DependencyIndexed {
         match d {
             Dependency::Int(i) => DependencyIndexed::Int(i),
@@ -411,7 +409,7 @@ impl ShaderDatabaseIndexed {
                 texcoords: t
                     .texcoords
                     .iter()
-                    .map(|t| self.add_output_expr(&exprs[*t], exprs, expr_indices))
+                    .map(|t| self.add_output_expr(*t, exprs, expr_indices))
                     .collect(),
             }),
             Dependency::Attribute(a) => DependencyIndexed::Attribute(AttributeDependencyIndexed {
