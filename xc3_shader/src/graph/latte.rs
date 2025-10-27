@@ -1124,6 +1124,8 @@ impl Graph {
 
         let mut nodes = Nodes::default();
 
+        // TODO: Initialize registers to zero.
+
         for instruction in instructions {
             match instruction {
                 Instruction::CfInst(_inst) => (),

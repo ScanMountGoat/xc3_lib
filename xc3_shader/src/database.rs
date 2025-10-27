@@ -38,6 +38,7 @@ pub fn shader_from_glsl(
     let vertex = vertex.map(|v| (Graph::from_glsl(v), find_attribute_locations(v)));
     let (vert, vert_attributes) = vertex.unzip();
 
+    // This doesn't work with a simplified graph.
     let outline_width = vert
         .as_ref()
         .map(outline_width_parameter)
@@ -47,10 +48,12 @@ pub fn shader_from_glsl(
     // This effectively moves all shader logic to the fragment shader.
     // This simplifies generating shader code or material nodes in 3D applications.
     let graph = if let (Some(vert), Some(vert_attributes)) = (vert, vert_attributes) {
-        merge_vertex_fragment(vert, &vert_attributes, frag, &frag_attributes)
+        // TODO: How much does it cost to simplify the vertex shader before and after merging?
+        merge_vertex_fragment(vert.simplify(), &vert_attributes, frag, &frag_attributes)
     } else {
         frag
     };
+    let graph = graph.simplify();
 
     let mut output_dependencies = IndexMap::new();
     let mut normal_intensity = None;
@@ -63,7 +66,15 @@ pub fn shader_from_glsl(
     for i in frag_attributes.output_locations.right_values().copied() {
         for c in "xyzw".chars() {
             let name = format!("out_attr{i}");
-            let dependent_lines = graph.dependencies_recursive(&name, Some(c), None);
+
+            // Search from the end to find fragment outputs instead of vertex outputs.
+            // TODO: Label the vertex outputs differently to avoid conflicts?
+            let dependent_lines = graph
+                .nodes
+                .iter()
+                .rposition(|n| n.output.name == name && n.output.channel == Some(c))
+                .map(|i| vec![i])
+                .unwrap_or_default();
 
             // TODO: Skip o3.xyw (depth) and o4.xyz (velocity)
             // TODO: skip using queries or use separate CLI command?
@@ -119,6 +130,7 @@ pub fn shader_from_glsl(
 }
 
 static OUTLINE_WIDTH_PARAMETER: LazyLock<Graph> = LazyLock::new(|| {
+    // This query won't work on a simplified graph, so don't simplify the query.
     let query = indoc! {"
         void main() {
             alpha = vColor.w;
@@ -162,7 +174,7 @@ fn color_or_param_output_expr(
     if let Expr::Func { name, args, .. } = current
         && name == "intBitsToFloat"
     {
-        let new_current = assign_x_recursive(frag, &frag.exprs[args[0]]);
+        let new_current = &frag.exprs[args[0]];
 
         if let Expr::Func { name, args, .. } = new_current
             && name == "floatBitsToInt"
@@ -170,8 +182,6 @@ fn color_or_param_output_expr(
             current = &frag.exprs[args[0]];
         }
     }
-
-    current = assign_x_recursive(frag, current);
 
     if let Some(new_current) = geometric_specular_aa(frag, current) {
         current = new_current;
@@ -189,16 +199,15 @@ fn normal_output_expr(
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
-    let mut view_normal = assign_x_recursive(frag, &frag.exprs[last_node.input]);
+    let mut view_normal = &frag.exprs[last_node.input];
 
     // setMrtNormal in pcmdo shaders.
     // Xenoblade X uses RG16Float and doesn't require remapping the value range.
     if let Some(new_view_normal) = fma_half_half(frag, view_normal) {
         view_normal = new_view_normal;
     }
-    view_normal = assign_x_recursive(frag, view_normal);
+
     view_normal = normalize(frag, view_normal)?;
-    view_normal = assign_x_recursive(frag, view_normal);
 
     // TODO: front facing in calcNormalZAbs in pcmdo?
 
@@ -214,7 +223,6 @@ fn normal_output_expr(
         Some('z') => nom_work[2],
         _ => nom_work[0],
     };
-    let nom_work = assign_x_recursive(frag, nom_work);
 
     let value = output_expr(nom_work, frag, exprs, expr_to_index);
 
@@ -267,38 +275,19 @@ impl crate::expr::Operation for Operation {
 
     fn preprocess_expr<'a>(graph: &'a Graph, expr: &'a Expr) -> Cow<'a, Expr> {
         // Simplify any expressions that would interfere with queries.
-        let mut expr = assign_x_recursive(graph, expr);
+        let mut expr = expr;
         if let Some(new_expr) = normal_map_fma(graph, expr) {
             expr = new_expr;
         }
         if let Some(new_expr) = normalize(graph, expr) {
-            expr = assign_x_recursive(graph, new_expr);
-        }
-
-        // Detect attributes.
-        // TODO: preserve the space for attributes like clip or view?
-        if let Some(new_expr) = skin_attribute_xyzw(graph, expr)
-            .or_else(|| skin_attribute_xyz(graph, expr))
-            .or_else(|| skin_attribute_clip_space_xyzw(graph, expr))
-            .or_else(|| u_mdl_clip_attribute_xyzw(graph, expr))
-            .or_else(|| u_mdl_view_attribute_xyzw(graph, expr))
-            .or_else(|| u_mdl_attribute_xyz(graph, expr))
-        {
             expr = new_expr;
         }
 
-        let mut expr = expr.clone();
-        if let Some(new_expr) = skin_attribute_bitangent(graph, &expr)
-            .or_else(|| u_mdl_view_bitangent_xyz(graph, &expr))
-        {
-            expr = new_expr;
-        }
-
-        Cow::Owned(expr)
+        Cow::Borrowed(expr)
     }
 
     fn preprocess_value_expr<'a>(graph: &'a Graph, expr: &'a Expr) -> Cow<'a, Expr> {
-        let mut expr = assign_x_recursive(graph, expr);
+        let mut expr = expr;
         if let Some(new_expr) = normalize(graph, expr) {
             expr = new_expr;
         }
@@ -308,6 +297,29 @@ impl crate::expr::Operation for Operation {
 
         Cow::Borrowed(expr)
     }
+}
+
+pub fn remove_attribute_transforms<'a>(graph: &'a Graph, expr: &'a Expr) -> Expr {
+    // TODO: preserve the space for attributes like clip or view?
+    let mut expr = assign_x_recursive(graph, expr);
+    if let Some(new_expr) = skin_attribute_xyzw(graph, expr)
+        .or_else(|| skin_attribute_xyz(graph, expr))
+        .or_else(|| skin_attribute_clip_space_xyzw(graph, expr))
+        .or_else(|| u_mdl_clip_attribute_xyzw(graph, expr))
+        .or_else(|| u_mdl_view_attribute_xyzw(graph, expr))
+        .or_else(|| u_mdl_attribute_xyz(graph, expr))
+    {
+        expr = new_expr;
+    }
+
+    let mut expr = expr.clone();
+    if let Some(new_expr) =
+        skin_attribute_bitangent(graph, &expr).or_else(|| u_mdl_view_bitangent_xyz(graph, &expr))
+    {
+        expr = new_expr;
+    }
+
+    expr
 }
 
 pub fn create_shader_database(input: &str) -> ShaderDatabase {

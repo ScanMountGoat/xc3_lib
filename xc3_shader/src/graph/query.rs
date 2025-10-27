@@ -74,7 +74,7 @@ pub fn query_nodes<'a>(
     // Keep track of corresponding input exprs for global vars in query.
     let mut vars = BTreeMap::new();
 
-    // TODO: Is this the right way to handle multiple nodes?
+    // TODO: Is this the right way to handle multiple query nodes?
     let is_match = check_exprs(
         query_graph.nodes.last()?.input,
         input_graph.exprs.iter().position(|e| e == input)?,
@@ -276,7 +276,7 @@ static MIX_A_B_RATIO: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(b_minus_a, ratio, a);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn mix_a_b_ratio<'a>(
@@ -290,14 +290,6 @@ pub fn mix_a_b_ratio<'a>(
     Some((a, b, ratio))
 }
 
-pub fn node_expr<'a>(graph: &'a Graph, e: &Expr) -> Option<&'a Expr> {
-    if let Expr::Node { node_index, .. } = e {
-        graph.nodes.get(*node_index).map(|n| &graph.exprs[n.input])
-    } else {
-        None
-    }
-}
-
 static DOT3_A_B: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
@@ -306,7 +298,7 @@ static DOT3_A_B: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(a3, b3, result);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn dot3_a_b<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<([&'a Expr; 3], [&'a Expr; 3])> {
@@ -333,12 +325,15 @@ pub fn fma_a_b_c<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(&'a Expr, &'a 
     }
 }
 
-static FMA_HALF_HALF: LazyLock<Graph> =
-    LazyLock::new(|| Graph::parse_glsl("void main() { result = fma(x, 0.5, 0.5); }").unwrap());
+static FMA_HALF_HALF: LazyLock<Graph> = LazyLock::new(|| {
+    Graph::parse_glsl("void main() { result = fma(x, 0.5, 0.5); }")
+        .unwrap()
+        .simplify()
+});
 
 pub fn fma_half_half<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
     let result = query_nodes(expr, graph, &FMA_HALF_HALF)?;
-    node_expr(graph, result.get("x")?)
+    result.get("x").copied()
 }
 
 static NORMALIZE: LazyLock<Graph> = LazyLock::new(|| {
@@ -348,7 +343,7 @@ static NORMALIZE: LazyLock<Graph> = LazyLock::new(|| {
             result = result * inv_length;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn normalize<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {

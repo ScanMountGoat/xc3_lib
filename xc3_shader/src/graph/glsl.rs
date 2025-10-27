@@ -15,6 +15,8 @@ use glsl_lang::{
 use log::error;
 use smol_str::ToSmolStr;
 
+use crate::database::remove_attribute_transforms;
+
 use super::*;
 
 #[derive(Debug, Default)]
@@ -689,16 +691,15 @@ fn fragment_input_to_vertex_output(
                 .get_by_right(fragment_location)
         {
             // This will search vertex nodes first even if a fragment output has the same name.
-            if let Some(node_index) = vert
+            if let Some(node) = vert
                 .nodes
                 .iter()
-                .position(|n| n.output.name == vertex_output_name && n.output.channel == *channel)
+                .find(|n| n.output.name == vertex_output_name && n.output.channel == *channel)
             {
-                // Link fragment inputs to vertex outputs.
-                return Some(Expr::Node {
-                    node_index,
-                    channel: *channel,
-                });
+                // Remove attribute skinning if present, so queries can detect globals like "vNormal.x".
+                // TODO: Make this configurable.
+                let expr = remove_attribute_transforms(vert, &vert.exprs[node.input]);
+                return Some(expr);
             }
         }
     }

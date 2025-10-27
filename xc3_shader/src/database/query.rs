@@ -35,7 +35,7 @@ static OP_OVER: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(b_minus_a, ratio, a);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static OP_OVER2: LazyLock<Graph> = LazyLock::new(|| {
@@ -47,7 +47,7 @@ static OP_OVER2: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(b, ratio, a_inv_ratio);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn op_mix<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -68,7 +68,7 @@ static OP_RATIO: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(ab_minus_a, ratio, a);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 // TODO: Is it better to just detect this as mix -> mul?
@@ -105,7 +105,7 @@ static OP_OVERLAY_XC2: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(a_b_overlay, ratio, result);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 // TODO: This can just be detected as mix -> overlay2?
@@ -140,7 +140,7 @@ static OP_OVERLAY_XCX_DE: LazyLock<Graph> = LazyLock::new(|| {
             result = multiply + temp_208;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn op_overlay<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -166,7 +166,7 @@ static FRESNEL_RATIO: LazyLock<Graph> = LazyLock::new(|| {
             result = exp2(result);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static FRESNEL_RATIO2: LazyLock<Graph> = LazyLock::new(|| {
@@ -184,7 +184,7 @@ static FRESNEL_RATIO2: LazyLock<Graph> = LazyLock::new(|| {
             result = exp2(result);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn op_fresnel_ratio<'a>(
@@ -207,7 +207,7 @@ static OP_POW: LazyLock<Graph> = LazyLock::new(|| {
             a = exp2(a);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static OP_POW2: LazyLock<Graph> = LazyLock::new(|| {
@@ -219,7 +219,7 @@ static OP_POW2: LazyLock<Graph> = LazyLock::new(|| {
             a = exp2(a);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn op_pow<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -238,11 +238,14 @@ static OP_SQRT: LazyLock<Graph> = LazyLock::new(|| {
             result = 1.0 / result;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
-static OP_SQRT2: LazyLock<Graph> =
-    LazyLock::new(|| Graph::parse_glsl("void main() { result = sqrt(result); }").unwrap());
+static OP_SQRT2: LazyLock<Graph> = LazyLock::new(|| {
+    Graph::parse_glsl("void main() { result = sqrt(result); }")
+        .unwrap()
+        .simplify()
+});
 
 pub fn op_sqrt<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     let result =
@@ -257,7 +260,7 @@ static OP_DOT4: LazyLock<Graph> = LazyLock::new(|| {
             result = dot(vec4(ax, ay, az, aw), vec4(bx, by, bz, bw));
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn op_dot<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -287,8 +290,11 @@ pub fn ternary<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&
     }
 }
 
-static OP_SUB: LazyLock<Graph> =
-    LazyLock::new(|| Graph::parse_glsl("void main() { result = a - b; }").unwrap());
+static OP_SUB: LazyLock<Graph> = LazyLock::new(|| {
+    Graph::parse_glsl("void main() { result = a - b; }")
+        .unwrap()
+        .simplify()
+});
 
 static OP_SUB2: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
@@ -297,7 +303,7 @@ static OP_SUB2: LazyLock<Graph> = LazyLock::new(|| {
                 result = a + neg_b;
             }
         "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn op_sub<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -309,8 +315,11 @@ pub fn op_sub<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'
     Some((Operation::Sub, vec![a, b]))
 }
 
-static OP_DIV: LazyLock<Graph> =
-    LazyLock::new(|| Graph::parse_glsl("void main() { result = a / b; }").unwrap());
+static OP_DIV: LazyLock<Graph> = LazyLock::new(|| {
+    Graph::parse_glsl("void main() { result = a / b; }")
+        .unwrap()
+        .simplify()
+});
 
 static OP_DIV2: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
@@ -319,7 +328,7 @@ static OP_DIV2: LazyLock<Graph> = LazyLock::new(|| {
                 result = a * one_over_b;
             }
         "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn op_div<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -370,7 +379,7 @@ static OP_MONOCHROME: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(b_minus_a, ratio, a);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static OP_MONOCHROME_XC1: LazyLock<Graph> = LazyLock::new(|| {
@@ -385,7 +394,7 @@ static OP_MONOCHROME_XC1: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(b_minus_a, ratio, a);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn op_monochrome<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -434,7 +443,7 @@ static OP_ADD_NORMAL: LazyLock<Graph> = LazyLock::new(|| {
             nom_work = fma(r, ratio, nom_work);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static OP_ADD_NORMAL_OUTER: LazyLock<Graph> = LazyLock::new(|| {
@@ -457,7 +466,7 @@ static OP_ADD_NORMAL_OUTER: LazyLock<Graph> = LazyLock::new(|| {
             nom_work = fma(r, ratio, nom_work);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn op_add_normal<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -522,7 +531,7 @@ static OP_OVERLAY2: LazyLock<Graph> = LazyLock::new(|| {
             result = result1 + result2;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn op_overlay2<'a>(graph: &'a Graph, nom_work: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -538,7 +547,7 @@ static NORMAL_MAP_FMA: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(result, 2.0, neg_one);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn normal_map_fma<'a>(graph: &'a Graph, nom_work: &'a Expr) -> Option<&'a Expr> {
@@ -566,6 +575,7 @@ pub fn normal_map_fma<'a>(graph: &'a Graph, nom_work: &'a Expr) -> Option<&'a Ex
 }
 
 static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
+    // TODO: remove lines like x = x;
     let query = indoc! {"
         void main() {
             inverse_length_tangent = inversesqrt(tangent_length);
@@ -587,10 +597,11 @@ static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(result_z, normalize_normal, result);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
+    // TODO: remove lines like x = x;
     let query = indoc! {"
         void main() {
             inverse_length_tangent = inversesqrt(tangent_length);
@@ -612,7 +623,7 @@ static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(result_y, normalize_bitangent, result);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn calc_normal_map<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<[&'a Expr; 3]> {
@@ -660,14 +671,14 @@ static CALC_NORMAL_MAP_W_INTENSITY_X: LazyLock<Graph> = LazyLock::new(|| {
     // normal.x with normal.w as normal map intensity.
     // TODO: Does intensity always use pow(intensity, 0.7)?
     let query = calc_normal_map_w_intensity_query('x');
-    Graph::parse_glsl(&query).unwrap()
+    Graph::parse_glsl(&query).unwrap().simplify()
 });
 
 static CALC_NORMAL_MAP_W_INTENSITY_Y: LazyLock<Graph> = LazyLock::new(|| {
     // normal.y with normal.w as normal map intensity.
     // TODO: Does intensity always use pow(intensity, 0.7)?
     let query = calc_normal_map_w_intensity_query('y');
-    Graph::parse_glsl(&query).unwrap()
+    Graph::parse_glsl(&query).unwrap().simplify()
 });
 
 pub fn calc_normal_map_w_intensity<'a>(
@@ -717,17 +728,17 @@ fn calc_normal_map_val_inf_xcx_query(c: char) -> String {
 
 static CALC_NORMAL_MAP_VAL_INF_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = calc_normal_map_val_inf_xcx_query('x');
-    Graph::parse_glsl(&query).unwrap()
+    Graph::parse_glsl(&query).unwrap().simplify()
 });
 
 static CALC_NORMAL_MAP_VAL_INF_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
     let query = calc_normal_map_val_inf_xcx_query('y');
-    Graph::parse_glsl(&query).unwrap()
+    Graph::parse_glsl(&query).unwrap().simplify()
 });
 
 static CALC_NORMAL_MAP_VAL_INF_XCX_Z: LazyLock<Graph> = LazyLock::new(|| {
     let query = calc_normal_map_val_inf_xcx_query('z');
-    Graph::parse_glsl(&query).unwrap()
+    Graph::parse_glsl(&query).unwrap().simplify()
 });
 
 pub fn calc_normal_map_xcx<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<[&'a Expr; 3]> {
@@ -766,17 +777,17 @@ fn calc_normal_map_xcx_query(c: char) -> String {
 
 static CALC_NORMAL_MAP_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = calc_normal_map_xcx_query('x');
-    Graph::parse_glsl(&query).unwrap()
+    Graph::parse_glsl(&query).unwrap().simplify()
 });
 
 static CALC_NORMAL_MAP_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
     let query = calc_normal_map_xcx_query('y');
-    Graph::parse_glsl(&query).unwrap()
+    Graph::parse_glsl(&query).unwrap().simplify()
 });
 
 static CALC_NORMAL_MAP_XCX_Z: LazyLock<Graph> = LazyLock::new(|| {
     let query = calc_normal_map_xcx_query('z');
-    Graph::parse_glsl(&query).unwrap()
+    Graph::parse_glsl(&query).unwrap().simplify()
 });
 
 pub fn op_calc_normal_map<'a>(
@@ -816,7 +827,7 @@ static GEOMETRIC_SPECULAR_AA: LazyLock<Graph> = LazyLock::new(|| {
             result = result + 1.0;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn geometric_specular_aa<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -850,7 +861,7 @@ static SKIN_ATTRIBUTE_XYZ_X: LazyLock<Graph> = LazyLock::new(|| {
             temp_73 = fma(temp_37, temp_17, temp_69);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static SKIN_ATTRIBUTE_XYZ_Y: LazyLock<Graph> = LazyLock::new(|| {
@@ -880,7 +891,7 @@ static SKIN_ATTRIBUTE_XYZ_Y: LazyLock<Graph> = LazyLock::new(|| {
             temp_88 = fma(temp_48, temp_17, temp_80);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static SKIN_ATTRIBUTE_XYZ_Z: LazyLock<Graph> = LazyLock::new(|| {
@@ -910,7 +921,7 @@ static SKIN_ATTRIBUTE_XYZ_Z: LazyLock<Graph> = LazyLock::new(|| {
             temp_83 = fma(temp_25, temp_17, temp_68);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn skin_attribute_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -956,7 +967,7 @@ static SKIN_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
             temp_79 = fma(temp_40, temp_53, temp_75);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static SKIN_ATTRIBUTE_XYZW_YZ: LazyLock<Graph> = LazyLock::new(|| {
@@ -991,7 +1002,7 @@ static SKIN_ATTRIBUTE_XYZW_YZ: LazyLock<Graph> = LazyLock::new(|| {
             temp_84 = fma(temp_51, temp_53, temp_78);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn skin_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -1048,7 +1059,7 @@ static SKIN_ATTRIBUTE_CLIP_XYZW: LazyLock<Graph> = LazyLock::new(|| {
             temp_168 = temp_160 + U_Static.gmProj[i].w;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static SKIN_ATTRIBUTE_CLIP_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
@@ -1092,7 +1103,7 @@ static SKIN_ATTRIBUTE_CLIP_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
             temp_177 = temp_166 * U_Static.gCDep.z;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn skin_attribute_clip_space_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -1161,7 +1172,7 @@ static SKIN_ATTRIBUTE_BITANGENT_X: LazyLock<Graph> = LazyLock::new(|| {
             temp_101 = temp_98 * temp_54;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static SKIN_ATTRIBUTE_BITANGENT_Y: LazyLock<Graph> = LazyLock::new(|| {
@@ -1216,7 +1227,7 @@ static SKIN_ATTRIBUTE_BITANGENT_Y: LazyLock<Graph> = LazyLock::new(|| {
             temp_109 = temp_105 * temp_54;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static SKIN_ATTRIBUTE_BITANGENT_Z: LazyLock<Graph> = LazyLock::new(|| {
@@ -1271,7 +1282,7 @@ static SKIN_ATTRIBUTE_BITANGENT_Z: LazyLock<Graph> = LazyLock::new(|| {
             temp_116 = temp_96 * temp_54;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn skin_attribute_bitangent<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
@@ -1298,7 +1309,7 @@ static U_MDL_ATTRIBUTE_XYZW: LazyLock<Graph> = LazyLock::new(|| {
             temp_40 = fma(temp_3, U_Mdl.gmWorldView[index].w, temp_34);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn u_mdl_view_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -1340,7 +1351,7 @@ static U_MDL_VIEW_BITANGENT_X: LazyLock<Graph> = LazyLock::new(|| {
             temp_84 = temp_78 * temp_23;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static U_MDL_VIEW_BITANGENT_Y: LazyLock<Graph> = LazyLock::new(|| {
@@ -1371,7 +1382,7 @@ static U_MDL_VIEW_BITANGENT_Y: LazyLock<Graph> = LazyLock::new(|| {
             temp_85 = temp_80 * temp_23;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static U_MDL_VIEW_BITANGENT_Z: LazyLock<Graph> = LazyLock::new(|| {
@@ -1402,7 +1413,7 @@ static U_MDL_VIEW_BITANGENT_Z: LazyLock<Graph> = LazyLock::new(|| {
             temp_86 = temp_82 * temp_23;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn u_mdl_view_bitangent_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
@@ -1429,7 +1440,7 @@ static U_MDL_CLIP_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
             temp_36 = fma(temp_3, U_Mdl.gmWVP[0].w, temp_29);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static U_MDL_CLIP_ATTRIBUTE_XYZW_Y: LazyLock<Graph> = LazyLock::new(|| {
@@ -1445,7 +1456,7 @@ static U_MDL_CLIP_ATTRIBUTE_XYZW_Y: LazyLock<Graph> = LazyLock::new(|| {
             temp_38 = fma(temp_3, U_Mdl.gmWVP[1].w, temp_32);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static U_MDL_CLIP_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
@@ -1464,7 +1475,7 @@ static U_MDL_CLIP_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
             temp_49 = temp_43 * U_Static.gCDep.z;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn u_mdl_clip_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -1491,7 +1502,7 @@ static U_MDL_ATTRIBUTE_XYZ: LazyLock<Graph> = LazyLock::new(|| {
             temp_34 = fma(temp_2, U_Mdl.gmWorldView[index].z, temp_28);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn u_mdl_attribute_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -1514,7 +1525,7 @@ static TEX_MATRIX: LazyLock<Graph> = LazyLock::new(|| {
             result = result + param_w;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn tex_matrix<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -1539,7 +1550,7 @@ static TEX_PARALLAX: LazyLock<Graph> = LazyLock::new(|| {
             result = fma(nrm_result, ratio, coord);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static TEX_PARALLAX2: LazyLock<Graph> = LazyLock::new(|| {
@@ -1555,7 +1566,7 @@ static TEX_PARALLAX2: LazyLock<Graph> = LazyLock::new(|| {
             result = result + -0.0;
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn tex_parallax<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -1609,7 +1620,7 @@ static TEX_PARALLAX3_X: LazyLock<Graph> = LazyLock::new(|| {
             temp_92 = fma(temp_89, 2.0, coord);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static TEX_PARALLAX3_Y: LazyLock<Graph> = LazyLock::new(|| {
@@ -1649,7 +1660,7 @@ static TEX_PARALLAX3_Y: LazyLock<Graph> = LazyLock::new(|| {
             temp_100 = fma(temp_91, 2.0, coord);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn tex_parallax2<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -1675,7 +1686,7 @@ static REFLECT_X: LazyLock<Graph> = LazyLock::new(|| {
             temp_129 = fma(temp_127, -2.0, i_x);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static REFLECT_Y: LazyLock<Graph> = LazyLock::new(|| {
@@ -1689,7 +1700,7 @@ static REFLECT_Y: LazyLock<Graph> = LazyLock::new(|| {
             temp_129 = fma(temp_127, -2.0, i_y);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 static REFLECT_Z: LazyLock<Graph> = LazyLock::new(|| {
@@ -1703,7 +1714,7 @@ static REFLECT_Z: LazyLock<Graph> = LazyLock::new(|| {
             temp_129 = fma(temp_127, -2.0, i_z);
         }
     "};
-    Graph::parse_glsl(query).unwrap()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn op_reflect<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
