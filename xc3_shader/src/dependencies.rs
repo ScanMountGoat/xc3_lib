@@ -3,12 +3,14 @@ use crate::{
     graph::{Expr, Graph},
 };
 
-use indexmap::{IndexMap, IndexSet};
-
 #[cfg(feature = "xc3")]
 use xc3_model::shader_database::{
     AttributeDependency, BufferDependency, Dependency, TextureDependency,
 };
+
+// Faster than the default hash implementation.
+type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
+type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
 
 pub fn texture_dependency<Op>(
     e: &Expr,

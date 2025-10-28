@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use indexmap::IndexSet;
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
 
@@ -11,6 +10,9 @@ pub mod latte;
 
 #[cfg(feature = "glsl")]
 pub mod query;
+
+// Faster than the default hash implementation.
+type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
 
 /// A directed graph of shader assignments and input expressions to simplify analysis.
 #[derive(Debug, PartialEq, Clone, Default)]
@@ -290,11 +292,18 @@ impl Graph {
 
         let mut exprs = self.exprs.iter().cloned().collect();
 
-        // Identify outputs (leaf nodes).
-        let mut referenced_node_indices = BTreeSet::new();
-        for node in &self.nodes {
-            self.add_dependencies(node.input, &mut referenced_node_indices);
-        }
+        // Keep only output nodes (leaf nodes).
+        let referenced_node_indices: BTreeSet<_> = self
+            .exprs
+            .iter()
+            .filter_map(|e| {
+                if let Expr::Node { node_index, .. } = e {
+                    Some(*node_index)
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         let mut nodes: Vec<_> = self
             .nodes
@@ -313,8 +322,8 @@ impl Graph {
             })
             .collect();
 
-        // Remove unused exprs and reindex.
-        let mut new_exprs = IndexSet::new();
+        // Reindex to remove unused exprs.
+        let mut new_exprs = IndexSet::default();
         let mut new_to_old_index = BTreeMap::new();
         for n in &mut nodes {
             n.input = reindex_expr(n.input, &exprs, &mut new_exprs, &mut new_to_old_index)

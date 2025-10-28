@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 
-use indexmap::{IndexMap, IndexSet};
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
 
@@ -8,6 +7,10 @@ use crate::{
     dependencies::{buffer_dependency, texture_dependency},
     graph::{Expr, Graph, UnaryOp},
 };
+
+// Faster than the default hash implementation.
+type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
+type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
 
 // TODO: Use this for all outputs?
 pub struct ProgramOutputs<Op> {

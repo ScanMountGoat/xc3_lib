@@ -10,7 +10,6 @@
 
 use std::{collections::BTreeMap, path::Path};
 
-use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
 use strum::{Display, FromRepr};
@@ -18,6 +17,9 @@ use strum::{Display, FromRepr};
 use crate::error::{LoadShaderDatabaseError, SaveShaderDatabaseError};
 
 mod io;
+
+// Faster than the default hash implementation.
+type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
 
 /// Metadata for the assigned shaders for all models and maps in a game dump.
 #[derive(Debug, PartialEq, Clone)]

@@ -3,7 +3,6 @@ use std::fmt::Write;
 use std::{collections::BTreeMap, sync::LazyLock};
 
 use glsl_lang::{ast::TranslationUnit, parse::DefaultParse};
-use indexmap::{IndexMap, IndexSet};
 use indoc::indoc;
 use log::error;
 use rayon::prelude::*;
@@ -27,6 +26,10 @@ use crate::{
 
 mod query;
 use query::*;
+
+// Faster than the default hash implementation.
+type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
+type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
 
 pub fn shader_from_glsl(
     vertex: Option<&TranslationUnit>,
@@ -55,12 +58,12 @@ pub fn shader_from_glsl(
     };
     let graph = graph.simplify();
 
-    let mut output_dependencies = IndexMap::new();
+    let mut output_dependencies = IndexMap::default();
     let mut normal_intensity = None;
 
     // Cache graph expr -> output expr index to visit nodes only once.
-    let mut exprs = IndexSet::new();
-    let mut expr_to_index = IndexMap::new();
+    let mut exprs = IndexSet::default();
+    let mut expr_to_index = IndexMap::default();
 
     // Some shaders have up to 8 outputs.
     for i in frag_attributes.output_locations.right_values().copied() {

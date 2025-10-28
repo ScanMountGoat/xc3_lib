@@ -38,7 +38,7 @@ struct AssignmentDependency {
 impl AssignmentVisitor {
     fn add_assignment(
         &mut self,
-        output_name: &str,
+        output_name: SmolStr,
         output_channels: &str,
         assignment_input: &glsl_lang::ast::Expr,
     ) {
@@ -57,7 +57,7 @@ impl AssignmentVisitor {
         for input in inputs {
             let assignment = AssignmentDependency {
                 output: Output {
-                    name: output_name.to_smolstr(),
+                    name: output_name.clone(),
                     channel: channels.next(),
                 },
                 input: self.exprs.insert_full(input).0,
@@ -79,7 +79,7 @@ impl Visitor for AssignmentVisitor {
                     expr.content.0.as_ref().map(|c| &c.content)
                 {
                     let (output_name, output_channels) = match &lh.content {
-                        ExprData::Variable(id) => (id.to_string(), ""),
+                        ExprData::Variable(id) => (id.0.clone(), ""),
                         ExprData::IntConst(_) => todo!(),
                         ExprData::UIntConst(_) => todo!(),
                         ExprData::BoolConst(_) => todo!(),
@@ -93,12 +93,12 @@ impl Visitor for AssignmentVisitor {
                             // TODO: Better support for assigning to array elements?
                             let mut text = String::new();
                             show_expr(&mut text, lh, &mut FormattingState::default()).unwrap();
-                            (text, "")
+                            (text.to_smolstr(), "")
                         }
                         ExprData::FunCall(_, _) => todo!(),
                         ExprData::Dot(e, channel) => {
                             if let ExprData::Variable(id) = &e.content {
-                                (id.to_string(), channel.as_str())
+                                (id.0.clone(), channel.as_str())
                             } else {
                                 todo!()
                             }
@@ -108,7 +108,7 @@ impl Visitor for AssignmentVisitor {
                         ExprData::Comma(_, _) => todo!(),
                     };
 
-                    self.add_assignment(&output_name, output_channels, rh);
+                    self.add_assignment(output_name, output_channels, rh);
                 }
 
                 Visit::Children
@@ -120,7 +120,7 @@ impl Visitor for AssignmentVisitor {
                         l.head.initializer.as_ref().map(|c| &c.content)
                     {
                         let output = l.head.name.as_ref().unwrap().0.clone();
-                        self.add_assignment(&output, "", init);
+                        self.add_assignment(output, "", init);
                     }
                 }
 
@@ -378,12 +378,12 @@ fn input_expr_inner(
             // The previous assignment may not always have a channel.
             match last_assignment_index
                 .get(&Output {
-                    name: i.to_smolstr(),
+                    name: i.0.clone(),
                     channel,
                 })
                 .or_else(|| {
                     last_assignment_index.get(&Output {
-                        name: i.to_smolstr(),
+                        name: i.0.clone(),
                         channel: None,
                     })
                 }) {
@@ -392,7 +392,7 @@ fn input_expr_inner(
                     channel,
                 },
                 None => Expr::Global {
-                    name: i.to_smolstr(),
+                    name: i.0.clone(),
                     channel,
                 },
             }
@@ -463,12 +463,12 @@ fn input_expr_inner(
             let (name, field) = match &e.as_ref().content {
                 ExprData::Variable(id) => {
                     // buffer[index].x
-                    (id.content.to_smolstr(), None)
+                    (id.0.clone(), None)
                 }
                 ExprData::Dot(e, field) => {
                     if let ExprData::Variable(id) = &e.content {
                         // buffer.field[index].x
-                        (id.content.to_smolstr(), Some(field.to_smolstr()))
+                        (id.0.clone(), Some(field.0.clone()))
                     } else {
                         todo!()
                     }
@@ -482,10 +482,7 @@ fn input_expr_inner(
                             show_expr(&mut index2, specifier2, &mut FormattingState::default())
                                 .unwrap();
 
-                            (
-                                id.content.to_smolstr(),
-                                Some(format!("{field}[{index2}]").into()),
-                            )
+                            (id.0.clone(), Some(format!("{field}[{index2}]").into()))
                         } else {
                             todo!()
                         }
@@ -515,7 +512,7 @@ fn input_expr_inner(
                 FunIdentifierData::Expr(expr) => {
                     if let ExprData::Variable(id) = &expr.content {
                         // A normal function like "fma" or "texture".
-                        id.to_smolstr()
+                        id.0.clone()
                     } else {
                         todo!()
                     }
@@ -549,14 +546,14 @@ fn input_expr_inner(
                 input_expr_inner(e, last_assignment_index, exprs, rh.as_str().chars().next())
             } else if !rh.as_str().chars().all(|c| "xyzw".contains(c)) {
                 let name = match &e.as_ref().content {
-                    ExprData::Variable(id) => id.content.to_smolstr(),
+                    ExprData::Variable(id) => id.0.clone(),
                     _ => todo!(),
                 };
 
                 // Handle params like U_Mate.gAlInf.w.
                 Expr::Parameter {
                     name,
-                    field: Some(rh.to_smolstr()),
+                    field: Some(rh.0.clone()),
                     index: None,
                     channel,
                 }
@@ -581,8 +578,8 @@ struct AttributeVisitor {
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Attributes {
-    pub input_locations: BiBTreeMap<String, i32>,
-    pub output_locations: BiBTreeMap<String, i32>,
+    pub input_locations: BiBTreeMap<SmolStr, i32>,
+    pub output_locations: BiBTreeMap<SmolStr, i32>,
 }
 
 impl Visitor for AttributeVisitor {
@@ -621,11 +618,11 @@ impl Visitor for AttributeVisitor {
                 if is_input {
                     self.attributes
                         .input_locations
-                        .insert(name.0.to_string(), location);
+                        .insert(name.0.clone(), location);
                 } else {
                     self.attributes
                         .output_locations
-                        .insert(name.0.to_string(), location);
+                        .insert(name.0.clone(), location);
                 }
             }
         }
@@ -646,22 +643,14 @@ pub fn merge_vertex_fragment(
     frag: Graph,
     frag_attributes: &Attributes,
 ) -> Graph {
-    let mut graph = Graph::default();
-    let mut exprs = IndexSet::new();
+    let mut exprs: IndexSet<_> = vert.exprs.iter().cloned().collect();
+    let mut graph = vert;
 
-    for n in &vert.nodes {
-        let input = reindex_node_expr(&vert, &mut exprs, n.input, 0);
-        graph.nodes.push(Node {
-            output: n.output.clone(),
-            input,
-        });
-    }
-
-    // Make sure fragment nodes only refer to other fragment nodes.
+    // Use an offset to make sure fragment node references are preserved properly.
     let start = graph.nodes.len();
     for n in &frag.nodes {
         let input =
-            fragment_input_to_vertex_output(&vert, vert_attributes, &frag, frag_attributes, n)
+            fragment_input_to_vertex_output(&graph, vert_attributes, &frag, frag_attributes, n)
                 .map(|e| exprs.insert_full(e).0)
                 .unwrap_or_else(|| reindex_node_expr(&frag, &mut exprs, n.input, start));
 
@@ -694,7 +683,7 @@ fn fragment_input_to_vertex_output(
             if let Some(node) = vert
                 .nodes
                 .iter()
-                .find(|n| n.output.name == vertex_output_name && n.output.channel == *channel)
+                .find(|n| &n.output.name == vertex_output_name && n.output.channel == *channel)
             {
                 // Remove attribute skinning if present, so queries can detect globals like "vNormal.x".
                 // TODO: Make this configurable.
@@ -1337,16 +1326,16 @@ mod tests {
         assert_eq!(
             Attributes {
                 input_locations: [
-                    ("in_attr0".to_string(), 0),
-                    ("in_attr1".to_string(), 4),
-                    ("in_attr2".to_string(), 3)
+                    ("in_attr0".to_smolstr(), 0),
+                    ("in_attr1".to_smolstr(), 4),
+                    ("in_attr2".to_smolstr(), 3)
                 ]
                 .into_iter()
                 .collect(),
                 output_locations: [
-                    ("out_attr0".to_string(), 3),
-                    ("out_attr1".to_string(), 5),
-                    ("out_attr2".to_string(), 7)
+                    ("out_attr0".to_smolstr(), 3),
+                    ("out_attr1".to_smolstr(), 5),
+                    ("out_attr2".to_smolstr(), 7)
                 ]
                 .into_iter()
                 .collect(),
