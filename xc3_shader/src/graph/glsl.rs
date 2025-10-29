@@ -15,8 +15,6 @@ use glsl_lang::{
 use log::error;
 use smol_str::ToSmolStr;
 
-use crate::database::remove_attribute_transforms;
-
 use super::*;
 
 #[derive(Debug, Default)]
@@ -637,22 +635,32 @@ pub fn find_attribute_locations(translation_unit: &TranslationUnit) -> Attribute
     visitor.attributes
 }
 
-pub fn merge_vertex_fragment(
+pub fn merge_vertex_fragment<F>(
     vert: Graph,
     vert_attributes: &Attributes,
     frag: Graph,
     frag_attributes: &Attributes,
-) -> Graph {
+    modify_attribute: F,
+) -> Graph
+where
+    F: Fn(&Graph, &Expr) -> Expr + Clone,
+{
     let mut exprs: IndexSet<_> = vert.exprs.iter().cloned().collect();
     let mut graph = vert;
 
     // Use an offset to make sure fragment node references are preserved properly.
     let start = graph.nodes.len();
     for n in &frag.nodes {
-        let input =
-            fragment_input_to_vertex_output(&graph, vert_attributes, &frag, frag_attributes, n)
-                .map(|e| exprs.insert_full(e).0)
-                .unwrap_or_else(|| reindex_node_expr(&frag, &mut exprs, n.input, start));
+        let input = fragment_input_to_vertex_output(
+            &graph,
+            vert_attributes,
+            &frag,
+            frag_attributes,
+            n,
+            modify_attribute.clone(),
+        )
+        .map(|e| exprs.insert_full(e).0)
+        .unwrap_or_else(|| reindex_node_expr(&frag, &mut exprs, n.input, start));
 
         graph.nodes.push(Node {
             output: n.output.clone(),
@@ -665,12 +673,13 @@ pub fn merge_vertex_fragment(
     graph
 }
 
-fn fragment_input_to_vertex_output(
+fn fragment_input_to_vertex_output<F: Fn(&Graph, &Expr) -> Expr>(
     vert: &Graph,
     vert_attributes: &Attributes,
     frag: &Graph,
     frag_attributes: &Attributes,
     new_node: &Node,
+    modify_attribute: F,
 ) -> Option<Expr> {
     if let Expr::Global { name, channel } = &frag.exprs[new_node.input] {
         // Convert a fragment input like "in_attr4" to its vertex output like "out_attr4".
@@ -685,9 +694,7 @@ fn fragment_input_to_vertex_output(
                 .iter()
                 .find(|n| &n.output.name == vertex_output_name && n.output.channel == *channel)
             {
-                // Remove attribute skinning if present, so queries can detect globals like "vNormal.x".
-                // TODO: Make this configurable.
-                let expr = remove_attribute_transforms(vert, &vert.exprs[node.input]);
+                let expr = modify_attribute(vert, &vert.exprs[node.input]);
                 return Some(expr);
             }
         }

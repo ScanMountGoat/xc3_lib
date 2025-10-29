@@ -52,7 +52,13 @@ pub fn shader_from_glsl(
     // This simplifies generating shader code or material nodes in 3D applications.
     let graph = if let (Some(vert), Some(vert_attributes)) = (vert, vert_attributes) {
         // TODO: How much does it cost to simplify the vertex shader before and after merging?
-        merge_vertex_fragment(vert.simplify(), &vert_attributes, frag, &frag_attributes)
+        merge_vertex_fragment(
+            vert.simplify(),
+            &vert_attributes,
+            frag,
+            &frag_attributes,
+            remove_attribute_transforms,
+        )
     } else {
         frag
     };
@@ -302,7 +308,8 @@ impl crate::expr::Operation for Operation {
     }
 }
 
-pub fn remove_attribute_transforms<'a>(graph: &'a Graph, expr: &'a Expr) -> Expr {
+pub fn remove_attribute_transforms(graph: &Graph, expr: &Expr) -> Expr {
+    // Remove attribute skinning if present, so queries can detect globals like "vNormal.x".
     // TODO: preserve the space for attributes like clip or view?
     let mut expr = assign_x_recursive(graph, expr);
     if let Some(new_expr) = skin_attribute_xyzw(graph, expr)
