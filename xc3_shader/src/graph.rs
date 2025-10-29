@@ -335,7 +335,6 @@ impl Graph {
         }
     }
 
-    // TODO: Does this correctly rebuild a new simplified graph in all cases?
     fn simplify_expr(
         &self,
         input: usize,
@@ -354,10 +353,13 @@ impl Graph {
                     channel,
                 } => {
                     // Simplify assignments using variable substitution.
-                    let mut expr =
-                        self.simplify_expr(self.nodes[*node_index].input, simplified, exprs);
-                    // TODO: Is this the right way to apply channels?
-                    if expr.channel().is_none() {
+                    let node = &self.nodes[*node_index];
+                    let mut expr = self.simplify_expr(node.input, simplified, exprs);
+
+                    // Don't apply the channel if it's already applied to the output.
+                    // This mostly applies to latte shaders.
+                    // R3.x = result; R4.y = R3.x; -> R4.y = result;
+                    if node.output.channel != *channel {
                         expr.set_channel(*channel);
                     }
                     expr
@@ -582,6 +584,23 @@ mod tests {
 
         assert_eq!(
             "result = 1.0 - sqrt(clamp(1.0 - texture(s0, vec2(0.0, 0.5)).x, 0.0, 1.0));\n",
+            graph.simplify().to_glsl()
+        );
+    }
+
+    #[test]
+    fn simplify_latte_inverse_sqrt() {
+        let glsl = indoc! {"
+            void main() {       
+                temp13 = dot(vec4(R127.x, PV12.y, PV12.z, 0.0), vec4(R127.x, PV12.y, PV12.z, 0.0));
+                PV13.x = temp13;
+                R127.y = inversesqrt(PV13.x);
+            }
+        "};
+        let graph = Graph::parse_glsl(glsl).unwrap();
+
+        assert_eq!(
+            "R127.y = inversesqrt(dot(vec4(R127.x, PV12.y, PV12.z, 0.0), vec4(R127.x, PV12.y, PV12.z, 0.0)));\n",
             graph.simplify().to_glsl()
         );
     }
