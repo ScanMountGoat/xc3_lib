@@ -310,6 +310,7 @@ impl Graph {
             .iter()
             .enumerate()
             .filter_map(|(i, node)| {
+                // No Expr::Node should remain, so we can remove unused nodes.
                 if !referenced_node_indices.contains(&i) {
                     let input = self.simplify_expr(node.input, &mut simplified, &mut exprs);
                     Some(Node {
@@ -324,9 +325,9 @@ impl Graph {
 
         // Reindex to remove unused exprs.
         let mut new_exprs = IndexSet::default();
-        let mut new_to_old_index = BTreeMap::new();
+        let mut old_to_new_index = BTreeMap::new();
         for n in &mut nodes {
-            n.input = reindex_expr(n.input, &exprs, &mut new_exprs, &mut new_to_old_index)
+            n.input = reindex_expr(n.input, &exprs, &mut new_exprs, &mut old_to_new_index)
         }
 
         Self {
@@ -352,6 +353,7 @@ impl Graph {
                     node_index,
                     channel,
                 } => {
+                    // TODO: This doesn't work properly for some reason?
                     // Simplify assignments using variable substitution.
                     let node = &self.nodes[*node_index];
                     let mut expr = self.simplify_expr(node.input, simplified, exprs);
@@ -399,24 +401,50 @@ impl Graph {
                     let a = self.simplify_expr(*a, simplified, exprs);
                     let b = self.simplify_expr(*b, simplified, exprs);
 
-                    if let Expr::Float(OrderedFloat(0.0)) = a {
+                    match (a, b) {
                         // 0.0 + b == b
-                        b
-                    } else if let Expr::Float(OrderedFloat(0.0)) = b {
+                        (Expr::Float(OrderedFloat(0.0)), b) => b,
                         // a + 0.0 == a
-                        a
-                    } else if let Expr::Unary(UnaryOp::Negate, a) = a {
+                        (a, Expr::Float(OrderedFloat(0.0))) => a,
                         // -a + b == b - a
-                        Expr::Binary(BinaryOp::Sub, exprs.insert_full(b).0, a)
-                    } else if let Expr::Unary(UnaryOp::Negate, b) = b {
+                        (Expr::Unary(UnaryOp::Negate, a), b) => {
+                            Expr::Binary(BinaryOp::Sub, exprs.insert_full(b).0, a)
+                        }
                         // a + -b == a - b
-                        Expr::Binary(BinaryOp::Sub, exprs.insert_full(a).0, b)
-                    } else {
-                        Expr::Binary(
+                        (a, Expr::Unary(UnaryOp::Negate, b)) => {
+                            Expr::Binary(BinaryOp::Sub, exprs.insert_full(a).0, b)
+                        }
+                        (a, b) => Expr::Binary(
                             BinaryOp::Add,
                             exprs.insert_full(a).0,
                             exprs.insert_full(b).0,
-                        )
+                        ),
+                    }
+                }
+                Expr::Binary(BinaryOp::Mul, a, b) => {
+                    let a = self.simplify_expr(*a, simplified, exprs);
+                    let b = self.simplify_expr(*b, simplified, exprs);
+
+                    match (a, b) {
+                        // a * 1.0 == a
+                        (a, Expr::Float(OrderedFloat(1.0))) => a,
+                        // 1.0 * b == b
+                        (Expr::Float(OrderedFloat(1.0)), b) => b,
+                        // a * -1.0 == -a
+                        (a, Expr::Float(OrderedFloat(-1.0))) => {
+                            let new_a = Expr::Unary(UnaryOp::Negate, exprs.insert_full(a).0);
+                            self.simplify_expr(exprs.insert_full(new_a).0, simplified, exprs)
+                        }
+                        // -1.0 * b == b
+                        (Expr::Float(OrderedFloat(-1.0)), b) => {
+                            let new_b = Expr::Unary(UnaryOp::Negate, exprs.insert_full(b).0);
+                            self.simplify_expr(exprs.insert_full(new_b).0, simplified, exprs)
+                        }
+                        (a, b) => Expr::Binary(
+                            BinaryOp::Mul,
+                            exprs.insert_full(a).0,
+                            exprs.insert_full(b).0,
+                        ),
                     }
                 }
                 Expr::Binary(op, a, b) => {
@@ -475,9 +503,9 @@ fn reindex_expr(
     expr: usize,
     exprs: &IndexSet<Expr>,
     new_exprs: &mut IndexSet<Expr>,
-    new_to_old_indices: &mut BTreeMap<usize, usize>,
+    old_to_new_indices: &mut BTreeMap<usize, usize>,
 ) -> usize {
-    match new_to_old_indices.get(&expr) {
+    match old_to_new_indices.get(&expr) {
         Some(i) => *i,
         None => {
             let result = match &exprs[expr] {
@@ -489,21 +517,21 @@ fn reindex_expr(
                 } => Expr::Parameter {
                     name: name.clone(),
                     field: field.clone(),
-                    index: index.map(|i| reindex_expr(i, exprs, new_exprs, new_to_old_indices)),
+                    index: index.map(|i| reindex_expr(i, exprs, new_exprs, old_to_new_indices)),
                     channel: *channel,
                 },
                 Expr::Unary(op, a) => {
-                    Expr::Unary(*op, reindex_expr(*a, exprs, new_exprs, new_to_old_indices))
+                    Expr::Unary(*op, reindex_expr(*a, exprs, new_exprs, old_to_new_indices))
                 }
                 Expr::Binary(op, a, b) => Expr::Binary(
                     *op,
-                    reindex_expr(*a, exprs, new_exprs, new_to_old_indices),
-                    reindex_expr(*b, exprs, new_exprs, new_to_old_indices),
+                    reindex_expr(*a, exprs, new_exprs, old_to_new_indices),
+                    reindex_expr(*b, exprs, new_exprs, old_to_new_indices),
                 ),
                 Expr::Ternary(a, b, c) => Expr::Ternary(
-                    reindex_expr(*a, exprs, new_exprs, new_to_old_indices),
-                    reindex_expr(*b, exprs, new_exprs, new_to_old_indices),
-                    reindex_expr(*c, exprs, new_exprs, new_to_old_indices),
+                    reindex_expr(*a, exprs, new_exprs, old_to_new_indices),
+                    reindex_expr(*b, exprs, new_exprs, old_to_new_indices),
+                    reindex_expr(*c, exprs, new_exprs, old_to_new_indices),
                 ),
                 Expr::Func {
                     name,
@@ -511,8 +539,8 @@ fn reindex_expr(
                     channel,
                 } => {
                     let args = args
-                        .into_iter()
-                        .map(|a| reindex_expr(*a, exprs, new_exprs, new_to_old_indices))
+                        .iter()
+                        .map(|a| reindex_expr(*a, exprs, new_exprs, old_to_new_indices))
                         .collect();
                     Expr::Func {
                         name: name.clone(),
@@ -523,7 +551,7 @@ fn reindex_expr(
                 e => e.clone(),
             };
             let index = new_exprs.insert_full(result).0;
-            new_to_old_indices.insert(expr, index);
+            old_to_new_indices.insert(expr, index);
             index
         }
     }
@@ -609,7 +637,7 @@ mod tests {
     fn simplify_multiple_outputs() {
         let glsl = indoc! {"
             void main() {       
-                a = 1.0;
+                a = 1.25;
                 b = 2.0;
                 out_attr0.x = a * b;
                 out_attr0.y = a / b;
@@ -621,10 +649,62 @@ mod tests {
 
         assert_eq!(
             indoc! {"
-                out_attr0.x = 1.0 * 2.0;
-                out_attr0.y = 1.0 / 2.0;
+                out_attr0.x = 1.25 * 2.0;
+                out_attr0.y = 1.25 / 2.0;
                 out_attr0.z = 3.0;
                 out_attr0.w = 2.0 + 4.0;
+            "},
+            graph.simplify().to_glsl()
+        );
+    }
+
+    #[test]
+    fn simplify_addition_subtraction() {
+        let glsl = indoc! {"
+            void main() {     
+                a = 0.0 + x;
+                b = x + 0.0;
+                c1 = 0.0 - x;
+                c2 = 1.0 + c1;
+                d1 = -x;
+                d2 = 3.0 + d1; 
+            }
+        "};
+        let graph = Graph::parse_glsl(glsl).unwrap();
+
+        assert_eq!(
+            indoc! {"
+                a = x;
+                b = x;
+                c2 = 1.0 - x;
+                d2 = 3.0 - x;
+            "},
+            graph.simplify().to_glsl()
+        );
+    }
+
+    #[test]
+    fn simplify_multiplication_division() {
+        let glsl = indoc! {"
+            void main() {     
+                a = 1.0 * x;
+                b = x * 1.0;
+                c = -1.0 * x;
+                d = x * -1.0;
+                e1 = 1.0 * x;
+                e2 = 0.0 - e1;
+                e3 = e2 / 1.0;  
+            }
+        "};
+        let graph = Graph::parse_glsl(glsl).unwrap();
+
+        assert_eq!(
+            indoc! {"
+                a = x;
+                b = x;
+                c = -x;
+                d = -x;
+                e3 = -x / 1.0;
             "},
             graph.simplify().to_glsl()
         );

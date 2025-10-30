@@ -177,7 +177,7 @@ impl Graph {
         let channels = channel_swizzle(node.output.channel);
         write!(output, "{}{} = ", node.output.name, channels).unwrap();
         self.write_expr_glsl(output, node.input);
-        write!(output, ";\n").unwrap();
+        writeln!(output, ";").unwrap();
     }
 
     pub fn write_expr_glsl(&self, output: &mut String, input: usize) {
