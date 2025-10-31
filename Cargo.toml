@@ -3,7 +3,7 @@ members = ["xc3_lib", "xc3_tex", "xc3_test", "xc3_shader", "xc3_write", "xc3_wri
 resolver = "3"
 
 [workspace.dependencies]
-glam = "0.30.7"
+glam = "0.30.9"
 wgpu = "26.0.1"
 log = "0.4.22"
 image_dds = { version = "0.7.1", default-features = false }
@@ -26,6 +26,7 @@ strum = { version = "0.26.3", features = ["derive"] }
 insta = "1.43.1"
 serde_json = "1.0"
 ahash = "0.8.11"
+arbitrary = "1.0"
 
 [profile.dev.package]
 insta.opt-level = 3

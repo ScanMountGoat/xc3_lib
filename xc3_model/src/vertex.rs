@@ -25,9 +25,6 @@ pub use xc3_lib::vertex::{PrimitiveType, WeightGroup, WeightLod};
 
 use crate::skinning::{SkinWeights, WeightGroups, Weights};
 
-#[cfg(feature = "arbitrary")]
-use crate::{arbitrary_vec2s, arbitrary_vec3s, arbitrary_vec4s};
-
 // Reduce out of memory errors by not preallocating unrealistic buffer sizes.
 const MAX_VERT_CAPACITY: u32 = u16::MAX as u32;
 
@@ -66,13 +63,8 @@ pub struct MorphTarget {
     pub morph_controller_index: usize,
 
     // TODO: Add a method with tests to blend with base target?
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))]
     pub position_deltas: Vec<Vec3>,
-
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))]
     pub normals: Vec<Vec4>,
-
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))]
     pub tangents: Vec<Vec4>,
 
     /// The indices of the vertices affected by the deltas.
@@ -134,10 +126,10 @@ impl VertexBuffer {
 #[derive(Debug, PartialEq, Clone)]
 pub enum AttributeData {
     /// Data for [DataType::Position].
-    Position(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
+    Position(Vec<Vec3>),
 
     /// Data for [DataType::SkinWeights2].
-    SkinWeights2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
+    SkinWeights2(Vec<Vec3>),
 
     /// Data for [DataType::BoneIndices2].
     BoneIndices2(Vec<[u8; 4]>),
@@ -149,99 +141,99 @@ pub enum AttributeData {
     WeightIndex2(Vec<[u16; 2]>),
 
     /// Data for [DataType::TexCoord0].
-    TexCoord0(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
+    TexCoord0(Vec<Vec2>),
 
     /// Data for [DataType::TexCoord1].
-    TexCoord1(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
+    TexCoord1(Vec<Vec2>),
 
     /// Data for [DataType::TexCoord2].
-    TexCoord2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
+    TexCoord2(Vec<Vec2>),
 
     /// Data for [DataType::TexCoord3].
-    TexCoord3(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
+    TexCoord3(Vec<Vec2>),
 
     /// Data for [DataType::TexCoord4].
-    TexCoord4(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
+    TexCoord4(Vec<Vec2>),
 
     /// Data for [DataType::TexCoord5].
-    TexCoord5(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
+    TexCoord5(Vec<Vec2>),
 
     /// Data for [DataType::TexCoord6].
-    TexCoord6(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
+    TexCoord6(Vec<Vec2>),
 
     /// Data for [DataType::TexCoord7].
-    TexCoord7(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
+    TexCoord7(Vec<Vec2>),
 
     /// Data for [DataType::TexCoord8].
-    TexCoord8(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec2s))] Vec<Vec2>),
+    TexCoord8(Vec<Vec2>),
 
     /// Data for [DataType::Blend].
-    Blend(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    Blend(Vec<Vec4>),
 
     /// Data for [DataType::Unk15].
-    Unk15(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
+    Unk15(Vec<Vec3>),
 
     // TODO: Is this actually 2 snorm8x4?
     /// Data for [DataType::Unk16].
     Unk16(Vec<[u16; 2]>),
 
     /// Data for [DataType::VertexColor].
-    VertexColor(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    VertexColor(Vec<Vec4>),
 
     /// Data for [DataType::Unk18].
-    Unk18(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
+    Unk18(Vec<Vec3>),
 
     // TODO: Only used for buffer 1 for stages and some post processing shaders?
     /// Data for [DataType::Unk24].
-    Unk24(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    Unk24(Vec<Vec4>),
 
     /// Data for [DataType::Unk25].
-    Unk25(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    Unk25(Vec<Vec4>),
 
     /// Data for [DataType::Unk26].
-    Unk26(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    Unk26(Vec<Vec4>),
 
     /// Data for [DataType::Normal].
-    Normal(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    Normal(Vec<Vec4>),
 
     /// Data for [DataType::Tangent].
-    Tangent(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    Tangent(Vec<Vec4>),
 
     // TODO: what is the data size for this?
     /// Data for [DataType::Unk30].
-    Unk30(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    Unk30(Vec<Vec4>),
 
     /// Data for [DataType::Unk31].
-    Unk31(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    Unk31(Vec<Vec4>),
 
     /// Data for [DataType::Normal2].
-    Normal2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    Normal2(Vec<Vec4>),
 
     /// Data for [DataType::ValInf].
-    ValInf(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    ValInf(Vec<Vec4>),
 
     /// Data for [DataType::Normal3].
-    Normal3(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    Normal3(Vec<Vec4>),
 
     /// Data for [DataType::VertexColor3].
-    VertexColor3(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    VertexColor3(Vec<Vec4>),
 
     // TODO: morph only?
     /// Data for [DataType::Position2].
-    Position2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
+    Position2(Vec<Vec3>),
 
     /// Data for [DataType::Normal4].
-    Normal4(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    Normal4(Vec<Vec4>),
 
     /// Data for [DataType::OldPosition].
-    OldPosition(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3s))] Vec<Vec3>),
+    OldPosition(Vec<Vec3>),
 
     /// Data for [DataType::Tangent2].
-    Tangent2(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    Tangent2(Vec<Vec4>),
 
     // TODO: weight buffer only?
     /// Data for [DataType::SkinWeights].
-    SkinWeights(#[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec4s))] Vec<Vec4>),
+    SkinWeights(Vec<Vec4>),
 
     /// Data for [DataType::BoneIndices].
     BoneIndices(Vec<[u8; 4]>),

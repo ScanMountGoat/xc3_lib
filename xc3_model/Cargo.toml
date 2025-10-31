@@ -22,7 +22,7 @@ ordered-float.workspace = true
 serde_json = { workspace = true, optional = true }
 indexmap = { workspace = true, features = ["rayon"] }
 thiserror.workspace = true
-arbitrary = { version = "1.0", features = ["derive"], optional = true }
+arbitrary = { workspace = true, features = ["derive"], optional = true }
 smol_str.workspace = true
 varint-rs = "=2.2.0"
 crc32fast = "1.4.2"
@@ -36,5 +36,5 @@ hex = "0.4.3"
 approx.workspace = true
 
 [features]
-arbitrary = ["dep:arbitrary", "xc3_lib/arbitrary", "indexmap/arbitrary", "ordered-float/arbitrary"]
+arbitrary = ["dep:arbitrary", "xc3_lib/arbitrary", "indexmap/arbitrary", "ordered-float/arbitrary", "glam/arbitrary"]
 gltf = ["dep:gltf", "dep:gltf-json", "dep:serde_json"]

@@ -2,20 +2,14 @@ use std::ops::Mul;
 
 use glam::{Mat4, Quat, Vec3};
 
-#[cfg(feature = "arbitrary")]
-use crate::{arbitrary_quat, arbitrary_vec3};
-
 /// A decomposed transform as scale -> rotation -> translation (TRS).
 ///
 /// Scale does not affect translation when multiplying [Transform].
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Transform {
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3))]
     pub translation: Vec3,
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_quat))]
     pub rotation: Quat,
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3))]
     pub scale: Vec3,
 }
 

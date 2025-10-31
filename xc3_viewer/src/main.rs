@@ -624,7 +624,7 @@ fn main() -> anyhow::Result<()> {
     // TODO: layer to print log messages?
     #[cfg(feature = "tracing")]
     tracing::subscriber::set_global_default(
-        tracing_subscriber::registry().with(tracing_tracy::TracyLayer::new()),
+        tracing_subscriber::registry().with(tracing_tracy::TracyLayer::default()),
     )
     .unwrap();
 

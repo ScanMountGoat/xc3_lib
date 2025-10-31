@@ -139,11 +139,9 @@ pub struct Models {
 
     // TODO: make this a function instead to avoid dependencies?
     /// The minimum XYZ coordinates of the bounding volume.
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3))]
     pub max_xyz: Vec3,
 
     /// The maximum XYZ coordinates of the bounding volume.
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3))]
     pub min_xyz: Vec3,
 }
 
@@ -153,15 +151,12 @@ pub struct Models {
 pub struct Model {
     pub meshes: Vec<Mesh>,
     /// Each mesh has an instance for every transform in [instances](#structfield.instances).
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_mat4s))]
     pub instances: Vec<Mat4>,
     /// The index of the [ModelBuffers] in [buffers](struct.ModelGroup.html#structfield.buffers).
     /// This will only be non zero for some map models.
     pub model_buffers_index: usize,
 
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3))]
     pub max_xyz: Vec3,
-    #[cfg_attr(feature = "arbitrary", arbitrary(with = arbitrary_vec3))]
     pub min_xyz: Vec3,
     pub bounding_radius: f32,
 }
@@ -528,66 +523,6 @@ fn model_name(model_path: &Path) -> String {
         .unwrap_or_default()
         .to_string_lossy()
         .to_string()
-}
-
-#[cfg(feature = "arbitrary")]
-fn arbitrary_vec2s(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Vec<glam::Vec2>> {
-    let len = u.arbitrary_len::<[f32; 2]>()?;
-    let mut elements = Vec::with_capacity(len);
-    for _ in 0..len {
-        let array: [f32; 2] = u.arbitrary()?;
-        let element = glam::Vec2::from_array(array);
-        elements.push(element);
-    }
-    Ok(elements)
-}
-
-#[cfg(feature = "arbitrary")]
-fn arbitrary_vec3(u: &mut arbitrary::Unstructured) -> arbitrary::Result<glam::Vec3> {
-    let array: [f32; 3] = u.arbitrary()?;
-    Ok(glam::Vec3::from_array(array))
-}
-
-#[cfg(feature = "arbitrary")]
-fn arbitrary_quat(u: &mut arbitrary::Unstructured) -> arbitrary::Result<glam::Quat> {
-    let array: [f32; 4] = u.arbitrary()?;
-    Ok(glam::Quat::from_array(array))
-}
-
-#[cfg(feature = "arbitrary")]
-fn arbitrary_vec3s(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Vec<glam::Vec3>> {
-    let len = u.arbitrary_len::<[f32; 3]>()?;
-    let mut elements = Vec::with_capacity(len);
-    for _ in 0..len {
-        let array: [f32; 3] = u.arbitrary()?;
-        let element = glam::Vec3::from_array(array);
-        elements.push(element);
-    }
-    Ok(elements)
-}
-
-#[cfg(feature = "arbitrary")]
-fn arbitrary_vec4s(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Vec<glam::Vec4>> {
-    let len = u.arbitrary_len::<[f32; 4]>()?;
-    let mut elements = Vec::with_capacity(len);
-    for _ in 0..len {
-        let array: [f32; 4] = u.arbitrary()?;
-        let element = glam::Vec4::from_array(array);
-        elements.push(element);
-    }
-    Ok(elements)
-}
-
-#[cfg(feature = "arbitrary")]
-fn arbitrary_mat4s(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Vec<glam::Mat4>> {
-    let len = u.arbitrary_len::<[f32; 16]>()?;
-    let mut elements = Vec::with_capacity(len);
-    for _ in 0..len {
-        let array: [f32; 16] = u.arbitrary()?;
-        let element = glam::Mat4::from_cols_array(&array);
-        elements.push(element);
-    }
-    Ok(elements)
 }
 
 #[cfg(feature = "arbitrary")]
