@@ -198,9 +198,7 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
 
         position += xyz_offset;
 
-        // Outer shells are more transparent than inner shells.
-        let alpha_factor = f32(instance_index) * per_material.fur_params.alpha;
-        vertex_color.a = 1.0 - clamp(alpha_factor, 0.0, 1.0);
+        vertex_color.a = fur_instance_alpha(instance_index, per_material.fur_params.alpha);
     }
 
     out.clip_position = camera.projection * vec4(position, 1.0);
@@ -226,6 +224,12 @@ fn outline_width(vertex_color: vec4<f32>, param: f32, view_z: f32, normal: vec3<
     let f_line_width = vertex_color.w * param * -view_z / camera.projection[1][1];
     // TODO: Scaled by toon lighting using toon params?
     return f_line_width;
+}
+
+fn fur_instance_alpha(instance_index: u32, param: f32) -> f32 {
+    // Outer shells are more transparent than inner shells.
+    let alpha_factor = f32(instance_index) * per_material.fur_params.alpha;
+    return 1.0 - clamp(alpha_factor, 0.0, 1.0);
 }
 
 @vertex

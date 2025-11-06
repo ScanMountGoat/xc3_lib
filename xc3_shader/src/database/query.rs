@@ -1733,3 +1733,27 @@ pub fn op_reflect<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Ve
 
     Some((op, vec![i_x, i_y, i_z, n_x, n_y, n_z]))
 }
+
+static FUR_INSTANCE_ALPHA: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_3 = intBitsToFloat(gl_InstanceID);
+            temp_14 = float(floatBitsToInt(temp_3));
+            temp_135 = temp_14 * param;
+            temp_136 = clamp(temp_135, 0.0, 1.0);
+            temp_140 = 0.0 - temp_136;
+            temp_141 = temp_140 + 1.0;
+            result = temp_141;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap().simplify()
+});
+
+pub fn op_fur_instance_alpha<'a>(
+    graph: &'a Graph,
+    expr: &'a Expr,
+) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes(expr, graph, &FUR_INSTANCE_ALPHA)?;
+    let param = result.get("param")?;
+    Some((Operation::FurInstanceAlpha, vec![param]))
+}

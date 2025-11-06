@@ -211,6 +211,8 @@ fn func_wgsl(op: &Operation, args: &[usize]) -> Option<String> {
             arg0?, arg1?, arg2?, arg3?
         )),
         Operation::Negate => Some(format!("-{}", arg0?)),
+        // TODO: Pass instance index to fragment shader instead?
+        Operation::FurInstanceAlpha => Some(format!("in.vertex_color.a")),
     }
 }
 
@@ -519,6 +521,8 @@ fn func_xyz_wgsl(op: &Operation, args: &[usize], output_index: usize) -> Option<
             arg0?, arg1?, arg2?, arg3?
         )),
         Operation::Negate => Some(format!("-{}", arg0?)),
+        // TODO: Pass instance index to fragment shader instead?
+        Operation::FurInstanceAlpha => Some(format!("in.vertex_color.a")),
     }
 }
 

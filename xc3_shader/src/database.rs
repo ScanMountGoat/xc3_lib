@@ -57,7 +57,7 @@ pub fn shader_from_glsl(
             &vert_attributes,
             frag,
             &frag_attributes,
-            remove_attribute_transforms,
+            modify_attributes,
         )
     } else {
         frag
@@ -257,6 +257,7 @@ impl crate::expr::Operation for Operation {
             .or_else(|| tex_matrix(graph, expr))
             .or_else(|| op_reflect(graph, expr))
             .or_else(|| op_calc_normal_map(graph, expr))
+            .or_else(|| op_fur_instance_alpha(graph, expr))
             .or_else(|| op_mix(graph, expr))
             .or_else(|| op_mul_ratio(graph, expr))
             .or_else(|| op_fma(graph, expr))
@@ -308,7 +309,7 @@ impl crate::expr::Operation for Operation {
     }
 }
 
-pub fn remove_attribute_transforms(graph: &Graph, expr: &Expr) -> Expr {
+pub fn modify_attributes(graph: &Graph, expr: &Expr) -> Expr {
     // Remove attribute skinning if present, so queries can detect globals like "vNormal.x".
     // TODO: preserve the space for attributes like clip or view?
     let mut expr = assign_x_recursive(graph, expr);
@@ -700,6 +701,13 @@ mod tests {
         // xeno2/model/en/en030601, "phong3", shd0009
         // Detect parallax mapping for texture coordinates.
         assert_shader_snapshot!("xc2", "en030601", "2");
+    }
+
+    #[test]
+    fn shader_from_glsl_dromarch_fur() {
+        // xeno2/bl/bl000501, "fur_Fur", shd0006
+        // Check instanced fur shell rendering
+        assert_shader_snapshot!("xc2", "bl000501", "6");
     }
 
     #[test]

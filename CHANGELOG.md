@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * Changed xc3_wgpu_batch to render wismhd models to individual files.
+* Improved rendering accuracy for instanced fur shells.
 
 ### Fixed
 * Fixed an issue where `xc3_model::Animation::fcurves` would not include root motion in some cases.

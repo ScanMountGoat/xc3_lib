@@ -238,6 +238,8 @@ pub enum Operation {
     MonochromeZ,
     /// `-arg0`
     Negate,
+    /// `fur_instance_alpha(instance_index, arg0)`
+    FurInstanceAlpha,
 }
 
 impl Default for Operation {
