@@ -194,13 +194,11 @@ fn check_exprs<'a>(
                 index: i2,
                 channel: c2,
             },
-        ) => {
-            if let (Some(i1), Some(i2)) = (i1, i2) {
-                n1 == n2 && f1 == f2 && c1 == c2 && check(&[*i1], &[*i2])
-            } else {
-                n1 == n2 && f1 == f2 && c1 == c2
-            }
-        }
+        ) => match (i1, i2) {
+            (Some(i1), Some(i2)) => n1 == n2 && f1 == f2 && c1 == c2 && check(&[*i1], &[*i2]),
+            (None, None) => n1 == n2 && f1 == f2 && c1 == c2,
+            _ => false,
+        },
         (Expr::Global { name, channel }, i) => {
             // TODO: What happens if the var is already in the map?
             // TODO: Special case to check name if query and input are both Expr::Global?

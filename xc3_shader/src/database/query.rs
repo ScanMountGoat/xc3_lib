@@ -576,6 +576,7 @@ pub fn normal_map_fma<'a>(graph: &'a Graph, nom_work: &'a Expr) -> Option<&'a Ex
 
 static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
     // TODO: remove lines like x = x;
+    // TODO: detect normalize on attributes to properly differentiate channels
     let query = indoc! {"
         void main() {
             inverse_length_tangent = inversesqrt(tangent_length);
@@ -585,13 +586,13 @@ static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
             result = result_x * normalize_tangent;
 
             inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent.x;
+            bitangent = bitangent_x;
             normalize_bitangent = bitangent * inverse_length_bitangent;
             result_y = result_y;
             result = fma(result_y, normalize_bitangent, result);
 
             inverse_length_normal = inversesqrt(normal_length);
-            normal = normal.x;
+            normal = normal_x;
             normalize_normal = normal * inverse_length_normal;
             result_z = result_z;
             result = fma(result_z, normalize_normal, result);
@@ -602,6 +603,7 @@ static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
 
 static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
     // TODO: remove lines like x = x;
+    // TODO: detect normalize on attributes to properly differentiate channels
     let query = indoc! {"
         void main() {
             inverse_length_tangent = inversesqrt(tangent_length);
@@ -611,13 +613,13 @@ static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
             result = result_x * normalize_tangent;
 
             inverse_length_normal = inversesqrt(normal_length);
-            normal = normal.y;
+            normal = normal_y;
             normalize_normal = normal * inverse_length_normal;
             result_z = result_z;
             result = fma(result_z, normalize_normal, result);
 
             inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent.y;
+            bitangent = bitangent_y;
             normalize_bitangent = bitangent * inverse_length_bitangent;
             result_y = result_y;
             result = fma(result_y, normalize_bitangent, result);
@@ -924,14 +926,108 @@ static SKIN_ATTRIBUTE_XYZ_Z: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap().simplify()
 });
 
+static SKIN_ATTRIBUTE_XYZ_X2: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = nWgtIdx.x;
+            temp_3 = result_x;
+            temp_6 = floatBitsToInt(temp_0) & 65535;
+            temp_7 = temp_6 * 48;
+            temp_8 = result_y;
+            temp_9 = floatBitsToUint(temp_0) >> 16;
+            temp_10 = int(temp_9) * 48;
+            temp_11 = temp_10 << 16;
+            temp_12 = temp_11 + temp_7;
+            temp_14 = result_z;
+            temp_58 = uint(temp_12) >> 2;
+            temp_59 = uintBitsToFloat(U_OdB.data[int(temp_58)]);
+            temp_60 = temp_12 + 4;
+            temp_61 = uint(temp_60) >> 2;
+            temp_62 = uintBitsToFloat(U_OdB.data[int(temp_61)]);
+            temp_63 = temp_12 + 8;
+            temp_64 = uint(temp_63) >> 2;
+            temp_65 = uintBitsToFloat(U_OdB.data[int(temp_64)]);
+            temp_98 = temp_59 * temp_3;
+            temp_103 = fma(temp_62, temp_8, temp_98);
+            temp_120 = fma(temp_65, temp_14, temp_103);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap().simplify()
+});
+
+static SKIN_ATTRIBUTE_XYZ_Y2: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = nWgtIdx.x;
+            temp_3 = result_x;
+            temp_6 = floatBitsToInt(temp_0) & 65535;
+            temp_7 = temp_6 * 48;
+            temp_8 = result_y;
+            temp_9 = floatBitsToUint(temp_0) >> 16;
+            temp_10 = int(temp_9) * 48;
+            temp_11 = temp_10 << 16;
+            temp_12 = temp_11 + temp_7;
+            temp_14 = result_z;
+            temp_15 = temp_12 + 16;
+            temp_34 = uint(temp_15) >> 2;
+            temp_35 = uintBitsToFloat(U_OdB.data[int(temp_34)]);
+            temp_36 = temp_15 + 4;
+            temp_37 = uint(temp_36) >> 2;
+            temp_38 = uintBitsToFloat(U_OdB.data[int(temp_37)]);
+            temp_39 = temp_15 + 8;
+            temp_40 = uint(temp_39) >> 2;
+            temp_41 = uintBitsToFloat(U_OdB.data[int(temp_40)]);
+            temp_95 = temp_35 * temp_3;
+            temp_110 = fma(temp_38, temp_8, temp_95);
+            temp_115 = fma(temp_41, temp_14, temp_110);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap().simplify()
+});
+
+static SKIN_ATTRIBUTE_XYZ_Z2: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            temp_0 = nWgtIdx.x;
+            temp_3 = result_x;
+            temp_6 = floatBitsToInt(temp_0) & 65535;
+            temp_7 = temp_6 * 48;
+            temp_8 = result_y;
+            temp_9 = floatBitsToUint(temp_0) >> 16;
+            temp_10 = int(temp_9) * 48;
+            temp_11 = temp_10 << 16;
+            temp_12 = temp_11 + temp_7;
+            temp_14 = result_z;
+            temp_19 = temp_12 + 32;
+            temp_46 = uint(temp_19) >> 2;
+            temp_47 = uintBitsToFloat(U_OdB.data[int(temp_46)]);
+            temp_48 = temp_19 + 4;
+            temp_49 = uint(temp_48) >> 2;
+            temp_50 = uintBitsToFloat(U_OdB.data[int(temp_49)]);
+            temp_51 = temp_19 + 8;
+            temp_52 = uint(temp_51) >> 2;
+            temp_53 = uintBitsToFloat(U_OdB.data[int(temp_52)]);
+            temp_104 = temp_47 * temp_3;
+            temp_113 = fma(temp_50, temp_8, temp_104);
+            temp_118 = fma(temp_53, temp_14, temp_113);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap().simplify()
+});
+
 pub fn skin_attribute_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
     query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_X)
+        .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_X2))
         .and_then(|r| r.get("result_x").copied())
         .or_else(|| {
-            query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_Y).and_then(|r| r.get("result_y").copied())
+            query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_Y)
+                .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_Y2))
+                .and_then(|r| r.get("result_y").copied())
         })
         .or_else(|| {
-            query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_Z).and_then(|r| r.get("result_z").copied())
+            query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_Z)
+                .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_Z2))
+                .and_then(|r| r.get("result_z").copied())
         })
 }
 

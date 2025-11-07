@@ -662,6 +662,13 @@ mod tests {
     }
 
     #[test]
+    fn shader_from_glsl_mio_dress() {
+        // xeno3/chr/ch/ch01027000, "body_toon", shd0087
+        // Detect color and normal layering.
+        assert_shader_snapshot!("xc3", "ch01027000", "87");
+    }
+
+    #[test]
     fn shader_from_glsl_wild_ride_body() {
         // xeno3/chr/ch/ch02010110, "body_m", shd0028
         // Some shaders use a simple mix() for normal blending.
