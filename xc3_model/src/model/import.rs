@@ -403,8 +403,7 @@ impl ModelRoot {
         hkt: Option<&Hkt>,
         shader_database: Option<&ShaderDatabase>,
     ) -> Result<Self, LoadModelLegacyError> {
-        // TODO: The skeleton doesn't contain all skinned bones.
-        let skeleton = hkt.map(Skeleton::from_legacy_skeleton);
+        let skeleton = hkt.map(|hkt| Skeleton::from_legacy_skeleton(hkt, &mxmd.models));
 
         let buffers = ModelBuffers::from_vertex_data_legacy(&mxmd.vertex, Endian::Big)
             .map_err(LoadModelLegacyError::VertexData)?;

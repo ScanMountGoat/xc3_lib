@@ -150,28 +150,59 @@ impl Skeleton {
     }
 
     // TODO: Test this?
-    pub fn from_legacy_skeleton(hkt: &Hkt) -> Self {
-        Self {
-            bones: hkt
-                .names
-                .iter()
-                .zip(hkt.parent_indices.iter())
-                .zip(hkt.transforms.iter())
-                .map(|((name, parent_index), transform)| Bone {
+    pub fn from_legacy_skeleton(hkt: &Hkt, models: &xc3_lib::mxmd::legacy::Models) -> Self {
+        // TODO: make the hkt optional since the skinning has most parenting information?
+        let mut bones: Vec<_> = hkt
+            .names
+            .iter()
+            .zip(hkt.parent_indices.iter())
+            .zip(hkt.transforms.iter())
+            .map(|((name, parent_index), transform)| Bone {
+                name: name.name.clone(),
+                transform: Transform {
+                    translation: vec3(
+                        transform.translation[0],
+                        transform.translation[1],
+                        transform.translation[2],
+                    ),
+                    rotation: Quat::from_array(transform.rotation_quaternion),
+                    scale: vec3(transform.scale[0], transform.scale[1], transform.scale[2]),
+                },
+                parent_index: (*parent_index).try_into().ok(),
+            })
+            .collect();
+
+        // Add any missing bones from the skinning information.
+        // TODO: Does the bone order need to match the skeleton for animations to work?
+        for name in &models.bone_names {
+            if !bones.iter().any(|b| b.name == name.name)
+                && let Some(skinning_bone) = models.bones.iter().find(|b| b.name == name.name)
+            {
+                let transform = Mat4::from_cols_array_2d(&skinning_bone.transform);
+                let (scale, rotation, translation) = transform.to_scale_rotation_translation();
+                bones.push(Bone {
                     name: name.name.clone(),
                     transform: Transform {
-                        translation: vec3(
-                            transform.translation[0],
-                            transform.translation[1],
-                            transform.translation[2],
-                        ),
-                        rotation: Quat::from_array(transform.rotation_quaternion),
-                        scale: vec3(transform.scale[0], transform.scale[1], transform.scale[2]),
+                        translation,
+                        rotation,
+                        scale,
                     },
-                    parent_index: (*parent_index).try_into().ok(),
-                })
-                .collect(),
+                    parent_index: None,
+                });
+            }
         }
+
+        // Apply parenting information from the skinning.
+        for skinning_bone in &models.bones {
+            let parent_index = find_legacy_parent_index(models, &bones, skinning_bone);
+            if let Some(bone) = bones.iter_mut().find(|b| b.name == skinning_bone.name) {
+                // Don't affect parenting for already parented bones.
+                // TODO: Why are some bones missing a parent in the skinning?
+                bone.parent_index = bone.parent_index.or(parent_index);
+            }
+        }
+
+        Self { bones }
     }
 
     /// The global transform for each bone in model space
@@ -191,6 +222,17 @@ impl Skeleton {
 
         final_transforms
     }
+}
+
+fn find_legacy_parent_index(
+    models: &xc3_lib::mxmd::legacy::Models,
+    bones: &Vec<Bone>,
+    skinning_bone: &xc3_lib::mxmd::legacy::Bone,
+) -> Option<usize> {
+    // Convert skinning parent index to skeleton parent index.
+    let parent_index = usize::try_from(skinning_bone.parent_index).ok()?;
+    let parent_name = models.bones.get(parent_index).map(|b| &b.name)?;
+    bones.iter().position(|b| &b.name == parent_name)
 }
 
 /// Merge all bones in `skeletons` into a single [Skeleton].

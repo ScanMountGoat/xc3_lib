@@ -61,14 +61,9 @@ pub struct Hkt {
     #[br(count = count)]
     pub unk11: Vec<u64>,
 
-    // // TODO: root name is included in name list?
-    // #[br(map(|x: NullString| x.to_string()))]
-    // #[br(pad_size_to = 24)]
-    // pub root_name: String,
     #[br(count = count)]
     pub names: Vec<BoneName>,
 
-    // pub unk14: [u32; 4],
     #[br(count = count)]
     pub transforms: Vec<Transform>,
     // TODO: more integer values?
