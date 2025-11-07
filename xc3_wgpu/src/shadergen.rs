@@ -213,6 +213,23 @@ fn func_wgsl(op: &Operation, args: &[usize]) -> Option<String> {
         Operation::Negate => Some(format!("-{}", arg0?)),
         // TODO: Pass instance index to fragment shader instead?
         Operation::FurInstanceAlpha => Some(format!("in.vertex_color.a")),
+        Operation::Float => Some(format!("f32({})", arg0?)),
+        Operation::Int => Some(format!("i32({})", arg0?)),
+        Operation::Uint => Some(format!("u32({})", arg0?)),
+        Operation::Truncate => Some(format!("trunc({})", arg0?)),
+        Operation::FloatBitsToInt => Some(format!("bitcast<i32>({})", arg0?)),
+        Operation::IntBitsToFloat => Some(format!("bitcast<f32>({})", arg0?)),
+        Operation::UintBitsToFloat => Some(format!("bitcast<f32>({})", arg0?)),
+        Operation::InverseSqrt => Some(format!("inverseSqrt({})", arg0?)),
+        Operation::Not => Some(format!("!{}", arg0?)),
+        Operation::LeftShift => Some(format!("{} >> {}", arg0?, arg1?)),
+        Operation::RightShift => Some(format!("{} >> {}", arg0?, arg1?)),
+        Operation::PartialDerivativeX => Some(format!("dpdx({})", arg0?)),
+        Operation::PartialDerivativeY => Some(format!("dpdy({})", arg0?)),
+        Operation::Exp2 => Some(format!("exp2({})", arg0?)),
+        Operation::Log2 => Some(format!("log2({})", arg0?)),
+        Operation::Sin => Some(format!("sin({})", arg0?)),
+        Operation::Cos => Some(format!("cos({})", arg0?)),
     }
 }
 
@@ -387,10 +404,12 @@ fn assignment_value_wgsl(
                 None
             }
         }
-        // TODO: handle proper int/float conversions.
         AssignmentValue::Int(i) => {
-            error!("Unsupported int literal {i:?}");
-            None
+            if *i >= 0 {
+                Some(format!("{i}u"))
+            } else {
+                Some(format!("{i}i"))
+            }
         }
     }
 }
@@ -521,8 +540,24 @@ fn func_xyz_wgsl(op: &Operation, args: &[usize], output_index: usize) -> Option<
             arg0?, arg1?, arg2?, arg3?
         )),
         Operation::Negate => Some(format!("-{}", arg0?)),
-        // TODO: Pass instance index to fragment shader instead?
         Operation::FurInstanceAlpha => Some(format!("in.vertex_color.a")),
+        Operation::Float => Some(format!("vec3<f32>({})", arg0?)),
+        Operation::Int => Some(format!("vec3<i32>({})", arg0?)),
+        Operation::Uint => Some(format!("vec3<u32>({})", arg0?)),
+        Operation::Truncate => Some(format!("trunc({})", arg0?)),
+        Operation::FloatBitsToInt => Some(format!("bitcast<i32>({})", arg0?)),
+        Operation::IntBitsToFloat => Some(format!("bitcast<f32>({})", arg0?)),
+        Operation::UintBitsToFloat => Some(format!("bitcast<f32>({})", arg0?)),
+        Operation::InverseSqrt => Some(format!("inverseSqrt({})", arg0?)),
+        Operation::Not => Some(format!("!{}", arg0?)),
+        Operation::LeftShift => Some(format!("{} >> {}", arg0?, arg1?)),
+        Operation::RightShift => Some(format!("{} >> {}", arg0?, arg1?)),
+        Operation::PartialDerivativeX => Some(format!("dpdx({})", arg0?)),
+        Operation::PartialDerivativeY => Some(format!("dpdy({})", arg0?)),
+        Operation::Exp2 => Some(format!("exp2({})", arg0?)),
+        Operation::Log2 => Some(format!("log2({})", arg0?)),
+        Operation::Sin => Some(format!("sin({})", arg0?)),
+        Operation::Cos => Some(format!("cos({})", arg0?)),
     }
 }
 

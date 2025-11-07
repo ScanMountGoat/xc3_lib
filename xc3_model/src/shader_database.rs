@@ -240,6 +240,40 @@ pub enum Operation {
     Negate,
     /// `fur_instance_alpha(instance_index, arg0)`
     FurInstanceAlpha,
+    /// `float(arg0)`
+    Float,
+    /// `int(arg0)`
+    Int,
+    /// `uint(arg0)`
+    Uint,
+    /// `trunc(arg0)`
+    Truncate,
+    /// `floatBitsToInt(arg0)`
+    FloatBitsToInt,
+    /// `intBitsToFloat(arg0)`
+    IntBitsToFloat,
+    /// `uintBitsToFloat(arg0)`
+    UintBitsToFloat,
+    /// `inversesqrt(arg0)`
+    InverseSqrt,
+    /// `!arg0`
+    Not,
+    /// `arg0 << arg1`
+    LeftShift,
+    /// `arg0 >> arg1`
+    RightShift,
+    /// `dFdx(arg0)` or `dpdx(arg0)`
+    PartialDerivativeX,
+    /// `dFdy(arg0)` or `dpdy(arg0)`
+    PartialDerivativeY,
+    /// `exp2(arg0)`
+    Exp2,
+    /// `log2(arg0)`
+    Log2,
+    /// `sin(arg0)`
+    Sin,
+    /// `cos(arg0)`
+    Cos,
 }
 
 impl Default for Operation {

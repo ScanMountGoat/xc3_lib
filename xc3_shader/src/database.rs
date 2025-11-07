@@ -279,8 +279,29 @@ impl crate::expr::Operation for Operation {
             .or_else(|| binary_op(graph, expr, BinaryOp::Greater, Operation::Greater))
             .or_else(|| binary_op(graph, expr, BinaryOp::LessEqual, Operation::LessEqual))
             .or_else(|| binary_op(graph, expr, BinaryOp::GreaterEqual, Operation::GreaterEqual))
+            .or_else(|| binary_op(graph, expr, BinaryOp::LeftShift, Operation::LeftShift))
+            .or_else(|| binary_op(graph, expr, BinaryOp::RightShift, Operation::RightShift))
             .or_else(|| ternary(graph, expr))
             .or_else(|| unary_op(graph, expr, UnaryOp::Negate, Operation::Negate))
+            .or_else(|| unary_op(graph, expr, UnaryOp::Not, Operation::Not))
+            .or_else(|| op_func(graph, expr, "float", Operation::Float))
+            .or_else(|| op_func(graph, expr, "int", Operation::Int))
+            .or_else(|| op_func(graph, expr, "uint", Operation::Uint))
+            .or_else(|| op_func(graph, expr, "trunc", Operation::Truncate))
+            .or_else(|| op_func(graph, expr, "floatBitsToInt", Operation::FloatBitsToInt))
+            .or_else(|| op_func(graph, expr, "intBitsToFloat", Operation::IntBitsToFloat))
+            .or_else(|| op_func(graph, expr, "uintBitsToFloat", Operation::UintBitsToFloat))
+            .or_else(|| op_func(graph, expr, "inversesqrt", Operation::InverseSqrt))
+            .or_else(|| op_func(graph, expr, "dFdx", Operation::PartialDerivativeX))
+            .or_else(|| op_func(graph, expr, "dFdy", Operation::PartialDerivativeY))
+            .or_else(|| op_func(graph, expr, "log2", Operation::Log2))
+            .or_else(|| op_func(graph, expr, "exp2", Operation::Exp2))
+            .or_else(|| op_func(graph, expr, "sin", Operation::Sin))
+            .or_else(|| op_func(graph, expr, "cos", Operation::Cos))
+            .or_else(|| {
+                error!("Unsuported expression {expr:?}");
+                None
+            })
     }
 
     fn preprocess_expr<'a>(graph: &'a Graph, expr: &'a Expr) -> Cow<'a, Expr> {
