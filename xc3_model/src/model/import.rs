@@ -403,6 +403,7 @@ impl ModelRoot {
         hkt: Option<&Hkt>,
         shader_database: Option<&ShaderDatabase>,
     ) -> Result<Self, LoadModelLegacyError> {
+        // TODO: The skeleton doesn't contain all skinned bones.
         let skeleton = hkt.map(Skeleton::from_legacy_skeleton);
 
         let buffers = ModelBuffers::from_vertex_data_legacy(&mxmd.vertex, Endian::Big)
@@ -501,6 +502,7 @@ impl Models {
     where
         S: GetProgramHash,
     {
+        // TODO: Preserve legacy skinning data for eventual export support.
         let (materials, samplers) =
             create_materials_samplers_legacy(materials, texture_indices, shaders, shader_database);
         Self {
@@ -508,7 +510,22 @@ impl Models {
             materials,
             samplers,
             lod_data: None,
-            skinning: None, // TODO: how to set this?
+            skinning: if !models.bone_names.is_empty() {
+                Some(crate::skinning::Skinning {
+                    bones: models
+                        .bone_names
+                        .iter()
+                        .map(|n| crate::skinning::Bone {
+                            name: n.name.clone(),
+                            bounds: None,
+                            constraint: None,
+                            no_camera_overlap: false,
+                        })
+                        .collect(),
+                })
+            } else {
+                None
+            },
             morph_controller_names: Vec::new(),
             animation_morph_names: Vec::new(),
             max_xyz: models.max_xyz.into(),

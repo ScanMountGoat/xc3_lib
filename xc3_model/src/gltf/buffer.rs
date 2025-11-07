@@ -10,6 +10,7 @@ use gltf::{
     buffer::Target,
     json::validation::Checked::{self, Valid},
 };
+use log::error;
 
 use super::align_bytes;
 
@@ -265,13 +266,16 @@ impl Buffers {
         let remap_bone_indices: Vec<_> = skinning
             .bones
             .iter()
-            .map(|b| {
-                skeleton
-                    .bones
-                    .iter()
-                    .position(|b2| b.name == b2.name)
-                    .unwrap()
-            })
+            .map(
+                |b| match skeleton.bones.iter().position(|b2| b.name == b2.name) {
+                    Some(i) => i,
+                    None => {
+                        // Weight unrecognized indices to the skeleton root bone.
+                        error!("Skinning bone {:?} not in skeleton", b.name);
+                        0
+                    }
+                },
+            )
             .collect();
 
         // Bone indices may not fit in 8 bits if the skeleton has more than 256 bones.
