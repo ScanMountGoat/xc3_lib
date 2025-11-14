@@ -58,12 +58,15 @@ impl ShaderDatabase {
 }
 
 /// Unique identifier for compiled shader program data.
+/// 
+/// This assumes no collisions since storing the program binary itself is costly.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub struct ProgramHash(u32);
 
 impl ProgramHash {
     /// Hash a legacy shader program.
     pub fn from_mths(mths: &xc3_lib::mths::Mths) -> Self {
+        // Assume no hash collisions and discard the bytes for better performance.
         let mut hasher = crc32fast::Hasher::new();
         hasher.update(&mths.data);
         Self(hasher.finalize())
@@ -87,6 +90,7 @@ impl ProgramHash {
             hasher.update(&vertex.program_binary);
         }
 
+        // Assume no hash collisions and discard the bytes for better performance.
         Self(hasher.finalize())
     }
 }
