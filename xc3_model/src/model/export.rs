@@ -499,7 +499,14 @@ fn match_attribute(
                 AttributeData::Normal3
             )
         }
-        DataType::ValInf => attribute!(buffer, count, AttributeData::ValInf),
+        DataType::ValInf => attribute!(
+            buffer,
+            count,
+            AttributeData::ValInf,
+            AttributeData::Normal,
+            AttributeData::Normal2,
+            AttributeData::Normal3
+        ),
         DataType::Normal3 => {
             attribute!(
                 buffer,
