@@ -175,7 +175,7 @@ impl ModelRoot {
                     unk2: i.unk2,
                     unk3: 0,
                     index: i.index,
-                    unk5: i.unk5,
+                    unk5: if i.unk2 == 0.0 { 2 } else { 1 },
                     unk6: 0,
                     unk7: [0; 2],
                 })

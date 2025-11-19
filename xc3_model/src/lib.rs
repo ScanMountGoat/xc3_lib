@@ -191,7 +191,6 @@ pub struct LodData {
 pub struct LodItem {
     pub unk2: f32,
     pub index: u8,
-    pub unk5: u8,
 }
 
 /// See [LodGroup](xc3_lib::mxmd::LodGroup).

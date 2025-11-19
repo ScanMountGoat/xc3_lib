@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fixed an issue where xc3_gltf would not properly export vertex skinning for wimdo models with more than 256 bones.
 * Fixed an issue where some LAGP .wilay files would not correctly rebuild all data.
 * Fixed an issue where legacy skeleton creation would not include all skinned bones.
+* Fixed an issue where xc3_model wimdo export would not correctly preserve LOD data in some cases.
 
 ## 0.20.0 - 2025-06-09
 ### Added

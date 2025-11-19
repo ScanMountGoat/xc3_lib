@@ -542,7 +542,6 @@ pub fn lod_data(data: &xc3_lib::mxmd::LodData) -> LodData {
             .map(|i| LodItem {
                 unk2: i.unk2,
                 index: i.index,
-                unk5: i.unk5,
             })
             .collect(),
         groups: data
