@@ -180,6 +180,7 @@ pub struct Mesh {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct LodData {
+    pub unk1: u32,
     pub items: Vec<LodItem>,
     pub groups: Vec<LodGroup>,
 }

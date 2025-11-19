@@ -535,6 +535,7 @@ impl Models {
 
 pub fn lod_data(data: &xc3_lib::mxmd::LodData) -> LodData {
     LodData {
+        unk1: data.unk1,
         items: data
             .items
             .iter()

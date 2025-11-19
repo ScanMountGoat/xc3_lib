@@ -166,7 +166,7 @@ impl ModelRoot {
         });
 
         new_mxmd.models.lod_data = self.models.lod_data.as_ref().map(|data| LodData {
-            unk1: 0,
+            unk1: data.unk1,
             items: data
                 .items
                 .iter()

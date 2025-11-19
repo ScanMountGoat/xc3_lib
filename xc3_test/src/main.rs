@@ -1463,6 +1463,9 @@ fn check_model_export(
     if new_mxmd.models.models != mxmd.models.models {
         println!("Model list not 1:1 for {path:?}");
     }
+    if new_mxmd.models.lod_data != mxmd.models.lod_data {
+        println!("Model LODs not 1:1 for {path:?}");
+    }
     if let Some(skinning) = &mxmd.models.skinning
         && let Some(new_skinning) = &new_mxmd.models.skinning
     {
