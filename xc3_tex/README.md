@@ -49,7 +49,7 @@ Export the DDS images by dragging and dropping the `.camdo` file onto the execut
 
 ### Wifnt Texture Replacement
 Export the DDS image by dragging and dropping the `.wifnt` file onto the executable or by running the terminal command. After editing the images, use the edit-wifnt command to replace the image.
-The modified image does not need to match the resolution and format of the original.
+The modified image does not need to match the resolution and DDS format of the original.
 
 `xc3_tex image.wifnt image.dds`  
 `xc3_tex edit-wifnt image.wifnt image.dds output.wifnt`  
