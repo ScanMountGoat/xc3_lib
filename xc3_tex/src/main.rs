@@ -1,26 +1,14 @@
-use std::{
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
 use clap::{Parser, Subcommand, builder::PossibleValuesParser};
 use convert::{
-    File, SaveImageExt, Wilay, batch_convert_files, extract_wilay_to_folder,
-    extract_wimdo_to_folder, update_wifnt, update_wilay_from_folder, update_wimdo_from_folder,
+    File, SaveImageExt, batch_convert_files, extract_wilay_to_folder, extract_wimdo_to_folder,
+    update_wifnt, update_wilay_from_folder, update_wimdo_from_folder,
 };
-use image_dds::{ImageFormat, Quality, ddsfile::Dds, image};
+use image_dds::{ImageFormat, Quality};
 use strum::IntoEnumIterator;
-use xc3_lib::{
-    bmn::Bmn,
-    dds::DdsExt,
-    fnt::Fnt,
-    laft::Laft,
-    mibl::Mibl,
-    mtxt::Mtxt,
-    mxmd::{Mxmd, legacy::MxmdLegacy},
-    xbc1::MaybeXbc1,
-};
+use xc3_lib::dds::DdsExt;
 
 use crate::convert::{extract_bmn_to_folder, extract_camdo_to_folder};
 
@@ -178,7 +166,7 @@ fn main() -> anyhow::Result<()> {
 
         // TODO: Support floating point images.
         // TODO: Specify quality and mipmaps?
-        let input_file = load_input_file(&input)?;
+        let input_file = File::from_file(&input)?;
 
         // Default to DDS since it supports more formats.
         // Wilay can output their images to the current folder.
@@ -267,61 +255,4 @@ fn main() -> anyhow::Result<()> {
         }
     }
     Ok(())
-}
-
-fn load_input_file(input: &Path) -> anyhow::Result<File> {
-    match input.extension().unwrap().to_str().unwrap() {
-        "witex" | "witx" | "wilut" => Mibl::from_file(input)
-            .with_context(|| format!("{input:?} is not a valid .witex file"))
-            .map(File::Mibl),
-        "dds" => Dds::from_file(input)
-            .with_context(|| format!("{input:?} is not a valid .dds file"))
-            .map(File::Dds),
-        "wilay" => Ok(File::Wilay(Box::new(
-            MaybeXbc1::<Wilay>::from_file(input)
-                .with_context(|| format!("{input:?} is not a valid .wilay file"))?,
-        ))),
-        "wimdo" => Mxmd::from_file(input)
-            .with_context(|| format!("{input:?} is not a valid .wimdo file"))
-            .map(Box::new)
-            .map(File::Wimdo),
-        "camdo" => MxmdLegacy::from_file(input)
-            .with_context(|| format!("{input:?} is not a valid .camdo file"))
-            .map(Box::new)
-            .map(File::Camdo),
-        "catex" | "calut" => Mtxt::from_file(input)
-            .with_context(|| format!("{input:?} is not a valid .catex file"))
-            .map(File::Mtxt),
-        "bmn" => Bmn::from_file(input)
-            .with_context(|| format!("{input:?} is not a valid .bmn file"))
-            .map(File::Bmn),
-        "wifnt" => MaybeXbc1::<Laft>::from_file(input)
-            .with_context(|| format!("{input:?} is not a valid .wifnt file"))
-            .map(File::Wifnt),
-        "fnt" => Fnt::from_file(input)
-            .with_context(|| format!("{input:?} is not a valid .fnt file"))
-            .map(File::XcxFnt),
-        "caavp" => {
-            // caavp files have multiple embedded mtxt files.
-            // TODO: Move this logic to xc3_lib?
-            let bytes = std::fs::read(input)?;
-            let mut mtxts = Vec::new();
-            let mut start = 0;
-            for i in (0..bytes.len()).step_by(4) {
-                if matches!(bytes.get(i..i + 4), Some(b"MTXT")) {
-                    let mtxt = Mtxt::from_bytes(&bytes[start..i + 4])?;
-                    mtxts.push(mtxt);
-                    start = i + 4;
-                }
-            }
-            Ok(File::Caavp(mtxts))
-        }
-        _ => {
-            // Assume other formats are image formats.
-            let image = image::open(input)
-                .with_context(|| format!("{input:?} is not a valid image file"))?
-                .to_rgba8();
-            Ok(File::Image(image))
-        }
-    }
 }

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added support for rendering 3D volume textures.
 * Added support for rendering individual models to xc3_viewer with the `--root`, `--models` and `--model` args.
 * Added `annotate-legacy-shaders` command to xc3_shader. This functionality was previously part of the `disassemble-legacy-shaders` command.
+* Added support for using image file formats like PNG or TIFF to the `edit-wifnt` command for xc3_tex.
 
 ### Changed
 * Changed xc3_wgpu_batch to render wismhd models to individual files.

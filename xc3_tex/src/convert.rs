@@ -5,7 +5,7 @@ use binrw::BinRead;
 use image_dds::{
     ImageFormat, Mipmaps, Quality, Surface,
     ddsfile::Dds,
-    image::{DynamicImage, RgbaImage},
+    image::{self, DynamicImage, RgbaImage},
 };
 use rayon::prelude::*;
 use xc3_lib::{
@@ -25,8 +25,6 @@ use xc3_lib::{
     mxmd::{Mxmd, legacy::MxmdLegacy},
     xbc1::{CompressionType, MaybeXbc1, Xbc1},
 };
-
-use crate::load_input_file;
 
 // TODO: Support apmd?
 pub enum File {
@@ -54,6 +52,63 @@ pub enum Wilay {
 }
 
 impl File {
+    pub fn from_file(input: &Path) -> anyhow::Result<File> {
+        match input.extension().unwrap().to_str().unwrap() {
+            "witex" | "witx" | "wilut" => Mibl::from_file(input)
+                .with_context(|| format!("{input:?} is not a valid .witex file"))
+                .map(File::Mibl),
+            "dds" => Dds::from_file(input)
+                .with_context(|| format!("{input:?} is not a valid .dds file"))
+                .map(File::Dds),
+            "wilay" => Ok(File::Wilay(Box::new(
+                MaybeXbc1::<Wilay>::from_file(input)
+                    .with_context(|| format!("{input:?} is not a valid .wilay file"))?,
+            ))),
+            "wimdo" => Mxmd::from_file(input)
+                .with_context(|| format!("{input:?} is not a valid .wimdo file"))
+                .map(Box::new)
+                .map(File::Wimdo),
+            "camdo" => MxmdLegacy::from_file(input)
+                .with_context(|| format!("{input:?} is not a valid .camdo file"))
+                .map(Box::new)
+                .map(File::Camdo),
+            "catex" | "calut" => Mtxt::from_file(input)
+                .with_context(|| format!("{input:?} is not a valid .catex file"))
+                .map(File::Mtxt),
+            "bmn" => Bmn::from_file(input)
+                .with_context(|| format!("{input:?} is not a valid .bmn file"))
+                .map(File::Bmn),
+            "wifnt" => MaybeXbc1::<Laft>::from_file(input)
+                .with_context(|| format!("{input:?} is not a valid .wifnt file"))
+                .map(File::Wifnt),
+            "fnt" => Fnt::from_file(input)
+                .with_context(|| format!("{input:?} is not a valid .fnt file"))
+                .map(File::XcxFnt),
+            "caavp" => {
+                // caavp files have multiple embedded mtxt files.
+                // TODO: Move this logic to xc3_lib?
+                let bytes = std::fs::read(input)?;
+                let mut mtxts = Vec::new();
+                let mut start = 0;
+                for i in (0..bytes.len()).step_by(4) {
+                    if matches!(bytes.get(i..i + 4), Some(b"MTXT")) {
+                        let mtxt = Mtxt::from_bytes(&bytes[start..i + 4])?;
+                        mtxts.push(mtxt);
+                        start = i + 4;
+                    }
+                }
+                Ok(File::Caavp(mtxts))
+            }
+            _ => {
+                // Assume other formats are image formats.
+                let image = image::open(input)
+                    .with_context(|| format!("{input:?} is not a valid image file"))?
+                    .to_rgba8();
+                Ok(File::Image(image))
+            }
+        }
+    }
+
     pub fn to_dds(
         &self,
         format: Option<ImageFormat>,
@@ -797,7 +852,20 @@ fn extract_caavp_images_to_folder(
 pub fn update_wifnt(input: &str, input_image: &str, output: &str) -> anyhow::Result<()> {
     let mut laft = MaybeXbc1::<Laft>::from_file(input)?;
 
-    let dds = Dds::from_file(input_image)?;
+    let dds = Dds::from_file(input_image).or_else(|_| {
+        // Assume other formats are image formats.
+        let image = image::open(input_image)
+            .with_context(|| format!("{input_image:?} is not a valid image file"))?
+            .to_rgba8();
+        // Usd default settings based on in game files to avoid adding extra CLI args.
+        image_dds::dds_from_image(
+            &image,
+            ImageFormat::R8Unorm,
+            Quality::Normal,
+            Mipmaps::Disabled,
+        )
+        .with_context(|| "failed to encode image to DDS")
+    })?;
     let mibl = Mibl::from_dds(&dds)?;
 
     match &mut laft {
@@ -831,7 +899,7 @@ pub fn batch_convert_files(
             .map(|entry| {
                 // TODO: Avoid unwrap?
                 let path = entry.as_ref().unwrap().path();
-                let file = load_input_file(path).unwrap();
+                let file = File::from_file(path).unwrap();
                 match ext.to_lowercase().as_str() {
                     "dds" => {
                         extract_and_save_dds(path, file).unwrap();

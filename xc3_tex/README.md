@@ -49,7 +49,12 @@ Export the DDS images by dragging and dropping the `.camdo` file onto the execut
 
 ### Wifnt Texture Replacement
 Export the DDS image by dragging and dropping the `.wifnt` file onto the executable or by running the terminal command. After editing the images, use the edit-wifnt command to replace the image.
-The modified image does not need to match the resolution and DDS format of the original.
+The modified image does not need to match the resolution and DDS format of the original. It's recommended to use the `R8Unorm` DDS format used for all `.wifnt` files for all games.
 
 `xc3_tex image.wifnt image.dds`  
 `xc3_tex edit-wifnt image.wifnt image.dds output.wifnt`  
+
+xc3_tex also supports uncompressed image file formats. The red channel of the font texture used for the `edit-wifnt` command will automatically be encoded to the `R8Unorm` format. This single channel format does not use any compression.
+
+`xc3_tex image.wifnt image.png`  
+`xc3_tex edit-wifnt image.wifnt image.png output.wifnt`  
