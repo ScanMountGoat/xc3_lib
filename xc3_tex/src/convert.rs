@@ -360,15 +360,50 @@ fn replace_wilay_mibl(
 ) -> anyhow::Result<usize> {
     let mut count = 0;
 
+    // Only update each texture at most once.
+    let mut updated = vec![false; textures.textures.len()];
+
+    // DDS should take priority.
     for entry in std::fs::read_dir(input_folder)? {
         let path = entry?.path();
-        if path.extension().and_then(|e| e.to_str()) == Some("dds")
-            && let Some(i) = image_index(&path, input)
+        if let Some(i) = image_index(&path, input)
+            && updated.get(i) != Some(&true)
         {
-            let dds = Dds::from_file(&path)
-                .with_context(|| format!("{path:?} is not a valid DDS file"))?;
+            if path.extension().and_then(|e| e.to_str()) == Some("dds") {
+                let dds = Dds::from_file(&path)
+                    .with_context(|| format!("{path:?} is not a valid DDS file"))?;
+                let mibl = Mibl::from_dds(&dds).with_context(|| "failed to convert DDS to Mibl")?;
+                textures.textures[i].mibl_data = mibl.to_bytes()?;
+                updated[i] = true;
+
+                count += 1;
+            }
+        }
+    }
+
+    for entry in std::fs::read_dir(input_folder)? {
+        let path = entry?.path();
+        if let Some(i) = image_index(&path, input)
+            && updated.get(i) != Some(&true)
+        {
+            // Assume other formats are image formats.
+            let image = image::open(&path)
+                .with_context(|| format!("{path:?} is not a valid image file"))?
+                .to_rgba8();
+
+            // Use default settings based on in game files to avoid adding extra CLI args.
+            // BC7 generated mipmaps seems to be the default for most games.
+            let dds = image_dds::dds_from_image(
+                &image,
+                ImageFormat::BC7RgbaUnorm,
+                Quality::Normal,
+                Mipmaps::GeneratedAutomatic,
+            )
+            .with_context(|| "failed to encode image to DDS")?;
+
             let mibl = Mibl::from_dds(&dds).with_context(|| "failed to convert DDS to Mibl")?;
             textures.textures[i].mibl_data = mibl.to_bytes()?;
+            updated[i] = true;
 
             count += 1;
         }
@@ -424,6 +459,8 @@ pub fn update_wimdo_from_folder(
     // Replace all textures to support adding or deleting textures.
     let mut mibls: Vec<_> = std::fs::read_dir(input_folder)?
         .filter_map(|e| {
+            // TODO: Support DDS or image formats.
+            // TODO: skip finding images if DDS is present?
             let path = e.unwrap().path();
             image_index(&path, input).and_then(|i| {
                 let dds = Dds::from_file(path).ok()?;
@@ -857,7 +894,8 @@ pub fn update_wifnt(input: &str, input_image: &str, output: &str) -> anyhow::Res
         let image = image::open(input_image)
             .with_context(|| format!("{input_image:?} is not a valid image file"))?
             .to_rgba8();
-        // Usd default settings based on in game files to avoid adding extra CLI args.
+
+        // Use default settings based on in game files to avoid adding extra CLI args.
         image_dds::dds_from_image(
             &image,
             ImageFormat::R8Unorm,
