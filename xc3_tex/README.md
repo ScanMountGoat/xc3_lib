@@ -37,7 +37,7 @@ If two or more input file names have the same index like "file.0.dds" and "file.
 `xc3_tex edit-wilay image.wilay image_folder output.wilay`  
 
 ### Wimdo/Wismt Texture Replacement
-Export the DDS images by dragging and dropping the `.wimdo` file onto the executable or by running the terminal command. The `.wismt` file should be in the same folder as the `.wimdo`. After editing the images, use the edit-wimdo command to replace the images. xc3_tex will output the modified `.wimdo` and `.wismt` files. The modified images do not need to match the resolution and DDS format of the originals.
+Export the DDS images by dragging and dropping the `.wimdo` file onto the executable or by running the terminal command. The `.wismt` file should be in the same folder as the `.wimdo`. After editing the DDS images, use the edit-wimdo command to replace the images. xc3_tex will output the modified `.wimdo` and `.wismt` files. The modified DDS images do not need to match the resolution and DDS format of the originals.
 
 `xc3_tex input.wimdo image_folder`  
 `xc3_tex edit-wimdo input.wimdo image_folder output.wimdo`  
