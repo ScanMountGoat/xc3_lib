@@ -365,7 +365,7 @@ pub struct Unk4Extra {
 
     // TODO: padding?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: (dbg!(next_offset) - dbg!(offset)) as usize / 4 }})]
+    #[br(args { offset: base_offset, inner: args! { count: (next_offset - offset) as usize / 4 }})]
     #[xc3(offset(u32))]
     pub unk1: Option<Vec<u32>>,
 
