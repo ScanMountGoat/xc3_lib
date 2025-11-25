@@ -13,13 +13,16 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
-    - name: Build
-      run: |
-        cargo rustc --release -p xc3_gltf -- -C link-args=-lstdc++
-        cargo rustc --release -p xc3_shader -- -C link-args=-lstdc++
-        cargo rustc --release -p xc3_tex -- -C link-args=-lstdc++
-        cargo rustc --release -p xc3_viewer -- -C link-args=-lstdc++
-        cargo rustc --release -p xc3_wgpu_batch -- -C link-args=-lstdc++
+    - name: Build xc3_gltf
+      run: cargo rustc --release -p xc3_gltf -- -C link-args=-lstdc++
+    - name: Build xc3_shader
+      run: cargo rustc --release -p xc3_shader -- -C link-args=-lstdc++
+    - name: Build xc3_tex
+      run: cargo rustc --release -p xc3_tex -- -C link-args=-lstdc++
+    - name: Build xc3_viewer
+      run: cargo rustc --release -p xc3_viewer -- -C link-args=-lstdc++
+    - name: Build xc3_wgpu_batch
+      run: cargo rustc --release -p xc3_wgpu_batch -- -C link-args=-lstdc++
     - name: Create Release Zip
       working-directory: target/release
       run: zip xc3_lib_linux_x64.zip xc3_gltf xc3_shader xc3_tex xc3_viewer xc3_wgpu_batch
