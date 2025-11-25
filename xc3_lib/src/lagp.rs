@@ -81,6 +81,7 @@ pub struct Lagp {
     pub unk: [u32; 11],
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(version: u32))]
 pub enum Unk13Versioned {
@@ -200,9 +201,9 @@ pub struct Unk13Unk1Unk3Unk2 {
 
     // TODO: Does this have a count field?
     #[br(parse_with = parse_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: (offsets[2] / 4) as usize }})]
+    #[br(args { offset: base_offset, inner: args! { count: (offsets[2] / 2) as usize }})]
     #[xc3(offset(u32), align(1))]
-    pub unk4: Vec<u32>,
+    pub unk4: Vec<u16>,
 
     pub unk5: u32,
 
@@ -327,7 +328,7 @@ pub struct Unk13Unk2 {
 }
 
 fn unk13_unk3_count(unk2: Option<&Unk13Unk2>) -> usize {
-    unk2.map(|u| u.total_count as usize).unwrap_or_default()
+    unk2.map(|u| u.total_count as usize + 1).unwrap_or_default()
 }
 
 #[binread]
@@ -493,6 +494,10 @@ impl Xc3WriteOffsets for Unk13Offsets<'_> {
             &WriteOptions::default(),
             endian,
         )?;
+
+        // TODO: why is this padding necessary?
+        *data_ptr += 3;
+
         Ok(())
     }
 }
@@ -539,6 +544,8 @@ impl Xc3WriteOffsets for Unk13Unk1Unk4Offsets<'_> {
         if !self.unk3.data.is_empty() {
             self.unk3
                 .write_full(writer, base_offset, data_ptr, endian, ())?;
+            // TODO: why is this padding necessary?
+            *data_ptr += 2;
         }
         if !self.unk4.data.is_empty() {
             self.unk4
