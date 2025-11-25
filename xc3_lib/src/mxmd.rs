@@ -1225,7 +1225,9 @@ pub struct MeshV111 {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MeshV112 {
+    // TODO: 8389632 for outlines?
     pub flags1: u32, // TODO: possible bits that are set, check outline, speff, etc
+
     pub flags2: MeshRenderFlags2,
     /// Index into [vertex_buffers](../vertex/struct.VertexData.html#structfield.vertex_buffers)
     /// for the associated [VertexData].
@@ -1826,7 +1828,7 @@ pub struct LodData {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    pub unk1: u32, // 0?
+    pub unk1: u32, // 0, 1
 
     // TODO: Count related to number of mesh lod values?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
