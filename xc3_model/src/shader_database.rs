@@ -58,7 +58,7 @@ impl ShaderDatabase {
 }
 
 /// Unique identifier for compiled shader program data.
-/// 
+///
 /// This assumes no collisions since storing the program binary itself is costly.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub struct ProgramHash(u32);
