@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## unreleased
+## 0.21.0 - 2025-11-25
 ### Added
 * Added support for rendering 3D volume textures.
 * Added support for rendering individual models to xc3_viewer with the `--root`, `--models` and `--model` args.
