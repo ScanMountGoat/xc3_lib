@@ -16,7 +16,7 @@ jobs:
     - name: Build xc3_gltf
       run: cargo rustc --release -p xc3_gltf -- -C link-args=-lstdc++
     - name: Build xc3_shader
-      run: cargo rustc --release -p xc3_shader -- -C link-args=-lstdc++
+      run: cargo rustc --release -p xc3_shader --bin xc3_shader -- -C link-args=-lstdc++
     - name: Build xc3_tex
       run: cargo rustc --release -p xc3_tex -- -C link-args=-lstdc++
     - name: Build xc3_viewer
