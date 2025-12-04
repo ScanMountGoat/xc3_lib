@@ -73,7 +73,9 @@ pub struct Idcm {
     #[xc3(offset_count(u32, u32))]
     pub unk9: Vec<Unk9>,
 
-    pub unk10: u64,
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk10: Vec<[u32; 2]>,
 
     #[br(parse_with = parse_offset32_inner_count32, offset = base_offset)]
     #[xc3(offset_inner_count(u32, self.instances.mesh_indices.len() as u32))]
@@ -94,7 +96,9 @@ pub struct Idcm {
     #[xc3(offset_count(u32, u32))]
     pub unk18: Vec<[u32; 10]>,
 
-    pub unks1_3: [u32; 2],
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unks1_3: Vec<[f32; 3]>,
 
     /// Names for each of the [Mesh] in [meshes](#structfield.meshes).
     #[br(parse_with = parse_ptr32)]
@@ -110,7 +114,7 @@ pub struct Idcm {
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unks1_2: Vec<u32>, // TODO: type?
+    pub unks1_2: Vec<[[f32; 4]; 4]>,
 
     #[br(parse_with = parse_offset32_count32)]
     #[br(args{ offset: base_offset, inner: base_offset})]
@@ -289,6 +293,8 @@ impl Xc3WriteOffsets for IdcmOffsets<'_> {
             .write(writer, base_offset, data_ptr, endian)?;
         self.groups
             .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk10
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk4
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk18
@@ -306,7 +312,8 @@ impl Xc3WriteOffsets for IdcmOffsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         // TODO: A lot of empty lists go here?
-        *data_ptr += 12;
+        self.unks1_3
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         self.instances
             .write_full(writer, base_offset, data_ptr, endian, ())?;
