@@ -37,7 +37,7 @@ impl ModelRoot {
             }),
             xc3_lib::mxmd::MxmdInner::V112(inner) => {
                 // TODO: Does this need to even extract vertex/textures?
-                let (_, spch, _) = msrd.extract_files(None)?;
+                let spch = msrd.extract_files(None)?.shader;
                 let (mut new_mxmd, vertex, textures) = self.to_mxmd_model_files(inner)?;
 
                 let use_chr_textures = inner

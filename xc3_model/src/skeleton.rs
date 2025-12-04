@@ -226,7 +226,7 @@ impl Skeleton {
 
 fn find_legacy_parent_index(
     models: &xc3_lib::mxmd::legacy::Models,
-    bones: &Vec<Bone>,
+    bones: &[Bone],
     skinning_bone: &xc3_lib::mxmd::legacy::Bone,
 ) -> Option<usize> {
     // Convert skinning parent index to skeleton parent index.

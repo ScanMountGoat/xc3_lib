@@ -212,7 +212,7 @@ fn func_wgsl(op: &Operation, args: &[usize]) -> Option<String> {
         )),
         Operation::Negate => Some(format!("-{}", arg0?)),
         // TODO: Pass instance index to fragment shader instead?
-        Operation::FurInstanceAlpha => Some(format!("in.vertex_color.a")),
+        Operation::FurInstanceAlpha => Some("in.vertex_color.a".to_string()),
         Operation::Float => Some(format!("f32({})", arg0?)),
         Operation::Int => Some(format!("i32({})", arg0?)),
         Operation::Uint => Some(format!("u32({})", arg0?)),
@@ -540,7 +540,7 @@ fn func_xyz_wgsl(op: &Operation, args: &[usize], output_index: usize) -> Option<
             arg0?, arg1?, arg2?, arg3?
         )),
         Operation::Negate => Some(format!("-{}", arg0?)),
-        Operation::FurInstanceAlpha => Some(format!("in.vertex_color.a")),
+        Operation::FurInstanceAlpha => Some("in.vertex_color.a".to_string()),
         Operation::Float => Some(format!("vec3<f32>({})", arg0?)),
         Operation::Int => Some(format!("vec3<i32>({})", arg0?)),
         Operation::Uint => Some(format!("vec3<u32>({})", arg0?)),

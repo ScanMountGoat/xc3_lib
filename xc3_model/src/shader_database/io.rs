@@ -255,10 +255,10 @@ impl ShaderDatabaseIndexed {
         }
     }
 
-    fn add_output_expr<'a>(
+    fn add_output_expr(
         &mut self,
         value: usize,
-        exprs: &'a [OutputExpr],
+        exprs: &[OutputExpr],
         expr_indices: &mut IndexMap<usize, VarInt>,
     ) -> VarInt {
         // Use the index as the key since hashing nested expressions is slow.
@@ -289,10 +289,10 @@ impl ShaderDatabaseIndexed {
         }
     }
 
-    fn add_dependency<'a>(
+    fn add_dependency(
         &mut self,
         d: Dependency,
-        exprs: &'a [OutputExpr],
+        exprs: &[OutputExpr],
         expr_indices: &mut IndexMap<usize, VarInt>,
     ) -> VarInt {
         let dependency = self.dependency_indexed(d, exprs, expr_indices);
@@ -393,10 +393,10 @@ impl ShaderDatabaseIndexed {
         }
     }
 
-    fn dependency_indexed<'a>(
+    fn dependency_indexed(
         &mut self,
         d: Dependency,
-        exprs: &'a [OutputExpr],
+        exprs: &[OutputExpr],
         expr_indices: &mut IndexMap<usize, VarInt>,
     ) -> DependencyIndexed {
         match d {

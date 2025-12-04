@@ -22,6 +22,14 @@ use crate::{
 
 use super::*;
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug)]
+pub struct ExtractedFiles<V, S, T> {
+    pub vertex: V,
+    pub shader: S,
+    pub textures: Vec<ExtractedTexture<T, TextureUsage>>,
+}
+
 // TODO: Add a function to create an extractedtexture from a surface?
 /// All the mip levels and metadata for an [Mibl] (Switch) or [Dds] (PC) texture.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -275,10 +283,7 @@ impl Msrd {
     pub fn extract_files(
         &self,
         chr_folder: Option<&Path>,
-    ) -> Result<
-        (VertexData, Spch, Vec<ExtractedTexture<Mibl, TextureUsage>>),
-        ExtractStreamFilesError,
-    > {
+    ) -> Result<ExtractedFiles<VertexData, Spch, Mibl>, ExtractStreamFilesError> {
         // TODO: Return just textures for legacy data?
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => Err(ExtractStreamFilesError::LegacyStream),
@@ -289,8 +294,7 @@ impl Msrd {
     /// Extract all embedded files for a `pcsmt` file.
     pub fn extract_files_pc(
         &self,
-    ) -> Result<(VertexData, Spch, Vec<ExtractedTexture<Dds, TextureUsage>>), ExtractStreamFilesError>
-    {
+    ) -> Result<ExtractedFiles<VertexData, Spch, Dds>, ExtractStreamFilesError> {
         match &self.streaming.inner {
             StreamingInner::StreamingLegacy(_) => Err(ExtractStreamFilesError::LegacyStream),
             StreamingInner::Streaming(data) => data.extract_files(&self.data, None),
@@ -305,11 +309,7 @@ impl Msrd {
         &self,
         chr_folder: Option<&Path>,
     ) -> Result<
-        (
-            crate::mxmd::legacy::VertexData,
-            SpcoShaders,
-            Vec<ExtractedTexture<Mibl, TextureUsage>>,
-        ),
+        ExtractedFiles<crate::mxmd::legacy::VertexData, SpcoShaders, Mibl>,
         ExtractStreamFilesError,
     > {
         match &self.streaming.inner {
@@ -337,11 +337,11 @@ impl Msrd {
     ///
     /// let msrd = Msrd::from_file("ch01011013.wismt")?;
     /// let chr_folder = Some(std::path::Path::new("chr"));
-    /// let (mut vertex, mut spch, mut textures) = msrd.extract_files(chr_folder)?;
+    /// let mut files = msrd.extract_files(chr_folder)?;
     ///
     /// // modify any of the embedded data
     ///
-    /// let new_msrd = Msrd::from_extracted_files(&vertex, &spch, &textures, true)?;
+    /// let new_msrd = Msrd::from_extracted_files(&files.vertex, &files.shader, &files.textures, true)?;
     /// new_msrd.save("ch01011013.wismt")?;
     /// # Ok(())
     /// # }
@@ -439,7 +439,7 @@ impl StreamingData {
         &self,
         data: &[u8],
         chr_folder: Option<&Path>,
-    ) -> Result<(V, S, Vec<ExtractedTexture<T, TextureUsage>>), ExtractStreamFilesError> {
+    ) -> Result<ExtractedFiles<V, S, T>, ExtractStreamFilesError> {
         let stream0 = self.get_stream(0)?;
         let first_xbc1_offset = stream0.xbc1_offset;
 
@@ -458,7 +458,7 @@ impl StreamingData {
         let shader_bytes = self
             .entry_bytes(self.shader_entry_index, &stream0)
             .map_err(DecompressStreamError::Io)?;
-        let spch = S::from_bytes(shader_bytes).map_err(DecompressStreamError::from)?;
+        let shader = S::from_bytes(shader_bytes).map_err(DecompressStreamError::from)?;
 
         // TODO: is this always in the first stream?
         let low_texture_bytes = self
@@ -466,7 +466,11 @@ impl StreamingData {
             .map_err(DecompressStreamError::Io)?;
         let textures = self.extract_textures(data, low_texture_bytes, chr_folder)?;
 
-        Ok((vertex, spch, textures))
+        Ok(ExtractedFiles {
+            vertex,
+            shader,
+            textures,
+        })
     }
 
     fn extract_low_textures<T: FromBytes>(

@@ -156,9 +156,10 @@ pub struct AttributeDependency {
 
 /// A function or operation applied to one or more [OutputExpr].
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Display, FromRepr)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Display, FromRepr, Default)]
 pub enum Operation {
     /// An unsupported operation or function call.
+    #[default]
     Unk,
     /// `mix(arg0, arg1, arg2)`
     Mix,
@@ -278,12 +279,6 @@ pub enum Operation {
     Sin,
     /// `cos(arg0)`
     Cos,
-}
-
-impl Default for Operation {
-    fn default() -> Self {
-        Self::Unk
-    }
 }
 
 /// A tree of computations with [Dependency] for the leaf values.

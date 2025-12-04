@@ -368,16 +368,15 @@ fn replace_wilay_mibl(
         let path = entry?.path();
         if let Some(i) = image_index(&path, input)
             && updated.get(i) != Some(&true)
+            && path.extension().and_then(|e| e.to_str()) == Some("dds")
         {
-            if path.extension().and_then(|e| e.to_str()) == Some("dds") {
-                let dds = Dds::from_file(&path)
-                    .with_context(|| format!("{path:?} is not a valid DDS file"))?;
-                let mibl = Mibl::from_dds(&dds).with_context(|| "failed to convert DDS to Mibl")?;
-                textures.textures[i].mibl_data = mibl.to_bytes()?;
-                updated[i] = true;
+            let dds = Dds::from_file(&path)
+                .with_context(|| format!("{path:?} is not a valid DDS file"))?;
+            let mibl = Mibl::from_dds(&dds).with_context(|| "failed to convert DDS to Mibl")?;
+            textures.textures[i].mibl_data = mibl.to_bytes()?;
+            updated[i] = true;
 
-                count += 1;
-            }
+            count += 1;
         }
     }
 
@@ -488,10 +487,15 @@ pub fn update_wimdo_from_folder(
         }
         xc3_lib::mxmd::MxmdInner::V112(inner) => {
             let msrd = Msrd::from_file(input_path.with_extension("wismt"))?;
-            let (vertex, spch, mut textures) = msrd.extract_files(chr_folder.as_deref())?;
-            replace_textures(mibls, &mut textures);
+            let mut files = msrd.extract_files(chr_folder.as_deref())?;
+            replace_textures(mibls, &mut files.textures);
 
-            let new_msrd = Msrd::from_extracted_files(&vertex, &spch, &textures, uses_chr)?;
+            let new_msrd = Msrd::from_extracted_files(
+                &files.vertex,
+                &files.shader,
+                &files.textures,
+                uses_chr,
+            )?;
             inner.streaming = Some(new_msrd.streaming.clone());
 
             mxmd.save(output_path)?;
@@ -499,10 +503,15 @@ pub fn update_wimdo_from_folder(
         }
         xc3_lib::mxmd::MxmdInner::V40(inner) => {
             let msrd = Msrd::from_file(input_path.with_extension("wismt"))?;
-            let (vertex, spch, mut textures) = msrd.extract_files_legacy(chr_folder.as_deref())?;
-            replace_textures(mibls, &mut textures);
+            let mut files = msrd.extract_files_legacy(chr_folder.as_deref())?;
+            replace_textures(mibls, &mut files.textures);
 
-            let new_msrd = Msrd::from_extracted_files_legacy(&vertex, &spch, &textures, uses_chr)?;
+            let new_msrd = Msrd::from_extracted_files_legacy(
+                &files.vertex,
+                &files.shader,
+                &files.textures,
+                uses_chr,
+            )?;
             inner.streaming = Some(new_msrd.streaming.clone());
 
             mxmd.save(output_path)?;
@@ -701,7 +710,7 @@ fn extract_wimdo_textures(mxmd: Mxmd, input: &Path) -> anyhow::Result<Vec<(Strin
         xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
             if mxmd.streaming.is_some() {
                 let msrd = Msrd::from_file(input.with_extension("wismt"))?;
-                let (_, _, textures) = msrd.extract_files_legacy(chr_folder.as_deref())?;
+                let textures = msrd.extract_files_legacy(chr_folder.as_deref())?.textures;
 
                 for texture in textures {
                     let dds = texture.surface_final()?.to_dds()?;
@@ -722,7 +731,7 @@ fn extract_wimdo_textures(mxmd: Mxmd, input: &Path) -> anyhow::Result<Vec<(Strin
         xc3_lib::mxmd::MxmdInner::V111(mxmd) => {
             if mxmd.streaming.is_some() {
                 let msrd = Msrd::from_file(input.with_extension("wismt"))?;
-                let (_, _, textures) = msrd.extract_files(chr_folder.as_deref())?;
+                let textures = msrd.extract_files(chr_folder.as_deref())?.textures;
 
                 for texture in textures {
                     let dds = texture.surface_final()?.to_dds()?;
@@ -743,7 +752,7 @@ fn extract_wimdo_textures(mxmd: Mxmd, input: &Path) -> anyhow::Result<Vec<(Strin
         xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
             if mxmd.streaming.is_some() {
                 let msrd = Msrd::from_file(input.with_extension("wismt"))?;
-                let (_, _, textures) = msrd.extract_files(chr_folder.as_deref())?;
+                let textures = msrd.extract_files(chr_folder.as_deref())?.textures;
 
                 for texture in textures {
                     let dds = texture.surface_final()?.to_dds()?;

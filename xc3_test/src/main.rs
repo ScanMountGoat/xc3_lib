@@ -430,7 +430,7 @@ impl CheckFile for Msrd {
         }
 
         let chr_folder = chr_folder(path);
-        if let Ok((vertex, spch, textures)) = self.extract_files(chr_folder.as_deref()) {
+        if let Ok(files) = self.extract_files(chr_folder.as_deref()) {
             match &self.streaming.inner {
                 xc3_lib::msrd::StreamingInner::StreamingLegacy(_) => todo!(),
                 xc3_lib::msrd::StreamingInner::Streaming(data) => {
@@ -438,24 +438,26 @@ impl CheckFile for Msrd {
                     let vertex_bytes = data
                         .decompress_stream_entry(0, data.vertex_data_entry_index, &self.data)
                         .unwrap();
-                    vertex.check_file(path, &vertex_bytes, &[], check_read_write);
+                    files
+                        .vertex
+                        .check_file(path, &vertex_bytes, &[], check_read_write);
 
                     let spch_bytes = data
                         .decompress_stream_entry(0, data.shader_entry_index, &self.data)
                         .unwrap();
-                    spch.check_file(path, &spch_bytes, &[], check_read_write);
+                    files
+                        .shader
+                        .check_file(path, &spch_bytes, &[], check_read_write);
                 }
             }
 
-            for texture in textures {
+            for texture in files.textures {
                 texture.low.check_file(path, &[], &[], false);
                 if let Some(high) = texture.high {
                     high.mid.check_file(path, &[], &[], false);
                 }
             }
-        } else if let Ok((_vertex, _spco, _textures)) =
-            self.extract_files_legacy(chr_folder.as_deref())
-        {
+        } else if let Ok(_files) = self.extract_files_legacy(chr_folder.as_deref()) {
             // TODO: test XCX DE rebuilding once implemented
         } else {
             println!("Failed to extract {path:?}");

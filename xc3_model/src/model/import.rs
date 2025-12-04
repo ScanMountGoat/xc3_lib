@@ -70,14 +70,14 @@ impl<'a> ModelFilesV40<'a> {
                 xc3_lib::msrd::StreamingInner::Streaming(_) => {
                     let msrd = Msrd::from_file(wismt_path).map_err(LoadModelError::Wismt)?;
                     // TODO: Does xcx de have pc files?
-                    let (vertex, shaders, textures) = msrd.extract_files_legacy(chr_folder)?;
+                    let files = msrd.extract_files_legacy(chr_folder)?;
                     // TODO: avoid unwrap
-                    let spch = shaders.spch().unwrap().clone();
+                    let spch = files.shader.spch().unwrap().clone();
 
                     <Result<_, LoadModelError>>::Ok((
-                        Cow::Owned(vertex),
+                        Cow::Owned(files.vertex),
                         Cow::Owned(spch),
-                        ExtractedTextures::Switch(textures),
+                        ExtractedTextures::Switch(files.textures),
                     ))
                 }
             })
@@ -151,21 +151,21 @@ impl<'a> ModelFilesV111<'a> {
                 xc3_lib::msrd::StreamingInner::Streaming(_) => {
                     let msrd = Msrd::from_file(wismt_path).map_err(LoadModelError::Wismt)?;
                     if is_pc {
-                        let (vertex, spch, textures) = msrd.extract_files_pc()?;
+                        let files = msrd.extract_files_pc()?;
 
                         Ok((
-                            Cow::Owned(vertex),
-                            Cow::Owned(spch),
-                            ExtractedTextures::Pc(textures),
+                            Cow::Owned(files.vertex),
+                            Cow::Owned(files.shader),
+                            ExtractedTextures::Pc(files.textures),
                             None,
                         ))
                     } else {
-                        let (vertex, spch, textures) = msrd.extract_files(chr_folder)?;
+                        let files = msrd.extract_files(chr_folder)?;
 
                         Ok((
-                            Cow::Owned(vertex),
-                            Cow::Owned(spch),
-                            ExtractedTextures::Switch(textures),
+                            Cow::Owned(files.vertex),
+                            Cow::Owned(files.shader),
+                            ExtractedTextures::Switch(files.textures),
                             None,
                         ))
                     }
@@ -242,21 +242,21 @@ impl<'a> ModelFilesV112<'a> {
                 xc3_lib::msrd::StreamingInner::Streaming(_) => {
                     let msrd = Msrd::from_file(wismt_path).map_err(LoadModelError::Wismt)?;
                     if is_pc {
-                        let (vertex, spch, textures) = msrd.extract_files_pc()?;
+                        let files = msrd.extract_files_pc()?;
 
                         Ok((
-                            Cow::Owned(vertex),
-                            Cow::Owned(spch),
-                            ExtractedTextures::Pc(textures),
+                            Cow::Owned(files.vertex),
+                            Cow::Owned(files.shader),
+                            ExtractedTextures::Pc(files.textures),
                             None,
                         ))
                     } else {
-                        let (vertex, spch, textures) = msrd.extract_files(chr_folder)?;
+                        let files = msrd.extract_files(chr_folder)?;
 
                         Ok((
-                            Cow::Owned(vertex),
-                            Cow::Owned(spch),
-                            ExtractedTextures::Switch(textures),
+                            Cow::Owned(files.vertex),
+                            Cow::Owned(files.shader),
+                            ExtractedTextures::Switch(files.textures),
                             None,
                         ))
                     }

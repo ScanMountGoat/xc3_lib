@@ -49,8 +49,8 @@ pub fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Op
                         if mxmd.streaming.is_some() {
                             match Msrd::from_file(path.with_extension("wismt")) {
                                 Ok(msrd) => {
-                                    if let Ok((_, spco, _)) = msrd.extract_files_legacy(None)
-                                        && let Some(spch) = spco.spch()
+                                    if let Ok(files) = msrd.extract_files_legacy(None)
+                                        && let Some(spch) = files.shader.spch()
                                     {
                                         extract_shaders(spch, &output_folder, shader_tools, false);
                                     }
@@ -67,8 +67,13 @@ pub fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Op
                         if mxmd.streaming.is_some() {
                             match Msrd::from_file(path.with_extension("wismt")) {
                                 Ok(msrd) => {
-                                    let (_, spch, _) = msrd.extract_files(None).unwrap();
-                                    extract_shaders(&spch, &output_folder, shader_tools, false);
+                                    let files = msrd.extract_files(None).unwrap();
+                                    extract_shaders(
+                                        &files.shader,
+                                        &output_folder,
+                                        shader_tools,
+                                        false,
+                                    );
                                 }
                                 Err(e) => println!("Error reading {path:?}: {e}"),
                             }
@@ -82,8 +87,13 @@ pub fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Op
                         if mxmd.streaming.is_some() {
                             match Msrd::from_file(path.with_extension("wismt")) {
                                 Ok(msrd) => {
-                                    let (_, spch, _) = msrd.extract_files(None).unwrap();
-                                    extract_shaders(&spch, &output_folder, shader_tools, false);
+                                    let files = msrd.extract_files(None).unwrap();
+                                    extract_shaders(
+                                        &files.shader,
+                                        &output_folder,
+                                        shader_tools,
+                                        false,
+                                    );
                                 }
                                 Err(e) => println!("Error reading {path:?}: {e}"),
                             }
