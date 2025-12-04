@@ -72,7 +72,8 @@ pub fn validate_ranges<'a>(
         } else if current.end < next.start {
             let gap_bytes = &bytes[current.end as usize..next.start as usize];
 
-            if gap_bytes.iter().any(|b| *b != 0) {
+            // TODO: Specify what padding bytes are acceptable.
+            if gap_bytes.iter().any(|b| *b != 0) && !gap_bytes.iter().all(|b| *b == 0xff) {
                 errors.push(OffsetValidationError::GapWithNonPaddingBytes {
                     before: current,
                     after: next,

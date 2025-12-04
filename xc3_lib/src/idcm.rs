@@ -7,7 +7,7 @@
 //! | Xenoblade 2 | 10003 | `map/*.wiidcm` |
 //! | Xenoblade 3 | 10003 | `map/*.idcm` |
 use crate::{
-    StringOffset32, parse_offset32_count32, parse_offset32_inner_count8,
+    StringOffset32, parse_offset16_count16, parse_offset32_count32, parse_offset32_inner_count8,
     parse_offset32_inner_count32, parse_ptr32, parse_string_ptr32,
 };
 use binrw::{BinRead, args, binread};
@@ -114,10 +114,13 @@ pub struct Idcm {
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unks1_2: Vec<[[f32; 4]; 4]>,
+    pub unks1_2: Vec<[f32; 62]>, // TODO: type?
+
+    #[br(temp, restore_position)]
+    unk16_offset: u32,
 
     #[br(parse_with = parse_offset32_count32)]
-    #[br(args{ offset: base_offset, inner: base_offset})]
+    #[br(args{ offset: base_offset, inner: args! { base_offset, unk16_offset } })]
     #[xc3(offset_count(u32, u32))]
     pub unk16: Vec<Unk16>,
 
@@ -246,16 +249,29 @@ pub struct InstanceTransform {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import_raw(base_offset: u64))]
+#[br(import { base_offset: u64, unk16_offset: u32 })]
 pub struct Unk16 {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub unk1: String,
-    pub unk2: u32,
-    // TODO: Why does this not always work?
-    // pub unk3: u32,
-    // pub unk4: u32,
-    // pub unk5: u32,
+
+    // Offsets are relative to the start of the section.
+    #[br(parse_with = parse_offset16_count16)]
+    #[br(args { offset: unk16_offset as u64, inner: unk16_offset as u64 })]
+    #[xc3(offset_count(u16, u16))]
+    pub unk2: Vec<Unk16Item1>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Unk16Item1 {
+    pub unk1: u16,
+    pub unk2: u16,
+
+    #[br(parse_with = parse_offset16_count16, offset = base_offset)]
+    #[xc3(offset_count(u16, u16))]
+    pub unk3: Vec<u16>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -337,8 +353,10 @@ impl Xc3WriteOffsets for IdcmOffsets<'_> {
         self.mesh_names
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
+        // Offsets are relative to the start of the section.
+        let unk16_offset = *data_ptr;
         for u in unk16.0 {
-            u.write_offsets(writer, base_offset, data_ptr, endian, ())?;
+            u.write_offsets(writer, unk16_offset, data_ptr, endian, ())?;
         }
 
         Ok(())
