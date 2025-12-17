@@ -248,8 +248,13 @@ pub struct Materials {
     #[xc3(offset(u32))]
     pub samplers: Option<Samplers>,
 
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset(u32))]
+    pub unk7: Option<MaterialUnk7>,
+
     // TODO: padding?
-    pub unks4: [u32; 3],
+    pub unks4: [u32; 2],
 
     #[br(if(material_offset >= 112))]
     #[br(args_raw(base_offset))]
@@ -867,6 +872,23 @@ pub struct MaterialUnk6ItemUnk4 {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
     pub unk2: Vec<[f32; 3]>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct MaterialUnk7 {
+    pub unk1: u32,
+
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset_u32)]
+    pub unk2: [f32; 12],
+
+    // TODO: count?
+    pub unk3: u32,
+
+    // TODO: padding?
+    pub unks: [u32; 4],
 }
 
 // xc1: 160, 164, 168 bytes
@@ -2642,6 +2664,8 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
         self.material_unk2
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.fur_shells
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk7
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.samplers
             .write_full(writer, base_offset, data_ptr, endian, ())?;
