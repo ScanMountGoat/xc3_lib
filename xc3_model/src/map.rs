@@ -14,7 +14,7 @@ use xc3_lib::{
 };
 
 use crate::{
-    IndexMapExt, MapRoot, Material, Model, ModelBuffers, ModelGroup, Models, Texture,
+    IndexMapExt, MapRoot, Material, Model, ModelBuffers, ModelGroup, ModelRoot, Models, Texture,
     create_materials,
     error::{CreateImageTextureError, LoadMapError},
     model::import::{create_samplers, lod_data},
@@ -47,10 +47,11 @@ pub fn load_map<P: AsRef<Path>>(
     wismhd_path: P,
     shader_database: Option<&ShaderDatabase>,
 ) -> Result<Vec<MapRoot>, LoadMapError> {
-    let msmd = Msmd::from_file(wismhd_path.as_ref()).map_err(LoadMapError::Wismhd)?;
-    let wismda = std::fs::read(wismhd_path.as_ref().with_extension("wismda"))?;
+    let wismhd_path = wismhd_path.as_ref();
+    let msmd = Msmd::from_file(wismhd_path).map_err(LoadMapError::Wismhd)?;
+    let wismda = std::fs::read(wismhd_path.with_extension("wismda"))?;
 
-    MapRoot::from_msmd(&msmd, &wismda, shader_database)
+    MapRoot::from_msmd(&msmd, &wismda, shader_database, wismhd_path)
 }
 
 impl MapRoot {
@@ -58,6 +59,7 @@ impl MapRoot {
         msmd: &Msmd,
         wismda: &[u8],
         shader_database: Option<&ShaderDatabase>,
+        wismhd_path: &Path,
     ) -> Result<Vec<Self>, LoadMapError> {
         // Loading is CPU intensive due to decompression and decoding.
         // The .wismda is loaded into memory as &[u8].
@@ -103,6 +105,13 @@ impl MapRoot {
             groups: vec![map_model_group, prop_model_group],
             image_textures: texture_cache.image_textures()?,
         });
+
+        if let Some(child_models) = &msmd.child_models {
+            for model in &child_models.models {
+                let root = load_child_model(model, child_models, shader_database, wismhd_path)?;
+                roots.push(root);
+            }
+        }
 
         Ok(roots)
     }
@@ -739,4 +748,48 @@ fn apply_material_texture_indices(
             texture.image_texture_index = index;
         }
     }
+}
+
+fn load_child_model(
+    child_model: &xc3_lib::msmd::MapChildModel,
+    child_models: &xc3_lib::msmd::MapChildModels,
+    shader_database: Option<&ShaderDatabase>,
+    wismhd_path: &Path,
+) -> Result<MapRoot, LoadMapError> {
+    // Child models have separate wismt files in the same folder for streamed data.
+    let wismt_path = wismhd_path
+        .with_file_name(&child_model.streaming_file_name)
+        .with_extension("wismt");
+
+    // TODO: chr tex folder?
+    let mut model_root = ModelRoot::from_mxmd(
+        &child_model.mxmd,
+        &wismt_path,
+        None,
+        None,
+        shader_database,
+        false,
+    )
+    .map_err(LoadMapError::Wimdo)?;
+
+    // TODO: Error for invalid instance range?
+    let instance_transforms: Vec<_> = child_models
+        .instance_transforms
+        .iter()
+        .skip(child_model.instances_start_index as usize)
+        .take(child_model.instances_count as usize)
+        .map(Mat4::from_cols_array_2d)
+        .collect();
+
+    for model in &mut model_root.models.models {
+        model.instances = instance_transforms.clone();
+    }
+
+    Ok(MapRoot {
+        groups: vec![ModelGroup {
+            models: vec![model_root.models],
+            buffers: vec![model_root.buffers],
+        }],
+        image_textures: model_root.image_textures,
+    })
 }

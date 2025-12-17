@@ -27,63 +27,72 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 pub mod legacy;
 pub mod legacy2;
 
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"DMXM"))]
 #[xc3(magic(b"DMXM"))]
+#[br(stream = r)]
+#[xc3(base_offset)]
 pub struct Mxmd {
+    // Subtract the magic size.
+    #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
+    base_offset: u64,
+
     // TODO: Calculate version when writing.
     pub version: u32,
 
-    #[br(args_raw(version))]
+    #[br(args { base_offset, version })]
     pub inner: MxmdInner,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import_raw(version: u32))]
+#[br(import { base_offset: u64, version: u32 })]
 pub enum MxmdInner {
+    // TODO: base offset?
     #[br(pre_assert(version == 10040))]
     V40(MxmdV40),
 
     #[br(pre_assert(version == 10111))]
-    V111(MxmdV111),
+    V111(#[br(args_raw(base_offset))] MxmdV111),
 
     #[br(pre_assert(version == 10112))]
-    V112(MxmdV112),
+    V112(#[br(args_raw(base_offset))] MxmdV112),
 }
 
 // TODO: Test this against xc2 files.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
 pub struct MxmdV111 {
     /// A collection of [ModelV111] and associated data.
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub models: ModelsV111,
 
     /// A collection of [Material] and associated data.
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub materials: Materials,
 
-    #[br(parse_with = parse_opt_ptr32)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub unk1: Option<Unk1>,
 
     // TODO: This type is slightly different than for mxmd 112
     /// Embedded vertex data for .wimdo only models with no .wismt.
-    #[br(parse_with = parse_opt_ptr32)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub vertex_data: Option<VertexData>,
 
     /// Embedded shader data for .wimdo only models with no .wismt.
-    #[br(parse_with = parse_opt_ptr32)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub spch: Option<Spch>,
 
     /// Textures included within this file.
-    #[br(parse_with = parse_opt_ptr32)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub packed_textures: Option<PackedTextures>,
 
@@ -91,14 +100,14 @@ pub struct MxmdV111 {
 
     /// Streaming information for the .wismt file or [None] if no .wismt file.
     /// Identical to the same field in the corresponding [Msrd](crate::msrd::Msrd).
-    #[br(parse_with = parse_opt_ptr32)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(4))]
     pub streaming: Option<Streaming>,
 
     pub unk6: u32,
     pub unk7: u32,
 
-    #[br(parse_with = parse_opt_ptr32)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(16))]
     pub unk8: Option<Unk8>,
 
@@ -108,33 +117,34 @@ pub struct MxmdV111 {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
 pub struct MxmdV112 {
     /// A collection of [ModelV112] and associated data.
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(16))]
     pub models: ModelsV112,
 
     /// A collection of [Material] and associated data.
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(16))]
     pub materials: Materials,
 
-    #[br(parse_with = parse_opt_ptr32)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(16))]
     pub unk1: Option<Unk1>,
 
     /// Embedded vertex data for .wimdo only models with no .wismt.
-    #[br(parse_with = parse_opt_ptr32)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub vertex_data: Option<VertexData>,
 
     /// Embedded shader data for .wimdo only models with no .wismt.
-    #[br(parse_with = parse_opt_ptr32)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub spch: Option<Spch>,
 
     /// Textures included within this file.
-    #[br(parse_with = parse_opt_ptr32)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub packed_textures: Option<PackedTextures>,
 
@@ -142,14 +152,14 @@ pub struct MxmdV112 {
 
     /// Streaming information for the .wismt file or [None] if no .wismt file.
     /// Identical to the same field in the corresponding [Msrd](crate::msrd::Msrd).
-    #[br(parse_with = parse_opt_ptr32)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(4))]
     pub streaming: Option<Streaming>,
 
     pub unk6: u32,
     pub unk7: u32,
 
-    #[br(parse_with = parse_opt_ptr32)]
+    #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(16))]
     pub unk8: Option<Unk8>,
 

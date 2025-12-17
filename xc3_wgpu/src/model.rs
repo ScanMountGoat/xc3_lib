@@ -95,8 +95,10 @@ impl Models {
             .map(|s| create_sampler(device, s))
             .collect();
 
-        // TODO: Should instances be empty for character models instead of length 1?
-        let is_instanced_static = models.models.iter().any(|m| m.instances.len() > 1);
+        // TODO: Should instances be empty for character models instead of a single identity transform?
+        let is_instanced_static = models.models.iter().any(|m| {
+            m.instances.len() > 1 || matches!(m.instances.first(), Some(t) if *t != Mat4::IDENTITY)
+        });
 
         let mut index_to_materials = BTreeMap::new();
 

@@ -12,7 +12,7 @@ use std::{
     marker::PhantomData,
 };
 
-use binrw::{BinRead, BinWrite, binread};
+use binrw::{BinRead, BinWrite, args, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use crate::{
@@ -22,7 +22,7 @@ use crate::{
         MapModelData, PropInstance, PropModelData, PropPositions,
     },
     mibl::Mibl,
-    mxmd::TextureUsage,
+    mxmd::{Mxmd, TextureUsage},
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32,
     vertex::VertexData,
@@ -93,8 +93,11 @@ pub struct Msmd {
     #[xc3(count_offset(u32, u32))]
     pub foliage_data: Vec<StreamEntry<FoliageVertexData>>,
 
-    pub unk3_1: u32,
-    pub unk3_2: u32,
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32))]
+    pub child_models: Option<MapChildModels>,
+
+    pub unk3_2: u32, // TODO: cover data
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
@@ -360,7 +363,7 @@ pub struct WismdaInfo {
     pub unk1: u32,
     pub decompressed_length: u32,
     pub streaming_buffer_length: u32,
-    pub unks: [u32; 15],
+    pub unks: [u32; 50],
 }
 
 #[binread]
@@ -496,13 +499,18 @@ pub struct MapParts {
     pub instance_animations: Vec<MapPartInstanceAnimation>,
 
     pub unk4: u32,
-    pub unk5: u32,
+
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk5: Vec<[u32; 3]>, // TODO: Offset after map parts?
+
     pub unk6: u32,
-    pub unk7: u32,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub transforms: Vec<[[f32; 4]; 4]>,
+
+    pub unks: [u32; 3],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -598,6 +606,59 @@ pub struct MapPart {
     pub instance_animation_index: u16,
     pub switch_group_index: u16,
     pub unk: u16,
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct MapChildModels {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count(u32, u32))]
+    pub models: Vec<MapChildModel>,
+
+    pub instance_count: u32,
+
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: instance_count as usize } })]
+    #[xc3(offset(u32))]
+    pub instance_transforms: Vec<[[f32; 4]; 4]>,
+
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: instance_count as usize } })]
+    #[xc3(offset(u32))]
+    pub instances: Vec<MapChildModelInstance>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct MapChildModel {
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub mxmd: Mxmd,
+
+    #[br(parse_with = parse_string_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub streaming_file_name: String,
+
+    pub instances_start_index: u32,
+    pub instances_count: u32,
+    pub cull_distance: f32,
+    // TODO: padding?
+    pub unk: [u32; 2],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct MapChildModelInstance {
+    pub flags: u32,
+    pub map_part_id1: u32,
+    pub map_part_id2: u32,
 }
 
 /// A reference to an [Xbc1] in the `.wismda` file.

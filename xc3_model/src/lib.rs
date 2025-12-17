@@ -35,7 +35,6 @@ use error::{LoadModelError, LoadModelLegacyError};
 use glam::{Mat4, Vec3};
 use indexmap::IndexMap;
 use material::{create_materials, create_materials_samplers_legacy};
-use model::import::{ModelFilesV40, ModelFilesV111, ModelFilesV112};
 use shader_database::ShaderDatabase;
 use skinning::Skinning;
 use vertex::ModelBuffers;
@@ -287,20 +286,14 @@ pub fn load_model<P: AsRef<Path>>(
     let model_name = model_name(wimdo_path);
     let skel = load_skel(wimdo_path, &model_name);
 
-    match mxmd.inner {
-        xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
-            let files = ModelFilesV40::from_files(&mxmd, &wismt_path, chr.as_deref())?;
-            ModelRoot::from_mxmd_v40(&files, skel, shader_database)
-        }
-        xc3_lib::mxmd::MxmdInner::V111(mxmd) => {
-            let files = ModelFilesV111::from_files(&mxmd, &wismt_path, chr.as_deref(), is_pc)?;
-            ModelRoot::from_mxmd_v111(&files, skel, shader_database)
-        }
-        xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
-            let files = ModelFilesV112::from_files(&mxmd, &wismt_path, chr.as_deref(), is_pc)?;
-            ModelRoot::from_mxmd_v112(&files, skel, shader_database)
-        }
-    }
+    ModelRoot::from_mxmd(
+        &mxmd,
+        &wismt_path,
+        chr.as_deref(),
+        skel,
+        shader_database,
+        is_pc,
+    )
 }
 
 pub fn load_skel(wimdo: &Path, model_name: &str) -> Option<xc3_lib::bc::skel::Skel> {

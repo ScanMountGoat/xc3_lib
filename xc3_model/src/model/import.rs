@@ -8,7 +8,7 @@ use xc3_lib::{
     error::ReadFileError,
     hkt::Hkt,
     msrd::Msrd,
-    mxmd::{AlphaTable, Materials, MeshRenderFlags2, MeshRenderPass, legacy::MxmdLegacy},
+    mxmd::{AlphaTable, Materials, MeshRenderFlags2, MeshRenderPass, Mxmd, legacy::MxmdLegacy},
 };
 
 use crate::{
@@ -294,6 +294,30 @@ impl<'a> ModelFilesV112<'a> {
 }
 
 impl ModelRoot {
+    pub fn from_mxmd(
+        mxmd: &Mxmd,
+        wismt_path: &Path,
+        chr_folder: Option<&Path>,
+        skel: Option<Skel>,
+        shader_database: Option<&ShaderDatabase>,
+        is_pc: bool,
+    ) -> Result<Self, LoadModelError> {
+        match &mxmd.inner {
+            xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
+                let files = ModelFilesV40::from_files(&mxmd, &wismt_path, chr_folder)?;
+                ModelRoot::from_mxmd_v40(&files, skel, shader_database)
+            }
+            xc3_lib::mxmd::MxmdInner::V111(mxmd) => {
+                let files = ModelFilesV111::from_files(&mxmd, &wismt_path, chr_folder, is_pc)?;
+                ModelRoot::from_mxmd_v111(&files, skel, shader_database)
+            }
+            xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
+                let files = ModelFilesV112::from_files(&mxmd, &wismt_path, chr_folder, is_pc)?;
+                ModelRoot::from_mxmd_v112(&files, skel, shader_database)
+            }
+        }
+    }
+
     /// Load models from parsed file data for Xenoblade 1 DE, Xenoblade 2, or Xenoblade 3.
     pub fn from_mxmd_v112(
         files: &ModelFilesV112,

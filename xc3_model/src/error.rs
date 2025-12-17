@@ -93,6 +93,9 @@ pub enum LoadMapError {
     #[error("error reading data")]
     Io(#[from] std::io::Error),
 
+    #[error("error loading wimdo model")]
+    Wimdo(#[source] LoadModelError),
+
     #[error("error reading wismhd file")]
     Wismhd(#[source] ReadFileError),
 
