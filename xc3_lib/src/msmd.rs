@@ -24,7 +24,7 @@ use crate::{
     mibl::Mibl,
     mxmd::{Mxmd, TextureUsage},
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
-    parse_string_ptr32,
+    parse_string_opt_ptr32, parse_string_ptr32,
     vertex::VertexData,
     xbc1::Xbc1,
     xc3_write_binwrite_impl,
@@ -59,6 +59,7 @@ pub struct Msmd {
     #[xc3(offset(u32))]
     pub wismda_info: WismdaInfo,
 
+    // TODO: streaming file name offset relative to strings_offset?
     pub unk2_1: u32,
 
     #[br(parse_with = parse_opt_ptr32)]
@@ -77,7 +78,10 @@ pub struct Msmd {
     #[xc3(count_offset(u32, u32))]
     pub textures: Vec<Texture>,
 
-    pub strings_offset: u32,
+    // TODO: Offset for string table?
+    #[br(parse_with = parse_string_opt_ptr32)]
+    #[xc3(offset(u32))]
+    pub strings_offset: Option<String>,
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
@@ -294,14 +298,216 @@ pub struct Cmld {
 
 // TODO: Lighting data?
 // TODO: .wilgt files?
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"DLGT"))]
 #[xc3(magic(b"DLGT"))]
+#[xc3(base_offset)]
+#[br(stream = r)]
 pub struct Dlgt {
+    // Subtract the magic size.
+    #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
+    base_offset: u64,
+
     pub version: u32,
+
+    #[br(parse_with = parse_ptr32, args { offset: base_offset, inner: base_offset})]
+    #[xc3(offset(u32))]
+    pub light_data: LightData,
+
+    #[br(parse_with = parse_ptr32, args { offset: base_offset, inner: base_offset})]
+    #[xc3(offset(u32))]
+    pub light_instance_data: LightInstanceData,
+
+    pub unk3: u32,
+
+    #[br(parse_with = parse_ptr32, args { offset: base_offset, inner: base_offset})]
+    #[xc3(offset(u32))]
+    pub fog_data: LightFogData,
+
+    pub unk4: u32,
+    pub time_data: u32,
+    pub animation_data: u32,
+
+    #[br(parse_with = parse_ptr32, args { offset: base_offset, inner: base_offset})]
+    #[xc3(offset(u32))]
+    pub zone_data: LightZoneData,
+
+    pub flags: u32, // TODO: Bit flags
+    // TODO: Check flags
+    // #[br(parse_with = parse_ptr32, args { offset: base_offset, inner: base_offset})]
+    // #[xc3(offset(u32))]
+    pub clip_group_data: u32,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct LightData {
+    #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset(u32, u32))]
+    pub lights: Vec<Light>,
+
+    pub textures_offset: u32,
+    pub textures_count: u32,
+    pub ambient_light_count: u32,
+    pub directional_light_count: u32,
+    pub point_light_count: u32,
+    pub spot_light_count: u32,
     pub unk1: u32,
     pub unk2: u32,
+    pub animation_data: u32, // TODO: offset
+    pub local_ibl_light_count: u32,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct Light {
+    pub params_offset: u32,
+    pub ty: u32,
+    pub flags: u32,
+    pub color: [f32; 3],
+    pub intensity: f32,
+    pub unk1: f32,
+    pub unk2: u16,
+    pub group_id: u16,
+    pub falloff: f32,
+    pub animation_index: u16,
+    pub animation_constant_start_index: u16,
+    pub time_group_index: u16,
+    pub zone_group_index: u16,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct LightInstanceData {
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub instances: Vec<LightInstance>,
+
+    #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset(u32, u32))]
+    pub tree_nodes: Vec<LightTreeNode>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct LightInstance {
+    pub world_matrix: [[f32; 4]; 4],
+    pub bounds_center: [f32; 3],
+    pub bounds_radius: f32,
+    pub fade_position: [f32; 3],
+    pub fade_distance: f32,
+    pub clip_group_index_plus_one: u16,
+    pub map_part_id: u16,
+    // TODO: padding?
+    pub unks: [u32; 3],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct LightTreeNode {
+    pub bounds_max: [f32; 3],
+    pub bounds_min: [f32; 3],
+    // TODO: offset + count
+    pub child_node_indices_offset: u32,
+    pub light_indices_offset: u32,
+    pub child_node_indices_count: u16,
+    pub light_indices_count: u16,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct LightFogData {
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub fogs: Vec<Fog>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct Fog {
+    pub color: [f32; 3],
+    pub horizon_color: [f32; 3],
+    pub sun_color: [f32; 3],
+    pub near: f32,
+    pub far: f32,
+    pub density: f32,
+    pub falloff: f32,
+    pub horizon_falloff: f32,
+    pub sun_falloff: f32,
+    pub god_ray_strength: f32,
+    pub god_ray_falloff: f32,
+    pub animation_index: u16,
+    pub time_group_index: u16,
+    pub flags: u16,
+    pub ty: u16,
+    pub zone_group_index: u16,
+    pub sky_intensity: f32,
+    pub unk1: u32,
+    // TODO: padding?
+    pub unk2: u32,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct LightZoneData {
+    #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset(u32, u32))]
+    pub groups: Vec<ZoneGroup>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct ZoneGroup {
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub light_alternatives: Vec<ZoneLightAlternative>,
+
+    pub zone_id: u32,
+    // TODO: padding?
+    pub unks: [u32; 2],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct ZoneLightAlternative {
+    pub zone_id: u16,
+    pub light_index: u16,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct ClipGroupData {
+    #[br(parse_with = parse_offset32_count32, args { offset: base_offset, inner: base_offset })]
+    #[xc3(offset_count(u32, u32))]
+    pub groups: Vec<ClipGroup>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct ClipGroup {
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub items: Vec<ClipGroupItem>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct ClipGroupItem {
+    pub clip_volume_group_index: u16,
+    pub ty: u16,
+    pub priority: u16,
+    pub unk: u16,
 }
 
 #[binread]
