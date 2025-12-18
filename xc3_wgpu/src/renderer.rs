@@ -563,6 +563,7 @@ impl Renderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         })
     }
 
@@ -603,6 +604,7 @@ impl Renderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         // TODO: organize into per frame, per model, etc?
@@ -712,6 +714,7 @@ impl Renderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         })
     }
 
@@ -753,6 +756,7 @@ impl Renderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         // TODO: organize into per frame, per model, etc?
@@ -797,6 +801,7 @@ impl Renderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         render_pass.set_pipeline(&self.unbranch_to_depth_pipeline);
@@ -831,6 +836,7 @@ impl Renderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         for (pipeline, bind_group2) in self
@@ -874,6 +880,7 @@ impl Renderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         render_pass.set_pipeline(&self.deferred_debug_pipeline);
@@ -913,6 +920,7 @@ impl Renderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         render_pass.set_pipeline(&self.snn_filter_pipeline);
@@ -960,6 +968,7 @@ impl Renderer {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         self.blit_deferred(&mut render_pass);
@@ -1168,7 +1177,7 @@ fn deferred_pipeline(device: &wgpu::Device, entry_point: &str) -> wgpu::RenderPi
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -1202,7 +1211,7 @@ fn deferred_debug_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -1239,7 +1248,7 @@ fn solid_pipeline(
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -1279,7 +1288,7 @@ fn collision_pipeline(
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -1308,7 +1317,7 @@ fn unbranch_to_depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -1353,7 +1362,7 @@ fn snn_filter_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -1394,7 +1403,7 @@ fn blit_hair_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgp
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -1420,7 +1429,7 @@ fn blit_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::Re
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }

@@ -220,7 +220,7 @@ fn model_pipeline_inner<const M: usize, const N: usize>(
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }

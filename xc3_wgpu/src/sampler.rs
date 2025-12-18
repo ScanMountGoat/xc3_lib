@@ -10,7 +10,7 @@ fn sampler_descriptor(sampler: &xc3_model::Sampler) -> wgpu::SamplerDescriptor<'
         address_mode_w: address_mode(sampler.address_mode_w),
         mag_filter: filter_mode(sampler.mag_filter),
         min_filter: filter_mode(sampler.min_filter),
-        mipmap_filter: filter_mode(sampler.mip_filter),
+        mipmap_filter: mip_filter_mode(sampler.mip_filter),
         lod_min_clamp: 0.0,
         lod_max_clamp: sampler.lod_max_clamp(),
         anisotropy_clamp: if sampler.anisotropic_filtering() {
@@ -26,6 +26,13 @@ fn filter_mode(value: xc3_model::FilterMode) -> wgpu::FilterMode {
     match value {
         xc3_model::FilterMode::Nearest => wgpu::FilterMode::Nearest,
         xc3_model::FilterMode::Linear => wgpu::FilterMode::Linear,
+    }
+}
+
+fn mip_filter_mode(value: xc3_model::FilterMode) -> wgpu::MipmapFilterMode {
+    match value {
+        xc3_model::FilterMode::Nearest => wgpu::MipmapFilterMode::Nearest,
+        xc3_model::FilterMode::Linear => wgpu::MipmapFilterMode::Linear,
     }
 }
 
