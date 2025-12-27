@@ -12,7 +12,7 @@ use std::{
     marker::PhantomData,
 };
 
-use binrw::{BinRead, BinWrite, args, binread};
+use binrw::{BinRead, BinResult, BinWrite, Endian, args, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use crate::{
@@ -24,7 +24,7 @@ use crate::{
     mibl::Mibl,
     mxmd::{Mxmd, TextureUsage},
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
-    parse_string_opt_ptr32, parse_string_ptr32,
+    parse_string_opt_ptr32, parse_string_ptr32, parse_vec,
     vertex::VertexData,
     xbc1::Xbc1,
     xc3_write_binwrite_impl,
@@ -310,7 +310,7 @@ pub struct Dlgt {
     #[br(temp, try_calc = r.stream_position().map(|p| p - 4))]
     base_offset: u64,
 
-    pub version: u32,
+    pub version: u32, // 10008
 
     #[br(parse_with = parse_ptr32, args { offset: base_offset, inner: base_offset})]
     #[xc3(offset(u32))]
@@ -327,7 +327,11 @@ pub struct Dlgt {
     pub fog_data: LightFogData,
 
     pub unk4: u32,
-    pub time_data: u32,
+
+    #[br(parse_with = parse_ptr32, offset = base_offset)]
+    #[xc3(offset(u32))]
+    pub time_data: LightTimeData,
+
     pub animation_data: u32,
 
     #[br(parse_with = parse_ptr32, args { offset: base_offset, inner: base_offset})]
@@ -345,9 +349,10 @@ pub struct Dlgt {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct LightData {
+    // TODO: why does count need to be multiplied by 4?
     #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
     #[xc3(count_offset(u32, u32))]
-    pub lights: Vec<Light>,
+    pub lights: Vec<[Light; 4]>,
 
     pub textures_offset: u32,
     pub textures_count: u32,
@@ -361,11 +366,19 @@ pub struct LightData {
     pub local_ibl_light_count: u32,
 }
 
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Light {
-    pub params_offset: u32,
+    #[br(temp, restore_position)]
+    offset_ty: [u32; 2],
+
+    // TODO: data type depends on ty?
+    #[br(parse_with = parse_ptr32, args { offset: base_offset, inner: offset_ty[1] })]
+    #[xc3(offset(u32))]
+    pub params: LightParam,
+
     pub ty: u32,
     pub flags: u32,
     pub color: [f32; 3],
@@ -378,6 +391,24 @@ pub struct Light {
     pub animation_constant_start_index: u16,
     pub time_group_index: u16,
     pub zone_group_index: u16,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(ty: u32))]
+pub enum LightParam {
+    #[br(pre_assert(ty == 0))]
+    Unk0([u32; 11]),
+
+    #[br(pre_assert(ty == 1))]
+    Unk1(LightParamUnk1),
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct LightParamUnk1 {
+    pub unk1: u32,
+    pub unk2: [f32; 4],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -413,11 +444,17 @@ pub struct LightInstance {
 pub struct LightTreeNode {
     pub bounds_max: [f32; 3],
     pub bounds_min: [f32; 3],
-    // TODO: offset + count
     pub child_node_indices_offset: u32,
     pub light_indices_offset: u32,
     pub child_node_indices_count: u16,
     pub light_indices_count: u16,
+
+    // TODO: better handling of offset + count
+    #[br(parse_with = parse_offset_count(base_offset + child_node_indices_offset as u64, child_node_indices_count as usize))]
+    child_node_indices: Vec<u32>,
+
+    #[br(parse_with = parse_offset_count(base_offset + light_indices_offset as u64, light_indices_count as usize))]
+    light_indices: Vec<u32>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -452,6 +489,71 @@ pub struct Fog {
     pub unk1: u32,
     // TODO: padding?
     pub unk2: u32,
+}
+
+#[binread]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(stream = r)]
+#[xc3(base_offset)]
+pub struct LightTimeData {
+    #[br(temp, try_calc = r.stream_position())]
+    base_offset: u64,
+
+    #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset(u32, u32))]
+    pub groups: Vec<TimeGroup>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct TimeGroup {
+    pub weather_bitmap: u32,
+
+    #[br(parse_with = parse_count32_offset32, args { offset: base_offset, inner: base_offset })]
+    #[xc3(count_offset(u32, u32))]
+    pub weathers: Vec<TimeWeather>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(base_offset: u64))]
+pub struct TimeWeather {
+    pub weather_bitmap: u32,
+
+    // TODO: how to select light or fog interval?
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub intervals: Vec<TimeWeatherIntervalLight>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct TimeWeatherIntervalLight {
+    pub color: [f32; 3],
+    pub intensity: f32,
+    pub shadow_intensity: f32,
+    pub blend_time: f32,
+    pub start_time: f32,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct TimeWeatherIntervalFog {
+    pub color: [f32; 3],
+    pub horizon_color: [f32; 3],
+    pub sun_color: [f32; 3],
+    pub near: f32,
+    pub far: f32,
+    pub horizon_falloff: f32,
+    pub sun_falloff: f32,
+    pub god_ray_strength: f32,
+    pub god_ray_falloff: f32,
+    pub blend_time: f32,
+    pub start_time: f32,
+    pub density: f32,
+    pub sky_density: f32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -936,3 +1038,16 @@ impl<T> Xc3Write for StreamEntry<T> {
 }
 
 xc3_write_binwrite_impl!(ChannelType);
+
+fn parse_offset_count<R, T>(
+    offset: u64,
+    count: usize,
+) -> impl Fn(&mut R, Endian, ()) -> BinResult<Vec<T>>
+where
+    T: 'static,
+    for<'a> T: BinRead<Args<'a> = ()>,
+    R: Read + Seek,
+{
+    // Needed for offset tracking.
+    move |reader, endian, _args| parse_vec(reader, endian, Default::default(), offset, count)
+}
