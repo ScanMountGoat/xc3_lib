@@ -927,7 +927,7 @@ impl ModelBuffers {
     ) -> BinResult<Self> {
         let vertex_buffers = read_vertex_buffers_legacy(vertex_data, endian)?;
 
-        let index_buffers = read_index_buffers_legacy(vertex_data, endian)?;
+        let index_buffers = read_index_buffers_legacy(vertex_data)?;
 
         // TODO: don't duplicate the weights buffers?
         let weights = weights_legacy(&vertex_buffers, vertex_data.weight_buffer_indices);
@@ -942,11 +942,9 @@ impl ModelBuffers {
         })
     }
 
-    // TODO: Test this in xc3_test?
-    /// Encode and write all the attributes to a new [VertexData].
+    /// Encode and write all data to a new [VertexData].
     pub fn to_vertex_data(&self) -> BinResult<VertexData> {
         // TODO: recreate vertex buffers and match original ordering?
-        // TODO: vertex, outline, index, align 256, morph, align 256, unk7
         let mut vertex_buffers = Vec::new();
         let mut index_buffers = Vec::new();
         let mut outline_buffers = Vec::new();
@@ -1135,6 +1133,64 @@ impl ModelBuffers {
             unks: [0; 4],
         })
     }
+
+    /// Encode and write all data to a new [VertexData](xc3_lib::mxmd::legacy::VertexData).
+    pub fn to_vertex_data_legacy(&self) -> BinResult<xc3_lib::mxmd::legacy::VertexData> {
+        let mut vertex_buffers = Vec::new();
+        for buffer in &self.vertex_buffers {
+            let mut data = Cursor::new(Vec::new());
+            let descriptor = write_vertex_buffer(&mut data, &buffer.attributes, Endian::Little)?;
+
+            let vertex_buffer = xc3_lib::mxmd::legacy::VertexBufferDescriptor {
+                data: data.into_inner(),
+                vertex_count: descriptor.vertex_count as u32,
+                vertex_size: descriptor.vertex_size,
+                attributes: descriptor.attributes,
+                unk1: 0,
+            };
+            vertex_buffers.push(vertex_buffer);
+        }
+
+        let mut index_buffers = Vec::new();
+        for buffer in &self.index_buffers {
+            let mut data = Cursor::new(Vec::new());
+            buffer.indices.write_le(&mut data)?;
+
+            let index_buffer = xc3_lib::mxmd::legacy::IndexBufferDescriptor {
+                indices: buffer.indices.clone(),
+                unk1: 0,
+                unk2: 0,
+            };
+            index_buffers.push(index_buffer);
+        }
+
+        // TODO: Calculate weight buffer indices from scratch?
+        let weight_buffer_start = self
+            .vertex_buffers
+            .iter()
+            .position(|b| skin_weights_bone_indices(&b.attributes).is_some())
+            .unwrap_or_default();
+
+        let weight_buffer_indices = self
+            .weights
+            .as_ref()
+            .map(|weights| match &weights.weight_groups {
+                WeightGroups::Legacy {
+                    weight_buffer_indices,
+                } => weight_buffer_indices
+                    .map(|i| (i.map(|i| i + weight_buffer_start).unwrap_or_default()) as u16),
+                // TODO: Can legacy models be created from modern weights?
+                WeightGroups::Groups { .. } => todo!(),
+            })
+            .unwrap_or_default();
+
+        Ok(xc3_lib::mxmd::legacy::VertexData {
+            vertex_buffers,
+            index_buffers,
+            weight_buffer_indices,
+            unk: [0; 5],
+        })
+    }
 }
 
 fn write_unk_data_buffer(
@@ -1314,27 +1370,16 @@ fn write_morph_blend_target(
 
 fn read_index_buffers_legacy(
     vertex_data: &xc3_lib::mxmd::legacy::VertexData,
-    endian: Endian,
 ) -> BinResult<Vec<IndexBuffer>> {
-    // Each buffer already has the data at the appropriate offset.
-    let data_offset = 0;
-
+    // TODO: is this always u16 triangle list?
     vertex_data
         .index_buffers
         .iter()
         .map(|descriptor| {
-            read_index_buffer(
-                &IndexBufferDescriptor {
-                    data_offset,
-                    index_count: descriptor.index_count,
-                    primitive_type: PrimitiveType::TriangleList,
-                    index_format: xc3_lib::vertex::IndexFormat::Uint16,
-                    unk3: 0,
-                    unk4: 0,
-                },
-                &descriptor.data,
-                endian,
-            )
+            Ok(IndexBuffer {
+                indices: descriptor.indices.clone(),
+                primitive_type: PrimitiveType::TriangleList,
+            })
         })
         .collect()
 }
@@ -1389,17 +1434,15 @@ fn weights_legacy(
         .collect();
 
     // Reindex to account for flattening the buffers.
-    // TODO: Store the original index with each weight buffer to handle unused indices?
     let weight_buffer_start = vertex_buffers
         .iter()
         .position(|b| skin_weights_bone_indices(&b.attributes).is_some())
         .unwrap_or_default();
-
     Some(Weights {
         weight_buffers,
         weight_groups: WeightGroups::Legacy {
             weight_buffer_indices: weight_buffer_indices
-                .map(|i| (i as usize).saturating_sub(weight_buffer_start)),
+                .map(|i| (i as usize).checked_sub(weight_buffer_start)),
         },
     })
 }

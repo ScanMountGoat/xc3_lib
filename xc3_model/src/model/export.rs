@@ -4,7 +4,10 @@ use log::warn;
 use xc3_lib::{
     mibl::Mibl,
     msrd::{Msrd, streaming::ExtractedTexture},
-    mxmd::{AlphaTable, LodData, LodGroup, LodItem, Mxmd, MxmdV112, TextureUsage, VertexAttribute},
+    mxmd::{
+        self, AlphaTable, LodData, LodGroup, LodItem, Mxmd, MxmdV112, TextureUsage,
+        VertexAttribute, legacy2::MxmdV40,
+    },
     vertex::{DataType, VertexData},
 };
 
@@ -29,16 +32,36 @@ impl ModelRoot {
         msrd: &Msrd,
     ) -> Result<(Mxmd, Msrd), CreateModelError> {
         match &mxmd.inner {
-            xc3_lib::mxmd::MxmdInner::V40(_) => Err(CreateModelError::UnsupportedVersion {
-                version: mxmd.version,
-            }),
+            xc3_lib::mxmd::MxmdInner::V40(inner) => {
+                // TODO: Does this need to even extract vertex/textures?
+                let spco = msrd.extract_files_legacy(None)?.shader;
+                let (mut new_mxmd, vertex, textures) = self.to_mxmd_v40_model_files(inner)?;
+
+                let use_chr_textures = inner
+                    .streaming
+                    .as_ref()
+                    .map(|s| s.inner.has_chr_textures())
+                    .unwrap_or_default();
+                let new_msrd =
+                    Msrd::from_extracted_files_legacy(&vertex, &spco, &textures, use_chr_textures)
+                        .unwrap();
+
+                // The mxmd and msrd streaming header need to match exactly.
+                new_mxmd.streaming = Some(new_msrd.streaming.clone());
+
+                let new_mxmd = Mxmd {
+                    version: mxmd.version,
+                    inner: xc3_lib::mxmd::MxmdInner::V40(new_mxmd),
+                };
+                Ok((new_mxmd, new_msrd))
+            }
             xc3_lib::mxmd::MxmdInner::V111(_) => Err(CreateModelError::UnsupportedVersion {
                 version: mxmd.version,
             }),
             xc3_lib::mxmd::MxmdInner::V112(inner) => {
                 // TODO: Does this need to even extract vertex/textures?
                 let spch = msrd.extract_files(None)?.shader;
-                let (mut new_mxmd, vertex, textures) = self.to_mxmd_model_files(inner)?;
+                let (mut new_mxmd, vertex, textures) = self.to_mxmd_v112_model_files(inner)?;
 
                 let use_chr_textures = inner
                     .streaming
@@ -62,7 +85,7 @@ impl ModelRoot {
     }
 
     /// Similar to [Self::to_mxmd_model] but does not compress the new data or update streaming information.
-    pub fn to_mxmd_model_files(
+    pub fn to_mxmd_v112_model_files(
         &self,
         mxmd: &MxmdV112,
     ) -> Result<
@@ -390,6 +413,92 @@ impl ModelRoot {
                 match_technique_attributes(buffer, attributes);
             }
         }
+    }
+
+    /// Similar to [Self::to_mxmd_model] but does not compress the new data or update streaming information.
+    pub fn to_mxmd_v40_model_files(
+        &self,
+        mxmd: &MxmdV40,
+    ) -> Result<
+        (
+            MxmdV40,
+            mxmd::legacy::VertexData,
+            Vec<ExtractedTexture<Mibl, TextureUsage>>,
+        ),
+        CreateModelError,
+    > {
+        let textures: Vec<_> = self
+            .image_textures
+            .iter()
+            .map(ImageTexture::to_extracted_texture)
+            .collect();
+
+        let buffers = self.buffers.clone();
+        // TODO: match legacy technique attributes?
+        let new_vertex = buffers.to_vertex_data_legacy().unwrap();
+
+        let mut new_mxmd = mxmd.clone();
+
+        // TODO: Rebuild materials.
+        // TODO: How many of these mesh fields can use a default value?
+
+        new_mxmd.models.models = self
+            .models
+            .models
+            .iter()
+            .map(|model| xc3_lib::mxmd::legacy::Model {
+                meshes: model
+                    .meshes
+                    .iter()
+                    .map(|m| {
+                        // TODO: Fill in remaining fields.
+                        xc3_lib::mxmd::legacy::Mesh {
+                            flags1: m.flags1,
+                            flags2: m.flags2.into(),
+                            vertex_buffer_index: m.vertex_buffer_index as u32,
+                            index_buffer_index: m.index_buffer_index as u32,
+                            material_index: m.material_index as u32,
+                            unk2: 0,
+                            unk3: 0,
+                            unk4: 0,
+                            unk5: 0,
+                            unk6: 0,
+                            unk7: 0,
+                            unk8: 0,
+                            unk9: 0,
+                            unk10: 0,
+                            unk11: 0,
+                            unk12: 0,
+                        }
+                    })
+                    .collect(),
+                unk1: 0,
+                max_xyz: model.max_xyz.to_array(),
+                min_xyz: model.min_xyz.to_array(),
+                bounding_radius: model.bounding_radius,
+                unks: [0; 7],
+            })
+            .collect();
+
+        new_mxmd.models.min_xyz = new_mxmd
+            .models
+            .models
+            .iter()
+            .map(|m| m.min_xyz)
+            .reduce(|[ax, ay, az], [bx, by, bz]| [ax.min(bx), ay.min(by), az.min(bz)])
+            .unwrap_or_default();
+        new_mxmd.models.max_xyz = new_mxmd
+            .models
+            .models
+            .iter()
+            .map(|m| m.max_xyz)
+            .reduce(|[ax, ay, az], [bx, by, bz]| [ax.max(bx), ay.max(by), az.max(bz)])
+            .unwrap_or_default();
+
+        // This should be updated later.
+        new_mxmd.streaming = None;
+
+        Ok((new_mxmd, new_vertex, textures))
     }
 }
 

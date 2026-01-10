@@ -657,7 +657,9 @@ file_write_full_impl!(
     datasheet::DataSheet,
     wipac::Wipac,
     laft::Laft,
-    last::Last
+    last::Last,
+    // TODO: This can be big endian for camdo
+    mxmd::legacy::VertexData
 );
 
 file_write_full_impl!(xc3_write::Endian::Big, fnt::Fnt);

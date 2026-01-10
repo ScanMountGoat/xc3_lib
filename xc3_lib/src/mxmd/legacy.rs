@@ -2,9 +2,9 @@
 use std::io::SeekFrom;
 
 use crate::{
-    StringOffset32, msrd::StreamingDataLegacyInner, parse_count32_offset32, parse_offset,
-    parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
-    vertex::VertexAttribute, xc3_write_binwrite_impl,
+    StringOffset32, msrd::StreamingDataLegacyInner, parse_count32_offset32, parse_offset32_count32,
+    parse_opt_ptr32, parse_ptr32, parse_string_ptr32, vertex::VertexAttribute,
+    xc3_write_binwrite_impl,
 };
 use binrw::{BinRead, BinWrite, args, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
@@ -853,12 +853,19 @@ pub struct VertexData {
     pub unk: [u32; 5],
 }
 
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct VertexBufferDescriptor {
-    #[xc3(save_position)]
-    pub data_offset: u32,
+    #[br(temp, restore_position)]
+    offset_count_size: [u32; 3],
+
+    #[br(parse_with = parse_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: (offset_count_size[1] * offset_count_size[2]) as usize }})]
+    #[xc3(offset(u32))]
+    pub data: Vec<u8>,
+
     pub vertex_count: u32,
     /// The size or stride of the vertex in bytes.
     pub vertex_size: u32,
@@ -869,35 +876,18 @@ pub struct VertexBufferDescriptor {
     pub attributes: Vec<VertexAttribute>,
 
     pub unk1: u32,
-
-    // TODO: Find a better way to handle buffer data?
-    #[br(parse_with = parse_offset)]
-    #[br(args {
-        offset: base_offset + data_offset as u64,
-        inner: args! { count: (vertex_count * vertex_size) as usize }
-    })]
-    #[xc3(save_position, skip)]
-    pub data: Vec<u8>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct IndexBufferDescriptor {
-    #[xc3(save_position)]
-    pub data_offset: u32,
-    pub index_count: u32,
+    // TODO: Don't assume u16 for index format?
+    #[br(parse_with = parse_offset32_count32, offset = base_offset)]
+    #[xc3(offset_count(u32, u32))]
+    pub indices: Vec<u16>,
     pub unk1: u16, // TODO: primitive type?
     pub unk2: u16, // TODO: index format?
-
-    // TODO: Find a better way to handle buffer data?
-    #[br(parse_with = parse_offset)]
-    #[br(args {
-        offset: base_offset + data_offset as u64,
-        inner: args! { count: (index_count * 2) as usize }
-    })]
-    #[xc3(save_position, skip)]
-    pub data: Vec<u8>,
 }
 
 /// A collection of [Mtxt](crate::mtxt::Mtxt) textures embedded in the current file.
@@ -1262,15 +1252,18 @@ impl Xc3WriteOffsets for VertexDataOffsets<'_> {
                 .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
 
+        // Vertex data always starts at offset 4096.
+        // Assume buffers don't share data and write each buffer's data separately.
         // TODO: Store a shared buffer section and don't assume offset ordering?
         writer.seek(SeekFrom::Start(base_offset + 4096))?;
         for b in vertex_buffers.0 {
-            writer.seek(SeekFrom::Start(base_offset + *b.data_offset.data as u64))?;
-            writer.write_all(b.data.data)?;
+            b.data
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
+        // Index data always comes after vertex data.
         for b in index_buffers.0 {
-            writer.seek(SeekFrom::Start(base_offset + *b.data_offset.data as u64))?;
-            writer.write_all(b.data.data)?;
+            b.indices
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
         *data_ptr = writer.stream_position()?;
         Ok(())

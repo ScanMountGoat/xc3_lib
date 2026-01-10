@@ -29,7 +29,7 @@ use xc3_lib::{
     msrd::{Msrd, streaming::chr_folder},
     mths::Mths,
     mtxt::Mtxt,
-    mxmd::{Mxmd, MxmdV112, legacy::MxmdLegacy},
+    mxmd::{Mxmd, MxmdV112, legacy::MxmdLegacy, legacy2::MxmdV40},
     offset::{OffsetRange, OffsetValidationError, read_type_get_offsets},
     sar1::{ChCl, Csvb, Sar1},
     spch::Spch,
@@ -798,7 +798,25 @@ impl CheckFile for Mxmd {
         }
 
         match self.inner {
-            xc3_lib::mxmd::MxmdInner::V40(_mxmd) => {}
+            xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
+                if let Some(spco) = mxmd.shaders {
+                    // TODO: Check read/write for inner data?
+                    for item in spco.items {
+                        item.spch.check_file(path, &[], &[], false);
+                    }
+                }
+
+                if let Some(packed_textures) = &mxmd.packed_textures {
+                    for texture in &packed_textures.textures {
+                        match Mibl::from_bytes(&texture.mibl_data) {
+                            Ok(mibl) => {
+                                mibl.check_file(path, &texture.mibl_data, &[], check_read_write)
+                            }
+                            Err(e) => println!("Error reading Mibl in {path:?}: {e}"),
+                        }
+                    }
+                }
+            }
             xc3_lib::mxmd::MxmdInner::V111(_mxmd) => {}
             xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
                 if !is_valid_models_flags(&mxmd) {
@@ -1382,7 +1400,14 @@ fn check_all_wimdo_model(root: &Path, check_read_write: bool, database: Option<S
                                     Ok(root) => {
                                         check_shader_dependencies(&root, path);
 
-                                        // TODO: test v40 model rebuilding.
+                                        if check_read_write {
+                                            check_wimdo_v40_export(
+                                                root,
+                                                &mxmd,
+                                                &files.vertex,
+                                                path,
+                                            );
+                                        }
                                     }
                                     Err(e) => println!("Error loading {path:?}: {e}"),
                                 }
@@ -1411,7 +1436,12 @@ fn check_all_wimdo_model(root: &Path, check_read_write: bool, database: Option<S
                                         check_shader_dependencies(&root, path);
 
                                         if check_read_write {
-                                            check_model_export(root, &mxmd, &files.vertex, path);
+                                            check_wimdo_v112_export(
+                                                root,
+                                                &mxmd,
+                                                &files.vertex,
+                                                path,
+                                            );
                                         }
                                     }
                                     Err(e) => println!("Error loading {path:?}: {e}"),
@@ -1451,13 +1481,31 @@ fn has_unsupported_values(exprs: &[xc3_model::shader_database::OutputExpr], i: u
     }
 }
 
-fn check_model_export(
+fn check_wimdo_v40_export(
+    root: xc3_model::ModelRoot,
+    mxmd: &MxmdV40,
+    vertex: &xc3_lib::mxmd::legacy::VertexData,
+    path: &Path,
+) {
+    let (new_mxmd, new_vertex, _) = root.to_mxmd_v40_model_files(mxmd).unwrap();
+    // TODO: Check rebuilding vertex and mxmd fields 1:1
+    if &new_vertex != vertex {
+        println!("VertexData not 1:1 for {path:?}");
+    }
+
+    // TODO: How many of these fields should be preserved?
+    if new_mxmd.models.models != mxmd.models.models {
+        println!("Model list not 1:1 for {path:?}");
+    }
+}
+
+fn check_wimdo_v112_export(
     root: xc3_model::ModelRoot,
     mxmd: &MxmdV112,
     vertex: &xc3_lib::vertex::VertexData,
     path: &Path,
 ) {
-    let (new_mxmd, new_vertex, _) = root.to_mxmd_model_files(mxmd).unwrap();
+    let (new_mxmd, new_vertex, _) = root.to_mxmd_v112_model_files(mxmd).unwrap();
     if new_vertex.buffer != vertex.buffer {
         println!("VertexData buffer not 1:1 for {path:?}");
     } else if &new_vertex != vertex {

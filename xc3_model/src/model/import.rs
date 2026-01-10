@@ -304,15 +304,15 @@ impl ModelRoot {
     ) -> Result<Self, LoadModelError> {
         match &mxmd.inner {
             xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
-                let files = ModelFilesV40::from_files(&mxmd, &wismt_path, chr_folder)?;
+                let files = ModelFilesV40::from_files(mxmd, wismt_path, chr_folder)?;
                 ModelRoot::from_mxmd_v40(&files, skel, shader_database)
             }
             xc3_lib::mxmd::MxmdInner::V111(mxmd) => {
-                let files = ModelFilesV111::from_files(&mxmd, &wismt_path, chr_folder, is_pc)?;
+                let files = ModelFilesV111::from_files(mxmd, wismt_path, chr_folder, is_pc)?;
                 ModelRoot::from_mxmd_v111(&files, skel, shader_database)
             }
             xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
-                let files = ModelFilesV112::from_files(&mxmd, &wismt_path, chr_folder, is_pc)?;
+                let files = ModelFilesV112::from_files(mxmd, wismt_path, chr_folder, is_pc)?;
                 ModelRoot::from_mxmd_v112(&files, skel, shader_database)
             }
         }
