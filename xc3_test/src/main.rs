@@ -745,12 +745,12 @@ impl CheckFile for Wimdo {
         self,
         path: &Path,
         original_bytes: &[u8],
-        _original_ranges: &[OffsetRange],
+        original_ranges: &[OffsetRange],
         check_read_write: bool,
     ) {
         match self {
             Wimdo::Mxmd(mxmd) => {
-                mxmd.check_file(path, original_bytes, &[], check_read_write);
+                mxmd.check_file(path, original_bytes, original_ranges, check_read_write);
             }
             Wimdo::Apmd(apmd) => {
                 for entry in &apmd.entries {
