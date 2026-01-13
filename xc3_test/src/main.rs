@@ -1102,10 +1102,21 @@ impl CheckFile for MxmdLegacy {
     fn check_file(
         self,
         path: &Path,
-        _original_bytes: &[u8],
-        _original_ranges: &[OffsetRange],
+        original_bytes: &[u8],
+        original_ranges: &[OffsetRange],
         check_read_write: bool,
     ) {
+        if check_read_write {
+            let bytes = self.to_bytes().unwrap();
+            if bytes != original_bytes {
+                println!("Mxmd read/write not 1:1 for {path:?}");
+
+                // Compare offset ranges to better explain differences.
+                let (_, new_ranges) = read_type_get_offsets::<Self>(&bytes, Endian::Little);
+                validate_offset_write_order(original_ranges, &new_ranges, path);
+            }
+        }
+
         if let Some(textures) = self.packed_textures {
             for texture in textures.textures {
                 match Mtxt::from_bytes(&texture.mtxt_data) {

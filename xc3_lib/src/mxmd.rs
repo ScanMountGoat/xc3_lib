@@ -1444,7 +1444,7 @@ pub struct MorphController {
 
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
 pub struct ModelUnk3 {
@@ -1471,7 +1471,7 @@ pub struct ModelUnk3Item {
     pub unk2: u32,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
-    #[xc3(offset_count(u32, u32))]
+    #[xc3(offset_count(u32, u32), align(2))]
     pub unk3: Vec<u16>,
 }
 
@@ -2667,9 +2667,9 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk7
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.samplers
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk6
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.samplers
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk5
             .write_offsets(writer, base_offset, data_ptr, endian, ())?;
@@ -2759,22 +2759,29 @@ impl Xc3WriteOffsets for Unk1Offsets<'_> {
     }
 }
 
-impl Xc3WriteOffsets for ModelUnk3ItemOffsets<'_> {
+impl Xc3WriteOffsets for ModelUnk3Offsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::prelude::Write + std::io::prelude::Seek>(
         &self,
         writer: &mut W,
-        base_offset: u64,
+        _base_offset: u64,
         data_ptr: &mut u64,
         endian: xc3_write::Endian,
         _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
-        // Different order than field order.
-        self.unk3
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.name
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        let base_offset = self.base_offset;
+
+        // TODO: Should these names be at the very end of the model?
+        let items = self.items.write(writer, base_offset, data_ptr, endian)?;
+        for item in &items.0 {
+            item.unk3
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
+        }
+        for item in &items.0 {
+            item.name
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
+        }
         Ok(())
     }
 }

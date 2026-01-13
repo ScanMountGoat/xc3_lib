@@ -662,7 +662,7 @@ file_write_full_impl!(
     mxmd::legacy::VertexData
 );
 
-file_write_full_impl!(xc3_write::Endian::Big, fnt::Fnt);
+file_write_full_impl!(xc3_write::Endian::Big, fnt::Fnt, mxmd::legacy::MxmdLegacy);
 
 trait FromBytes: Sized {
     fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> binrw::BinResult<Self>;

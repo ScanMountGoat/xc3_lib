@@ -1078,6 +1078,9 @@ impl Xc3WriteOffsets for ModelsOffsets<'_> {
             }
         }
 
+        self.unk10
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+
         // TODO: handle this in a special type.
         let bone_name_base = data_ptr.next_multiple_of(4);
         let bones = self.bones.write(writer, base_offset, data_ptr, endian)?;
@@ -1091,8 +1094,7 @@ impl Xc3WriteOffsets for ModelsOffsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk3
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk10
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
+
         self.unk9
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.extra
@@ -1134,25 +1136,20 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
 
         self.alpha_test_textures
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-
         self.callbacks
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
-
-        self.unks1_2_3
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
-
-        self.unks1_3
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk7
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unks1_2_4
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unks1_2_5
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-
         self.unk3
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-
+        self.unks1_3
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk7
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unks1_2_3
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.techniques
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
