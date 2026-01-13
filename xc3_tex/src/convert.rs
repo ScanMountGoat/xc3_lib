@@ -288,6 +288,11 @@ pub fn update_wilay_from_folder(
     input_folder: &str,
     output: &str,
 ) -> anyhow::Result<usize> {
+    if let Some(parent) = Path::new(output).parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create output directory {parent:?}"))?;
+    }
+
     // Replace existing images in a .wilay file.
     // LAPS files have no images to replace.
     // TODO: Error if indices are out of range?
@@ -440,6 +445,11 @@ pub fn update_wimdo_from_folder(
 ) -> anyhow::Result<usize> {
     let input_path = Path::new(input);
     let output_path = Path::new(output);
+
+    if let Some(parent) = Path::new(output).parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create output directory {parent:?}"))?;
+    }
 
     // TODO: Error if indices are out of range?
     // TODO: avoid duplicating logic with xc3_model?
@@ -896,6 +906,11 @@ fn extract_caavp_images_to_folder(
 }
 
 pub fn update_wifnt(input: &str, input_image: &str, output: &str) -> anyhow::Result<()> {
+    if let Some(parent) = Path::new(output).parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create output directory {parent:?}"))?;
+    }
+
     let mut laft = MaybeXbc1::<Laft>::from_file(input)?;
 
     let dds = Dds::from_file(input_image).or_else(|_| {
@@ -1166,6 +1181,10 @@ mod tests {
         assert_eq!(
             None,
             image_index(Path::new("a/b/file.0.dds"), "b/c/file2.wilay")
+        );
+        assert_eq!(
+            Some(0),
+            image_index(Path::new("np009001.0.f5b7ee2d.dds"), "np009001.wimdo")
         );
     }
 }
