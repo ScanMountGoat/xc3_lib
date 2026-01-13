@@ -94,9 +94,15 @@ impl Weights {
                         self.concatenate_buffers(weight_buffer_indices, 0, 4)
                     }
                 }
-                2 | 64 => self.weight_buffers.get(weight_buffer_indices[1].unwrap_or_default()).cloned(),
+                2 | 64 => self
+                    .weight_buffers
+                    .get(weight_buffer_indices[1].unwrap_or_default())
+                    .cloned(),
                 8 => self.concatenate_buffers(weight_buffer_indices, 3, 4),
-                0x21 => self.weight_buffers.get(weight_buffer_indices[4].unwrap_or_default()).cloned(),
+                0x21 => self
+                    .weight_buffers
+                    .get(weight_buffer_indices[4].unwrap_or_default())
+                    .cloned(),
                 _ => self.weight_buffers.first().cloned(),
             },
             WeightGroups::Groups { .. } => self.weight_buffers.first().cloned(),
@@ -109,8 +115,13 @@ impl Weights {
         i0: usize,
         i1: usize,
     ) -> Option<SkinWeights> {
-        let mut b0 = self.weight_buffers.get(weight_buffer_indices[i0].unwrap_or_default())?.clone();
-        let b1 = self.weight_buffers.get(weight_buffer_indices[i1].unwrap_or_default())?;
+        let mut b0 = self
+            .weight_buffers
+            .get(weight_buffer_indices[i0].unwrap_or_default())?
+            .clone();
+        let b1 = self
+            .weight_buffers
+            .get(weight_buffer_indices[i1].unwrap_or_default())?;
         b0.bone_indices.extend_from_slice(&b1.bone_indices);
         b0.weights.extend_from_slice(&b1.weights);
         Some(b0)

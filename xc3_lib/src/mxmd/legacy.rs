@@ -280,13 +280,15 @@ pub struct Mesh {
     pub unk2: u32, // 1
     /// Index into [materials](struct.Materials.html#structfield.materials).
     pub material_index: u32,
-    pub unk3: u32,  // 0
-    pub unk4: u32,  // 0
-    pub unk5: u32,  // TODO: 0 to 58?
-    pub unk6: u32,  // 0
-    pub unk7: u32,  // TODO: 0 to 119?
-    pub unk8: u32,  // 0
-    pub unk9: u32,  // 0
+    pub unk3: u32, // 0
+    pub unk4: u32, // 0
+    /// Index into [unk6](struct.Models.html#structfield.unk6).
+    // TODO: different for camdo big endian?
+    pub unk5: (u16, u16), // TODO: 0 to 58 for item1?
+    pub unk6: u32, // 0
+    pub unk7: (u16, u16), // TODO: 0 to 119?
+    pub unk8: u32, // 0
+    pub unk9: u32, // 0
     pub unk10: u32, // 0
     pub unk11: u32, // 0
     pub unk12: u32, // 0
@@ -670,6 +672,9 @@ pub struct MaterialsUnk6 {
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub unk2: Vec<MaterialsUnk6Unk2>,
+
+    // TODO: padding?
+    pub unks: [u32; 4],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -1064,8 +1069,10 @@ impl Xc3WriteOffsets for ModelsOffsets<'_> {
         // TODO: Are these two fields related?
         if !self.unk6.data.is_empty() {
             let unk6 = self.unk6.write(writer, base_offset, data_ptr, endian)?;
-            self.unk7
-                .write_full(writer, base_offset, data_ptr, endian, ())?;
+            if !self.unk7.data.is_empty() {
+                self.unk7
+                    .write_full(writer, base_offset, data_ptr, endian, ())?;
+            }
             for u in unk6.0 {
                 u.write_offsets(writer, base_offset, data_ptr, endian, ())?;
             }
@@ -1111,12 +1118,9 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
         let materials = self
             .materials
             .write(writer, base_offset, data_ptr, endian)?;
-
         self.work_values
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.shader_vars
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.callbacks
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         for m in &materials.0 {
@@ -1130,12 +1134,11 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
 
         self.alpha_test_textures
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk3
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unks1_2_3
+
+        self.callbacks
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
-        self.techniques
+        self.unks1_2_3
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         self.unks1_3
@@ -1145,6 +1148,12 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
         self.unks1_2_4
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unks1_2_5
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+
+        self.unk3
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+
+        self.techniques
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         for m in materials.0 {

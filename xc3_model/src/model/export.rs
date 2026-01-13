@@ -458,12 +458,12 @@ impl ModelRoot {
                             vertex_buffer_index: m.vertex_buffer_index as u32,
                             index_buffer_index: m.index_buffer_index as u32,
                             material_index: m.material_index as u32,
-                            unk2: 0,
+                            unk2: 1,
                             unk3: 0,
                             unk4: 0,
-                            unk5: 0,
+                            unk5: (0, 0), // TODO: index?
                             unk6: 0,
-                            unk7: 0,
+                            unk7: (0, 0), // TODO: index?
                             unk8: 0,
                             unk9: 0,
                             unk10: 0,
