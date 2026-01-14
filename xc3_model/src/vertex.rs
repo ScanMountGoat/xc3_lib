@@ -14,7 +14,7 @@ use std::{
 };
 
 use binrw::{BinRead, BinReaderExt, BinResult, BinWrite, Endian};
-use glam::{Vec2, Vec3, Vec4};
+use glam::{Vec2, Vec3, Vec4, Vec4Swizzles};
 use xc3_lib::vertex::{
     DataType, IndexBufferDescriptor, MorphDescriptor, MorphTargetFlags, OutlineBufferDescriptor,
     Unk, UnkBufferDescriptor, UnkData, VertexBufferDescriptor, VertexBufferExtInfo,
@@ -439,13 +439,10 @@ fn read_vertex_buffers(
         )
         .ok()?;
 
-        let (weights, bone_indices) = skin_weights_bone_indices(&attributes)?;
+        let skin_weights = skin_weights_from_attributes(&attributes)?;
 
         Some(Weights {
-            weight_buffers: vec![SkinWeights {
-                bone_indices,
-                weights,
-            }],
+            weight_buffers: vec![skin_weights],
             weight_groups: WeightGroups::Groups {
                 weight_groups: vertex_weights.groups.clone(),
                 weight_lods: vertex_weights.weight_lods.clone(),
@@ -543,7 +540,7 @@ fn split_targets<'a>(
     Some((blend_target, default_target, param_targets))
 }
 
-fn skin_weights_bone_indices(attributes: &[AttributeData]) -> Option<(Vec<Vec4>, Vec<[u8; 4]>)> {
+fn skin_weights_from_attributes(attributes: &[AttributeData]) -> Option<SkinWeights> {
     // Support both modern and legacy attributes.
     let weights = attributes.iter().find_map(|a| match a {
         AttributeData::SkinWeights(values) => Some(values.clone()),
@@ -558,13 +555,16 @@ fn skin_weights_bone_indices(attributes: &[AttributeData]) -> Option<(Vec<Vec4>,
         ),
         _ => None,
     })?;
-    let indices = attributes.iter().find_map(|a| match a {
+    let bone_indices = attributes.iter().find_map(|a| match a {
         AttributeData::BoneIndices(values) => Some(values.clone()),
         AttributeData::BoneIndices2(values) => Some(values.clone()),
         _ => None,
     })?;
 
-    Some((weights, indices))
+    Some(SkinWeights {
+        weights,
+        bone_indices,
+    })
 }
 
 fn read_index_buffers(vertex_data: &VertexData, endian: Endian) -> BinResult<Vec<IndexBuffer>> {
@@ -925,12 +925,8 @@ impl ModelBuffers {
         vertex_data: &xc3_lib::mxmd::legacy::VertexData,
         endian: Endian,
     ) -> BinResult<Self> {
-        let vertex_buffers = read_vertex_buffers_legacy(vertex_data, endian)?;
-
+        let (vertex_buffers, weights) = read_vertex_buffers_legacy(vertex_data, endian)?;
         let index_buffers = read_index_buffers_legacy(vertex_data)?;
-
-        // TODO: don't duplicate the weights buffers?
-        let weights = weights_legacy(&vertex_buffers, vertex_data.weight_buffer_indices);
 
         Ok(Self {
             vertex_buffers,
@@ -1151,6 +1147,33 @@ impl ModelBuffers {
             vertex_buffers.push(vertex_buffer);
         }
 
+        // Assume weights are always at the end.
+        let weight_buffer_start = vertex_buffers.len();
+        if let Some(weights) = &self.weights {
+            for weight_buffer in &weights.weight_buffers {
+                // Xenoblade Chronicles X DE expects XYZ weights with W calculated in game.
+                let mut data = Cursor::new(Vec::new());
+                let descriptor = write_vertex_buffer(
+                    &mut data,
+                    &[
+                        AttributeData::SkinWeights2(
+                            weight_buffer.weights.iter().map(|w| w.xyz()).collect(),
+                        ),
+                        AttributeData::BoneIndices2(weight_buffer.bone_indices.clone()),
+                    ],
+                    Endian::Little,
+                )?;
+                let vertex_buffer = xc3_lib::mxmd::legacy::VertexBufferDescriptor {
+                    data: data.into_inner(),
+                    vertex_count: descriptor.vertex_count as u32,
+                    vertex_size: descriptor.vertex_size,
+                    attributes: descriptor.attributes,
+                    unk1: 0,
+                };
+                vertex_buffers.push(vertex_buffer);
+            }
+        }
+
         let mut index_buffers = Vec::new();
         for buffer in &self.index_buffers {
             let mut data = Cursor::new(Vec::new());
@@ -1164,13 +1187,8 @@ impl ModelBuffers {
             index_buffers.push(index_buffer);
         }
 
-        // TODO: Calculate weight buffer indices from scratch?
-        let weight_buffer_start = self
-            .vertex_buffers
-            .iter()
-            .position(|b| skin_weights_bone_indices(&b.attributes).is_some())
-            .unwrap_or_default();
-
+        // TODO: These indices are always increasing, so we only need to store used buffer indices?
+        // Assume the weight buffers are contiguous, so we can just update the base index.
         let weight_buffer_indices = self
             .weights
             .as_ref()
@@ -1387,64 +1405,55 @@ fn read_index_buffers_legacy(
 fn read_vertex_buffers_legacy(
     vertex_data: &xc3_lib::mxmd::legacy::VertexData,
     endian: Endian,
-) -> BinResult<Vec<VertexBuffer>> {
+) -> BinResult<(Vec<VertexBuffer>, Option<Weights>)> {
     // Each buffer already has the data at the appropriate offset.
     let data_offset = 0;
 
-    vertex_data
-        .vertex_buffers
-        .iter()
-        .map(|descriptor| {
-            Ok(VertexBuffer {
-                attributes: read_attributes(
-                    data_offset,
-                    descriptor.vertex_count,
-                    descriptor.vertex_size,
-                    &descriptor.attributes,
-                    &descriptor.data,
-                    endian,
-                )?,
+    // TODO: Panic if the weights buffers are not the last buffers?
+
+    let mut vertex_buffers = Vec::new();
+    let mut weight_buffers = Vec::new();
+    let mut weight_buffer_start = None;
+    for (i, descriptor) in vertex_data.vertex_buffers.iter().enumerate() {
+        let attributes = read_attributes(
+            data_offset,
+            descriptor.vertex_count,
+            descriptor.vertex_size,
+            &descriptor.attributes,
+            &descriptor.data,
+            endian,
+        )?;
+
+        if let Some(weights) = skin_weights_from_attributes(&attributes) {
+            if weight_buffer_start == None {
+                weight_buffer_start = Some(i);
+            }
+            weight_buffers.push(weights);
+        } else {
+            vertex_buffers.push(VertexBuffer {
+                attributes,
                 morph_blend_target: Vec::new(),
                 morph_targets: Vec::new(),
                 outline_buffer_index: None,
-            })
-        })
-        .collect()
-}
+            });
+        }
+    }
 
-fn weights_legacy(
-    vertex_buffers: &[VertexBuffer],
-    weight_buffer_indices: [u16; 6],
-) -> Option<Weights> {
     // TODO: Find a better way of organizing these types?
-    // TODO: Don't store this with the vertex data?
-    // TODO: Is this correct?
     // TODO: Does this also depend on the skinning indices?
 
     // Xenoblade X uses multiple weight buffers.
-    let weight_buffers = vertex_buffers
-        .iter()
-        .filter_map(|b| {
-            let (weights, bone_indices) = skin_weights_bone_indices(&b.attributes)?;
-            Some(SkinWeights {
-                bone_indices,
-                weights,
-            })
-        })
-        .collect();
-
     // Reindex to account for flattening the buffers.
-    let weight_buffer_start = vertex_buffers
-        .iter()
-        .position(|b| skin_weights_bone_indices(&b.attributes).is_some())
-        .unwrap_or_default();
-    Some(Weights {
+    let weights = weight_buffer_start.map(|start_index| Weights {
         weight_buffers,
         weight_groups: WeightGroups::Legacy {
-            weight_buffer_indices: weight_buffer_indices
-                .map(|i| (i as usize).checked_sub(weight_buffer_start)),
+            weight_buffer_indices: vertex_data
+                .weight_buffer_indices
+                .map(|i| (i as usize).checked_sub(start_index)),
         },
-    })
+    });
+
+    Ok((vertex_buffers, weights))
 }
 
 fn write_unk_buffers(
