@@ -415,6 +415,37 @@ impl ModelRoot {
         }
     }
 
+    fn match_technique_attributes_legacy(&self, buffers: &mut ModelBuffers, mxmd: &MxmdV40) {
+        let attribute_count =
+            |attrs: &[VertexAttribute]| attrs.iter().filter(|a| a.buffer_index == 0).count();
+
+        // Make sure the vertex buffers have an attribute for each vertex shader attribute.
+        for (i, buffer) in buffers.vertex_buffers.iter_mut().enumerate() {
+            let techniques = self.models.models.iter().flat_map(|m| {
+                m.meshes.iter().find_map(|m| {
+                    if m.vertex_buffer_index == i {
+                        let technique_index =
+                            self.models.materials[m.material_index].technique_index;
+                        Some(&mxmd.materials.techniques[technique_index])
+                    } else {
+                        None
+                    }
+                })
+            });
+            // Buffers can be used with more than one material technique.
+            // TODO: Will using the technique with the most buffer 0 attributes always work?
+            if let Some(attributes) = techniques.map(|t| &t.attributes).reduce(|acc, e| {
+                if attribute_count(e) > attribute_count(acc) {
+                    e
+                } else {
+                    acc
+                }
+            }) {
+                match_technique_attributes(buffer, attributes);
+            }
+        }
+    }
+
     /// Similar to [Self::to_mxmd_model] but does not compress the new data or update streaming information.
     pub fn to_mxmd_v40_model_files(
         &self,
@@ -433,14 +464,13 @@ impl ModelRoot {
             .map(ImageTexture::to_extracted_texture)
             .collect();
 
-        let buffers = self.buffers.clone();
-        // TODO: match legacy technique attributes?
+        let mut buffers = self.buffers.clone();
+        self.match_technique_attributes_legacy(&mut buffers, mxmd);
         let new_vertex = buffers.to_vertex_data_legacy().unwrap();
 
         let mut new_mxmd = mxmd.clone();
 
         // TODO: Rebuild materials.
-        // TODO: How many of these mesh fields can use a default value?
 
         new_mxmd.models.models = self
             .models
