@@ -461,9 +461,16 @@ impl ModelRoot {
                             unk2: 1,
                             unk3: 0,
                             unk4: 0,
-                            unk5: (0, 0), // TODO: index?
+                            ext_mesh_index: xc3_lib::mxmd::legacy::ExtMeshIndex::new(
+                                0u16,
+                                m.ext_mesh_index.unwrap_or_default() as u8,
+                                0u8,
+                            ),
                             unk6: 0,
-                            unk7: (0, 0), // TODO: index?
+                            index_buffer_index2: xc3_lib::mxmd::legacy::IndexBufferIndex2::new(
+                                m.index_buffer_index2 as u8,
+                                0u8.into(),
+                            ),
                             unk8: 0,
                             unk9: 0,
                             unk10: 0,

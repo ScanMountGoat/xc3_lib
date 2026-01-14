@@ -702,9 +702,9 @@ impl Model {
                     .unwrap_or(MeshRenderFlags2::new(MeshRenderPass::Unk0, 0u8.into())), // TODO: same type?
                 vertex_buffer_index: mesh.vertex_buffer_index as usize,
                 index_buffer_index: mesh.index_buffer_index as usize,
-                index_buffer_index2: 0,
+                index_buffer_index2: mesh.index_buffer_index2.index() as usize,
                 material_index: mesh.material_index as usize,
-                ext_mesh_index: None,
+                ext_mesh_index: Some(mesh.ext_mesh_index.index() as usize),
                 lod_item_index: None,
                 base_mesh_index: None,
             })

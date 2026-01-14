@@ -6,6 +6,7 @@ use crate::{
     parse_opt_ptr32, parse_ptr32, parse_string_ptr32, vertex::VertexAttribute,
     xc3_write_binwrite_impl,
 };
+use bilge::prelude::*;
 use binrw::{BinRead, BinWrite, args, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
@@ -283,15 +284,36 @@ pub struct Mesh {
     pub unk3: u32, // 0
     pub unk4: u32, // 0
     /// Index into [unk6](struct.Models.html#structfield.unk6).
-    // TODO: different for camdo big endian?
-    pub unk5: (u16, u16), // TODO: 0 to 58 for item1?
+    pub ext_mesh_index: ExtMeshIndex,
     pub unk6: u32, // 0
-    pub unk7: (u16, u16), // TODO: 0 to 119?
-    pub unk8: u32, // 0
-    pub unk9: u32, // 0
+    // TODO: Is this for the depth only draw call for shadow rendering like xc1 de, xc2, xc3?
+    pub index_buffer_index2: IndexBufferIndex2,
+    pub unk8: u32,  // 0
+    pub unk9: u32,  // 0
     pub unk10: u32, // 0
     pub unk11: u32, // 0
     pub unk12: u32, // 0
+}
+
+#[bitsize(32)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
+#[br(map = u32::into)]
+#[bw(map = |&x| u32::from(x))]
+pub struct ExtMeshIndex {
+    pub unk1: u16, // 0
+    pub index: u8,
+    pub unk: u8, // 0
+}
+
+#[bitsize(32)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
+#[br(map = u32::into)]
+#[bw(map = |&x| u32::from(x))]
+pub struct IndexBufferIndex2 {
+    pub index: u8,
+    pub unk: u24, // 0
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -332,6 +354,7 @@ pub struct UnkBone {
     pub name: String,
 }
 
+// TODO: extmesh like xc1 de, xc2, xc3?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
@@ -1019,7 +1042,13 @@ pub struct Shader {
     pub unks: [u32; 2],
 }
 
-xc3_write_binwrite_impl!(TextureUsage, UnkPassType, ParamType);
+xc3_write_binwrite_impl!(
+    TextureUsage,
+    UnkPassType,
+    ParamType,
+    ExtMeshIndex,
+    IndexBufferIndex2
+);
 
 fn unk_float_count(skins: &[SkinningIndices]) -> usize {
     skins
