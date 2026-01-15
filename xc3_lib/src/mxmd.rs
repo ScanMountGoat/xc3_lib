@@ -779,7 +779,7 @@ pub struct MaterialTechnique {
     pub technique_index: u32,
     pub pass_type: RenderPassType,
     pub material_buffer_index: u16,
-    pub flags: u32, // always 1?
+    pub flags: u32, // 1 for switch, 0x01000000 for XCX
 }
 
 // TODO: Use in combination with mesh render flags?
@@ -794,8 +794,12 @@ pub struct MaterialTechnique {
 pub enum RenderPassType {
     Unk0 = 0, // main opaque + some transparent?
     Unk1 = 1, // transparent pass with color output
+    Unk2 = 2, // XCX DE
+    Unk3 = 3, // XCX DE
+    Unk5 = 5, // XCX DE
     Unk6 = 6, // used for maps?
     Unk7 = 7, // transparent pass but writes to all outputs
+    Unk8 = 8, // XCX DE
     Unk9 = 9, // used for maps?
 }
 

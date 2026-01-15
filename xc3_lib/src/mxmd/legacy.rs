@@ -10,7 +10,7 @@ use bilge::prelude::*;
 use binrw::{BinRead, BinWrite, args, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-use super::{MaterialFlags, ModelUnk3, SamplerFlags, StateFlags};
+use super::{MaterialFlags, MaterialTechnique, ModelUnk3, SamplerFlags, StateFlags};
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -573,24 +573,14 @@ pub struct Material {
     #[xc3(offset_count(u32, u32))]
     pub techniques: Vec<MaterialTechnique>,
 
-    pub unk4: [u32; 4],
+    pub unk4: [u16; 8],
 
     pub unk5: u16,
 
     /// Index into [alpha_test_textures](struct.Materials.html#structfield.alpha_test_textures).
     pub alpha_test_texture_index: u16,
 
-    pub unk7: u32,
-}
-
-// TODO: same as xc2?
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct MaterialTechnique {
-    pub technique_index: u32,
-    pub unk1: UnkPassType,
-    pub material_buffer_index: u16,
-    pub unk4: u32, // 0x01000000?
+    pub unk7: u32, // 0
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

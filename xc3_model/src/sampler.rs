@@ -1,12 +1,10 @@
+// TODO: field for each flag field with getters to always create valid flags?
 /// See [SamplerFlags](xc3_lib::mxmd::SamplerFlags).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone, Eq)]
 pub struct Sampler {
-    /// Addressing for the U or S texture coordinate.
     pub address_mode_u: AddressMode,
-    /// Addressing for the V or T texture coordinate.
     pub address_mode_v: AddressMode,
-    /// Addressing for the W or R texture coordinate.
     pub address_mode_w: AddressMode,
     pub min_filter: FilterMode,
     pub mag_filter: FilterMode,
@@ -51,6 +49,7 @@ impl Sampler {
 
 impl From<xc3_lib::mxmd::SamplerFlags> for Sampler {
     fn from(flags: xc3_lib::mxmd::SamplerFlags) -> Self {
+        // TODO: Force clamp
         Self {
             address_mode_u: address_mode(flags.repeat_u(), flags.mirror_u()),
             address_mode_v: address_mode(flags.repeat_v(), flags.mirror_v()),
@@ -60,6 +59,24 @@ impl From<xc3_lib::mxmd::SamplerFlags> for Sampler {
             mip_filter: filter_mode(flags.nearest()),
             mipmaps: !flags.disable_mipmap_filter(),
         }
+    }
+}
+
+impl From<&Sampler> for xc3_lib::mxmd::SamplerFlags {
+    fn from(flags: &Sampler) -> Self {
+        Self::new(
+            flags.address_mode_u == AddressMode::Repeat,
+            flags.address_mode_v == AddressMode::Repeat,
+            flags.address_mode_u == AddressMode::MirrorRepeat,
+            flags.address_mode_v == AddressMode::MirrorRepeat,
+            // TODO: make filter a method to preserve values here?
+            flags.mag_filter == FilterMode::Nearest,
+            false,
+            !flags.mipmaps,
+            false,
+            false,
+            Default::default(),
+        )
     }
 }
 
@@ -90,97 +107,97 @@ mod tests {
     // Test various flags values based on testing Vulkan samplers in RenderDoc.
     #[test]
     fn descriptor_0x0() {
-        assert_eq!(
-            Sampler {
-                address_mode_u: AddressMode::ClampToEdge,
-                address_mode_v: AddressMode::ClampToEdge,
-                address_mode_w: AddressMode::ClampToEdge,
-                mag_filter: FilterMode::Linear,
-                min_filter: FilterMode::Linear,
-                mip_filter: FilterMode::Linear,
-                mipmaps: true,
-            },
-            Sampler::from(SamplerFlags::from(0x0))
-        );
+        let sampler = Sampler {
+            address_mode_u: AddressMode::ClampToEdge,
+            address_mode_v: AddressMode::ClampToEdge,
+            address_mode_w: AddressMode::ClampToEdge,
+            mag_filter: FilterMode::Linear,
+            min_filter: FilterMode::Linear,
+            mip_filter: FilterMode::Linear,
+            mipmaps: true,
+        };
+        let flags = SamplerFlags::from(0x0);
+        assert_eq!(SamplerFlags::from(&sampler), flags);
+        assert_eq!(Sampler::from(flags), sampler);
     }
 
     #[test]
     fn descriptor_0x3() {
-        assert_eq!(
-            Sampler {
-                address_mode_u: AddressMode::Repeat,
-                address_mode_v: AddressMode::Repeat,
-                address_mode_w: AddressMode::ClampToEdge,
-                mag_filter: FilterMode::Linear,
-                min_filter: FilterMode::Linear,
-                mip_filter: FilterMode::Linear,
-                mipmaps: true,
-            },
-            Sampler::from(SamplerFlags::from(0b_11))
-        );
+        let sampler = Sampler {
+            address_mode_u: AddressMode::Repeat,
+            address_mode_v: AddressMode::Repeat,
+            address_mode_w: AddressMode::ClampToEdge,
+            mag_filter: FilterMode::Linear,
+            min_filter: FilterMode::Linear,
+            mip_filter: FilterMode::Linear,
+            mipmaps: true,
+        };
+        let flags = SamplerFlags::from(0b_11);
+        assert_eq!(SamplerFlags::from(&sampler), flags);
+        assert_eq!(Sampler::from(flags), sampler);
     }
 
     #[test]
     fn descriptor_0x6() {
-        assert_eq!(
-            Sampler {
-                address_mode_u: AddressMode::MirrorRepeat,
-                address_mode_v: AddressMode::Repeat,
-                address_mode_w: AddressMode::ClampToEdge,
-                mag_filter: FilterMode::Linear,
-                min_filter: FilterMode::Linear,
-                mip_filter: FilterMode::Linear,
-                mipmaps: true,
-            },
-            Sampler::from(SamplerFlags::from(0b_110))
-        );
+        let sampler = Sampler {
+            address_mode_u: AddressMode::MirrorRepeat,
+            address_mode_v: AddressMode::Repeat,
+            address_mode_w: AddressMode::ClampToEdge,
+            mag_filter: FilterMode::Linear,
+            min_filter: FilterMode::Linear,
+            mip_filter: FilterMode::Linear,
+            mipmaps: true,
+        };
+        let flags = SamplerFlags::from(0b_110);
+        assert_eq!(SamplerFlags::from(&sampler), flags);
+        assert_eq!(Sampler::from(flags), sampler);
     }
 
     #[test]
     fn descriptor_0x12() {
-        assert_eq!(
-            Sampler {
-                address_mode_u: AddressMode::MirrorRepeat,
-                address_mode_v: AddressMode::MirrorRepeat,
-                address_mode_w: AddressMode::ClampToEdge,
-                mag_filter: FilterMode::Linear,
-                min_filter: FilterMode::Linear,
-                mip_filter: FilterMode::Linear,
-                mipmaps: true,
-            },
-            Sampler::from(SamplerFlags::from(0b_1100))
-        );
+        let sampler = Sampler {
+            address_mode_u: AddressMode::MirrorRepeat,
+            address_mode_v: AddressMode::MirrorRepeat,
+            address_mode_w: AddressMode::ClampToEdge,
+            mag_filter: FilterMode::Linear,
+            min_filter: FilterMode::Linear,
+            mip_filter: FilterMode::Linear,
+            mipmaps: true,
+        };
+        let flags = SamplerFlags::from(0b_1100);
+        assert_eq!(SamplerFlags::from(&sampler), flags);
+        assert_eq!(Sampler::from(flags), sampler);
     }
 
     #[test]
     fn descriptor_0x40() {
-        assert_eq!(
-            Sampler {
-                address_mode_u: AddressMode::ClampToEdge,
-                address_mode_v: AddressMode::ClampToEdge,
-                address_mode_w: AddressMode::ClampToEdge,
-                mag_filter: FilterMode::Linear,
-                min_filter: FilterMode::Linear,
-                mip_filter: FilterMode::Linear,
-                mipmaps: false,
-            },
-            Sampler::from(SamplerFlags::from(0b_01000000))
-        );
+        let sampler = Sampler {
+            address_mode_u: AddressMode::ClampToEdge,
+            address_mode_v: AddressMode::ClampToEdge,
+            address_mode_w: AddressMode::ClampToEdge,
+            mag_filter: FilterMode::Linear,
+            min_filter: FilterMode::Linear,
+            mip_filter: FilterMode::Linear,
+            mipmaps: false,
+        };
+        let flags = SamplerFlags::from(0b_01000000);
+        assert_eq!(SamplerFlags::from(&sampler), flags);
+        assert_eq!(Sampler::from(flags), sampler);
     }
 
     #[test]
     fn descriptor_0x50() {
-        assert_eq!(
-            Sampler {
-                address_mode_u: AddressMode::ClampToEdge,
-                address_mode_v: AddressMode::ClampToEdge,
-                address_mode_w: AddressMode::ClampToEdge,
-                mag_filter: FilterMode::Nearest,
-                min_filter: FilterMode::Nearest,
-                mip_filter: FilterMode::Nearest,
-                mipmaps: false,
-            },
-            Sampler::from(SamplerFlags::from(0b_01010000))
-        );
+        let sampler = Sampler {
+            address_mode_u: AddressMode::ClampToEdge,
+            address_mode_v: AddressMode::ClampToEdge,
+            address_mode_w: AddressMode::ClampToEdge,
+            mag_filter: FilterMode::Nearest,
+            min_filter: FilterMode::Nearest,
+            mip_filter: FilterMode::Nearest,
+            mipmaps: false,
+        };
+        let flags = SamplerFlags::from(0b_01010000);
+        assert_eq!(SamplerFlags::from(&sampler), flags);
+        assert_eq!(Sampler::from(flags), sampler);
     }
 }

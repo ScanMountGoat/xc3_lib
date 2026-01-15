@@ -5,7 +5,7 @@ use xc3_lib::{
     mibl::Mibl,
     msrd::{Msrd, streaming::ExtractedTexture},
     mxmd::{
-        self, AlphaTable, LodData, LodGroup, LodItem, Mxmd, MxmdV112, TextureUsage,
+        self, AlphaTable, LodData, LodGroup, LodItem, Mxmd, MxmdV112, SamplerFlags, TextureUsage,
         VertexAttribute, legacy2::MxmdV40,
     },
     vertex::{DataType, VertexData},
@@ -252,7 +252,7 @@ impl ModelRoot {
                     .collect();
         }
 
-        self.apply_materials(&mut new_mxmd);
+        self.apply_materials_v112(&mut new_mxmd);
 
         new_mxmd.models.min_xyz = new_mxmd
             .models
@@ -275,7 +275,7 @@ impl ModelRoot {
         Ok((new_mxmd, new_vertex, textures))
     }
 
-    fn apply_materials(&self, mxmd: &mut MxmdV112) {
+    fn apply_materials_v112(&self, mxmd: &mut MxmdV112) {
         // Recreate start indices and counts by assuming value ranges don't overlap.
         mxmd.materials.materials.clear();
         mxmd.materials.work_values.clear();
@@ -382,6 +382,90 @@ impl ModelRoot {
         } else {
             None
         };
+
+        // TODO: Update samplers?
+    }
+
+    fn apply_materials_v40(&self, mxmd: &mut MxmdV40) {
+        // Recreate start indices and counts by assuming value ranges don't overlap.
+        mxmd.materials.materials.clear();
+        mxmd.materials.work_values.clear();
+        mxmd.materials.shader_vars.clear();
+
+        // Don't assume callbacks are used.
+        let mut callbacks = mxmd.materials.callbacks.as_mut();
+        if let Some(callbacks) = callbacks.as_mut() {
+            callbacks.work_callbacks.clear();
+            callbacks.material_indices = (0..self.models.materials.len() as u16).collect();
+        }
+
+        // Recreate materials to avoid restrictions with referencing existing ones.
+        for (i, m) in self.models.materials.iter().enumerate() {
+            // TODO: Is it ok to potentially add a new buffer index here?
+            let technique = xc3_lib::mxmd::MaterialTechnique {
+                technique_index: m.technique_index as u32,
+                pass_type: m.pass_type,
+                material_buffer_index: i as u16,
+                flags: 1,
+            };
+
+            // TODO: Also rebuild alpha textures in case we need to add more.
+            let new_material = xc3_lib::mxmd::legacy::Material {
+                name: m.name.clone(),
+                flags: m.flags,
+                color: m.color,
+                unk2: [0.0; 6],          // TODO: not always 0
+                unk3: [0.0, 0.0, 0.999], // TODO: not always 0
+                textures: m
+                    .textures
+                    .iter()
+                    .map(|t| {
+                        // TODO: How should the second sampler be set?
+                        xc3_lib::mxmd::legacy::Texture {
+                            texture_index: t.image_texture_index as u16,
+                            sampler_flags: SamplerFlags::from(
+                                &self.models.samplers[t.sampler_index],
+                            ),
+                        }
+                    })
+                    .collect(),
+                state_flags: m.state_flags,
+                m_unks1_1: m.m_unks1_1,
+                m_unks1_2: m.m_unks1_2,
+                m_unks1_3: m.m_unks1_3,
+                m_unks1_4: m.m_unks1_4,
+                work_value_start_index: mxmd.materials.work_values.len() as u32,
+                shader_var_start_index: mxmd.materials.shader_vars.len() as u32,
+                shader_var_count: m.shader_vars.len() as u32,
+                techniques: vec![technique],
+                unk4: [0; 8], // TODO: elements not always zero?
+                unk5: 0,
+                alpha_test_texture_index: m
+                    .alpha_test
+                    .as_ref()
+                    .and_then(|a| {
+                        let alpha_image_index =
+                            m.textures[a.texture_index].image_texture_index as u16;
+                        // TODO: This won't work since textures can be used more than once.
+                        mxmd.materials
+                            .alpha_test_textures
+                            .as_ref()
+                            .and_then(|textures| {
+                                textures
+                                    .iter()
+                                    .position(|t| t.texture_index == alpha_image_index)
+                            })
+                    })
+                    .unwrap_or_default() as u16,
+                unk7: 0,
+            };
+            mxmd.materials.materials.push(new_material);
+
+            mxmd.materials.work_values.extend_from_slice(&m.work_values);
+            mxmd.materials.shader_vars.extend_from_slice(&m.shader_vars);
+
+            // TODO: edit global color parameters like gAvaSkin?
+        }
     }
 
     fn match_technique_attributes(&self, buffers: &mut ModelBuffers, mxmd: &MxmdV112) {
@@ -470,7 +554,7 @@ impl ModelRoot {
 
         let mut new_mxmd = mxmd.clone();
 
-        // TODO: Rebuild materials.
+        self.apply_materials_v40(&mut new_mxmd);
 
         new_mxmd.models.models = self
             .models
