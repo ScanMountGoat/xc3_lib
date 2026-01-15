@@ -230,7 +230,7 @@ fn weight_pass_index(unk_type: RenderPassType, flags2: u32) -> usize {
         RenderPassType::Unk3 => todo!(),
         RenderPassType::Unk5 => todo!(),
         RenderPassType::Unk6 => todo!(),
-        RenderPassType::Unk7 => 3,
+        RenderPassType::Unk7 => 3, // TODO: also 4?
         RenderPassType::Unk8 => todo!(),
         RenderPassType::Unk9 => todo!(),
     };
