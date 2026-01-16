@@ -575,7 +575,9 @@ pub struct Material {
     pub callback_count: u16,
 
     // TODO: alt textures offset for non opaque rendering?
-    pub m_unks2: [u16; 3],
+    pub alt_textures_offset: u32,
+
+    pub m_unks2: u16,
 
     /// Index into [alpha_test_textures](struct.Materials.html#structfield.alpha_test_textures).
     pub alpha_test_texture_index: u16,

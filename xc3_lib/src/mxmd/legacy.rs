@@ -573,7 +573,14 @@ pub struct Material {
     #[xc3(offset_count(u32, u32))]
     pub techniques: Vec<MaterialTechnique>,
 
-    pub unk4: [u16; 8],
+    pub unk4: [u16; 6],
+
+    // TODO: alternate textures offset for non opaque rendering?
+    // TODO: Only used if flags.alpha_mask (& 0x4) is true?
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args { offset: base_offset, inner: args! { count: textures.len() } })]
+    #[xc3(offset(u32))]
+    pub alt_textures: Option<Vec<Texture>>,
 
     pub unk5: u16,
 
@@ -1150,6 +1157,9 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
         }
         for m in &materials.0 {
             m.textures
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
+            // TODO: This can overlap with the existing textures?
+            m.alt_textures
                 .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
 

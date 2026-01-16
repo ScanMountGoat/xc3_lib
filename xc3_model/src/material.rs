@@ -57,7 +57,7 @@ pub struct Material {
     // TODO: is there another way to preserve the work value buffer?
     pub parameters: MaterialParameters,
 
-    pub m_unks2_2: u16,
+    pub m_unks2: u16,
     pub gbuffer_flags: u16,
 
     pub fur_params: Option<FurShellParams>,
@@ -314,7 +314,7 @@ pub(crate) fn create_materials(
                 m_unks1_2: material.m_unks1_2,
                 m_unks1_3: material.m_unks1_3,
                 m_unks1_4: material.m_unks1_4,
-                m_unks2_2: material.m_unks2[2],
+                m_unks2: material.m_unks2,
                 gbuffer_flags: material.gbuffer_flags,
                 fur_params,
             }
@@ -405,7 +405,7 @@ where
                 m_unks1_2: 0,
                 m_unks1_3: 0,
                 m_unks1_4: 0,
-                m_unks2_2: 0,
+                m_unks2: 0,
                 gbuffer_flags: 0,
                 fur_params: None,
             }

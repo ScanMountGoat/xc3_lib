@@ -336,7 +336,8 @@ impl ModelRoot {
                     .map(|c| c.work_callbacks.len() as u16)
                     .unwrap_or_default(),
                 callback_count: m.work_callbacks.len() as u16,
-                m_unks2: [0, 0, m.m_unks2_2],
+                alt_textures_offset: 0, // TODO: Preserve this?
+                m_unks2: m.m_unks2,
                 alpha_test_texture_index: m
                     .alpha_test
                     .as_ref()
@@ -438,7 +439,8 @@ impl ModelRoot {
                 shader_var_start_index: mxmd.materials.shader_vars.len() as u32,
                 shader_var_count: m.shader_vars.len() as u32,
                 techniques: vec![technique],
-                unk4: [0; 8], // TODO: elements not always zero?
+                unk4: [0; 6], // TODO: elements not always zero?
+                alt_textures: None, // TODO: preserve alt textures
                 unk5: 0,
                 alpha_test_texture_index: m
                     .alpha_test
