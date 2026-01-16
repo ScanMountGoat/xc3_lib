@@ -60,6 +60,7 @@ pub struct Material {
     pub m_unks2: u16,
     pub gbuffer_flags: u16,
 
+    // TODO: It's redundant to make this optional and store the fur flag.
     pub fur_params: Option<FurShellParams>,
 }
 
@@ -270,12 +271,7 @@ pub(crate) fn create_materials(
             let parameters =
                 assign_parameters(materials, material, &work_values).unwrap_or_default();
 
-            // TODO: It's redundant to make this optional and store the fur flag.
-            let fur_params = materials.fur_shells.as_ref().and_then(|fur| {
-                let param_index = *fur.material_param_indices.get(i)? as usize;
-                let params = fur.params.get(param_index).cloned()?;
-                material.flags.fur_shells().then_some(params)
-            });
+            let fur_params = fur_shell_params(materials.fur_shells.as_ref(), i, material.flags);
 
             Material {
                 name: material.name.clone(),
@@ -322,6 +318,17 @@ pub(crate) fn create_materials(
         .collect()
 }
 
+fn fur_shell_params(
+    fur_shells: Option<&xc3_lib::mxmd::FurShells>,
+    material_index: usize,
+    flags: MaterialFlags,
+) -> Option<FurShellParams> {
+    let fur = fur_shells?;
+    let param_index = *fur.material_param_indices.get(material_index)? as usize;
+    let params = fur.params.get(param_index).cloned()?;
+    flags.fur_shells().then_some(params)
+}
+
 pub(crate) fn create_materials_samplers_legacy<S>(
     materials: &xc3_lib::mxmd::legacy::Materials,
     texture_indices: &[u16],
@@ -359,6 +366,8 @@ where
             // TODO: Error for invalid parameters?
             let parameters =
                 assign_parameters_legacy(materials, m, &work_values).unwrap_or_default();
+
+            let fur_params = fur_shell_params(materials.fur_shells.as_ref(), i, m.flags);
 
             Material {
                 name: m.name.clone(),
@@ -407,7 +416,7 @@ where
                 m_unks1_4: 0,
                 m_unks2: 0,
                 gbuffer_flags: 0,
-                fur_params: None,
+                fur_params,
             }
         })
         .collect();

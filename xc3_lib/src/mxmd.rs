@@ -429,8 +429,7 @@ pub struct MaterialUnk2 {
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import { base_offset: u64, count: usize })]
 pub struct FurShells {
-    /// Index into [params](#structfield.params) for each of the elements in
-    /// [materials](struct.Materials.html#structfield.materials).
+    /// Index into [params](#structfield.params) for each material.
     #[br(parse_with = parse_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count }})]
     #[xc3(offset(u32))]
@@ -456,7 +455,6 @@ pub struct FurShellParams {
     /// The vertical offset applied increasingly to each fur shell.
     pub y_offset: f32,
     /// The alpha transparency applied increasingly to each fur shell.
-    // TODO: alpha of 0.0 is not fully transparent?
     pub alpha: f32,
 }
 

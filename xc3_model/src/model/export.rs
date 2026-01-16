@@ -400,6 +400,9 @@ impl ModelRoot {
             callbacks.material_indices = (0..self.models.materials.len() as u16).collect();
         }
 
+        let mut fur_params = Vec::new();
+        let mut fur_param_indices = Vec::new();
+
         // Recreate materials to avoid restrictions with referencing existing ones.
         for (i, m) in self.models.materials.iter().enumerate() {
             // TODO: Is it ok to potentially add a new buffer index here?
@@ -440,6 +443,7 @@ impl ModelRoot {
                 shader_var_count: m.shader_vars.len() as u32,
                 techniques: vec![technique],
                 unk4: [0; 6], // TODO: elements not always zero?
+                // TODO: error if alt texture count != texture count
                 alt_textures: None, // TODO: preserve alt textures
                 unk5: 0,
                 alpha_test_texture_index: m
@@ -466,8 +470,26 @@ impl ModelRoot {
             mxmd.materials.work_values.extend_from_slice(&m.work_values);
             mxmd.materials.shader_vars.extend_from_slice(&m.shader_vars);
 
+            if let Some(params) = &m.fur_params {
+                // Each material uses its own params in practice.
+                fur_param_indices.push(fur_params.len() as u16);
+                fur_params.push(params.clone());
+            } else {
+                fur_param_indices.push(0);
+            }
+
             // TODO: edit global color parameters like gAvaSkin?
         }
+
+        mxmd.materials.fur_shells = if !fur_params.is_empty() {
+            Some(xc3_lib::mxmd::FurShells {
+                material_param_indices: fur_param_indices,
+                params: fur_params,
+                unk: [0; 4],
+            })
+        } else {
+            None
+        };
     }
 
     fn match_technique_attributes(&self, buffers: &mut ModelBuffers, mxmd: &MxmdV112) {
