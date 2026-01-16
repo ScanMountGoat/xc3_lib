@@ -220,6 +220,7 @@ pub struct Materials {
 
     pub unks1: u32,
 
+    // TODO: timers?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset(u32))]
@@ -232,6 +233,7 @@ pub struct Materials {
     // TODO: extra fields that go before samplers?
     pub unks3: [u32; 3],
 
+    // TODO: Display conditions?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset(u32))]
@@ -248,6 +250,7 @@ pub struct Materials {
     #[xc3(offset(u32))]
     pub samplers: Option<Samplers>,
 
+    // TODO: FlagWave?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset(u32))]

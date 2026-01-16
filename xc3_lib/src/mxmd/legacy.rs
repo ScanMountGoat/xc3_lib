@@ -10,7 +10,10 @@ use bilge::prelude::*;
 use binrw::{BinRead, BinWrite, args, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
-use super::{FurShells, MaterialFlags, MaterialTechnique, ModelUnk3, SamplerFlags, StateFlags};
+use super::{
+    FurShells, MaterialFlags, MaterialTechnique, MaterialUnk2, MaterialUnk6, ModelUnk3,
+    SamplerFlags, StateFlags,
+};
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -469,7 +472,7 @@ pub struct Materials {
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset(u32))]
-    pub unk7: Option<MaterialsUnk7>,
+    pub unk6: Option<MaterialUnk6>,
 
     pub unk8: u32,
 
@@ -490,7 +493,7 @@ pub struct Materials {
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
     #[xc3(offset(u32))]
-    pub unks1_2_4: Option<MaterialsUnk4>,
+    pub material_unk2: Option<MaterialUnk2>,
 
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
@@ -662,56 +665,10 @@ pub struct MaterialsUnk3Unk3 {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
-pub struct MaterialsUnk4 {
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub unk1: Vec<[u16; 6]>,
-
-    pub unk: [u32; 4],
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import_raw(base_offset: u64))]
 pub struct MaterialsUnk5 {
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
     pub unk1: Vec<u32>,
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import_raw(base_offset: u64))]
-pub struct MaterialsUnk7 {
-    #[br(parse_with = parse_count32_offset32)]
-    #[br(args { offset: base_offset, inner: base_offset })]
-    #[xc3(count_offset(u32, u32))]
-    pub items: Vec<MaterialsUnk7Item>,
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import_raw(base_offset: u64))]
-pub struct MaterialsUnk7Item {
-    pub unk1: u32,
-    pub unk2: u32,
-    pub unk3: u32,
-
-    #[br(parse_with = parse_count32_offset32)]
-    #[br(args { offset: base_offset, inner: base_offset })]
-    #[xc3(count_offset(u32, u32))]
-    pub unk4: Vec<MaterialsUnk7ItemUnk4>,
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(import_raw(base_offset: u64))]
-pub struct MaterialsUnk7ItemUnk4 {
-    pub unk1: u32,
-
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub unk2: Vec<[f32; 3]>,
 }
 
 // TODO: compare with decompiled shader data.
@@ -1142,7 +1099,7 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.callbacks
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unks1_2_4
+        self.material_unk2
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.fur_shells
             .write_full(writer, base_offset, data_ptr, endian, ())?;
@@ -1150,7 +1107,7 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unks1_3
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk7
+        self.unk6
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unks1_2_3
             .write_full(writer, base_offset, data_ptr, endian, ())?;
