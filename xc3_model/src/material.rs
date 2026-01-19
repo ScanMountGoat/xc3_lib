@@ -443,7 +443,7 @@ fn get_shader(
     shader_database: Option<&ShaderDatabase>,
 ) -> Option<ShaderProgram> {
     // TODO: How to handle multiple techniques?
-    let program_index = material.techniques.first()?.technique_index as usize;
+    let program_index = material.techniques.last()?.technique_index as usize;
     let hash = spch.get_program_hash(program_index)?;
     shader_database?.shader_program(hash)
 }
@@ -554,7 +554,7 @@ fn get_technique<'a>(
     techniques: &'a [xc3_lib::mxmd::Technique],
 ) -> Option<&'a xc3_lib::mxmd::Technique> {
     // TODO: Don't assume a single technique?
-    let index = material.techniques.first()?.technique_index as usize;
+    let index = material.techniques.last()?.technique_index as usize;
     techniques.get(index)
 }
 
@@ -563,7 +563,7 @@ fn get_technique_legacy<'a>(
     techniques: &'a [xc3_lib::mxmd::legacy::Technique],
 ) -> Option<&'a xc3_lib::mxmd::legacy::Technique> {
     // TODO: Don't assume a single technique?
-    let index = material.techniques.first()?.technique_index as usize;
+    let index = material.techniques.last()?.technique_index as usize;
     techniques.get(index)
 }
 
