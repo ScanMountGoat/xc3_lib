@@ -543,8 +543,9 @@ pub struct AlphaTestTexture {
     pub sampler_flags: SamplerFlags,
 }
 
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Material {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -555,6 +556,9 @@ pub struct Material {
     pub color: [f32; 4],
     pub unk2: [f32; 6],
     pub unk3: [f32; 3],
+
+    #[br(temp, restore_position)]
+    textures_offset: u32,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
@@ -581,8 +585,15 @@ pub struct Material {
     // TODO: Is this always contained within the textures list?
     // TODO: alternate textures offset for non opaque rendering?
     // TODO: Only used if flags.alpha_mask (& 0x4) is true?
+    #[br(temp, restore_position)]
+    alt_textures_offset: u32,
+
+    // TODO: Is there a way to read both texture lists without overlaps?
     #[br(parse_with = parse_opt_ptr32)]
-    #[br(args { offset: base_offset, inner: args! { count: textures.len() } })]
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: alt_textures_count(&textures, textures_offset, alt_textures_offset) }
+    })]
     #[xc3(offset(u32))]
     pub alt_textures: Option<Vec<Texture>>,
 
@@ -996,6 +1007,19 @@ fn alpha_texture_count(materials: &[Material]) -> usize {
         .unwrap_or_default()
 }
 
+fn alt_textures_count(
+    textures: &[Texture],
+    textures_offset: u32,
+    alt_textures_offset: u32,
+) -> usize {
+    // Assume the alt textures are fully contained within the texture list.
+    if alt_textures_offset > 0 {
+        textures.len() - ((alt_textures_offset - textures_offset) as usize / 4)
+    } else {
+        0
+    }
+}
+
 impl Xc3WriteOffsets for ModelsOffsets<'_> {
     type Args = ();
 
@@ -1091,7 +1115,7 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
         for m in &materials.0 {
             m.textures
                 .write_full(writer, base_offset, data_ptr, endian, ())?;
-            // TODO: This can overlap with the existing textures?
+            // TODO: This always overlaps with the existing textures?
             m.alt_textures
                 .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
