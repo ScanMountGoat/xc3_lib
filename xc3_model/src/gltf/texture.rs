@@ -168,15 +168,12 @@ pub fn albedo_generated_key(
     // We'll cheat a little here and convert the mask texture to albedo alpha.
     // If no alpha test texture is assigned, the PNG will use an alpha of 1.0.
     // This avoids issues with applications that always treat alpha as transparency.
-    let alpha_index = material.alpha_test.as_ref().map(|a| {
-        let texture = &material.textures[a.texture_index];
-        ImageIndex::Image {
-            image_texture: texture.image_texture_index,
-            sampler: texture.sampler_index,
-            channel: a.channel_index,
-            texcoord_name: SmolStr::default(),
-            texcoord_scale: None,
-        }
+    let alpha_index = material.alpha_test.as_ref().map(|a| ImageIndex::Image {
+        image_texture: a.image_texture_index,
+        sampler: a.sampler_index,
+        channel: material.alpha_texture_channel_index(),
+        texcoord_name: SmolStr::default(),
+        texcoord_scale: None,
     });
 
     // TODO: Default to the first texture for albedo if no database entry?

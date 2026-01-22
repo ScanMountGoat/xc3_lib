@@ -480,7 +480,7 @@ pub struct Materials {
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: alpha_texture_count(&materials) }})]
     #[xc3(offset(u32))]
-    pub alpha_test_textures: Option<Vec<AlphaTestTexture>>,
+    pub alpha_test_textures: Option<Vec<Texture>>,
 
     pub unks1_2_1: u32,
     pub unks1_2_2: u32,
@@ -533,14 +533,6 @@ pub struct MaterialCallbacks {
 
     // TODO: padding?
     pub unk: [u32; 6],
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct AlphaTestTexture {
-    /// Index into [textures](struct.Material.html#structfield.textures).
-    pub texture_index: u16,
-    pub sampler_flags: SamplerFlags,
 }
 
 #[binread]

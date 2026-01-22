@@ -30,7 +30,7 @@ pub struct Material {
 
     pub textures: Vec<Texture>,
     pub alt_textures: Option<Vec<Texture>>,
-    pub alpha_test: Option<TextureAlphaTest>,
+    pub alpha_test: Option<Texture>,
 
     pub work_values: Vec<f32>,
     pub shader_vars: Vec<(u16, u16)>,
@@ -63,18 +63,6 @@ pub struct Material {
 
     // TODO: It's redundant to make this optional and store the fur flag.
     pub fur_params: Option<FurShellParams>,
-}
-
-/// Information for alpha testing based on sampled texture values.
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Clone)]
-pub struct TextureAlphaTest {
-    /// The texture in [textures](struct.Material.html#structfield.textures) used for alpha testing.
-    pub texture_index: usize,
-    /// The index of the [Sampler] in [samplers](struct.ModelGroup.html#structfield.samplers).
-    pub sampler_index: usize,
-    /// The RGBA channel to sample for the comparison.
-    pub channel_index: usize,
 }
 
 // TODO: Is this even worth caching if it's only ever accessed by names?
@@ -214,7 +202,8 @@ pub struct Texture {
     // TODO: Don't index the sampler?
     /// The index of the [Sampler] in [samplers](struct.ModelGroup.html#structfield.samplers).
     pub sampler_index: usize,
-    // TODO: Second sampler?
+    /// The index of the second [Sampler] in [samplers](struct.ModelGroup.html#structfield.samplers).
+    pub sampler_index2: usize,
 }
 
 pub(crate) fn create_materials(
@@ -233,23 +222,10 @@ pub(crate) fn create_materials(
             let textures = material
                 .textures
                 .iter()
-                .map(|texture| {
-                    // Legacy models can remap material texture indices.
-                    Texture {
-                        image_texture_index: texture_indices
-                            .map(|indices| {
-                                indices
-                                    .iter()
-                                    .position(|i| *i == texture.texture_index)
-                                    .unwrap_or_default()
-                            })
-                            .unwrap_or(texture.texture_index as usize),
-                        sampler_index: texture.sampler_index2 as usize,
-                    }
-                })
+                .map(|t| texture_from_modern(texture_indices, t))
                 .collect();
 
-            let alpha_test = find_alpha_test_texture(materials, material);
+            let alpha_test = find_alpha_test_texture(materials, material, texture_indices);
 
             // Assume the work value start indices are in ascending order.
             let work_value_start = material.work_value_start_index as usize;
@@ -322,6 +298,25 @@ pub(crate) fn create_materials(
         .collect()
 }
 
+fn texture_from_modern(
+    texture_indices: Option<&[u16]>,
+    texture: &xc3_lib::mxmd::Texture,
+) -> Texture {
+    // Legacy models can remap material texture indices.
+    Texture {
+        image_texture_index: texture_indices
+            .map(|indices| {
+                indices
+                    .iter()
+                    .position(|i| *i == texture.texture_index)
+                    .unwrap_or_default()
+            })
+            .unwrap_or(texture.texture_index as usize),
+        sampler_index: texture.sampler_index as usize,
+        sampler_index2: texture.sampler_index2 as usize,
+    }
+}
+
 fn fur_shell_params(
     fur_shells: Option<&xc3_lib::mxmd::FurShells>,
     material_index: usize,
@@ -365,7 +360,8 @@ where
             let shader_var_start = m.shader_var_start_index as usize;
             let shader_var_end = shader_var_start + m.shader_var_count as usize;
 
-            let alpha_test = find_alpha_test_texture_legacy(materials, m, &mut samplers);
+            let alpha_test =
+                find_alpha_test_texture_legacy(materials, m, &mut samplers, texture_indices);
 
             // TODO: Error for invalid parameters?
             let parameters =
@@ -430,12 +426,14 @@ fn texture_from_legacy(
     samplers: &mut Vec<Sampler>,
 ) -> Texture {
     // Texture indices are remapped by some models like chr_np/np025301.camdo.
+    let sampler_index = get_sampler_index(samplers, t.sampler_flags);
     Texture {
         image_texture_index: texture_indices
             .iter()
             .position(|i| *i == t.texture_index)
             .unwrap_or_default(),
-        sampler_index: get_sampler_index(samplers, t.sampler_flags),
+        sampler_index,
+        sampler_index2: sampler_index,
     }
 }
 
@@ -585,27 +583,15 @@ fn get_technique_legacy<'a>(
 fn find_alpha_test_texture(
     materials: &xc3_lib::mxmd::Materials,
     material: &xc3_lib::mxmd::Material,
-) -> Option<TextureAlphaTest> {
+    texture_indices: Option<&[u16]>,
+) -> Option<Texture> {
     // Find the texture used for alpha testing in the shader.
-    // TODO: investigate how this works in game.
-    let alpha_texture = materials
-        .alpha_test_textures
-        .get(material.alpha_test_texture_index as usize)?;
     if material.flags.alpha_mask() {
-        // TODO: Do some materials require separate textures in a separate pass?
-        let texture_index = material
-            .textures
-            .iter()
-            .position(|t| t.texture_index == alpha_texture.texture_index)?;
+        let t = materials
+            .alpha_test_textures
+            .get(material.alpha_test_texture_index as usize)?;
 
-        // Some materials use the red channel of a dedicated mask instead of alpha.
-        let channel_index = if material.flags.separate_mask() { 0 } else { 3 };
-
-        Some(TextureAlphaTest {
-            texture_index,
-            sampler_index: alpha_texture.sampler_index as usize,
-            channel_index,
-        })
+        Some(texture_from_modern(texture_indices, t))
     } else {
         None
     }
@@ -615,28 +601,23 @@ fn find_alpha_test_texture_legacy(
     materials: &xc3_lib::mxmd::legacy::Materials,
     material: &xc3_lib::mxmd::legacy::Material,
     samplers: &mut Vec<Sampler>,
-) -> Option<TextureAlphaTest> {
+    texture_indices: &[u16],
+) -> Option<Texture> {
     // Find the texture used for alpha testing in the shader.
-    // TODO: investigate how this works in game.
-    let alpha_texture = materials
-        .alpha_test_textures
-        .as_ref()?
-        .get(material.alpha_test_texture_index as usize)?;
     if material.flags.alpha_mask() {
-        // TODO: Do some materials require separate textures in a separate pass?
-        let texture_index = material
-            .textures
-            .iter()
-            .position(|t| t.texture_index == alpha_texture.texture_index)?;
+        let t = materials
+            .alpha_test_textures
+            .as_ref()?
+            .get(material.alpha_test_texture_index as usize)?;
 
-        // Some materials use the red channel of a dedicated mask instead of alpha.
-        let channel_index = if material.flags.separate_mask() { 0 } else { 3 };
-
-        Some(TextureAlphaTest {
-            texture_index,
-            sampler_index: get_sampler_index(samplers, alpha_texture.sampler_flags),
-            channel_index,
-        })
+        Some(texture_from_legacy(
+            &xc3_lib::mxmd::legacy::Texture {
+                texture_index: t.texture_index,
+                sampler_flags: t.sampler_flags,
+            },
+            texture_indices,
+            samplers,
+        ))
     } else {
         None
     }
@@ -866,6 +847,12 @@ impl Material {
                 );
                 infer_assignment_from_textures(&self.textures, textures)
             })
+    }
+
+    /// The index into `['x', 'y','z', 'w']` for the alpha texture channel accessed by the shaders.
+    pub fn alpha_texture_channel_index(&self) -> usize {
+        // Some materials use the red channel of a dedicated mask instead of alpha.
+        if self.flags.separate_mask() { 0 } else { 3 }
     }
 }
 

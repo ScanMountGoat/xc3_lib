@@ -7,7 +7,7 @@ use smol_str::SmolStr;
 use xc3_model::{
     IndexMapExt,
     material::{
-        TextureAlphaTest,
+        Texture,
         assignments::{
             Assignment, AssignmentValue, AssignmentValueXyz, AssignmentXyz, ChannelXyz,
             OutputAssignment, OutputAssignmentXyz, OutputAssignments,
@@ -34,7 +34,7 @@ pub struct ShaderWgsl {
 impl ShaderWgsl {
     pub fn new(
         output_assignments: &OutputAssignments,
-        alpha_test: Option<&TextureAlphaTest>,
+        alpha_test: Option<&Texture>,
         name_to_index: &mut IndexMap<SmolStr, usize>,
     ) -> Self {
         let xyz_assignments: Vec<_> = output_assignments
@@ -238,25 +238,27 @@ fn arg(args: &[usize], i: usize) -> Option<String> {
 }
 
 fn generate_alpha_test_wgsl(
-    alpha_test: &TextureAlphaTest,
+    alpha_test: &Texture,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
-    let name: SmolStr = format!("s{}", alpha_test.texture_index).into();
-    let i = name_to_index.entry_index(name.clone());
+    // TODO: Use a separate depth only pass for alpha testing like in game?
+    String::new()
+    // let name: SmolStr = format!("s{}", alpha_test.texture_index).into();
+    // let i = name_to_index.entry_index(name.clone());
 
-    if i < TEXTURE_SAMPLER_COUNT as usize {
-        let c = ['x', 'y', 'z', 'w'][alpha_test.channel_index];
+    // if i < TEXTURE_SAMPLER_COUNT as usize {
+    //     let c = ['x', 'y', 'z', 'w'][alpha_test.channel_index];
 
-        // TODO: Detect the UV attribute to use with alpha testing.
-        formatdoc! {"
-            if textureSample(textures[{i}], alpha_test_sampler, tex0.xy).{c} <= per_material.alpha_test_ref {{
-                discard;
-            }}
-        "}
-    } else {
-        error!("Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}");
-        String::new()
-    }
+    //     // TODO: Detect the UV attribute to use with alpha testing.
+    //     formatdoc! {"
+    //         if textureSample(textures[{i}], alpha_test_sampler, tex0.xy).{c} <= per_material.alpha_test_ref {{
+    //             discard;
+    //         }}
+    //     "}
+    // } else {
+    //     error!("Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}");
+    //     String::new()
+    // }
 }
 
 fn generate_assignments_wgsl(

@@ -228,7 +228,7 @@ pub struct Materials {
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub alpha_test_textures: Vec<AlphaTestTexture>,
+    pub alpha_test_textures: Vec<Texture>,
 
     // TODO: extra fields that go before samplers?
     pub unks3: [u32; 3],
@@ -262,20 +262,6 @@ pub struct Materials {
     #[br(if(material_offset >= 112))]
     #[br(args_raw(base_offset))]
     pub unk5: Option<MaterialUnk5>,
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct AlphaTestTexture {
-    /// Index into [textures](struct.Material.html#structfield.textures) for the texture
-    /// to compare with [alpha_test_ref](struct.Material.html#structfield.alpha_test_ref).
-    pub texture_index: u16,
-    /// Index into [samplers](struct.Materials.html#structfield.samplers).
-    pub sampler_index: u16,
-
-    // TODO: Test this in game.
-    pub unk2: u16, // 1, 3, 4, 5
-    pub unk3: u16, // 0, 1
 }
 
 /// `ml::MdsMatTechnique` in the Xenoblade 2 binary.
@@ -817,7 +803,7 @@ pub struct Texture {
     /// Index into the samplers in [samplers](struct.Materials.html#structfield.samplers).
     // TODO: This sampler is the same as above but with a float value of 0.0?
     pub sampler_index2: u16,
-    pub unk3: u16, // 0
+    pub unk3: u16, // 0, 1 (some alpha test textures)
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

@@ -291,6 +291,8 @@ impl ModelRoot {
         let mut fur_params = Vec::new();
         let mut fur_param_indices = Vec::new();
 
+        let mut alpha_test_textures = Vec::new();
+
         // Recreate materials to avoid restrictions with referencing existing ones.
         for (i, m) in self.models.materials.iter().enumerate() {
             // TODO: Is it ok to potentially add a new buffer index here?
@@ -300,6 +302,17 @@ impl ModelRoot {
                 material_buffer_index: i as u16,
                 flags: 1,
             };
+
+            // TODO: Are alpha texture indices ever used more than once?
+            let alpha_test_texture_index = m
+                .alpha_test
+                .as_ref()
+                .map(|a| {
+                    let index = alpha_test_textures.len();
+                    alpha_test_textures.push(a.clone());
+                    index
+                })
+                .unwrap_or_default() as u16;
 
             // TODO: Also rebuild alpha textures in case we need to add more.
             let new_material = xc3_lib::mxmd::Material {
@@ -311,14 +324,11 @@ impl ModelRoot {
                 textures: m
                     .textures
                     .iter()
-                    .map(|t| {
-                        // TODO: How should the second sampler be set?
-                        xc3_lib::mxmd::Texture {
-                            texture_index: t.image_texture_index as u16,
-                            sampler_index: t.sampler_index as u16,
-                            sampler_index2: t.sampler_index as u16,
-                            unk3: 0,
-                        }
+                    .map(|t| xc3_lib::mxmd::Texture {
+                        texture_index: t.image_texture_index as u16,
+                        sampler_index: t.sampler_index as u16,
+                        sampler_index2: t.sampler_index2 as u16,
+                        unk3: 0,
                     })
                     .collect(),
                 state_flags: m.state_flags,
@@ -338,19 +348,7 @@ impl ModelRoot {
                 callback_count: m.work_callbacks.len() as u16,
                 alt_textures_offset: 0, // TODO: Preserve this?
                 m_unks2: m.m_unks2,
-                alpha_test_texture_index: m
-                    .alpha_test
-                    .as_ref()
-                    .and_then(|a| {
-                        let alpha_image_index =
-                            m.textures[a.texture_index].image_texture_index as u16;
-                        // TODO: This won't work since textures can be used more than once.
-                        mxmd.materials
-                            .alpha_test_textures
-                            .iter()
-                            .position(|t| t.texture_index == alpha_image_index)
-                    })
-                    .unwrap_or_default() as u16,
+                alpha_test_texture_index,
                 m_unk3: 0,
                 gbuffer_flags: m.gbuffer_flags,
                 m_unk4: [0; 6],
@@ -401,6 +399,16 @@ impl ModelRoot {
         } else {
             None
         };
+
+        mxmd.materials.alpha_test_textures = alpha_test_textures
+            .iter()
+            .map(|t| xc3_lib::mxmd::Texture {
+                texture_index: t.image_texture_index as u16,
+                sampler_index: t.sampler_index as u16,
+                sampler_index2: t.sampler_index2 as u16,
+                unk3: 0,
+            })
+            .collect();
     }
 
     fn apply_materials_v40(&self, mxmd: &mut MxmdV40) {
@@ -419,6 +427,8 @@ impl ModelRoot {
         let mut fur_params = Vec::new();
         let mut fur_param_indices = Vec::new();
 
+        let mut alpha_test_textures = Vec::new();
+
         // Recreate materials to avoid restrictions with referencing existing ones.
         for (i, m) in self.models.materials.iter().enumerate() {
             // TODO: Is it ok to potentially add a new buffer index here?
@@ -428,6 +438,17 @@ impl ModelRoot {
                 material_buffer_index: i as u16,
                 flags: 1,
             };
+
+            // TODO: Are alpha texture indices ever used more than once?
+            let alpha_test_texture_index = m
+                .alpha_test
+                .as_ref()
+                .map(|a| {
+                    let index = alpha_test_textures.len();
+                    alpha_test_textures.push(a.clone());
+                    index
+                })
+                .unwrap_or_default() as u16;
 
             // TODO: Also rebuild alpha textures in case we need to add more.
             let new_material = xc3_lib::mxmd::legacy::Material {
@@ -463,23 +484,7 @@ impl ModelRoot {
                         .collect()
                 }),
                 unk5: 0,
-                alpha_test_texture_index: m
-                    .alpha_test
-                    .as_ref()
-                    .and_then(|a| {
-                        let alpha_image_index =
-                            m.textures[a.texture_index].image_texture_index as u16;
-                        // TODO: This won't work since textures can be used more than once.
-                        mxmd.materials
-                            .alpha_test_textures
-                            .as_ref()
-                            .and_then(|textures| {
-                                textures
-                                    .iter()
-                                    .position(|t| t.texture_index == alpha_image_index)
-                            })
-                    })
-                    .unwrap_or_default() as u16,
+                alpha_test_texture_index,
                 unk7: 0,
             };
             mxmd.materials.materials.push(new_material);
@@ -494,6 +499,20 @@ impl ModelRoot {
             } else {
                 fur_param_indices.push(0);
             }
+
+            mxmd.materials.alpha_test_textures = if !alpha_test_textures.is_empty() {
+                Some(
+                    alpha_test_textures
+                        .iter()
+                        .map(|t| xc3_lib::mxmd::legacy::Texture {
+                            texture_index: t.image_texture_index as u16,
+                            sampler_flags: self.models.samplers[t.sampler_index].to_flags(),
+                        })
+                        .collect(),
+                )
+            } else {
+                None
+            };
 
             // TODO: edit global color parameters like gAvaSkin?
         }

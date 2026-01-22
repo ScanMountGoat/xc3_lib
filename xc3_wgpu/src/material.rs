@@ -72,10 +72,11 @@ pub fn create_material(
     let material_assignments = material.output_assignments(image_textures);
     let assignments = output_assignments(&material_assignments);
 
+    // TODO: Use a separate depth only pass for alpha testing like in game?
     // Alpha textures might not be used in normal shaders.
-    if let Some(a) = &material.alpha_test {
-        name_to_index.entry_index(format!("s{}", a.texture_index).into());
-    }
+    // if let Some(a) = &material.alpha_test {
+    //     name_to_index.entry_index(format!("s{}", a.texture_index).into());
+    // }
 
     let wgsl = ShaderWgsl::new(
         &material_assignments,
