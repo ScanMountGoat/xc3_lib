@@ -713,6 +713,7 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                 state_flags: flags,
                 color: [1.0; 4],
                 textures,
+                alt_textures: None,
                 alpha_test: None,
                 shader,
                 alpha_test_ref: 0.5,

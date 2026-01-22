@@ -578,6 +578,7 @@ pub struct Material {
 
     pub unk4: [u16; 6],
 
+    // TODO: Is this always contained within the textures list?
     // TODO: alternate textures offset for non opaque rendering?
     // TODO: Only used if flags.alpha_mask (& 0x4) is true?
     #[br(parse_with = parse_opt_ptr32)]

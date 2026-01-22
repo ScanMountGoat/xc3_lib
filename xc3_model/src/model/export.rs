@@ -423,14 +423,9 @@ impl ModelRoot {
                 textures: m
                     .textures
                     .iter()
-                    .map(|t| {
-                        // TODO: How should the second sampler be set?
-                        xc3_lib::mxmd::legacy::Texture {
-                            texture_index: t.image_texture_index as u16,
-                            sampler_flags: SamplerFlags::from(
-                                &self.models.samplers[t.sampler_index],
-                            ),
-                        }
+                    .map(|t| xc3_lib::mxmd::legacy::Texture {
+                        texture_index: t.image_texture_index as u16,
+                        sampler_flags: SamplerFlags::from(&self.models.samplers[t.sampler_index]),
                     })
                     .collect(),
                 state_flags: m.state_flags,
@@ -443,8 +438,16 @@ impl ModelRoot {
                 shader_var_count: m.shader_vars.len() as u32,
                 techniques: vec![technique],
                 unk4: [0; 6], // TODO: elements not always zero?
-                // TODO: error if alt texture count != texture count
-                alt_textures: None, // TODO: preserve alt textures
+                alt_textures: m.alt_textures.as_ref().map(|a| {
+                    a.iter()
+                        .map(|t| xc3_lib::mxmd::legacy::Texture {
+                            texture_index: t.image_texture_index as u16,
+                            sampler_flags: SamplerFlags::from(
+                                &self.models.samplers[t.sampler_index],
+                            ),
+                        })
+                        .collect()
+                }),
                 unk5: 0,
                 alpha_test_texture_index: m
                     .alpha_test

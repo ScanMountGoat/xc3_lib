@@ -29,6 +29,7 @@ pub struct Material {
     pub color: [f32; 4],
 
     pub textures: Vec<Texture>,
+    pub alt_textures: Option<Vec<Texture>>,
     pub alpha_test: Option<TextureAlphaTest>,
 
     pub work_values: Vec<f32>,
@@ -280,6 +281,7 @@ pub(crate) fn create_materials(
                 state_flags: material.state_flags,
                 color: material.color,
                 textures,
+                alt_textures: None,
                 alpha_test,
                 alpha_test_ref: material.alpha_test_ref,
                 shader,
@@ -378,17 +380,13 @@ where
                 textures: m
                     .textures
                     .iter()
-                    .map(|t| {
-                        // Texture indices are remapped by some models like chr_np/np025301.camdo.
-                        Texture {
-                            image_texture_index: texture_indices
-                                .iter()
-                                .position(|i| *i == t.texture_index)
-                                .unwrap_or_default(),
-                            sampler_index: get_sampler_index(&mut samplers, t.sampler_flags),
-                        }
-                    })
+                    .map(|t| texture_from_legacy(t, texture_indices, &mut samplers))
                     .collect(),
+                alt_textures: m.alt_textures.as_ref().map(|a| {
+                    a.iter()
+                        .map(|t| texture_from_legacy(t, texture_indices, &mut samplers))
+                        .collect()
+                }),
                 alpha_test,
                 alpha_test_ref: 0.5,
                 shader: get_shader_legacy(m, shaders, shader_database),
@@ -422,6 +420,21 @@ where
         .collect();
 
     (materials, samplers)
+}
+
+fn texture_from_legacy(
+    t: &xc3_lib::mxmd::legacy::Texture,
+    texture_indices: &[u16],
+    samplers: &mut Vec<Sampler>,
+) -> Texture {
+    // Texture indices are remapped by some models like chr_np/np025301.camdo.
+    Texture {
+        image_texture_index: texture_indices
+            .iter()
+            .position(|i| *i == t.texture_index)
+            .unwrap_or_default(),
+        sampler_index: get_sampler_index(samplers, t.sampler_flags),
+    }
 }
 
 fn get_sampler_index(samplers: &mut Vec<Sampler>, flags: xc3_lib::mxmd::SamplerFlags) -> usize {
