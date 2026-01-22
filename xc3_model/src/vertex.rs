@@ -1425,7 +1425,7 @@ fn read_vertex_buffers_legacy(
         )?;
 
         if let Some(weights) = skin_weights_from_attributes(&attributes) {
-            if weight_buffer_start == None {
+            if weight_buffer_start.is_none() {
                 weight_buffer_start = Some(i);
             }
             weight_buffers.push(weights);

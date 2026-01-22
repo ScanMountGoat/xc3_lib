@@ -725,7 +725,13 @@ pub fn create_samplers(materials: &Materials) -> Vec<Sampler> {
     materials
         .samplers
         .as_ref()
-        .map(|samplers| samplers.samplers.iter().map(|s| s.flags.into()).collect())
+        .map(|samplers| {
+            samplers
+                .samplers
+                .iter()
+                .map(|s| Sampler::from_flags(s.flags, s.unk3))
+                .collect()
+        })
         .unwrap_or_default()
 }
 

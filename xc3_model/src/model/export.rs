@@ -5,7 +5,7 @@ use xc3_lib::{
     mibl::Mibl,
     msrd::{Msrd, streaming::ExtractedTexture},
     mxmd::{
-        self, AlphaTable, LodData, LodGroup, LodItem, Mxmd, MxmdV112, SamplerFlags, TextureUsage,
+        self, AlphaTable, LodData, LodGroup, LodItem, Mxmd, MxmdV112, TextureUsage,
         VertexAttribute, legacy2::MxmdV40,
     },
     vertex::{DataType, VertexData},
@@ -384,7 +384,23 @@ impl ModelRoot {
             None
         };
 
-        // TODO: Update samplers?
+        mxmd.materials.samplers = if !self.models.samplers.is_empty() {
+            Some(xc3_lib::mxmd::Samplers {
+                samplers: self
+                    .models
+                    .samplers
+                    .iter()
+                    .map(|s| xc3_lib::mxmd::Sampler {
+                        flags: s.to_flags(),
+                        unk2: 0,
+                        unk3: s.unk3,
+                    })
+                    .collect(),
+                unk: [0; 2],
+            })
+        } else {
+            None
+        };
     }
 
     fn apply_materials_v40(&self, mxmd: &mut MxmdV40) {
@@ -425,7 +441,7 @@ impl ModelRoot {
                     .iter()
                     .map(|t| xc3_lib::mxmd::legacy::Texture {
                         texture_index: t.image_texture_index as u16,
-                        sampler_flags: SamplerFlags::from(&self.models.samplers[t.sampler_index]),
+                        sampler_flags: self.models.samplers[t.sampler_index].to_flags(),
                     })
                     .collect(),
                 state_flags: m.state_flags,
@@ -442,9 +458,7 @@ impl ModelRoot {
                     a.iter()
                         .map(|t| xc3_lib::mxmd::legacy::Texture {
                             texture_index: t.image_texture_index as u16,
-                            sampler_flags: SamplerFlags::from(
-                                &self.models.samplers[t.sampler_index],
-                            ),
+                            sampler_flags: self.models.samplers[t.sampler_index].to_flags(),
                         })
                         .collect()
                 }),

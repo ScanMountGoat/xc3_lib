@@ -298,6 +298,7 @@ pub struct Technique {
     #[xc3(offset_count(u32, u32))]
     pub parameters: Vec<MaterialParameter>,
 
+    // TODO: enum for texture name?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub textures: Vec<u16>,
@@ -307,11 +308,12 @@ pub struct Technique {
     #[xc3(offset_count(u32, u32))]
     pub uniform_blocks: Vec<UniformBlock>, // uniform blocks?
 
+    // TODO: Textures that use textures from material?
     pub material_texture_count: u32,
 
-    // first texture param index?
+    // TODO: first texture param index?
     pub unk12: u16, // counts up from 0?
-    // first global param index?
+    // TODO: first global param index?
     pub unk13: u16, // unk11 + unk12?
 
     pub unk14: u32,
@@ -485,8 +487,6 @@ pub struct Samplers {
 pub struct Sampler {
     pub flags: SamplerFlags,
     pub unk2: u16,
-
-    // Is this actually a float?
     pub unk3: f32,
 }
 

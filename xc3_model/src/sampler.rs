@@ -1,7 +1,7 @@
 // TODO: field for each flag field with getters to always create valid flags?
 /// See [SamplerFlags](xc3_lib::mxmd::SamplerFlags).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, PartialEq, Clone, Eq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Sampler {
     pub address_mode_u: AddressMode,
     pub address_mode_v: AddressMode,
@@ -11,6 +11,7 @@ pub struct Sampler {
     pub mip_filter: FilterMode,
     /// Enables rendering mipmaps past the base mip when `true`.
     pub mipmaps: bool,
+    pub unk3: f32,
 }
 
 /// Texel mixing mode when sampling between texels.
@@ -47,8 +48,8 @@ impl Sampler {
     }
 }
 
-impl From<xc3_lib::mxmd::SamplerFlags> for Sampler {
-    fn from(flags: xc3_lib::mxmd::SamplerFlags) -> Self {
+impl Sampler {
+    pub fn from_flags(flags: xc3_lib::mxmd::SamplerFlags, unk3: f32) -> Self {
         // TODO: Force clamp
         Self {
             address_mode_u: address_mode(flags.repeat_u(), flags.mirror_u()),
@@ -58,21 +59,20 @@ impl From<xc3_lib::mxmd::SamplerFlags> for Sampler {
             min_filter: filter_mode(flags.nearest()),
             mip_filter: filter_mode(flags.nearest()),
             mipmaps: !flags.disable_mipmap_filter(),
+            unk3,
         }
     }
-}
 
-impl From<&Sampler> for xc3_lib::mxmd::SamplerFlags {
-    fn from(flags: &Sampler) -> Self {
-        Self::new(
-            flags.address_mode_u == AddressMode::Repeat,
-            flags.address_mode_v == AddressMode::Repeat,
-            flags.address_mode_u == AddressMode::MirrorRepeat,
-            flags.address_mode_v == AddressMode::MirrorRepeat,
+    pub fn to_flags(&self) -> xc3_lib::mxmd::SamplerFlags {
+        xc3_lib::mxmd::SamplerFlags::new(
+            self.address_mode_u == AddressMode::Repeat,
+            self.address_mode_v == AddressMode::Repeat,
+            self.address_mode_u == AddressMode::MirrorRepeat,
+            self.address_mode_v == AddressMode::MirrorRepeat,
             // TODO: make filter a method to preserve values here?
-            flags.mag_filter == FilterMode::Nearest,
+            self.mag_filter == FilterMode::Nearest,
             false,
-            !flags.mipmaps,
+            !self.mipmaps,
             false,
             false,
             Default::default(),
@@ -115,10 +115,11 @@ mod tests {
             min_filter: FilterMode::Linear,
             mip_filter: FilterMode::Linear,
             mipmaps: true,
+            unk3: 0.0,
         };
         let flags = SamplerFlags::from(0x0);
-        assert_eq!(SamplerFlags::from(&sampler), flags);
-        assert_eq!(Sampler::from(flags), sampler);
+        assert_eq!(sampler.to_flags(), flags);
+        assert_eq!(Sampler::from_flags(flags, 0.0), sampler);
     }
 
     #[test]
@@ -131,10 +132,11 @@ mod tests {
             min_filter: FilterMode::Linear,
             mip_filter: FilterMode::Linear,
             mipmaps: true,
+            unk3: 0.0,
         };
         let flags = SamplerFlags::from(0b_11);
-        assert_eq!(SamplerFlags::from(&sampler), flags);
-        assert_eq!(Sampler::from(flags), sampler);
+        assert_eq!(sampler.to_flags(), flags);
+        assert_eq!(Sampler::from_flags(flags, 0.0), sampler);
     }
 
     #[test]
@@ -147,10 +149,11 @@ mod tests {
             min_filter: FilterMode::Linear,
             mip_filter: FilterMode::Linear,
             mipmaps: true,
+            unk3: 0.0,
         };
         let flags = SamplerFlags::from(0b_110);
-        assert_eq!(SamplerFlags::from(&sampler), flags);
-        assert_eq!(Sampler::from(flags), sampler);
+        assert_eq!(sampler.to_flags(), flags);
+        assert_eq!(Sampler::from_flags(flags, 0.0), sampler);
     }
 
     #[test]
@@ -163,10 +166,11 @@ mod tests {
             min_filter: FilterMode::Linear,
             mip_filter: FilterMode::Linear,
             mipmaps: true,
+            unk3: 0.0,
         };
         let flags = SamplerFlags::from(0b_1100);
-        assert_eq!(SamplerFlags::from(&sampler), flags);
-        assert_eq!(Sampler::from(flags), sampler);
+        assert_eq!(sampler.to_flags(), flags);
+        assert_eq!(Sampler::from_flags(flags, 0.0), sampler);
     }
 
     #[test]
@@ -179,10 +183,11 @@ mod tests {
             min_filter: FilterMode::Linear,
             mip_filter: FilterMode::Linear,
             mipmaps: false,
+            unk3: 0.0,
         };
         let flags = SamplerFlags::from(0b_01000000);
-        assert_eq!(SamplerFlags::from(&sampler), flags);
-        assert_eq!(Sampler::from(flags), sampler);
+        assert_eq!(sampler.to_flags(), flags);
+        assert_eq!(Sampler::from_flags(flags, 0.0), sampler);
     }
 
     #[test]
@@ -195,9 +200,10 @@ mod tests {
             min_filter: FilterMode::Nearest,
             mip_filter: FilterMode::Nearest,
             mipmaps: false,
+            unk3: 0.0,
         };
         let flags = SamplerFlags::from(0b_01010000);
-        assert_eq!(SamplerFlags::from(&sampler), flags);
-        assert_eq!(Sampler::from(flags), sampler);
+        assert_eq!(sampler.to_flags(), flags);
+        assert_eq!(Sampler::from_flags(flags, 0.0), sampler);
     }
 }

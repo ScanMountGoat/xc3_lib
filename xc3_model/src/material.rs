@@ -211,8 +211,10 @@ impl MaterialParameters {
 pub struct Texture {
     /// The index of the [ImageTexture] in [image_textures](struct.ModelRoot.html#structfield.image_textures).
     pub image_texture_index: usize,
+    // TODO: Don't index the sampler?
     /// The index of the [Sampler] in [samplers](struct.ModelGroup.html#structfield.samplers).
     pub sampler_index: usize,
+    // TODO: Second sampler?
 }
 
 pub(crate) fn create_materials(
@@ -439,7 +441,7 @@ fn texture_from_legacy(
 
 fn get_sampler_index(samplers: &mut Vec<Sampler>, flags: xc3_lib::mxmd::SamplerFlags) -> usize {
     // Legacy samplers aren't indexed, so create indices here.
-    let sampler = Sampler::from(flags);
+    let sampler = Sampler::from_flags(flags, 0.0);
     samplers
         .iter()
         .position(|s| s == &sampler)
