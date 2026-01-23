@@ -729,7 +729,7 @@ pub fn create_samplers(materials: &Materials) -> Vec<Sampler> {
             samplers
                 .samplers
                 .iter()
-                .map(|s| Sampler::from_flags(s.flags, s.unk3))
+                .map(|s| Sampler::from_flags(s.flags, s.lod_bias))
                 .collect()
         })
         .unwrap_or_default()

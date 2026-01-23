@@ -391,7 +391,7 @@ impl ModelRoot {
                     .map(|s| xc3_lib::mxmd::Sampler {
                         flags: s.to_flags(),
                         unk2: 0,
-                        unk3: s.unk3,
+                        lod_bias: s.lod_bias,
                     })
                     .collect(),
                 unk: [0; 2],

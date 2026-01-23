@@ -11,7 +11,7 @@ pub struct Sampler {
     pub mip_filter: FilterMode,
     /// Enables rendering mipmaps past the base mip when `true`.
     pub mipmaps: bool,
-    pub unk3: f32,
+    pub lod_bias: f32,
 }
 
 /// Texel mixing mode when sampling between texels.
@@ -46,20 +46,37 @@ impl Sampler {
             && self.mag_filter == FilterMode::Linear
             && self.mip_filter == FilterMode::Linear
     }
+
+    fn repeat_uvw_3d(lod_bias: f32) -> Self {
+        Self {
+            address_mode_u: AddressMode::Repeat,
+            address_mode_v: AddressMode::Repeat,
+            address_mode_w: AddressMode::Repeat,
+            min_filter: FilterMode::Linear,
+            mag_filter: FilterMode::Linear,
+            mip_filter: FilterMode::Linear,
+            mipmaps: true,
+            lod_bias,
+        }
+    }
 }
 
 impl Sampler {
-    pub fn from_flags(flags: xc3_lib::mxmd::SamplerFlags, unk3: f32) -> Self {
+    pub fn from_flags(flags: xc3_lib::mxmd::SamplerFlags, lod_bias: f32) -> Self {
         // TODO: Force clamp
-        Self {
-            address_mode_u: address_mode(flags.repeat_u(), flags.mirror_u()),
-            address_mode_v: address_mode(flags.repeat_v(), flags.mirror_v()),
-            address_mode_w: AddressMode::ClampToEdge,
-            mag_filter: filter_mode(flags.nearest()),
-            min_filter: filter_mode(flags.nearest()),
-            mip_filter: filter_mode(flags.nearest()),
-            mipmaps: !flags.disable_mipmap_filter(),
-            unk3,
+        if flags.repeat_uvw_3d() {
+            Self::repeat_uvw_3d(lod_bias)
+        } else {
+            Self {
+                address_mode_u: address_mode(flags.repeat_u(), flags.mirror_u()),
+                address_mode_v: address_mode(flags.repeat_v(), flags.mirror_v()),
+                address_mode_w: AddressMode::ClampToEdge,
+                mag_filter: filter_mode(flags.nearest()),
+                min_filter: filter_mode(flags.nearest()),
+                mip_filter: filter_mode(flags.nearest()),
+                mipmaps: !flags.disable_mipmap_filter(),
+                lod_bias,
+            }
         }
     }
 
@@ -73,7 +90,7 @@ impl Sampler {
             self.mag_filter == FilterMode::Nearest,
             false,
             !self.mipmaps,
-            false,
+            *self == Self::repeat_uvw_3d(self.lod_bias),
             false,
             Default::default(),
         )
@@ -115,7 +132,7 @@ mod tests {
             min_filter: FilterMode::Linear,
             mip_filter: FilterMode::Linear,
             mipmaps: true,
-            unk3: 0.0,
+            lod_bias: 0.0,
         };
         let flags = SamplerFlags::from(0x0);
         assert_eq!(sampler.to_flags(), flags);
@@ -132,7 +149,7 @@ mod tests {
             min_filter: FilterMode::Linear,
             mip_filter: FilterMode::Linear,
             mipmaps: true,
-            unk3: 0.0,
+            lod_bias: 0.0,
         };
         let flags = SamplerFlags::from(0b_11);
         assert_eq!(sampler.to_flags(), flags);
@@ -149,7 +166,7 @@ mod tests {
             min_filter: FilterMode::Linear,
             mip_filter: FilterMode::Linear,
             mipmaps: true,
-            unk3: 0.0,
+            lod_bias: 0.0,
         };
         let flags = SamplerFlags::from(0b_110);
         assert_eq!(sampler.to_flags(), flags);
@@ -166,7 +183,7 @@ mod tests {
             min_filter: FilterMode::Linear,
             mip_filter: FilterMode::Linear,
             mipmaps: true,
-            unk3: 0.0,
+            lod_bias: 0.0,
         };
         let flags = SamplerFlags::from(0b_1100);
         assert_eq!(sampler.to_flags(), flags);
@@ -183,7 +200,7 @@ mod tests {
             min_filter: FilterMode::Linear,
             mip_filter: FilterMode::Linear,
             mipmaps: false,
-            unk3: 0.0,
+            lod_bias: 0.0,
         };
         let flags = SamplerFlags::from(0b_01000000);
         assert_eq!(sampler.to_flags(), flags);
@@ -200,10 +217,27 @@ mod tests {
             min_filter: FilterMode::Nearest,
             mip_filter: FilterMode::Nearest,
             mipmaps: false,
-            unk3: 0.0,
+            lod_bias: 0.0,
         };
         let flags = SamplerFlags::from(0b_01010000);
         assert_eq!(sampler.to_flags(), flags);
         assert_eq!(Sampler::from_flags(flags, 0.0), sampler);
+    }
+
+    #[test]
+    fn descriptor_0x83() {
+        let sampler = Sampler {
+            address_mode_u: AddressMode::Repeat,
+            address_mode_v: AddressMode::Repeat,
+            address_mode_w: AddressMode::Repeat,
+            mag_filter: FilterMode::Linear,
+            min_filter: FilterMode::Linear,
+            mip_filter: FilterMode::Linear,
+            mipmaps: true,
+            lod_bias: -0.5,
+        };
+        let flags = SamplerFlags::from(0b_10000011);
+        assert_eq!(sampler.to_flags(), flags);
+        assert_eq!(Sampler::from_flags(flags, -0.5), sampler);
     }
 }

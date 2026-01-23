@@ -473,7 +473,7 @@ pub struct Samplers {
 pub struct Sampler {
     pub flags: SamplerFlags,
     pub unk2: u16,
-    pub unk3: f32,
+    pub lod_bias: f32,
 }
 
 /// Texture sampler settings for addressing and filtering.
@@ -501,8 +501,9 @@ pub struct SamplerFlags {
     /// Removes the mipmap nearest from the min filter when `true`.
     /// Disables 4x anisotropic filtering when `true`
     pub disable_mipmap_filter: bool,
-    pub unk1: bool,
-    pub unk3: bool,
+    /// Sets UVW wrap to repeat and ignore all other flags when true.
+    pub repeat_uvw_3d: bool,
+    pub unk3: bool, // TODO: ???
     pub unk: u7,
 }
 
