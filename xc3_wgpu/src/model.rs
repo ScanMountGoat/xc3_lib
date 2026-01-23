@@ -263,9 +263,9 @@ impl ModelGroup {
             {
                 mesh.per_mesh.set(render_pass);
 
-                // TODO: How to make sure the pipeline outputs match the render pass?
-                let pipeline = &self.pipelines[&material.pipeline_key];
-                render_pass.set_pipeline(pipeline);
+                // TODO: Depth prepass stored with material based on flags?
+                // TODO: prepass should use an entirely different shader?
+                // TODO: prepass can share a shader?
 
                 let stencil_reference = material.pipeline_key.stencil_reference();
                 render_pass.set_stencil_reference(stencil_reference);
@@ -278,6 +278,26 @@ impl ModelGroup {
                     .unwrap_or(model.instances.count);
 
                 let is_instanced_static = material.pipeline_key.is_instanced_static;
+
+                if let Some(key) = &material.prepass_pipeline_key {
+                    // TODO: How to make sure the pipeline outputs match the render pass?
+                    // TODO: Should the prepass be a separate render pass entirely?
+                    let pipeline = &self.pipelines[key];
+                    render_pass.set_pipeline(pipeline);
+
+                    self.draw_mesh(
+                        render_pass,
+                        model,
+                        mesh,
+                        is_outline,
+                        is_instanced_static,
+                        instance_count,
+                    );
+                }
+
+                // TODO: How to make sure the pipeline outputs match the render pass?
+                let pipeline = &self.pipelines[&material.pipeline_key];
+                render_pass.set_pipeline(pipeline);
 
                 self.draw_mesh(
                     render_pass,

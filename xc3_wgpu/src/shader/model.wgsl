@@ -441,8 +441,6 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     _unused = textureSample(textures[0], alpha_test_sampler, vec2(0.0));
     let REMOVE_END = 0.0;
 
-    let ALPHA_TEST_DISCARD_GENERATED = 0.0;
-
     // The layout of G-Buffer textures is mostly fixed but assignments are not.
     // Each material in game can have a unique shader program.
     // Check the G-Buffer assignment database to simulate having unique shaders.
@@ -500,9 +498,6 @@ fn fs_alpha(in: VertexOutput) -> @location(0) vec4<f32> {
     return output.g_color;
 }
 
-// TODO: Separate entry for depth prepass.
-// TODO: depth func needs to be changed if using prepass?
-
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
     return fragment_output(in);
@@ -517,5 +512,15 @@ fn fs_outline(in: VertexOutput) -> FragmentOutput {
     // TODO: Detect multiply by vertex color.
     var output = fragment_output(in);
     output.g_color = vec4(in.vertex_color.rgb, 0.0);
+    return output;
+}
+
+@fragment
+fn fs_depth_prepass(in: VertexOutput) -> FragmentOutput {
+    let tex0 = in.tex01.xy;
+    let ALPHA_TEST_DISCARD_GENERATED = 0.0;
+
+    // TODO: This should have no outputs.
+    var output: FragmentOutput;
     return output;
 }

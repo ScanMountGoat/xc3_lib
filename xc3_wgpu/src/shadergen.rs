@@ -16,7 +16,7 @@ use xc3_model::{
     shader_database::Operation,
 };
 
-use crate::shader::model::TEXTURE_SAMPLER_COUNT;
+use crate::{material::ALPHA_TEST_TEXTURE, shader::model::TEXTURE_SAMPLER_COUNT};
 
 const OUT_VAR: &str = "RESULT";
 const VAR_PREFIX: &str = "VAR";
@@ -35,6 +35,7 @@ impl ShaderWgsl {
     pub fn new(
         output_assignments: &OutputAssignments,
         alpha_test: Option<&Texture>,
+        alpha_test_channel_index: usize,
         name_to_index: &mut IndexMap<SmolStr, usize>,
     ) -> Self {
         let xyz_assignments: Vec<_> = output_assignments
@@ -51,7 +52,7 @@ impl ShaderWgsl {
 
         // Generate empty code if alpha testing is disabled.
         let alpha_test = alpha_test
-            .map(|a| generate_alpha_test_wgsl(a, name_to_index))
+            .map(|_| generate_alpha_test_wgsl(alpha_test_channel_index, name_to_index))
             .unwrap_or_default();
 
         let normal_intensity = output_assignments
@@ -238,27 +239,24 @@ fn arg(args: &[usize], i: usize) -> Option<String> {
 }
 
 fn generate_alpha_test_wgsl(
-    alpha_test: &Texture,
+    alpha_test_channel_index: usize,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
-    // TODO: Use a separate depth only pass for alpha testing like in game?
-    String::new()
-    // let name: SmolStr = format!("s{}", alpha_test.texture_index).into();
-    // let i = name_to_index.entry_index(name.clone());
+    let i = name_to_index[ALPHA_TEST_TEXTURE];
 
-    // if i < TEXTURE_SAMPLER_COUNT as usize {
-    //     let c = ['x', 'y', 'z', 'w'][alpha_test.channel_index];
+    if i < TEXTURE_SAMPLER_COUNT as usize {
+        let c = ['x', 'y', 'z', 'w'][alpha_test_channel_index];
 
-    //     // TODO: Detect the UV attribute to use with alpha testing.
-    //     formatdoc! {"
-    //         if textureSample(textures[{i}], alpha_test_sampler, tex0.xy).{c} <= per_material.alpha_test_ref {{
-    //             discard;
-    //         }}
-    //     "}
-    // } else {
-    //     error!("Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}");
-    //     String::new()
-    // }
+        // TODO: Detect the UV attribute to use with alpha testing.
+        formatdoc! {"
+            if textureSample(textures[{i}], alpha_test_sampler, tex0.xy).{c} <= per_material.alpha_test_ref {{
+                discard;
+            }}
+        "}
+    } else {
+        error!("Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}");
+        String::new()
+    }
 }
 
 fn generate_assignments_wgsl(

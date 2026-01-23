@@ -24,9 +24,13 @@ pub(crate) struct Material {
     // The material flags may require a separate pipeline per material.
     // We only store a key here to allow caching.
     pub pipeline_key: PipelineKey,
+    // TODO: making this optional is redundant with the prepass bool in the key itself?
+    pub prepass_pipeline_key: Option<PipelineKey>,
 
     pub fur_shell_instance_count: Option<u32>,
 }
+
+pub(crate) const ALPHA_TEST_TEXTURE: &'static str = "ALPHA_TEST_TEXTURE";
 
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument(skip_all)]
@@ -72,15 +76,14 @@ pub fn create_material(
     let material_assignments = material.output_assignments(image_textures);
     let assignments = output_assignments(&material_assignments);
 
-    // TODO: Use a separate depth only pass for alpha testing like in game?
-    // Alpha textures might not be used in normal shaders.
-    // if let Some(a) = &material.alpha_test {
-    //     name_to_index.entry_index(format!("s{}", a.texture_index).into());
-    // }
+    if material.alpha_test.is_some() {
+        name_to_index.entry_index(ALPHA_TEST_TEXTURE.into());
+    }
 
     let wgsl = ShaderWgsl::new(
         &material_assignments,
         material.alpha_test.as_ref(),
+        material.alpha_texture_channel_index(),
         &mut name_to_index,
     );
 
@@ -88,7 +91,15 @@ pub fn create_material(
         std::array::from_fn(|_| None);
 
     for (name, i) in &name_to_index {
-        if let Some(texture) = assign_texture(material, textures, monolib_shader, name) {
+        // Alpha textures might not be part of the material.
+        if name == ALPHA_TEST_TEXTURE {
+            if let Some(alpha) = &material.alpha_test
+                && let Some(material_texture) = material_textures.get_mut(*i)
+                && let Some(texture) = textures.get(alpha.image_texture_index)
+            {
+                *material_texture = Some(texture);
+            }
+        } else if let Some(texture) = assign_texture(material, textures, monolib_shader, name) {
             if let Some(material_texture) = material_textures.get_mut(*i) {
                 *material_texture = Some(texture);
             }
@@ -216,20 +227,56 @@ pub fn create_material(
     // Each material only goes in exactly one pass?
     // TODO: Is it redundant to also store the unk type?
     // TODO: Find a more accurate way to detect outline shaders.
-    let pipeline_key = PipelineKey {
-        pass_type: material.pass_type,
-        flags: material.state_flags,
-        is_outline: material.name.ends_with("_outline"),
-        output5_type,
-        is_instanced_static,
-        wgsl,
+
+    let (pipeline_key, prepass_pipeline_key) = if material.flags.alpha_mask() {
+        // Generate both a prepass and regular pipeline if needed.
+        // TODO: Is there a better way to store depth prepass pipelines?
+        // The depth writes and compare function only happen in the prepass.
+        let pipeline_key = PipelineKey {
+            pass_type: material.pass_type,
+            flags: xc3_lib::mxmd::StateFlags {
+                depth_func: xc3_lib::mxmd::DepthFunc::Equal,
+                depth_write_mode: 1,
+                ..material.state_flags
+            },
+            is_outline: material.name.ends_with("_outline"),
+            output5_type,
+            is_instanced_static,
+            is_depth_prepass: false,
+            wgsl,
+        };
+        let prepass_pipeline_key = PipelineKey {
+            is_depth_prepass: true,
+            flags: material.state_flags,
+            ..pipeline_key.clone()
+        };
+        (pipeline_key, Some(prepass_pipeline_key))
+    } else {
+        (
+            PipelineKey {
+                pass_type: material.pass_type,
+                flags: material.state_flags,
+                is_outline: material.name.ends_with("_outline"),
+                output5_type,
+                is_instanced_static,
+                is_depth_prepass: false,
+                wgsl,
+            },
+            None,
+        )
     };
+
+    // TODO: avoid clone?
     pipelines.insert(pipeline_key.clone());
+    if let Some(key) = &prepass_pipeline_key {
+        pipelines.insert(key.clone());
+    }
 
     Material {
         name: material.name.clone(),
         bind_group2,
         pipeline_key,
+        prepass_pipeline_key,
         fur_shell_instance_count: material.fur_params.as_ref().map(|p| p.instance_count),
     }
 }

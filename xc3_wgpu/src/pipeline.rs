@@ -25,6 +25,7 @@ pub struct PipelineKey {
     pub is_outline: bool,
     pub output5_type: Output5Type,
     pub is_instanced_static: bool,
+    pub is_depth_prepass: bool,
     pub wgsl: ShaderWgsl,
 }
 
@@ -73,25 +74,21 @@ pub fn model_pipeline(
     key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
     // TODO: Should this be an enum instead of separate booleans?
-    if key.is_instanced_static {
-        model_instanced_static_pipeline(device, data, key)
-    } else if key.is_outline {
+    // TODO: outline for instanced_static?
+    if key.is_outline {
         model_outline_pipeline(device, data, key)
+    } else if key.is_depth_prepass {
+        model_prepass_pipeline(device, data, key)
     } else {
-        model_normal_pipeline(key, device, data)
+        model_normal_pipeline(device, data, key)
     }
 }
 
 fn model_normal_pipeline(
-    key: &PipelineKey,
     device: &wgpu::Device,
     data: &ModelPipelineData,
+    key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
-    let vertex = crate::shader::model::vs_main_entry(
-        wgpu::VertexStepMode::Vertex,
-        wgpu::VertexStepMode::Vertex,
-    );
-
     // Some shaders only write to the albedo output.
     // TODO: Is there a better way of handling this than modifying the render pass?
     if key.write_to_all_outputs() {
@@ -109,50 +106,14 @@ fn model_normal_pipeline(
             Some(GBUFFER_COLOR_FORMAT.into()),
             Some(GBUFFER_COLOR_FORMAT.into()),
         ]);
-        model_pipeline_inner(device, data, vertex, fragment, key)
+        model_pipeline_normal_inner(device, data, fragment, key)
     } else {
         let fragment = crate::shader::model::fs_alpha_entry([Some(wgpu::ColorTargetState {
             format: GBUFFER_COLOR_FORMAT,
             blend: blend_state(key.flags.blend_mode),
             write_mask: wgpu::ColorWrites::all(),
         })]);
-        model_pipeline_inner(device, data, vertex, fragment, key)
-    }
-}
-
-fn model_instanced_static_pipeline(
-    device: &wgpu::Device,
-    data: &ModelPipelineData,
-    key: &PipelineKey,
-) -> wgpu::RenderPipeline {
-    let vertex = crate::shader::model::vs_main_instanced_static_entry(
-        wgpu::VertexStepMode::Vertex,
-        wgpu::VertexStepMode::Vertex,
-        wgpu::VertexStepMode::Instance,
-    );
-    if key.write_to_all_outputs() {
-        // TODO: Do outputs other than color ever use blending?
-        // Create a target for each of the G-Buffer textures.
-        let fragment = crate::shader::model::fs_main_entry([
-            Some(wgpu::ColorTargetState {
-                format: GBUFFER_COLOR_FORMAT,
-                blend: blend_state(key.flags.blend_mode),
-                write_mask: wgpu::ColorWrites::all(),
-            }),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_NORMAL_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-            Some(GBUFFER_COLOR_FORMAT.into()),
-        ]);
-        model_pipeline_inner(device, data, vertex, fragment, key)
-    } else {
-        let fragment = crate::shader::model::fs_alpha_entry([Some(wgpu::ColorTargetState {
-            format: GBUFFER_COLOR_FORMAT,
-            blend: blend_state(key.flags.blend_mode),
-            write_mask: wgpu::ColorWrites::all(),
-        })]);
-        model_pipeline_inner(device, data, vertex, fragment, key)
+        model_pipeline_normal_inner(device, data, fragment, key)
     }
 }
 
@@ -174,6 +135,44 @@ fn model_outline_pipeline(
         Some(GBUFFER_COLOR_FORMAT.into()),
     ]);
     model_pipeline_inner(device, data, vertex, fragment, key)
+}
+
+fn model_prepass_pipeline(
+    device: &wgpu::Device,
+    data: &ModelPipelineData,
+    key: &PipelineKey,
+) -> wgpu::RenderPipeline {
+    let fragment = crate::shader::model::fs_depth_prepass_entry([
+        Some(GBUFFER_COLOR_FORMAT.into()),
+        Some(GBUFFER_COLOR_FORMAT.into()),
+        Some(GBUFFER_NORMAL_FORMAT.into()),
+        Some(GBUFFER_COLOR_FORMAT.into()),
+        Some(GBUFFER_COLOR_FORMAT.into()),
+        Some(GBUFFER_COLOR_FORMAT.into()),
+    ]);
+    model_pipeline_normal_inner(device, data, fragment, key)
+}
+
+fn model_pipeline_normal_inner<const N: usize>(
+    device: &wgpu::Device,
+    data: &ModelPipelineData,
+    fragment: crate::shader::model::FragmentEntry<N>,
+    key: &PipelineKey,
+) -> wgpu::RenderPipeline {
+    if key.is_instanced_static {
+        let vertex = crate::shader::model::vs_main_instanced_static_entry(
+            wgpu::VertexStepMode::Vertex,
+            wgpu::VertexStepMode::Vertex,
+            wgpu::VertexStepMode::Instance,
+        );
+        model_pipeline_inner(device, data, vertex, fragment, key)
+    } else {
+        let vertex = crate::shader::model::vs_main_entry(
+            wgpu::VertexStepMode::Vertex,
+            wgpu::VertexStepMode::Vertex,
+        );
+        model_pipeline_inner(device, data, vertex, fragment, key)
+    }
 }
 
 fn model_pipeline_inner<const M: usize, const N: usize>(
