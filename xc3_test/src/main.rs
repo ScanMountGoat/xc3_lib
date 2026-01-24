@@ -330,45 +330,37 @@ trait CheckFile {
 
 fn check_all_mibl(root: &Path, check_read_write: bool) {
     // Only Xenoblade 3 has a dedicated tex directory with shared textures.
-    let folder = root.join("chr").join("tex").join("nx");
+    let folder = root.join("chr").join("tex").join("nx").join("m");
     if folder.exists() {
-        globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.wismt", "!h/**"])
-            .build()
-            .unwrap()
-            .par_bridge()
-            .for_each(|entry| {
-                let path = entry.as_ref().unwrap().path();
-                let (original_bytes, mibl) = read_wismt_single_tex(path);
+        let paths = collect_paths(&folder, &["*.wismt"]);
+        paths.par_iter().for_each(|path| {
+            let (original_bytes, mibl) = read_wismt_single_tex(path);
 
-                if let Some(base_mip_path) = base_mip_path(path)
-                    && let Ok(base_mip) = Xbc1::from_file(base_mip_path)
-                {
-                    // Test joining and splitting base mip levels.
-                    let base_mip = base_mip.decompress().unwrap();
-                    let combined = mibl.to_surface_with_base_mip(&base_mip).unwrap();
-                    let combined_mibl = Mibl::from_surface(combined).unwrap();
+            if let Some(base_mip_path) = base_mip_path(path)
+                && let Ok(base_mip) = Xbc1::from_file(base_mip_path)
+            {
+                // Test joining and splitting base mip levels.
+                let base_mip = base_mip.decompress().unwrap();
+                let combined = mibl.to_surface_with_base_mip(&base_mip).unwrap();
+                let combined_mibl = Mibl::from_surface(combined).unwrap();
 
-                    let (new_mibl, new_base_mip) = combined_mibl.split_base_mip();
-                    if new_base_mip != base_mip || new_mibl != mibl {
-                        println!("Join/split Mibl not 1:1 for {path:?}");
-                    }
+                let (new_mibl, new_base_mip) = combined_mibl.split_base_mip();
+                if new_base_mip != base_mip || new_mibl != mibl {
+                    println!("Join/split Mibl not 1:1 for {path:?}");
                 }
+            }
 
-                mibl.check_file(path, &original_bytes, &[], check_read_write);
-            });
+            mibl.check_file(path, &original_bytes, &[], check_read_write);
+        });
     }
 
     let folder = root.join("monolib").join("shader");
-    globwalk::GlobWalkerBuilder::from_patterns(folder, &["*.{witex,witx}"])
-        .build()
-        .unwrap()
-        .par_bridge()
-        .for_each(|entry| {
-            let path = entry.as_ref().unwrap().path();
-            let original_bytes = std::fs::read(path).unwrap();
-            let mibl = Mibl::from_file(path).unwrap();
-            mibl.check_file(path, &original_bytes, &[], check_read_write);
-        });
+    let paths = collect_paths(&folder, &["*.{witex,witx}"]);
+    paths.par_iter().for_each(|path| {
+        let original_bytes = std::fs::read(path).unwrap();
+        let mibl = Mibl::from_file(path).unwrap();
+        mibl.check_file(path, &original_bytes, &[], check_read_write);
+    });
 }
 
 fn base_mip_path(path: &Path) -> Option<PathBuf> {
@@ -1287,91 +1279,79 @@ where
     T: CheckFile,
     for<'a> T: BinRead<Args<'a> = ()>,
 {
-    globwalk::GlobWalkerBuilder::from_patterns(root, patterns)
-        .build()
-        .unwrap()
-        .par_bridge()
-        .for_each(|entry| {
-            let path = entry.as_ref().unwrap().path();
-            let original_bytes = std::fs::read(path).unwrap();
+    let paths = collect_paths(root, patterns);
+    paths.par_iter().for_each(|path| {
+        let original_bytes = std::fs::read(path).unwrap();
 
-            let (result, ranges) = read_type_get_offsets(&original_bytes, endian);
+        let (result, ranges) = read_type_get_offsets(&original_bytes, endian);
 
-            match result {
-                Ok(file) => T::check_file(file, path, &original_bytes, &ranges, check_read_write),
-                Err(e) => println!("Error reading {path:?}: {e}"),
-            }
+        match result {
+            Ok(file) => T::check_file(file, path, &original_bytes, &ranges, check_read_write),
+            Err(e) => println!("Error reading {path:?}: {e}"),
+        }
 
-            // There may be many validation errors, so only print a summary.
-            let errors = xc3_lib::offset::validate_ranges(&ranges, &original_bytes);
-            if !errors.is_empty() {
-                let mut gap_count = 0;
-                let mut overlap_count = 0;
-                for e in errors {
-                    match e {
-                        OffsetValidationError::OverlappingRange { .. } => overlap_count += 1,
-                        OffsetValidationError::GapWithNonPaddingBytes { .. } => gap_count += 1,
-                    }
-                }
-                if gap_count > 0 {
-                    println!("GapWithNonPaddingBytes: {gap_count}, {path:?}");
-                }
-                if overlap_count > 0 {
-                    println!("OverlappingRange: {overlap_count}, {path:?}");
+        // There may be many validation errors, so only print a summary.
+        let errors = xc3_lib::offset::validate_ranges(&ranges, &original_bytes);
+        if !errors.is_empty() {
+            let mut gap_count = 0;
+            let mut overlap_count = 0;
+            for e in errors {
+                match e {
+                    OffsetValidationError::OverlappingRange { .. } => overlap_count += 1,
+                    OffsetValidationError::GapWithNonPaddingBytes { .. } => gap_count += 1,
                 }
             }
-        });
+            if gap_count > 0 {
+                println!("GapWithNonPaddingBytes: {gap_count}, {path:?}");
+            }
+            if overlap_count > 0 {
+                println!("OverlappingRange: {overlap_count}, {path:?}");
+            }
+        }
+    });
 }
 
 fn check_all_gltf(root: &Path) {
     // Assume root is the dump root path.
     let shader_textures = ShaderTextures::from_folder(root.join("monolib/shader"));
 
-    globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{wimdo}"])
-        .build()
-        .unwrap()
-        .par_bridge()
-        .for_each(|entry| {
-            let path = entry.as_ref().unwrap().path();
-            match xc3_model::load_model(path, None) {
-                Ok(root) => {
-                    if let Err(e) = xc3_model::gltf::GltfFile::from_model(
-                        "model",
-                        &[root],
-                        &[],
-                        &shader_textures,
-                        false,
-                    ) {
-                        println!("Error converting {path:?}: {e}");
-                    }
+    let paths = collect_paths(root, &["*.{wimdo}"]);
+    paths
+        .par_iter()
+        .for_each(|path| match xc3_model::load_model(path, None) {
+            Ok(root) => {
+                if let Err(e) = xc3_model::gltf::GltfFile::from_model(
+                    "model",
+                    &[root],
+                    &[],
+                    &shader_textures,
+                    false,
+                ) {
+                    println!("Error converting {path:?}: {e}");
                 }
-                Err(e) => println!("Error loading {path:?}: {e}"),
             }
+            Err(e) => println!("Error loading {path:?}: {e}"),
         });
 
-    globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{camdo}"])
-        .build()
-        .unwrap()
-        .par_bridge()
-        .for_each(|entry| {
-            let path = entry.as_ref().unwrap().path();
-            match xc3_model::load_model_legacy(path, None) {
-                Ok(root) => {
-                    if let Err(e) = xc3_model::gltf::GltfFile::from_model(
-                        "model",
-                        &[root],
-                        &[],
-                        &shader_textures,
-                        true,
-                    ) {
-                        println!("Error converting {path:?}: {e}");
-                    }
+    let paths = collect_paths(root, &["*.{camdo}"]);
+    paths
+        .par_iter()
+        .for_each(|path| match xc3_model::load_model_legacy(path, None) {
+            Ok(root) => {
+                if let Err(e) = xc3_model::gltf::GltfFile::from_model(
+                    "model",
+                    &[root],
+                    &[],
+                    &shader_textures,
+                    true,
+                ) {
+                    println!("Error converting {path:?}: {e}");
                 }
-                Err(e) => println!("Error loading {path:?}: {e}"),
             }
+            Err(e) => println!("Error loading {path:?}: {e}"),
         });
 
-    // Process files sequentially since gltf processing is already highly threaded.
+    // Process map files sequentially since gltf processing is already highly threaded.
     globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{wismhd}"])
         .build()
         .unwrap()
@@ -1395,84 +1375,67 @@ fn check_all_gltf(root: &Path) {
 
 fn check_all_wimdo_model(root: &Path, check_read_write: bool, database: Option<String>) {
     let database = database.map(|p| ShaderDatabase::from_file(p).unwrap());
+    let paths = collect_paths(root, &["*.{wimdo}"]);
+    paths.par_iter().for_each(|path| {
+        check_wimdo_model(path, check_read_write, database.as_ref());
+    });
+}
 
-    globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{wimdo}"])
-        .build()
-        .unwrap()
-        .par_bridge()
-        .for_each(|entry| {
-            let path = entry.as_ref().unwrap().path();
-            let wismt_path = path.with_extension("wismt");
-            let chr = chr_folder(path);
+fn check_wimdo_model(path: &Path, check_read_write: bool, database: Option<&ShaderDatabase>) {
+    let wismt_path = path.with_extension("wismt");
+    let chr = chr_folder(path);
 
-            let model_name = path.file_stem().unwrap_or_default().to_string_lossy();
-            let skel = load_skel(path, &model_name);
+    let model_name = path.file_stem().unwrap_or_default().to_string_lossy();
+    let skel = load_skel(path, &model_name);
 
-            // Test reimporting models without any changes.
-            // Avoid compressing or decompressing data more than once for performance.
-            match Mxmd::from_file(path) {
-                Ok(mxmd) => match mxmd.inner {
-                    xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
-                        match ModelFilesV40::from_files(&mxmd, &wismt_path, chr.as_deref()) {
-                            Ok(files) => {
-                                match ModelRoot::from_mxmd_v40(&files, skel, database.as_ref()) {
-                                    Ok(root) => {
-                                        check_shader_dependencies(&root, path);
+    // Test reimporting models without any changes.
+    // Avoid compressing or decompressing data more than once for performance.
+    match Mxmd::from_file(path) {
+        Ok(mxmd) => match mxmd.inner {
+            xc3_lib::mxmd::MxmdInner::V40(mxmd) => {
+                match ModelFilesV40::from_files(&mxmd, &wismt_path, chr.as_deref()) {
+                    Ok(files) => match ModelRoot::from_mxmd_v40(&files, skel, database) {
+                        Ok(root) => {
+                            check_shader_dependencies(&root, path);
 
-                                        if check_read_write {
-                                            check_wimdo_v40_export(
-                                                root,
-                                                &mxmd,
-                                                &files.vertex,
-                                                path,
-                                            );
-                                        }
-                                    }
-                                    Err(e) => println!("Error loading {path:?}: {e}"),
-                                }
+                            if check_read_write {
+                                check_wimdo_v40_export(root, &mxmd, &files.vertex, path);
                             }
-                            Err(e) => println!("Error loading files from {path:?}: {e}"),
                         }
-                    }
-                    xc3_lib::mxmd::MxmdInner::V111(mxmd) => {
-                        match ModelFilesV111::from_files(&mxmd, &wismt_path, chr.as_deref(), false)
-                        {
-                            Ok(files) => match ModelRoot::from_mxmd_v111(&files, skel, None) {
-                                Ok(_root) => {
-                                    // v111 is rarely used and not worth rebuilding with xc3_model.
-                                }
-                                Err(e) => println!("Error loading {path:?}: {e}"),
-                            },
-                            Err(e) => println!("Error loading files from {path:?}: {e}"),
-                        }
-                    }
-                    xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
-                        match ModelFilesV112::from_files(&mxmd, &wismt_path, chr.as_deref(), false)
-                        {
-                            Ok(files) => {
-                                match ModelRoot::from_mxmd_v112(&files, skel, database.as_ref()) {
-                                    Ok(root) => {
-                                        check_shader_dependencies(&root, path);
-
-                                        if check_read_write {
-                                            check_wimdo_v112_export(
-                                                root,
-                                                &mxmd,
-                                                &files.vertex,
-                                                path,
-                                            );
-                                        }
-                                    }
-                                    Err(e) => println!("Error loading {path:?}: {e}"),
-                                }
-                            }
-                            Err(e) => println!("Error loading files from {path:?}: {e}"),
-                        }
-                    }
-                },
-                Err(e) => println!("Error reading {path:?}: {e}"),
+                        Err(e) => println!("Error loading {path:?}: {e}"),
+                    },
+                    Err(e) => println!("Error loading files from {path:?}: {e}"),
+                }
             }
-        });
+            xc3_lib::mxmd::MxmdInner::V111(mxmd) => {
+                match ModelFilesV111::from_files(&mxmd, &wismt_path, chr.as_deref(), false) {
+                    Ok(files) => match ModelRoot::from_mxmd_v111(&files, skel, None) {
+                        Ok(_root) => {
+                            // v111 is rarely used and not worth rebuilding with xc3_model.
+                        }
+                        Err(e) => println!("Error loading {path:?}: {e}"),
+                    },
+                    Err(e) => println!("Error loading files from {path:?}: {e}"),
+                }
+            }
+            xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
+                match ModelFilesV112::from_files(&mxmd, &wismt_path, chr.as_deref(), false) {
+                    Ok(files) => match ModelRoot::from_mxmd_v112(&files, skel, database) {
+                        Ok(root) => {
+                            check_shader_dependencies(&root, path);
+
+                            if check_read_write {
+                                check_wimdo_v112_export(root, &mxmd, &files.vertex, path);
+                            }
+                        }
+                        Err(e) => println!("Error loading {path:?}: {e}"),
+                    },
+                    Err(e) => println!("Error loading files from {path:?}: {e}"),
+                }
+            }
+        },
+        Err(e) => println!("Error reading {path:?}: {e}"),
+    }
 }
 
 fn check_shader_dependencies(root: &ModelRoot, path: &Path) {
@@ -1588,32 +1551,22 @@ fn check_wimdo_v112_export(
 }
 
 fn check_all_animations(root: &Path, _check_read_write: bool) {
-    globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{mot, anm, motstm_data}"])
-        .build()
-        .unwrap()
-        .par_bridge()
-        .for_each(|entry| {
-            let path = entry.as_ref().unwrap().path();
-
-            match xc3_model::load_animations(path) {
-                Ok(_) => (),
-                Err(e) => println!("Error loading {path:?}: {e:?}"),
-            }
+    let paths = collect_paths(root, &["*.{mot, anm, motstm_data}"]);
+    paths
+        .par_iter()
+        .for_each(|path| match xc3_model::load_animations(path) {
+            Ok(_) => (),
+            Err(e) => println!("Error loading {path:?}: {e:?}"),
         });
 }
 
 fn check_all_collisions(root: &Path, _check_read_write: bool) {
-    globwalk::GlobWalkerBuilder::from_patterns(root, &["*.{wiidcm, idcm}"])
-        .build()
-        .unwrap()
-        .par_bridge()
-        .for_each(|entry| {
-            let path = entry.as_ref().unwrap().path();
-
-            match xc3_model::load_collisions(path) {
-                Ok(_) => (),
-                Err(e) => println!("Error loading {path:?}: {e:?}"),
-            }
+    let paths = collect_paths(root, &["*.{mot, anm, motstm_data}"]);
+    paths
+        .par_iter()
+        .for_each(|path| match xc3_model::load_collisions(path) {
+            Ok(_) => (),
+            Err(e) => println!("Error loading {path:?}: {e:?}"),
         });
 }
 
@@ -1651,4 +1604,13 @@ fn validate_offset_write_order(
             break;
         }
     }
+}
+
+fn collect_paths(root: &Path, patterns: &[&str]) -> Vec<PathBuf> {
+    // Collect paths ahead of time since par_iter is faster than par_bridge.
+    globwalk::GlobWalkerBuilder::from_patterns(root, patterns)
+        .build()
+        .unwrap()
+        .filter_map(|e| Some(e.ok()?.path().to_owned()))
+        .collect()
 }
