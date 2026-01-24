@@ -212,39 +212,6 @@ pub struct ObjectModelDataUnk2Unk8Unk1 {
     pub unk1: Vec<[u16; 4]>,
 }
 
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct Unk9ModelData {
-    #[br(parse_with = parse_ptr32)]
-    #[xc3(offset(u32))]
-    pub models: Models,
-
-    #[br(parse_with = parse_ptr32)]
-    #[xc3(offset(u32))]
-    pub materials: Materials,
-
-    #[br(parse_with = parse_opt_ptr32)]
-    #[xc3(offset(u32))]
-    pub unk1: Option<Unk1>,
-
-    #[br(parse_with = parse_ptr32)]
-    #[xc3(offset(u32), align(4096))]
-    pub vertex: VertexData,
-
-    #[br(parse_with = parse_ptr32)]
-    #[xc3(offset(u32))]
-    pub packed_textures: PackedTextures,
-
-    pub unk3: u32,
-
-    #[br(parse_with = parse_ptr32)]
-    #[xc3(offset(u32), align(4096))]
-    pub spco: Spco,
-
-    // TODO: padding?
-    pub unks: [u32; 9],
-}
-
 // TODO: same as Unk9ModelData?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -277,4 +244,10 @@ pub struct SkyModelData {
 
     // TODO: padding?
     pub unks: [u32; 9],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct ObjectStreamData {
+    pub unk1: u32,
 }

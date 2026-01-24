@@ -4,10 +4,11 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use crate::{
     StringOffset32,
-    map::legacy::{ObjectModelData, SkyModelData, TerrainModelData, Unk9ModelData},
+    map::legacy::{ObjectModelData, ObjectStreamData, SkyModelData, TerrainModelData},
     mibl::Mibl,
     mxmd::legacy::VertexData,
-    parse_count32_offset32, parse_offset32_count32, parse_ptr32, parse_string_ptr32,
+    parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
+    parse_string_ptr32,
 };
 
 use super::{BoundingBox, Cems, Dlgt, StreamEntry, Texture};
@@ -19,7 +20,7 @@ use super::{BoundingBox, Cems, Dlgt, StreamEntry, Texture};
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"DMSM"))]
 #[xc3(magic(b"DMSM"))]
-pub struct Msmd {
+pub struct MsmdV111 {
     /// 10111
     pub version: u32,
     // TODO: always 0?
@@ -48,7 +49,7 @@ pub struct Msmd {
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub object_streams: Vec<StreamEntry<()>>, // TODO: type?
+    pub object_streams: Vec<StreamEntry<ObjectStreamData>>,
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
@@ -80,7 +81,7 @@ pub struct Msmd {
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub unk9: Vec<Unk9Model>, // TODO: type?
+    pub dlgts: Vec<DlgtEntry>,
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
@@ -96,8 +97,21 @@ pub struct Msmd {
 
     pub unk11: u32, // TODO: offset?
 
-    // TODO: offsets and counts?
-    pub unk12: [u32; 7],
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32))]
+    pub dmcl: Option<Dmcl>,
+
+    pub unk12: u32, // TODO: size of dmcl in bytes?
+
+    #[br(parse_with = parse_count32_offset32)]
+    #[xc3(count_offset(u32, u32))]
+    pub effects: Vec<StreamEntry<()>>, // TODO: type?
+
+    #[br(parse_with = parse_count32_offset32)]
+    #[xc3(count_offset(u32, u32))]
+    pub terrain_lod_models: Vec<TerrainLodModel>,
+
+    pub unk12_1: u32,
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
@@ -180,9 +194,10 @@ pub struct ObjectModel {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct Unk9Model {
-    pub bounds: BoundingBox,
-    pub entry: StreamEntry<Unk9ModelData>,
+pub struct DlgtEntry {
+    pub max: [f32; 3],
+    pub min: [f32; 3],
+    pub entry: StreamEntry<Dlgt>,
     pub unk1: [u32; 6],
 }
 
@@ -192,4 +207,22 @@ pub struct SkyModel {
     pub bounds: BoundingBox,
     pub unk1: [f32; 4],
     pub entry: StreamEntry<SkyModelData>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct TerrainLodModel {
+    pub bounds: BoundingBox,
+    pub unk1: f32,
+    pub entry: StreamEntry<()>, // TODO: type?
+    pub unk2: [u32; 2],
+    pub unk3: [f32; 4],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(magic(b"DMCL"))]
+#[xc3(magic(b"DMCL"))]
+pub struct Dmcl {
+    pub version: u32,
 }
