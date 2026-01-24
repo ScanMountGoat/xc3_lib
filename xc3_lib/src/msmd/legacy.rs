@@ -3,10 +3,11 @@ use binrw::BinRead;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use crate::{
-    map::legacy::{ObjectModelData, TerrainModelData, Unk9ModelData},
+    StringOffset32,
+    map::legacy::{ObjectModelData, SkyModelData, TerrainModelData, Unk9ModelData},
     mibl::Mibl,
     mxmd::legacy::VertexData,
-    parse_count32_offset32, parse_ptr32, parse_string_ptr32,
+    parse_count32_offset32, parse_offset32_count32, parse_ptr32, parse_string_ptr32,
 };
 
 use super::{BoundingBox, Cems, Dlgt, StreamEntry, Texture};
@@ -41,7 +42,7 @@ pub struct Msmd {
     // TODO: sky models?
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub unk5: Vec<u32>,
+    pub unk5: Vec<SkyModel>,
 
     pub unk6: [u32; 6],
 
@@ -71,7 +72,7 @@ pub struct Msmd {
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub unk_names: Vec<u32>, // TODO: type?
+    pub unk_names: Vec<StringOffset32>,
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
@@ -93,8 +94,9 @@ pub struct Msmd {
     #[xc3(offset(u32))]
     pub unk10: CsvbBlock,
 
-    pub unk11: u32,
+    pub unk11: u32, // TODO: offset?
 
+    // TODO: offsets and counts?
     pub unk12: [u32; 7],
 
     #[br(parse_with = parse_count32_offset32)]
@@ -109,8 +111,16 @@ pub struct Msmd {
     #[xc3(offset(u32))]
     pub unk15: Cems,
 
+    #[br(parse_with = parse_offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk16: Vec<[f32; 8]>,
+
+    #[br(parse_with = parse_offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
+    pub unk17: Vec<[u32; 4]>,
+
     // TODO: padding?
-    pub unks: [u32; 12],
+    pub unks: [u32; 8],
 }
 
 // TODO: BVSC to consistently use BE for name?
@@ -164,7 +174,7 @@ pub struct ObjectModel {
     pub bounds: BoundingBox,
     pub unk1: u32,
     pub unk2: [f32; 3],
-    pub entry: StreamEntry<ObjectModelData>, // TODO: type?
+    pub entry: StreamEntry<ObjectModelData>,
     pub unk3: u32,
 }
 
@@ -172,6 +182,14 @@ pub struct ObjectModel {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Unk9Model {
     pub bounds: BoundingBox,
-    pub entry: StreamEntry<Unk9ModelData>, // TODO: type?
+    pub entry: StreamEntry<Unk9ModelData>,
     pub unk1: [u32; 6],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct SkyModel {
+    pub bounds: BoundingBox,
+    pub unk1: [f32; 4],
+    pub entry: StreamEntry<SkyModelData>,
 }
