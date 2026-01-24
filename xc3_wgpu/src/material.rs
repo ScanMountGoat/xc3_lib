@@ -30,7 +30,7 @@ pub(crate) struct Material {
     pub fur_shell_instance_count: Option<u32>,
 }
 
-pub(crate) const ALPHA_TEST_TEXTURE: &'static str = "ALPHA_TEST_TEXTURE";
+pub(crate) const ALPHA_TEST_TEXTURE: &str = "ALPHA_TEST_TEXTURE";
 
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument(skip_all)]

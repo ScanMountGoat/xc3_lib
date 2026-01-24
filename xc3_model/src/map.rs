@@ -54,7 +54,7 @@ pub fn load_map<P: AsRef<Path>>(
     match &msmd.inner {
         xc3_lib::msmd::MsmdInner::V11(_msmd) => todo!(),
         xc3_lib::msmd::MsmdInner::V112(msmd) => {
-            MapRoot::from_msmd_v112(&msmd, &wismda, shader_database, wismhd_path)
+            MapRoot::from_msmd_v112(msmd, &wismda, shader_database, wismhd_path)
         }
     }
 }

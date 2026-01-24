@@ -309,7 +309,7 @@ impl ModelRoot {
                 .as_ref()
                 .map(|a| {
                     let index = alpha_test_textures.len();
-                    alpha_test_textures.push(a.clone());
+                    alpha_test_textures.push(*a);
                     index
                 })
                 .unwrap_or_default() as u16;
@@ -445,7 +445,7 @@ impl ModelRoot {
                 .as_ref()
                 .map(|a| {
                     let index = alpha_test_textures.len();
-                    alpha_test_textures.push(a.clone());
+                    alpha_test_textures.push(*a);
                     index
                 })
                 .unwrap_or_default() as u16;
