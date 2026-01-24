@@ -3,8 +3,10 @@ use binrw::BinRead;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use crate::{
-    map::legacy::TerrainModelData, mibl::Mibl, mxmd::legacy::VertexData, parse_count32_offset32,
-    parse_ptr32, parse_string_ptr32,
+    map::legacy::{ObjectModelData, TerrainModelData, Unk9ModelData},
+    mibl::Mibl,
+    mxmd::legacy::VertexData,
+    parse_count32_offset32, parse_ptr32, parse_string_ptr32,
 };
 
 use super::{BoundingBox, Cems, Dlgt, StreamEntry, Texture};
@@ -29,7 +31,7 @@ pub struct Msmd {
     // TODO: objects?
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub unk3: Vec<u32>,
+    pub unk3: Vec<ObjectModel>,
 
     // TODO: collisions?
     #[br(parse_with = parse_count32_offset32)]
@@ -77,7 +79,7 @@ pub struct Msmd {
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub unk9: Vec<u32>, // TODO: type?
+    pub unk9: Vec<Unk9Model>, // TODO: type?
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
@@ -154,4 +156,22 @@ pub struct Collision {
     pub unk2: [u32; 3],
     pub unk3: u32,
     pub unk4: [u32; 3],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct ObjectModel {
+    pub bounds: BoundingBox,
+    pub unk1: u32,
+    pub unk2: [f32; 3],
+    pub entry: StreamEntry<ObjectModelData>, // TODO: type?
+    pub unk3: u32,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct Unk9Model {
+    pub bounds: BoundingBox,
+    pub entry: StreamEntry<Unk9ModelData>, // TODO: type?
+    pub unk1: [u32; 6],
 }
