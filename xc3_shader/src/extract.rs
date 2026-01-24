@@ -147,37 +147,44 @@ fn extract_and_decompile_msmd_shaders(
     output_folder: std::path::PathBuf,
     shader_tools: Option<&str>,
 ) {
-    let mut wismda = BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
-    let compressed = msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
+    match &msmd.inner {
+        xc3_lib::msmd::MsmdInner::V11(msmd_v111) => todo!(),
+        xc3_lib::msmd::MsmdInner::V112(msmd) => {
+            let mut wismda =
+                BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
+            let compressed =
+                msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
 
-    for (i, model) in msmd.map_models.iter().enumerate() {
-        let data = model.entry.extract(&mut wismda, compressed).unwrap();
+            for (i, model) in msmd.map_models.iter().enumerate() {
+                let data = model.entry.extract(&mut wismda, compressed).unwrap();
 
-        let model_folder = output_folder.join("map").join(i.to_string());
-        std::fs::create_dir_all(&model_folder).unwrap();
+                let model_folder = output_folder.join("map").join(i.to_string());
+                std::fs::create_dir_all(&model_folder).unwrap();
 
-        extract_shaders(&data.spch, &model_folder, shader_tools, false);
+                extract_shaders(&data.spch, &model_folder, shader_tools, false);
+            }
+
+            for (i, model) in msmd.prop_models.iter().enumerate() {
+                let data = model.entry.extract(&mut wismda, compressed).unwrap();
+
+                let model_folder = output_folder.join("prop").join(i.to_string());
+                std::fs::create_dir_all(&model_folder).unwrap();
+
+                extract_shaders(&data.spch, &model_folder, shader_tools, false);
+            }
+
+            for (i, model) in msmd.env_models.iter().enumerate() {
+                let data = model.entry.extract(&mut wismda, compressed).unwrap();
+
+                let model_folder = output_folder.join("env").join(i.to_string());
+                std::fs::create_dir_all(&model_folder).unwrap();
+
+                extract_shaders(&data.spch, &model_folder, shader_tools, false);
+            }
+
+            // TODO: Foliage shaders?
+        }
     }
-
-    for (i, model) in msmd.prop_models.iter().enumerate() {
-        let data = model.entry.extract(&mut wismda, compressed).unwrap();
-
-        let model_folder = output_folder.join("prop").join(i.to_string());
-        std::fs::create_dir_all(&model_folder).unwrap();
-
-        extract_shaders(&data.spch, &model_folder, shader_tools, false);
-    }
-
-    for (i, model) in msmd.env_models.iter().enumerate() {
-        let data = model.entry.extract(&mut wismda, compressed).unwrap();
-
-        let model_folder = output_folder.join("env").join(i.to_string());
-        std::fs::create_dir_all(&model_folder).unwrap();
-
-        extract_shaders(&data.spch, &model_folder, shader_tools, false);
-    }
-
-    // TODO: Foliage shaders?
 }
 
 pub fn extract_all_legacy_shaders(input: &str, output: &str, gfd_tool: &str) {

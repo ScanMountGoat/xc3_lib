@@ -9,7 +9,7 @@ use xc3_lib::{
     error::DecompressStreamError,
     map::{FoliageMaterials, PropInstance, PropLod, PropPositions},
     mibl::Mibl,
-    msmd::{ChannelType, MapParts, Msmd, StreamEntry},
+    msmd::{ChannelType, MapParts, Msmd, MsmdV112, StreamEntry},
     mxmd::{RenderPassType, StateFlags, TextureUsage},
 };
 
@@ -51,12 +51,17 @@ pub fn load_map<P: AsRef<Path>>(
     let msmd = Msmd::from_file(wismhd_path).map_err(LoadMapError::Wismhd)?;
     let wismda = std::fs::read(wismhd_path.with_extension("wismda"))?;
 
-    MapRoot::from_msmd(&msmd, &wismda, shader_database, wismhd_path)
+    match &msmd.inner {
+        xc3_lib::msmd::MsmdInner::V11(_msmd) => todo!(),
+        xc3_lib::msmd::MsmdInner::V112(msmd) => {
+            MapRoot::from_msmd_v112(&msmd, &wismda, shader_database, wismhd_path)
+        }
+    }
 }
 
 impl MapRoot {
-    pub fn from_msmd(
-        msmd: &Msmd,
+    pub fn from_msmd_v112(
+        msmd: &MsmdV112,
         wismda: &[u8],
         shader_database: Option<&ShaderDatabase>,
         wismhd_path: &Path,
@@ -134,7 +139,7 @@ struct TextureKey {
 }
 
 impl TextureCache {
-    fn new(msmd: &Msmd, wismda: &[u8], compressed: bool) -> Result<Self, LoadMapError> {
+    fn new(msmd: &MsmdV112, wismda: &[u8], compressed: bool) -> Result<Self, LoadMapError> {
         // Low textures are grouped into multiple collections.
         let low_textures = msmd
             .low_textures
@@ -245,7 +250,7 @@ impl TextureCache {
 }
 
 fn map_models_group(
-    msmd: &Msmd,
+    msmd: &MsmdV112,
     wismda: &[u8],
     compressed: bool,
     texture_cache: &mut TextureCache,
@@ -281,7 +286,7 @@ fn map_models_group(
 }
 
 fn props_group(
-    msmd: &Msmd,
+    msmd: &MsmdV112,
     wismda: &[u8],
     compressed: bool,
     texture_cache: &mut TextureCache,

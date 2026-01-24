@@ -498,94 +498,102 @@ impl CheckFile for Msmd {
         // Parse all the data from the .wismda
         let mut reader = Cursor::new(std::fs::read(path.with_extension("wismda")).unwrap());
 
-        let compressed = self.wismda_info.compressed_length != self.wismda_info.decompressed_length;
-
-        for (i, model) in self.map_models.iter().enumerate() {
-            match model.entry.extract(&mut reader, compressed) {
-                Ok(model) => {
-                    model.spch.check_file(path, &[], &[], false);
-                }
-                Err(e) => println!("Error extracting map model {i} in {path:?}: {e}"),
+        match self.inner {
+            xc3_lib::msmd::MsmdInner::V11(_msmd) => {
+                // TODO: check legacy msmd
             }
-        }
+            xc3_lib::msmd::MsmdInner::V112(msmd) => {
+                let compressed =
+                    msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
 
-        for (i, model) in self.prop_models.iter().enumerate() {
-            match model.entry.extract(&mut reader, compressed) {
-                Ok(model) => {
-                    model.spch.check_file(path, &[], &[], false);
-                }
-                Err(e) => println!("Error extracting prop model {i} in {path:?}: {e}"),
-            }
-        }
-
-        for (i, model) in self.env_models.iter().enumerate() {
-            match model.entry.extract(&mut reader, compressed) {
-                Ok(model) => {
-                    for texture in model.textures.textures {
-                        let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
-                        mibl.check_file(path, &texture.mibl_data, &[], check_read_write);
+                for (i, model) in msmd.map_models.iter().enumerate() {
+                    match model.entry.extract(&mut reader, compressed) {
+                        Ok(model) => {
+                            model.spch.check_file(path, &[], &[], false);
+                        }
+                        Err(e) => println!("Error extracting map model {i} in {path:?}: {e}"),
                     }
                 }
-                Err(e) => println!("Error extracting env model {i} in {path:?}: {e}"),
-            }
-        }
 
-        for (i, entry) in self.prop_vertex_data.iter().enumerate() {
-            match entry.extract(&mut reader, compressed) {
-                Ok(vertex_data) => {
-                    let original_bytes = entry.decompress(&mut reader, compressed).unwrap();
-
-                    vertex_data.check_file(path, &original_bytes, &[], check_read_write);
-                }
-                Err(e) => println!("Error extracting prop VertexData {i} in {path:?}: {e}"),
-            }
-        }
-
-        for (i, model) in self.foliage_models.iter().enumerate() {
-            match model.entry.extract(&mut reader, compressed) {
-                Ok(model) => {
-                    model.vertex_data.check_file(path, &[], &[], false);
-                    for texture in model.textures.textures {
-                        let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
-                        mibl.check_file(path, &texture.mibl_data, &[], check_read_write);
+                for (i, model) in msmd.prop_models.iter().enumerate() {
+                    match model.entry.extract(&mut reader, compressed) {
+                        Ok(model) => {
+                            model.spch.check_file(path, &[], &[], false);
+                        }
+                        Err(e) => println!("Error extracting prop model {i} in {path:?}: {e}"),
                     }
                 }
-                Err(e) => println!("Error extracting foliage model {i} in {path:?}: {e}"),
-            }
-        }
 
-        for entry in self.prop_positions {
-            entry.extract(&mut reader, compressed).unwrap();
-        }
-
-        for entry in self.low_textures {
-            let entry = entry.extract(&mut reader, compressed).unwrap();
-            for texture in entry.textures {
-                Mibl::from_bytes(&texture.mibl_data).unwrap();
-            }
-        }
-
-        for (i, model) in self.low_models.iter().enumerate() {
-            match model.entry.extract(&mut reader, compressed) {
-                Ok(model) => {
-                    model.vertex_data.check_file(path, &[], &[], false);
-                    model.spch.check_file(path, &[], &[], false);
+                for (i, model) in msmd.env_models.iter().enumerate() {
+                    match model.entry.extract(&mut reader, compressed) {
+                        Ok(model) => {
+                            for texture in model.textures.textures {
+                                let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
+                                mibl.check_file(path, &texture.mibl_data, &[], check_read_write);
+                            }
+                        }
+                        Err(e) => println!("Error extracting env model {i} in {path:?}: {e}"),
+                    }
                 }
-                Err(e) => println!("Error extracting low model {i} in {path:?}: {e}"),
-            }
-        }
 
-        for entry in self.unk_foliage_data {
-            entry.extract(&mut reader, compressed).unwrap();
-        }
+                for (i, entry) in msmd.prop_vertex_data.iter().enumerate() {
+                    match entry.extract(&mut reader, compressed) {
+                        Ok(vertex_data) => {
+                            let original_bytes = entry.decompress(&mut reader, compressed).unwrap();
 
-        for (i, entry) in self.map_vertex_data.iter().enumerate() {
-            match entry.extract(&mut reader, compressed) {
-                Ok(vertex_data) => {
-                    let original_bytes = entry.decompress(&mut reader, compressed).unwrap();
-                    vertex_data.check_file(path, &original_bytes, &[], check_read_write);
+                            vertex_data.check_file(path, &original_bytes, &[], check_read_write);
+                        }
+                        Err(e) => println!("Error extracting prop VertexData {i} in {path:?}: {e}"),
+                    }
                 }
-                Err(e) => println!("Error extracting map VertexData {i} in {path:?}: {e}"),
+
+                for (i, model) in msmd.foliage_models.iter().enumerate() {
+                    match model.entry.extract(&mut reader, compressed) {
+                        Ok(model) => {
+                            model.vertex_data.check_file(path, &[], &[], false);
+                            for texture in model.textures.textures {
+                                let mibl = Mibl::from_bytes(&texture.mibl_data).unwrap();
+                                mibl.check_file(path, &texture.mibl_data, &[], check_read_write);
+                            }
+                        }
+                        Err(e) => println!("Error extracting foliage model {i} in {path:?}: {e}"),
+                    }
+                }
+
+                for entry in msmd.prop_positions {
+                    entry.extract(&mut reader, compressed).unwrap();
+                }
+
+                for entry in msmd.low_textures {
+                    let entry = entry.extract(&mut reader, compressed).unwrap();
+                    for texture in entry.textures {
+                        Mibl::from_bytes(&texture.mibl_data).unwrap();
+                    }
+                }
+
+                for (i, model) in msmd.low_models.iter().enumerate() {
+                    match model.entry.extract(&mut reader, compressed) {
+                        Ok(model) => {
+                            model.vertex_data.check_file(path, &[], &[], false);
+                            model.spch.check_file(path, &[], &[], false);
+                        }
+                        Err(e) => println!("Error extracting low model {i} in {path:?}: {e}"),
+                    }
+                }
+
+                for entry in msmd.unk_foliage_data {
+                    entry.extract(&mut reader, compressed).unwrap();
+                }
+
+                for (i, entry) in msmd.map_vertex_data.iter().enumerate() {
+                    match entry.extract(&mut reader, compressed) {
+                        Ok(vertex_data) => {
+                            let original_bytes = entry.decompress(&mut reader, compressed).unwrap();
+                            vertex_data.check_file(path, &original_bytes, &[], check_read_write);
+                        }
+                        Err(e) => println!("Error extracting map VertexData {i} in {path:?}: {e}"),
+                    }
+                }
             }
         }
     }
@@ -1499,7 +1507,6 @@ fn check_wimdo_v40_export(
     path: &Path,
 ) {
     let (new_mxmd, new_vertex, _) = root.to_mxmd_v40_model_files(mxmd).unwrap();
-    // TODO: Check rebuilding vertex and mxmd fields 1:1
     if &new_vertex != vertex {
         println!("VertexData not 1:1 for {path:?}");
     }
@@ -1507,6 +1514,13 @@ fn check_wimdo_v40_export(
     // TODO: How many of these fields should be preserved?
     if new_mxmd.models.models != mxmd.models.models {
         println!("Model list not 1:1 for {path:?}");
+    }
+
+    if new_mxmd.materials.materials != mxmd.materials.materials {
+        println!("Materials not 1:1 for {path:?}");
+    }
+    if new_mxmd.materials.alpha_test_textures != mxmd.materials.alpha_test_textures {
+        println!("Material alpha test textures not 1:1 for {path:?}");
     }
 }
 
@@ -1532,6 +1546,15 @@ fn check_wimdo_v112_export(
     }
     if new_mxmd.models.lod_data != mxmd.models.lod_data {
         println!("Model LODs not 1:1 for {path:?}");
+    }
+    if new_mxmd.materials.materials != mxmd.materials.materials {
+        println!("Materials not 1:1 for {path:?}");
+    }
+    if new_mxmd.materials.alpha_test_textures != mxmd.materials.alpha_test_textures {
+        println!("Material alpha test textures not 1:1 for {path:?}");
+    }
+    if new_mxmd.materials.samplers != mxmd.materials.samplers {
+        println!("Material samplers not 1:1 for {path:?}");
     }
     if let Some(skinning) = &mxmd.models.skinning
         && let Some(new_skinning) = &new_mxmd.models.skinning

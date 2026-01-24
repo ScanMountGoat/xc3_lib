@@ -18,14 +18,7 @@ use super::{BoundingBox, Cems, Dlgt, StreamEntry, Texture};
 /// The main map data for a `.wismhd` file.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-#[br(magic(b"DMSM"))]
-#[xc3(magic(b"DMSM"))]
-pub struct MsmdV111 {
-    /// 10111
-    pub version: u32,
-    // TODO: always 0?
-    pub unk1: [u32; 4],
-
+pub struct MsmdV11 {
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
     pub unk2: Vec<TerrainModel>,

@@ -22,6 +22,7 @@ use crate::{
         MapModelData, PropInstance, PropModelData, PropPositions,
     },
     mibl::Mibl,
+    msmd::legacy::MsmdV11,
     mxmd::{Mxmd, TextureUsage},
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_opt_ptr32, parse_string_ptr32, parse_vec,
@@ -38,11 +39,28 @@ pub mod legacy;
 #[br(magic(b"DMSM"))]
 #[xc3(magic(b"DMSM"))]
 pub struct Msmd {
-    /// 10112
     pub version: u32,
     // TODO: always 0?
     pub unk1: [u32; 4],
 
+    #[br(args_raw(version))]
+    pub inner: MsmdInner,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[br(import_raw(version: u32))]
+pub enum MsmdInner {
+    #[br(pre_assert(version == 10011))]
+    V11(MsmdV11),
+
+    #[br(pre_assert(version == 10112))]
+    V112(MsmdV112),
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct MsmdV112 {
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
     pub map_models: Vec<MapModel>,
