@@ -92,7 +92,9 @@ impl Xbc1 {
         let compressed_stream = match compression_type {
             CompressionType::Uncompressed => decompressed.to_vec(),
             CompressionType::Zlib => {
-                let mut encoder = ZlibEncoder::new(decompressed, Compression::best());
+                // Any levels past 1 (fastest) dramatically increase encoding times compared to 9 (best).
+                // The size increase for fast vs best is roughly 13% for exporting xeno3/chr/ch/ch01027000.wismt.
+                let mut encoder = ZlibEncoder::new(decompressed, Compression::fast());
                 let mut compressed_stream = Vec::new();
                 encoder.read_to_end(&mut compressed_stream)?;
                 compressed_stream
