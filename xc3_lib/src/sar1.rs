@@ -176,6 +176,7 @@ pub struct ChClUnk7Item {
     pub unk: [u32; 3],
 }
 
+// TODO: BVSC to consistently use BE for name?
 // TODO: Is the padding always aligned?
 // "effpnt" or "effect" "point"?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

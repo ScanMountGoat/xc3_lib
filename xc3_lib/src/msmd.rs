@@ -30,6 +30,8 @@ use crate::{
     xc3_write_binwrite_impl,
 };
 
+pub mod legacy;
+
 /// The main map data for a `.wismhd` file.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]

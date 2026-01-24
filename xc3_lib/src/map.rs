@@ -25,6 +25,8 @@ use crate::{
     xc3_write_binwrite_impl,
 };
 
+pub mod legacy;
+
 // TODO: Improve docs.
 // TODO: Link to appropriate stream field with doc links.
 /// The data for a [PropModel](crate::msmd::PropModel).
