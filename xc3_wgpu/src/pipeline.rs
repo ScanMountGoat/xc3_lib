@@ -61,6 +61,7 @@ impl PipelineKey {
             xc3_model::material::StencilValue::Unk37 => 0,
             xc3_model::material::StencilValue::Unk41 => 0,
             xc3_model::material::StencilValue::Unk49 => 0,
+            xc3_model::material::StencilValue::Unk65 => 0,
             xc3_model::material::StencilValue::Unk97 => 0,
             xc3_model::material::StencilValue::Unk105 => 0,
             xc3_lib::mxmd::StencilValue::Unk128 => 0,

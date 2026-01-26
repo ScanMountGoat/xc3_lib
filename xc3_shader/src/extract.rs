@@ -1,6 +1,6 @@
 use std::{
     error::Error,
-    io::BufReader,
+    io::Cursor,
     path::{Path, PathBuf},
 };
 
@@ -147,11 +147,26 @@ fn extract_and_decompile_msmd_shaders(
     output_folder: std::path::PathBuf,
     shader_tools: Option<&str>,
 ) {
+    // Use the same folder structure for both map file versions.
+    // The folders technically don't matter since database lookups hash the shader binaries themselves.
     match &msmd.inner {
-        xc3_lib::msmd::MsmdInner::V11(msmd_v111) => todo!(),
+        xc3_lib::msmd::MsmdInner::V11(msmd) => {
+            let mut wismda = Cursor::new(std::fs::read(path.with_extension("wismda")).unwrap());
+            let compressed = true;
+
+            for (i, model) in msmd.unk2.iter().enumerate() {
+                let data = model.entry.extract(&mut wismda, compressed).unwrap();
+
+                let model_folder = output_folder.join("map").join(i.to_string());
+                std::fs::create_dir_all(&model_folder).unwrap();
+
+                if let Some(spch) = data.spco.items.first().map(|i| &i.spch) {
+                    extract_shaders(spch, &model_folder, shader_tools, false);
+                }
+            }
+        }
         xc3_lib::msmd::MsmdInner::V112(msmd) => {
-            let mut wismda =
-                BufReader::new(std::fs::File::open(path.with_extension("wismda")).unwrap());
+            let mut wismda = Cursor::new(std::fs::read(path.with_extension("wismda")).unwrap());
             let compressed =
                 msmd.wismda_info.compressed_length != msmd.wismda_info.decompressed_length;
 

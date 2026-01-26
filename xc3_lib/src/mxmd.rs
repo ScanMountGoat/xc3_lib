@@ -720,6 +720,7 @@ pub enum StencilValue {
     Unk39 = 39,
     Unk41 = 41,
     Unk49 = 49,
+    Unk65 = 65,
     Unk97 = 97,
     Unk105 = 105,
     Unk128 = 128, // TODO: xcx de only?

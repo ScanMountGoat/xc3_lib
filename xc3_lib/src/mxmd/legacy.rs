@@ -750,8 +750,10 @@ pub enum ParamType {
     AlphaInfo = 14,
     /// `gMatCol` uniform in the [Spch](crate::spch::Spch).
     MaterialColor = 15,
+    Unk16 = 16,
     /// `gDTWrk` uniform in the [Spch](crate::spch::Spch).
     DtWork = 17,
+    Unk18 = 18,
     /// `gMdlParm` uniform in the [Spch](crate::spch::Spch).
     MdlParam = 19,
 }

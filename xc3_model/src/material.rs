@@ -815,9 +815,12 @@ fn assign_parameters_legacy(
                     parameters.alpha_info = Some(read_param_legacy(param, work_values));
                 }
                 xc3_lib::mxmd::legacy::ParamType::MaterialColor => {}
+                xc3_lib::mxmd::legacy::ParamType::Unk16 => {}
+
                 xc3_lib::mxmd::legacy::ParamType::DtWork => {
                     parameters.dt_work = Some(read_param_legacy(param, work_values));
                 }
+                xc3_lib::mxmd::legacy::ParamType::Unk18 => {}
                 xc3_lib::mxmd::legacy::ParamType::MdlParam => {
                     parameters.mdl_param = Some(read_param_legacy(param, work_values));
                 }

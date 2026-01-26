@@ -160,8 +160,9 @@ pub struct CsvbBlockItem {
 pub struct TerrainModel {
     pub bounds: BoundingBox,
     pub unk1: [f32; 4],
-    pub entry: StreamEntry<TerrainModelData>, // TODO: type?
-    pub unk2: u32,
+    pub entry: StreamEntry<TerrainModelData>,
+    // TODO: padding?
+    pub unk2: [u32; 4],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

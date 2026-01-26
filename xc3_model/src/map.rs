@@ -78,11 +78,23 @@ impl MapRoot {
         // TODO: Better way to combine models?
         let mut roots = Vec::new();
 
-        let map_model_group = map_models_group_legacy(msmd, wismda, compressed, shader_database)?;
+        let texture_indices: Vec<_> = (0..msmd.terrain_cached_textures.len() as u16).collect();
+
+        let map_model_group =
+            map_models_group_legacy(msmd, wismda, compressed, &texture_indices, shader_database)?;
+
+        let image_textures = msmd
+            .terrain_cached_textures
+            .par_iter()
+            .map(|s| {
+                let mibl = s.extract(&mut Cursor::new(wismda), compressed)?;
+                ImageTexture::from_mibl(&mibl, None, None)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         roots.push(MapRoot {
             groups: vec![map_model_group],
-            image_textures: Vec::new(),
+            image_textures,
         });
 
         Ok(roots)
@@ -833,6 +845,7 @@ fn map_models_group_legacy(
     msmd: &MsmdV11,
     wismda: &[u8],
     compressed: bool,
+    texture_indices: &[u16],
     shader_database: Option<&ShaderDatabase>,
 ) -> Result<ModelGroup, LoadMapError> {
     let buffers = create_buffers_legacy(&msmd.map_terrain_buffers, wismda, compressed)?;
@@ -845,31 +858,35 @@ fn map_models_group_legacy(
         .collect::<Result<Vec<_>, _>>()?;
 
     let mut models = Vec::new();
-    models.extend(
-        map_model_data
-            .iter()
-            .map(|model_data| load_map_model_group_legacy(model_data, shader_database)),
-    );
+    models.extend(map_model_data.iter().map(|model_data| {
+        load_map_model_group_legacy(model_data, texture_indices, shader_database)
+    }));
 
     Ok(ModelGroup { models, buffers })
 }
 
 fn load_map_model_group_legacy(
     model_data: &xc3_lib::map::legacy::TerrainModelData,
+    texture_indices: &[u16],
     shader_database: Option<&ShaderDatabase>,
 ) -> Models {
     let (materials, samplers) = create_materials_samplers_legacy(
         &model_data.materials,
-        &[],
+        texture_indices,
         model_data.spco.items.first().map(|i| &i.spch),
         shader_database,
     );
 
     let models = model_data
-        .models
-        .models
+        .unk8
+        .items2
         .iter()
-        .map(|model| {
+        .zip(model_data.models.models.iter())
+        .map(|(item, model)| {
+            // TODO: how to find the item1 index?
+            let item1_index = (item.unk2 as usize) % model_data.unk8.items1.len();
+            let item1 = &model_data.unk8.items1[item1_index];
+            // TODO: Is this defined on the item1 instead?
             let vertex_data_index = 0;
             Model::from_model_legacy(model, vertex_data_index)
         })
