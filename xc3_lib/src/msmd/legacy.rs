@@ -6,6 +6,7 @@ use crate::{
     StringOffset32,
     map::legacy::{ObjectModelData, ObjectStreamData, SkyModelData, TerrainModelData},
     mibl::Mibl,
+    msmd::LowTextures,
     mxmd::legacy::VertexData,
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32,
@@ -78,7 +79,7 @@ pub struct MsmdV11 {
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub terrain_cached_textures: Vec<StreamEntry<Mibl>>,
+    pub terrain_cached_textures: Vec<StreamEntry<LowTextures>>,
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]

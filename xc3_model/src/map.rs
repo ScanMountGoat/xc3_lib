@@ -79,18 +79,18 @@ impl MapRoot {
         let mut roots = Vec::new();
 
         let texture_indices: Vec<_> = (0..msmd.terrain_cached_textures.len() as u16).collect();
+        let mut texture_cache = TextureCache::from_msmd_v11(msmd, wismda, compressed)?;
 
-        let map_model_group =
-            map_models_group_legacy(msmd, wismda, compressed, &texture_indices, shader_database)?;
+        let map_model_group = map_models_group_legacy(
+            msmd,
+            wismda,
+            compressed,
+            &texture_indices,
+            &mut texture_cache,
+            shader_database,
+        )?;
 
-        let image_textures = msmd
-            .terrain_cached_textures
-            .par_iter()
-            .map(|s| {
-                let mibl = s.extract(&mut Cursor::new(wismda), compressed)?;
-                ImageTexture::from_mibl(&mibl, None, None)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let image_textures = texture_cache.image_textures()?;
 
         roots.push(MapRoot {
             groups: vec![map_model_group],
@@ -128,7 +128,7 @@ impl MapRoot {
 
         // TODO: How much does a mutable cache negatively impact parallelization?
         // TODO: Is there enough reuse for it to be worth caching these?
-        let mut texture_cache = TextureCache::new(msmd, wismda, compressed)?;
+        let mut texture_cache = TextureCache::from_msmd_v112(msmd, wismda, compressed)?;
 
         let map_model_group = map_models_group(
             msmd,
@@ -179,7 +179,42 @@ struct TextureKey {
 }
 
 impl TextureCache {
-    fn new(msmd: &MsmdV112, wismda: &[u8], compressed: bool) -> Result<Self, LoadMapError> {
+    fn from_msmd_v11(
+        msmd: &MsmdV11,
+        wismda: &[u8],
+        compressed: bool,
+    ) -> Result<Self, LoadMapError> {
+        // Low textures are grouped into multiple collections.
+        let low_textures = msmd
+            .terrain_cached_textures
+            .par_iter()
+            .map(|e| {
+                let textures = e.extract(&mut Cursor::new(&wismda), compressed)?;
+                textures
+                    .textures
+                    .iter()
+                    .map(|t| {
+                        Ok((
+                            t.usage,
+                            Mibl::from_bytes(&t.mibl_data)?.to_surface().unwrap(),
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, LoadMapError>>()
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Self {
+            texture_to_image_texture_index: IndexMap::new(),
+            low_textures,
+            high_textures: Vec::new(),
+        })
+    }
+
+    fn from_msmd_v112(
+        msmd: &MsmdV112,
+        wismda: &[u8],
+        compressed: bool,
+    ) -> Result<Self, LoadMapError> {
         // Low textures are grouped into multiple collections.
         let low_textures = msmd
             .low_textures
@@ -846,6 +881,7 @@ fn map_models_group_legacy(
     wismda: &[u8],
     compressed: bool,
     texture_indices: &[u16],
+    texture_cache: &mut TextureCache,
     shader_database: Option<&ShaderDatabase>,
 ) -> Result<ModelGroup, LoadMapError> {
     let buffers = create_buffers_legacy(&msmd.map_terrain_buffers, wismda, compressed)?;
@@ -859,7 +895,19 @@ fn map_models_group_legacy(
 
     let mut models = Vec::new();
     models.extend(map_model_data.iter().map(|model_data| {
-        load_map_model_group_legacy(model_data, texture_indices, shader_database)
+        // Remove one layer of indirection from texture lookups.
+        let material_root_texture_indices: Vec<_> = model_data
+            .textures
+            .iter()
+            .map(|t| texture_cache.insert(t, &model_data.low_texture_indices))
+            .collect();
+
+        load_map_model_group_legacy(
+            model_data,
+            texture_indices,
+            &material_root_texture_indices,
+            shader_database,
+        )
     }));
 
     Ok(ModelGroup { models, buffers })
@@ -868,26 +916,28 @@ fn map_models_group_legacy(
 fn load_map_model_group_legacy(
     model_data: &xc3_lib::map::legacy::TerrainModelData,
     texture_indices: &[u16],
+    material_root_texture_indices: &[usize],
     shader_database: Option<&ShaderDatabase>,
 ) -> Models {
-    let (materials, samplers) = create_materials_samplers_legacy(
+    let (mut materials, samplers) = create_materials_samplers_legacy(
         &model_data.materials,
         texture_indices,
         model_data.spco.items.first().map(|i| &i.spch),
         shader_database,
     );
+    apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
     let models = model_data
         .unk8
         .items2
         .iter()
         .zip(model_data.models.models.iter())
-        .map(|(item, model)| {
-            // TODO: how to find the item1 index?
-            let item1_index = (item.unk2 as usize) % model_data.unk8.items1.len();
+        .map(|(group_index, model)| {
+            // TODO: Does switch use the same lookup for lods?
+            let item1_index = *group_index as usize % model_data.unk8.items1.len();
+            let lod_index = *group_index as usize / model_data.unk8.items1.len();
             let item1 = &model_data.unk8.items1[item1_index];
-            // TODO: Is this defined on the item1 instead?
-            let vertex_data_index = 0;
+            let vertex_data_index = item1.unk1[lod_index] as usize;
             Model::from_model_legacy(model, vertex_data_index)
         })
         .collect();

@@ -3,6 +3,7 @@ use binrw::{BinRead, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use crate::{
+    map::Texture,
     mxmd::{
         PackedTextures,
         legacy::{Materials, Models, Unk1, VertexData},
@@ -36,7 +37,7 @@ pub struct TerrainModelData {
 
     #[br(parse_with = parse_offset32_count32)]
     #[xc3(offset_count(u32, u32))]
-    pub unk3: Vec<[u16; 4]>,
+    pub textures: Vec<Texture>,
 
     pub unk4: u32,
     pub unk5: u32,
@@ -46,8 +47,10 @@ pub struct TerrainModelData {
     pub spco: Spco,
 
     // TODO: offset count?
-    pub unk6: u32,
-    pub unk7: u32,
+    // TODO: Texture ids?
+    #[br(parse_with = parse_offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
+    pub low_texture_indices: Vec<u16>,
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32), align(4096))]
@@ -57,7 +60,7 @@ pub struct TerrainModelData {
     pub unks: [u32; 7],
 }
 
-// TODO: map model groups?
+// TODO: identical to map model groups?
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -73,7 +76,7 @@ pub struct TerrainModelDataUnk8 {
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub items2: Vec<TerrainModelDataUnk8Item2>,
+    pub items2: Vec<u16>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -81,8 +84,7 @@ pub struct TerrainModelDataUnk8 {
 pub struct TerrainModelDataUnk8Item1 {
     pub max_xyz: [f32; 3],
     pub min_xyz: [f32; 3],
-    pub unk1: u32, // TODO: vertex data start index?
-    pub unk2: u32, // TODO: vertex data end index?
+    pub unk1: [u32; 2], // TODO: vertex data index for each lod?
     pub unk3: u32,
 }
 

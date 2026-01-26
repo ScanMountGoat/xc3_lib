@@ -2036,6 +2036,7 @@ pub enum TextureUsage {
     Unk28 = 35651584,
     Unk29 = 34734080,
     Unk30 = 34603008,
+    Unk31 = 23068672,
 }
 
 // xc1: 40 bytes
