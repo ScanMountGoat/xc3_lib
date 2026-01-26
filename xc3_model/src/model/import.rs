@@ -529,7 +529,11 @@ impl Models {
         let (materials, samplers) =
             create_materials_samplers_legacy(materials, texture_indices, shaders, shader_database);
         Self {
-            models: models.models.iter().map(Model::from_model_legacy).collect(),
+            models: models
+                .models
+                .iter()
+                .map(|m| Model::from_model_legacy(m, 0))
+                .collect(),
             materials,
             samplers,
             lod_data: None,
@@ -690,7 +694,10 @@ impl Model {
         }
     }
 
-    pub fn from_model_legacy(model: &xc3_lib::mxmd::legacy::Model) -> Self {
+    pub fn from_model_legacy(
+        model: &xc3_lib::mxmd::legacy::Model,
+        model_buffers_index: usize,
+    ) -> Self {
         let meshes = model
             .meshes
             .iter()
@@ -713,7 +720,7 @@ impl Model {
         Self {
             meshes,
             instances: vec![Mat4::IDENTITY],
-            model_buffers_index: 0,
+            model_buffers_index,
             max_xyz: model.max_xyz.into(),
             min_xyz: model.min_xyz.into(),
             bounding_radius: model.bounding_radius,

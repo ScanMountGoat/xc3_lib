@@ -57,6 +57,7 @@ pub struct TerrainModelData {
     pub unks: [u32; 7],
 }
 
+// TODO: map model groups?
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -72,17 +73,26 @@ pub struct TerrainModelDataUnk8 {
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub items2: Vec<[u16; 4]>,
+    pub items2: Vec<TerrainModelDataUnk8Item2>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct TerrainModelDataUnk8Item1 {
-    pub max: [f32; 3],
-    pub min: [f32; 3],
-    pub unk1: u32,
-    pub unk2: u32,
+    pub max_xyz: [f32; 3],
+    pub min_xyz: [f32; 3],
+    pub unk1: u32, // TODO: vertex data start index?
+    pub unk2: u32, // TODO: vertex data end index?
     pub unk3: u32,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct TerrainModelDataUnk8Item2 {
+    pub unk1: u16, // TODO: counts up?
+    pub unk2: u16,
+    pub unk3: u16,
+    pub unk4: u16,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

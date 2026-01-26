@@ -9,7 +9,7 @@ use xc3_lib::{
     error::DecompressStreamError,
     map::{FoliageMaterials, PropInstance, PropLod, PropPositions},
     mibl::Mibl,
-    msmd::{ChannelType, MapParts, Msmd, MsmdV112, StreamEntry},
+    msmd::{ChannelType, MapParts, Msmd, MsmdV112, StreamEntry, legacy::MsmdV11},
     mxmd::{RenderPassType, StateFlags, TextureUsage},
 };
 
@@ -17,6 +17,7 @@ use crate::{
     IndexMapExt, MapRoot, Material, Model, ModelBuffers, ModelGroup, ModelRoot, Models, Texture,
     create_materials,
     error::{CreateImageTextureError, LoadMapError},
+    material::create_materials_samplers_legacy,
     model::import::{create_samplers, lod_data},
     shader_database::ShaderDatabase,
     skinning::create_skinning,
@@ -52,7 +53,9 @@ pub fn load_map<P: AsRef<Path>>(
     let wismda = std::fs::read(wismhd_path.with_extension("wismda"))?;
 
     match &msmd.inner {
-        xc3_lib::msmd::MsmdInner::V11(_msmd) => todo!(),
+        xc3_lib::msmd::MsmdInner::V11(msmd) => {
+            MapRoot::from_msmd_v11(msmd, &wismda, shader_database)
+        }
         xc3_lib::msmd::MsmdInner::V112(msmd) => {
             MapRoot::from_msmd_v112(msmd, &wismda, shader_database, wismhd_path)
         }
@@ -60,6 +63,31 @@ pub fn load_map<P: AsRef<Path>>(
 }
 
 impl MapRoot {
+    pub fn from_msmd_v11(
+        msmd: &MsmdV11,
+        wismda: &[u8],
+        shader_database: Option<&ShaderDatabase>,
+    ) -> Result<Vec<Self>, LoadMapError> {
+        // Loading is CPU intensive due to decompression and decoding.
+        // The .wismda is loaded into memory as &[u8].
+        // Extracting can be parallelized without locks by creating multiple readers.
+
+        // XCX DE wismda entries are always compressed.
+        let compressed = true;
+
+        // TODO: Better way to combine models?
+        let mut roots = Vec::new();
+
+        let map_model_group = map_models_group_legacy(msmd, wismda, compressed, shader_database)?;
+
+        roots.push(MapRoot {
+            groups: vec![map_model_group],
+            image_textures: Vec::new(),
+        });
+
+        Ok(roots)
+    }
+
     pub fn from_msmd_v112(
         msmd: &MsmdV112,
         wismda: &[u8],
@@ -799,4 +827,80 @@ fn load_child_model(
         }],
         image_textures: model_root.image_textures,
     })
+}
+
+fn map_models_group_legacy(
+    msmd: &MsmdV11,
+    wismda: &[u8],
+    compressed: bool,
+    shader_database: Option<&ShaderDatabase>,
+) -> Result<ModelGroup, LoadMapError> {
+    let buffers = create_buffers_legacy(&msmd.map_terrain_buffers, wismda, compressed)?;
+
+    // Decompression is expensive, so run in parallel ahead of time.
+    let map_model_data = msmd
+        .unk2
+        .par_iter()
+        .map(|m| m.entry.extract(&mut Cursor::new(wismda), compressed))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut models = Vec::new();
+    models.extend(
+        map_model_data
+            .iter()
+            .map(|model_data| load_map_model_group_legacy(model_data, shader_database)),
+    );
+
+    Ok(ModelGroup { models, buffers })
+}
+
+fn load_map_model_group_legacy(
+    model_data: &xc3_lib::map::legacy::TerrainModelData,
+    shader_database: Option<&ShaderDatabase>,
+) -> Models {
+    let (materials, samplers) = create_materials_samplers_legacy(
+        &model_data.materials,
+        &[],
+        model_data.spco.items.first().map(|i| &i.spch),
+        shader_database,
+    );
+
+    let models = model_data
+        .models
+        .models
+        .iter()
+        .map(|model| {
+            let vertex_data_index = 0;
+            Model::from_model_legacy(model, vertex_data_index)
+        })
+        .collect();
+
+    Models {
+        models,
+        materials,
+        samplers,
+        skinning: None,
+        lod_data: None,
+        morph_controller_names: Vec::new(),
+        animation_morph_names: Vec::new(),
+        min_xyz: model_data.models.min_xyz.into(),
+        max_xyz: model_data.models.max_xyz.into(),
+    }
+}
+
+fn create_buffers_legacy(
+    vertex_data: &[StreamEntry<xc3_lib::mxmd::legacy::VertexData>],
+    wismda: &[u8],
+    compressed: bool,
+) -> Result<Vec<ModelBuffers>, DecompressStreamError> {
+    // Process vertex data ahead of time in parallel.
+    // This gives better CPU utilization and avoids redundant processing.
+    vertex_data
+        .par_iter()
+        .map(|e| {
+            let vertex_data = e.extract(&mut Cursor::new(wismda), compressed)?;
+            ModelBuffers::from_vertex_data_legacy(&vertex_data, binrw::Endian::Little)
+                .map_err(Into::into)
+        })
+        .collect()
 }

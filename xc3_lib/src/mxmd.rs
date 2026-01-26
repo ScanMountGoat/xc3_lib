@@ -717,6 +717,7 @@ pub enum StencilValue {
     // TODO: test Xenoblade X values in RenderDoc
     Unk33 = 33,
     Unk37 = 37,
+    Unk39 = 39,
     Unk41 = 41,
     Unk49 = 49,
     Unk97 = 97,
@@ -733,6 +734,7 @@ pub enum StencilMode {
     Unk0 = 0,   // completely disabled?
     Unk1 = 1,   // always, ff, ff, 0a
     Unk2 = 2,   // equals, 0a, 0a, 0a
+    Unk4 = 4,   // TODO: xcx de only?
     Unk6 = 6,   // equals, 4b, 04, 0a
     Unk7 = 7,   // always, 0e, 04, 0a
     Unk8 = 8,   // nequal, 02, 02, 02
