@@ -1,4 +1,4 @@
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
 use xc3_lib::mxmd::TextureUsage;
@@ -160,9 +160,16 @@ impl AssignmentValue {
 
 impl OutputAssignment {
     pub fn merge_xyz(&self, assignments: &[Assignment]) -> Option<OutputAssignmentXyz> {
+        let mut assignments_xyz_index = IndexMap::new();
         let mut assignments_xyz = IndexSet::new();
-        let i =
-            merge_xyz_assignments(self.x?, self.y?, self.z?, assignments, &mut assignments_xyz)?;
+        let i = merge_xyz_assignments(
+            self.x?,
+            self.y?,
+            self.z?,
+            assignments,
+            &mut assignments_xyz_index,
+            &mut assignments_xyz,
+        )?;
 
         Some(OutputAssignmentXyz {
             assignment: i,
@@ -176,93 +183,108 @@ fn merge_xyz_assignments(
     y: usize,
     z: usize,
     assignments: &[Assignment],
+    assignments_xyz_index: &mut IndexMap<(usize, usize, usize), usize>,
     assignments_xyz: &mut IndexSet<AssignmentXyz>,
 ) -> Option<usize> {
-    let x = assignments.get(x)?;
-    let y = assignments.get(y)?;
-    let z = assignments.get(z)?;
+    // Avoid processing the same set of assignments more than once.
+    match assignments_xyz_index.get(&(x, y, z)) {
+        Some(index) => Some(*index),
+        None => {
+            let x_assignment = assignments.get(x)?;
+            let y_assignment = assignments.get(y)?;
+            let z_assignment = assignments.get(z)?;
 
-    let assignment_xyz = match (x, y, z) {
-        (
-            Assignment::Func {
-                op: op_x,
-                args: args_x,
-            },
-            Assignment::Func {
-                op: op_y,
-                args: args_y,
-            },
-            Assignment::Func {
-                op: op_z,
-                args: args_z,
-            },
-        ) => {
-            let op = op_xyz(*op_x, *op_y, *op_z)?;
-            if args_x.len() == args_y.len() && args_y.len() == args_z.len() {
-                let mut args = Vec::new();
-                for ((x, y), z) in args_x.iter().zip(args_y.iter()).zip(args_z.iter()) {
-                    let arg = merge_xyz_assignments(*x, *y, *z, assignments, assignments_xyz)?;
-                    args.push(arg);
-                }
-                Some(AssignmentXyz::Func { op, args })
-            } else {
-                None
-            }
-        }
-        (Assignment::Value(vx), Assignment::Value(vy), Assignment::Value(vz)) => {
-            // TODO: Check that channels are one of the supported channels.
-            match (vx, vy, vz) {
+            let assignment_xyz = match (x_assignment, y_assignment, z_assignment) {
                 (
-                    Some(AssignmentValue::Texture(tx)),
-                    Some(AssignmentValue::Texture(ty)),
-                    Some(AssignmentValue::Texture(tz)),
+                    Assignment::Func {
+                        op: op_x,
+                        args: args_x,
+                    },
+                    Assignment::Func {
+                        op: op_y,
+                        args: args_y,
+                    },
+                    Assignment::Func {
+                        op: op_z,
+                        args: args_z,
+                    },
                 ) => {
-                    if tx.texcoords == ty.texcoords && ty.texcoords == tz.texcoords {
-                        let t_xyz = TextureAssignmentXyz {
-                            name: name_xyz(&tx.name, &ty.name, &tz.name)?,
-                            channel: channel_xyz(tx.channel, ty.channel, tz.channel)?,
-                            texcoords: tx.texcoords.clone(), // TODO: These should refer to the scalar assignments?
-                        };
-                        Some(AssignmentXyz::Value(Some(AssignmentValueXyz::Texture(
-                            t_xyz,
-                        ))))
+                    let op = op_xyz(*op_x, *op_y, *op_z)?;
+                    if args_x.len() == args_y.len() && args_y.len() == args_z.len() {
+                        let mut args = Vec::new();
+                        for ((x, y), z) in args_x.iter().zip(args_y.iter()).zip(args_z.iter()) {
+                            let arg = merge_xyz_assignments(
+                                *x,
+                                *y,
+                                *z,
+                                assignments,
+                                assignments_xyz_index,
+                                assignments_xyz,
+                            )?;
+                            args.push(arg);
+                        }
+                        Some(AssignmentXyz::Func { op, args })
                     } else {
                         None
                     }
                 }
-                (
-                    Some(AssignmentValue::Attribute {
-                        name: n_x,
-                        channel: c_x,
-                    }),
-                    Some(AssignmentValue::Attribute {
-                        name: n_y,
-                        channel: c_y,
-                    }),
-                    Some(AssignmentValue::Attribute {
-                        name: n_z,
-                        channel: c_z,
-                    }),
-                ) => Some(AssignmentXyz::Value(Some(AssignmentValueXyz::Attribute {
-                    name: name_xyz(n_x, n_y, n_z)?,
-                    channel: channel_xyz(*c_x, *c_y, *c_z)?,
-                }))),
-                (
-                    Some(AssignmentValue::Float(fx)),
-                    Some(AssignmentValue::Float(fy)),
-                    Some(AssignmentValue::Float(fz)),
-                ) => Some(AssignmentXyz::Value(Some(AssignmentValueXyz::Float([
-                    *fx, *fy, *fz,
-                ])))),
-                (None, None, None) => Some(AssignmentXyz::Value(None)),
+                (Assignment::Value(vx), Assignment::Value(vy), Assignment::Value(vz)) => {
+                    // TODO: Check that channels are one of the supported channels.
+                    match (vx, vy, vz) {
+                        (
+                            Some(AssignmentValue::Texture(tx)),
+                            Some(AssignmentValue::Texture(ty)),
+                            Some(AssignmentValue::Texture(tz)),
+                        ) => {
+                            if tx.texcoords == ty.texcoords && ty.texcoords == tz.texcoords {
+                                let t_xyz = TextureAssignmentXyz {
+                                    name: name_xyz(&tx.name, &ty.name, &tz.name)?,
+                                    channel: channel_xyz(tx.channel, ty.channel, tz.channel)?,
+                                    texcoords: tx.texcoords.clone(), // TODO: These should refer to the scalar assignments?
+                                };
+                                Some(AssignmentXyz::Value(Some(AssignmentValueXyz::Texture(
+                                    t_xyz,
+                                ))))
+                            } else {
+                                None
+                            }
+                        }
+                        (
+                            Some(AssignmentValue::Attribute {
+                                name: n_x,
+                                channel: c_x,
+                            }),
+                            Some(AssignmentValue::Attribute {
+                                name: n_y,
+                                channel: c_y,
+                            }),
+                            Some(AssignmentValue::Attribute {
+                                name: n_z,
+                                channel: c_z,
+                            }),
+                        ) => Some(AssignmentXyz::Value(Some(AssignmentValueXyz::Attribute {
+                            name: name_xyz(n_x, n_y, n_z)?,
+                            channel: channel_xyz(*c_x, *c_y, *c_z)?,
+                        }))),
+                        (
+                            Some(AssignmentValue::Float(fx)),
+                            Some(AssignmentValue::Float(fy)),
+                            Some(AssignmentValue::Float(fz)),
+                        ) => Some(AssignmentXyz::Value(Some(AssignmentValueXyz::Float([
+                            *fx, *fy, *fz,
+                        ])))),
+                        (None, None, None) => Some(AssignmentXyz::Value(None)),
+                        _ => None,
+                    }
+                }
                 _ => None,
-            }
-        }
-        _ => None,
-    }?;
+            }?;
 
-    let index = assignments_xyz.insert_full(assignment_xyz).0;
-    Some(index)
+            let index = assignments_xyz.insert_full(assignment_xyz).0;
+            assignments_xyz_index.insert((x, y, z), index);
+            Some(index)
+        }
+    }
 }
 
 fn op_xyz(x: Operation, y: Operation, z: Operation) -> Option<Operation> {

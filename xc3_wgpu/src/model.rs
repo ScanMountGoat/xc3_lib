@@ -645,7 +645,7 @@ fn create_model_group(
     // Pipeline creation is slow and benefits from parallelism.
     // Repeat compiles will be much faster for drivers implementing pipeline caching.
     let pipelines: HashMap<_, _> = pipeline_keys
-        .into_iter()
+        .into_par_iter()
         .map(|key| {
             let pipeline = model_pipeline(device, pipeline_data, &key);
             (key, pipeline)

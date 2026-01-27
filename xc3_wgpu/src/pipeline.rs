@@ -70,6 +70,7 @@ impl PipelineKey {
 }
 
 // TODO: Always set depth and stencil state?
+#[tracing::instrument(skip_all)]
 pub fn model_pipeline(
     device: &wgpu::Device,
     data: &ModelPipelineData,
