@@ -622,12 +622,6 @@ fn create_model_group(
         &animated_transforms_inv_transpose,
     );
 
-    let mut buffers: Vec<_> = group
-        .buffers
-        .iter()
-        .map(|_| ModelBuffers::default())
-        .collect();
-
     let mut pipeline_keys = HashSet::new();
 
     let models: Vec<_> = group
@@ -647,24 +641,26 @@ fn create_model_group(
         })
         .collect();
 
-    add_model_buffers(device, &models, group, &mut buffers);
-
-    let start = std::time::Instant::now();
-
-    // Pipeline creation is slow and benefits from parallelism.
-    // Repeat compiles will be much faster for drivers implementing pipeline caching.
-    let pipelines: HashMap<_, _> = pipeline_keys
-        .into_par_iter()
-        .map(|key| {
-            let pipeline = model_pipeline(device, pipeline_data, &key);
-            (key, pipeline)
-        })
-        .collect();
-
-    info!(
-        "Created {} pipelines in {:?}",
-        pipelines.len(),
-        start.elapsed()
+    let (buffers, pipelines) = rayon::join(
+        || model_buffers(device, &models, group),
+        || {
+            // Pipeline creation is slow and benefits from parallelism.
+            // Repeat compiles will be much faster for drivers implementing pipeline caching.
+            let start = std::time::Instant::now();
+            let pipelines: HashMap<_, _> = pipeline_keys
+                .into_par_iter()
+                .map(|key| {
+                    let pipeline = model_pipeline(device, pipeline_data, &key);
+                    (key, pipeline)
+                })
+                .collect();
+            info!(
+                "Created {} pipelines in {:?}",
+                pipelines.len(),
+                start.elapsed()
+            );
+            pipelines
+        },
     );
 
     ModelGroup {
@@ -760,12 +756,17 @@ fn create_model(
 }
 
 #[tracing::instrument(skip_all)]
-fn add_model_buffers(
+fn model_buffers(
     device: &wgpu::Device,
     models: &[Models],
     group: &xc3_model::ModelGroup,
-    buffers: &mut [ModelBuffers],
-) {
+) -> Vec<ModelBuffers> {
+    let mut buffers: Vec<_> = group
+        .buffers
+        .iter()
+        .map(|_| ModelBuffers::default())
+        .collect();
+
     // Lazy load buffers since many buffers are unused.
     for models in models {
         for model in &models.models {
@@ -777,6 +778,8 @@ fn add_model_buffers(
             }
         }
     }
+
+    buffers
 }
 
 fn per_group_bind_group(
