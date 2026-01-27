@@ -144,22 +144,12 @@ impl Default for Assignment {
 }
 
 impl AssignmentValue {
-    pub fn from_dependency(
-        d: &Dependency,
-        shader: &ShaderProgram,
-        parameters: &MaterialParameters,
-        assignments: &mut IndexSet<Assignment>,
-    ) -> Option<Self> {
+    pub fn from_dependency(d: &Dependency, parameters: &MaterialParameters) -> Option<Self> {
         match d {
             Dependency::Int(i) => Some(Self::Int(*i)),
             Dependency::Float(f) => Some(Self::Float(f.0.into())),
             Dependency::Buffer(b) => parameters.get_dependency(b).map(|f| Self::Float(f.into())),
-            Dependency::Texture(texture) => Some(Self::Texture(texture_assignment(
-                texture,
-                shader,
-                parameters,
-                assignments,
-            ))),
+            Dependency::Texture(texture) => Some(Self::Texture(texture_assignment(texture))),
             Dependency::Attribute(a) => Some(Self::Attribute {
                 name: a.name.clone(),
                 channel: a.channel,
@@ -324,40 +314,35 @@ pub(crate) fn output_assignments(
     shader: &ShaderProgram,
     parameters: &MaterialParameters,
 ) -> OutputAssignments {
-    let mut assignments = IndexSet::new();
+    // Use the existing indices to avoid costly caching or recursion.
+    let assignments = shader
+        .exprs
+        .iter()
+        .map(|e| assignment_value(parameters, e))
+        .collect();
 
     OutputAssignments {
-        output_assignments: [0, 1, 2, 3, 4, 5]
-            .map(|i| output_assignment(shader, parameters, &mut assignments, i)),
-        outline_width: shader.outline_width.as_ref().and_then(|d| {
-            AssignmentValue::from_dependency(d, shader, parameters, &mut assignments)
-        }),
-        normal_intensity: shader
-            .normal_intensity
+        output_assignments: [0, 1, 2, 3, 4, 5].map(|i| output_assignment(shader, i)),
+        outline_width: shader
+            .outline_width
             .as_ref()
-            .map(|i| assignment_value(shader, parameters, &shader.exprs[*i], &mut assignments)),
-        assignments: assignments.into_iter().collect(),
+            .and_then(|d| AssignmentValue::from_dependency(d, parameters)),
+        normal_intensity: shader.normal_intensity,
+        assignments,
     }
 }
 
-fn output_assignment(
-    shader: &ShaderProgram,
-    parameters: &MaterialParameters,
-    assignments: &mut IndexSet<Assignment>,
-    output_index: usize,
-) -> OutputAssignment {
+fn output_assignment(shader: &ShaderProgram, output_index: usize) -> OutputAssignment {
     OutputAssignment {
-        x: output_channel_assignment(shader, parameters, assignments, output_index, 'x'),
-        y: output_channel_assignment(shader, parameters, assignments, output_index, 'y'),
-        z: output_channel_assignment(shader, parameters, assignments, output_index, 'z'),
-        w: output_channel_assignment(shader, parameters, assignments, output_index, 'w'),
+        x: output_channel_assignment(shader, output_index, 'x'),
+        y: output_channel_assignment(shader, output_index, 'y'),
+        z: output_channel_assignment(shader, output_index, 'z'),
+        w: output_channel_assignment(shader, output_index, 'w'),
     }
 }
 
 fn output_channel_assignment(
     shader: &ShaderProgram,
-    parameters: &MaterialParameters,
-    assignments: &mut IndexSet<Assignment>,
     output_index: usize,
     channel: char,
 ) -> Option<usize> {
@@ -365,45 +350,26 @@ fn output_channel_assignment(
     shader
         .output_dependencies
         .get(&SmolStr::from(output))
-        .map(|v| assignment_value(shader, parameters, &shader.exprs[*v], assignments))
+        .copied()
 }
 
-fn assignment_value(
-    shader: &ShaderProgram,
-    parameters: &MaterialParameters,
-    value: &OutputExpr,
-    assignments: &mut IndexSet<Assignment>,
-) -> usize {
-    let value = match value {
-        crate::shader_database::OutputExpr::Value(d) => Assignment::Value(
-            AssignmentValue::from_dependency(d, shader, parameters, assignments),
-        ),
+fn assignment_value(parameters: &MaterialParameters, value: &OutputExpr) -> Assignment {
+    match value {
+        crate::shader_database::OutputExpr::Value(d) => {
+            Assignment::Value(AssignmentValue::from_dependency(d, parameters))
+        }
         crate::shader_database::OutputExpr::Func { op, args } => Assignment::Func {
             op: *op,
-            args: args
-                .iter()
-                .map(|a| assignment_value(shader, parameters, &shader.exprs[*a], assignments))
-                .collect(),
+            args: args.clone(),
         },
-    };
-    let (index, _) = assignments.insert_full(value);
-    index
+    }
 }
 
-fn texture_assignment(
-    texture: &TextureDependency,
-    shader: &ShaderProgram,
-    parameters: &MaterialParameters,
-    assignments: &mut IndexSet<Assignment>,
-) -> TextureAssignment {
+fn texture_assignment(texture: &TextureDependency) -> TextureAssignment {
     TextureAssignment {
         name: texture.name.clone(),
         channel: texture.channel,
-        texcoords: texture
-            .texcoords
-            .iter()
-            .map(|c| assignment_value(shader, parameters, &shader.exprs[*c], assignments))
-            .collect(),
+        texcoords: texture.texcoords.clone(),
     }
 }
 
