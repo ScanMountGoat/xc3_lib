@@ -710,24 +710,32 @@ fn create_model(
             // Lazy load materials to compile fewer pipelines.
             let material = index_to_material
                 .entry(mesh.material_index)
-                .or_insert(create_material(
-                    device,
-                    pipelines,
-                    &materials[mesh.material_index],
-                    textures,
-                    samplers,
-                    image_textures,
-                    monolib_shader,
-                    is_instanced_static,
-                    default_textures,
-                ));
+                .or_insert_with(|| {
+                    create_material(
+                        device,
+                        pipelines,
+                        &materials[mesh.material_index],
+                        textures,
+                        samplers,
+                        image_textures,
+                        monolib_shader,
+                        is_instanced_static,
+                        default_textures,
+                    )
+                });
 
             Mesh {
                 vertex_buffer_index: mesh.vertex_buffer_index,
                 index_buffer_index: mesh.index_buffer_index,
                 material_index: mesh.material_index,
                 flags2: mesh.flags2,
-                per_mesh: per_mesh_bind_group(device, model_buffers, mesh, material, weights),
+                per_mesh: per_mesh_bind_group(
+                    device,
+                    model_buffers,
+                    mesh,
+                    material.pipeline_key.pass_type,
+                    weights,
+                ),
             }
         })
         .collect();
@@ -807,7 +815,7 @@ fn per_mesh_bind_group(
     device: &wgpu::Device,
     buffers: &xc3_model::vertex::ModelBuffers,
     mesh: &xc3_model::Mesh,
-    material: &Material,
+    pass_type: xc3_lib::mxmd::RenderPassType,
     weights: Option<&xc3_model::skinning::Weights>,
 ) -> shader::model::bind_groups::BindGroup3 {
     // TODO: Fix weight indexing calculations.
@@ -818,7 +826,7 @@ fn per_mesh_bind_group(
             weights.weight_groups.weights_start_index(
                 mesh.flags2.into(),
                 mesh.lod_item_index,
-                material.pipeline_key.pass_type,
+                pass_type,
             )
         })
         .unwrap_or_default();
@@ -850,11 +858,7 @@ fn per_mesh_bind_group(
                     start,
                     max_index,
                     skin_weight_count,
-                    (
-                        mesh.flags2,
-                        mesh.lod_item_index,
-                        material.pipeline_key.pass_type
-                    )
+                    (mesh.flags2, mesh.lod_item_index, pass_type)
                 );
             }
         }
