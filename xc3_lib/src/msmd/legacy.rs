@@ -4,8 +4,7 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use crate::{
     StringOffset32,
-    map::legacy::{ObjectModelData, ObjectStreamData, SkyModelData, TerrainModelData},
-    mibl::Mibl,
+    map::legacy::{MapModelData, PropModelData, PropPositions, SkyModelData},
     msmd::LowTextures,
     mxmd::legacy::VertexData,
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
@@ -22,32 +21,30 @@ use super::{BoundingBox, Cems, Dlgt, StreamEntry, Texture};
 pub struct MsmdV11 {
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub unk2: Vec<TerrainModel>,
+    pub map_models: Vec<MapModel>,
 
-    // TODO: objects?
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub unk3: Vec<ObjectModel>,
+    pub prop_models: Vec<PropModel>,
 
     // TODO: collisions?
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
     pub unk4: Vec<Collision>,
 
-    // TODO: sky models?
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub unk5: Vec<SkyModel>,
+    pub env_models: Vec<EnvModel>,
 
     pub unk6: [u32; 6],
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub object_streams: Vec<StreamEntry<ObjectStreamData>>,
+    pub prop_vertex_data: Vec<StreamEntry<VertexData>>,
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub object_textures: Vec<Texture>, // TODO: type?
+    pub textures: Vec<Texture>,
 
     #[br(parse_with = parse_string_ptr32)]
     #[xc3(offset(u32))]
@@ -57,9 +54,10 @@ pub struct MsmdV11 {
     #[xc3(count_offset(u32, u32))]
     pub grass: Vec<u32>, // TODO: type?
 
+    // TODO: prop positions?
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub unk7: Vec<StreamEntry<()>>, // TODO: type?
+    pub prop_positions: Vec<StreamEntry<PropPositions>>, // TODO: type?
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
@@ -79,7 +77,7 @@ pub struct MsmdV11 {
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub terrain_cached_textures: Vec<StreamEntry<LowTextures>>,
+    pub low_textures: Vec<StreamEntry<LowTextures>>,
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
@@ -158,10 +156,10 @@ pub struct CsvbBlockItem {
 // TODO: how many of these structs are shared with switch?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct TerrainModel {
+pub struct MapModel {
     pub bounds: BoundingBox,
     pub unk1: [f32; 4],
-    pub entry: StreamEntry<TerrainModelData>,
+    pub entry: StreamEntry<MapModelData>,
     // TODO: padding?
     pub unk2: [u32; 4],
 }
@@ -170,8 +168,8 @@ pub struct TerrainModel {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Collision {
     pub bounds: BoundingBox,
-    pub unk1: [f32; 4],                       // TODO: bounding sphere?
-    pub entry: StreamEntry<TerrainModelData>, // TODO: is this really the same type?
+    pub unk1: [f32; 4],                   // TODO: bounding sphere?
+    pub entry: StreamEntry<MapModelData>, // TODO: is this really the same type?
     pub unk2: [u32; 3],
     pub unk3: u32,
     pub unk4: [u32; 3],
@@ -179,11 +177,11 @@ pub struct Collision {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct ObjectModel {
+pub struct PropModel {
     pub bounds: BoundingBox,
     pub unk1: u32,
     pub unk2: [f32; 3],
-    pub entry: StreamEntry<ObjectModelData>,
+    pub entry: StreamEntry<PropModelData>,
     pub unk3: u32,
 }
 
@@ -198,7 +196,7 @@ pub struct DlgtEntry {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct SkyModel {
+pub struct EnvModel {
     pub bounds: BoundingBox,
     pub unk1: [f32; 4],
     pub entry: StreamEntry<SkyModelData>,

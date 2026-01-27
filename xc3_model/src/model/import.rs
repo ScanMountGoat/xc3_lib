@@ -532,7 +532,7 @@ impl Models {
             models: models
                 .models
                 .iter()
-                .map(|m| Model::from_model_legacy(m, 0))
+                .map(|m| Model::from_model_legacy(m, vec![Mat4::IDENTITY], 0))
                 .collect(),
             materials,
             samplers,
@@ -696,6 +696,7 @@ impl Model {
 
     pub fn from_model_legacy(
         model: &xc3_lib::mxmd::legacy::Model,
+        instances: Vec<Mat4>,
         model_buffers_index: usize,
     ) -> Self {
         let meshes = model
@@ -719,7 +720,7 @@ impl Model {
 
         Self {
             meshes,
-            instances: vec![Mat4::IDENTITY],
+            instances,
             model_buffers_index,
             max_xyz: model.max_xyz.into(),
             min_xyz: model.min_xyz.into(),

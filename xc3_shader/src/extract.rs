@@ -21,6 +21,42 @@ use xc3_lib::{
 pub mod legacy;
 
 pub fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Option<&str>) {
+    globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wismhd"])
+        .build()
+        .unwrap()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+            match Msmd::from_file(path) {
+                Ok(msmd) => {
+                    // Get the embedded shaders from the map files.
+                    let output_folder = shader_output_folder(output, path);
+                    std::fs::create_dir_all(&output_folder).unwrap();
+                    println!("{output_folder:?}");
+
+                    extract_and_decompile_msmd_shaders(path, msmd, output_folder, shader_tools);
+                }
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+        });
+
+    globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wishp"])
+        .build()
+        .unwrap()
+        .for_each(|entry| {
+            let path = entry.as_ref().unwrap().path();
+            match Spch::from_file(path) {
+                Ok(spch) => {
+                    // Get the embedded shaders from the map files.
+                    let output_folder = shader_output_folder(output, path);
+                    std::fs::create_dir_all(&output_folder).unwrap();
+                    println!("{output_folder:?}");
+
+                    extract_shaders(&spch, &output_folder, shader_tools, false);
+                }
+                Err(e) => println!("Error reading {path:?}: {e}"),
+            }
+        });
+
     globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wimdo"])
         .build()
         .unwrap()
@@ -103,42 +139,6 @@ pub fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Op
                 Err(e) => println!("Error reading {path:?}: {e}"),
             }
         });
-
-    globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wismhd"])
-        .build()
-        .unwrap()
-        .for_each(|entry| {
-            let path = entry.as_ref().unwrap().path();
-            match Msmd::from_file(path) {
-                Ok(msmd) => {
-                    // Get the embedded shaders from the map files.
-                    let output_folder = shader_output_folder(output, path);
-                    std::fs::create_dir_all(&output_folder).unwrap();
-                    println!("{output_folder:?}");
-
-                    extract_and_decompile_msmd_shaders(path, msmd, output_folder, shader_tools);
-                }
-                Err(e) => println!("Error reading {path:?}: {e}"),
-            }
-        });
-
-    globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wishp"])
-        .build()
-        .unwrap()
-        .for_each(|entry| {
-            let path = entry.as_ref().unwrap().path();
-            match Spch::from_file(path) {
-                Ok(spch) => {
-                    // Get the embedded shaders from the map files.
-                    let output_folder = shader_output_folder(output, path);
-                    std::fs::create_dir_all(&output_folder).unwrap();
-                    println!("{output_folder:?}");
-
-                    extract_shaders(&spch, &output_folder, shader_tools, false);
-                }
-                Err(e) => println!("Error reading {path:?}: {e}"),
-            }
-        });
 }
 
 fn extract_and_decompile_msmd_shaders(
@@ -154,10 +154,21 @@ fn extract_and_decompile_msmd_shaders(
             let mut wismda = Cursor::new(std::fs::read(path.with_extension("wismda")).unwrap());
             let compressed = true;
 
-            for (i, model) in msmd.unk2.iter().enumerate() {
+            for (i, model) in msmd.map_models.iter().enumerate() {
                 let data = model.entry.extract(&mut wismda, compressed).unwrap();
 
                 let model_folder = output_folder.join("map").join(i.to_string());
+                std::fs::create_dir_all(&model_folder).unwrap();
+
+                if let Some(spch) = data.spco.items.first().map(|i| &i.spch) {
+                    extract_shaders(spch, &model_folder, shader_tools, false);
+                }
+            }
+
+            for (i, model) in msmd.prop_models.iter().enumerate() {
+                let data = model.entry.extract(&mut wismda, compressed).unwrap();
+
+                let model_folder = output_folder.join("prop").join(i.to_string());
                 std::fs::create_dir_all(&model_folder).unwrap();
 
                 if let Some(spch) = data.spco.items.first().map(|i| &i.spch) {

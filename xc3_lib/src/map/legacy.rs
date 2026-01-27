@@ -16,7 +16,7 @@ use crate::{
 // TODO: make this work with wii u and not just xcx de.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct TerrainModelData {
+pub struct MapModelData {
     // TODO: flags?
     pub unks_1: u32,
     pub unks_2: u32,
@@ -99,7 +99,7 @@ pub struct TerrainModelDataUnk8Item2 {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct ObjectModelData {
+pub struct PropModelData {
     // TODO: flags?
     pub unks_1: u32,
     pub unks_2: u32,
@@ -117,15 +117,17 @@ pub struct ObjectModelData {
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
-    pub unk2: ObjectModelDataUnk2,
+    pub lods: PropLods,
 
     pub unk3: u32,
 
     #[br(parse_with = parse_offset32_count32)]
     #[xc3(offset_count(u32, u32))]
-    pub unk4: Vec<[u16; 4]>,
+    pub textures: Vec<Texture>,
 
-    pub unk5: [u32; 2], // TODO: offset count?
+    #[br(parse_with = parse_offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
+    pub model_vertex_data_indices: Vec<u32>,
 
     pub unk6: [u32; 4],
 
@@ -137,7 +139,7 @@ pub struct ObjectModelData {
 
     #[br(parse_with = parse_offset32_count32)]
     #[xc3(offset_count(u32, u32))]
-    pub unk8: Vec<u16>,
+    pub low_texture_entry_indices: Vec<u16>,
 
     // TODO: padding?
     pub unks: [u32; 6],
@@ -148,7 +150,7 @@ pub struct ObjectModelData {
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
-pub struct ObjectModelDataUnk2 {
+pub struct PropLods {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
@@ -156,15 +158,16 @@ pub struct ObjectModelDataUnk2 {
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub items1: Vec<[u32; 2]>,
+    pub props: Vec<PropLod>,
+
+    // TODO: PropModelLod?
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub lods: Vec<PropModelLod>,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub items2: Vec<ObjectModelDataUnk2Item2>,
-
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub items3: Vec<[f32; 27]>,
+    pub instances: Vec<PropInstance>,
 
     pub unk2: [u32; 2],
 
@@ -182,10 +185,10 @@ pub struct ObjectModelDataUnk2 {
 
     pub unk7: [u32; 2],
 
-    #[br(parse_with = parse_ptr32)]
+    #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset})]
     #[xc3(offset(u32))]
-    pub unk8: ObjectModelDataUnk2Unk8,
+    pub unk8: Option<ObjectModelDataUnk2Unk8>,
 
     // TODO: padding?
     pub unks: [u32; 6],
@@ -193,9 +196,31 @@ pub struct ObjectModelDataUnk2 {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct ObjectModelDataUnk2Item2 {
-    pub unk1: [f32; 8],
-    pub unk2: u32,
+pub struct PropLod {
+    pub base_lod_index: u32,
+    pub lod_count: u32,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct PropModelLod {
+    pub unk1: [f32; 8], // TODO: bounds + distance?
+    pub index: u32,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct PropInstance {
+    pub transform: [[f32; 4]; 4],
+    pub position: [f32; 3],
+    pub unk2: [f32; 3],
+    pub unk3: f32,
+    pub prop_index: u16,
+    pub unk5: u16,
+    pub unk6: u16,
+    pub unk7: u16,
+    pub unk8: u32,
+    pub unk9: u32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -260,6 +285,13 @@ pub struct SkyModelData {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct ObjectStreamData {
+pub struct PropPositions {
+    #[br(parse_with = parse_count32_offset32)]
+    #[xc3(count_offset(u32, u32))]
+    pub instances: Vec<PropInstance>,
+
     pub unk1: u32,
+    // TODO: offset count?
+    pub unk2: [u32; 2],
+    // TODO: more fields?
 }

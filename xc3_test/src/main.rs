@@ -491,8 +491,31 @@ impl CheckFile for Msmd {
         let mut reader = Cursor::new(std::fs::read(path.with_extension("wismda")).unwrap());
 
         match self.inner {
-            xc3_lib::msmd::MsmdInner::V11(_msmd) => {
+            xc3_lib::msmd::MsmdInner::V11(msmd) => {
                 // TODO: check legacy msmd
+                let compressed = true;
+
+                for (i, model) in msmd.map_models.iter().enumerate() {
+                    match model.entry.extract(&mut reader, compressed) {
+                        Ok(model) => {
+                            for item in model.spco.items {
+                                item.spch.check_file(path, &[], &[], false);
+                            }
+                        }
+                        Err(e) => println!("Error extracting map model {i} in {path:?}: {e}"),
+                    }
+                }
+
+                for (i, model) in msmd.prop_models.iter().enumerate() {
+                    match model.entry.extract(&mut reader, compressed) {
+                        Ok(model) => {
+                            for item in model.spco.items {
+                                item.spch.check_file(path, &[], &[], false);
+                            }
+                        }
+                        Err(e) => println!("Error extracting prop model {i} in {path:?}: {e}"),
+                    }
+                }
             }
             xc3_lib::msmd::MsmdInner::V112(msmd) => {
                 let compressed =

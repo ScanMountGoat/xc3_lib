@@ -186,10 +186,9 @@ impl ModelGroup {
                 model_index,
             );
         } else {
-            for models in self
-                .models
-                .iter()
-                .filter(|m| is_within_frustum(m.bounds.min_xyz, m.bounds.max_xyz, camera))
+            // TODO: Why does frustum culling not work for xcx de maps?
+            for models in self.models.iter()
+            // .filter(|m| is_within_frustum(m.bounds.min_xyz, m.bounds.max_xyz, camera))
             {
                 self.draw_models(
                     render_pass,

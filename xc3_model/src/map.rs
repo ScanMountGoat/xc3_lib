@@ -78,7 +78,7 @@ impl MapRoot {
         // TODO: Better way to combine models?
         let mut roots = Vec::new();
 
-        let texture_indices: Vec<_> = (0..msmd.terrain_cached_textures.len() as u16).collect();
+        let texture_indices: Vec<_> = (0..msmd.low_textures.len() as u16).collect();
         let mut texture_cache = TextureCache::from_msmd_v11(msmd, wismda, compressed)?;
 
         let map_model_group = map_models_group_legacy(
@@ -90,10 +90,19 @@ impl MapRoot {
             shader_database,
         )?;
 
+        let prop_model_group = props_group_legacy(
+            msmd,
+            wismda,
+            compressed,
+            &texture_indices,
+            &mut texture_cache,
+            shader_database,
+        )?;
+
         let image_textures = texture_cache.image_textures()?;
 
         roots.push(MapRoot {
-            groups: vec![map_model_group],
+            groups: vec![map_model_group, prop_model_group],
             image_textures,
         });
 
@@ -186,7 +195,7 @@ impl TextureCache {
     ) -> Result<Self, LoadMapError> {
         // Low textures are grouped into multiple collections.
         let low_textures = msmd
-            .terrain_cached_textures
+            .low_textures
             .par_iter()
             .map(|e| {
                 let textures = e.extract(&mut Cursor::new(&wismda), compressed)?;
@@ -203,10 +212,28 @@ impl TextureCache {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
+        let high_textures = msmd
+            .textures
+            .par_iter()
+            .map(|texture| {
+                let mut wismda = Cursor::new(&wismda);
+                let mibl_m = texture.mid.extract(&mut wismda, compressed)?;
+
+                if texture.base_mip.decompressed_size > 0 {
+                    let base_mip_level = texture.base_mip.decompress(&mut wismda, compressed)?;
+
+                    // TODO: Avoid unwrap.
+                    Ok(mibl_m.to_surface_with_base_mip(&base_mip_level).unwrap())
+                } else {
+                    Ok(mibl_m.to_surface().unwrap())
+                }
+            })
+            .collect::<Result<Vec<_>, LoadMapError>>()?;
+
         Ok(Self {
             texture_to_image_texture_index: IndexMap::new(),
             low_textures,
-            high_textures: Vec::new(),
+            high_textures,
         })
     }
 
@@ -888,7 +915,7 @@ fn map_models_group_legacy(
 
     // Decompression is expensive, so run in parallel ahead of time.
     let map_model_data = msmd
-        .unk2
+        .map_models
         .par_iter()
         .map(|m| m.entry.extract(&mut Cursor::new(wismda), compressed))
         .collect::<Result<Vec<_>, _>>()?;
@@ -914,7 +941,7 @@ fn map_models_group_legacy(
 }
 
 fn load_map_model_group_legacy(
-    model_data: &xc3_lib::map::legacy::TerrainModelData,
+    model_data: &xc3_lib::map::legacy::MapModelData,
     texture_indices: &[u16],
     material_root_texture_indices: &[usize],
     shader_database: Option<&ShaderDatabase>,
@@ -938,7 +965,7 @@ fn load_map_model_group_legacy(
             let lod_index = *group_index as usize / model_data.unk8.items1.len();
             let item1 = &model_data.unk8.items1[item1_index];
             let vertex_data_index = item1.unk1[lod_index] as usize;
-            Model::from_model_legacy(model, vertex_data_index)
+            Model::from_model_legacy(model, vec![Mat4::IDENTITY], vertex_data_index)
         })
         .collect();
 
@@ -952,6 +979,134 @@ fn load_map_model_group_legacy(
         animation_morph_names: Vec::new(),
         min_xyz: model_data.models.min_xyz.into(),
         max_xyz: model_data.models.max_xyz.into(),
+    }
+}
+
+fn props_group_legacy(
+    msmd: &MsmdV11,
+    wismda: &[u8],
+    compressed: bool,
+    texture_indices: &[u16],
+    texture_cache: &mut TextureCache,
+    shader_database: Option<&ShaderDatabase>,
+) -> Result<ModelGroup, LoadMapError> {
+    let buffers = create_buffers_legacy(&msmd.prop_vertex_data, wismda, compressed)?;
+
+    // Decompression is expensive, so run in parallel ahead of time.
+    let prop_positions: Vec<_> = msmd
+        .prop_positions
+        .par_iter()
+        .map(|p| p.extract(&mut Cursor::new(wismda), compressed))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let prop_model_data: Vec<_> = msmd
+        .prop_models
+        .par_iter()
+        .map(|m| m.entry.extract(&mut Cursor::new(wismda), compressed))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let models = prop_model_data
+        .iter()
+        .map(|model_data| {
+            // Remove layers of indirection from texture lookups.
+            let material_root_texture_indices: Vec<_> = model_data
+                .textures
+                .iter()
+                .map(|t| texture_cache.insert(t, &model_data.low_texture_entry_indices))
+                .collect();
+
+            load_prop_model_group_legacy(
+                model_data,
+                &prop_positions,
+                texture_indices,
+                &material_root_texture_indices,
+                shader_database,
+            )
+        })
+        .collect();
+
+    Ok(ModelGroup { models, buffers })
+}
+
+fn load_prop_model_group_legacy(
+    model_data: &xc3_lib::map::legacy::PropModelData,
+    prop_positions: &[xc3_lib::map::legacy::PropPositions],
+    texture_indices: &[u16],
+    material_root_texture_indices: &[usize],
+    shader_database: Option<&ShaderDatabase>,
+) -> Models {
+    // Calculate instances separately from models.
+    // This allows us to avoid loading unused models later.
+    let mut model_instances = vec![Vec::new(); model_data.models.models.len()];
+
+    // Load instances for each base LOD model.
+    add_prop_instances_legacy(
+        &mut model_instances,
+        &model_data.lods.props,
+        &model_data.lods.instances,
+    );
+
+    // TODO: Group by vertex data index?
+    // TODO: empty groups?
+
+    // TODO: Prop info and prop positions?
+
+    let (mut materials, samplers) = create_materials_samplers_legacy(
+        &model_data.materials,
+        texture_indices,
+        model_data.spco.items.first().map(|i| &i.spch),
+        shader_database,
+    );
+    apply_material_texture_indices(&mut materials, material_root_texture_indices);
+
+    let mut models = Models {
+        models: Vec::new(),
+        materials,
+        samplers,
+        skinning: None,
+        lod_data: None,
+        morph_controller_names: Vec::new(),
+        animation_morph_names: Vec::new(),
+        min_xyz: model_data.models.min_xyz.into(),
+        max_xyz: model_data.models.max_xyz.into(),
+    };
+
+    for ((model, vertex_data_index), instances) in model_data
+        .models
+        .models
+        .iter()
+        .zip(model_data.model_vertex_data_indices.iter())
+        .zip(model_instances.into_iter())
+    {
+        // Avoid loading unused prop models.
+        if !instances.is_empty() {
+            let group = Model::from_model_legacy(model, instances, *vertex_data_index as usize);
+            models.models.push(group);
+        }
+    }
+
+    models
+}
+
+fn add_prop_instances_legacy(
+    model_instances: &mut [Vec<Mat4>],
+    props: &[xc3_lib::map::legacy::PropLod],
+    instances: &[xc3_lib::map::legacy::PropInstance],
+) {
+    if !model_instances.is_empty() {
+        for instance in instances {
+            let prop_lod = &props[instance.prop_index as usize];
+            // Only the first 28 bits should be used to properly load XC3 DLC maps.
+            let base_lod_index = (prop_lod.base_lod_index & 0xFFFFFFF) as usize;
+            // TODO: Should we also index into the PropModelLod?
+            // TODO: Is PropModelLod.index always the same as its index in the list?
+            if base_lod_index >= model_instances.len() {
+                // TODO: Why does this happen?
+                dbg!(base_lod_index);
+            } else {
+                model_instances[base_lod_index].push(Mat4::from_cols_array_2d(&instance.transform));
+            }
+        }
     }
 }
 
