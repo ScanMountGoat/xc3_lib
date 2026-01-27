@@ -12,7 +12,7 @@ mod vertex;
 use crate::{
     CameraData, DeviceBufferExt, MonolibShaderTextures, QueueBufferExt,
     culling::is_within_frustum,
-    material::{Material, create_material},
+    material::{DefaultTextures, Material, create_material},
     model::{bounds::Bounds, vertex::ModelBuffers},
     pipeline::{ModelPipelineData, Output5Type, PipelineKey, model_pipeline},
     sampler::create_sampler,
@@ -69,15 +69,16 @@ struct Instances {
 
 impl Models {
     #[allow(clippy::too_many_arguments)]
+    #[tracing::instrument(skip_all)]
     fn from_models(
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
         models: &xc3_model::Models,
         buffers: &[xc3_model::vertex::ModelBuffers],
         pipelines: &mut HashSet<PipelineKey>,
         textures: &[wgpu::Texture],
         image_textures: &[ImageTexture],
         monolib_shader: &MonolibShaderTextures,
+        default_textures: &DefaultTextures,
     ) -> Self {
         // In practice, weights are only used for wimdo files with one Models and one Model.
         // TODO: How to enforce this assumption?
@@ -108,7 +109,6 @@ impl Models {
             .map(|model| {
                 create_model(
                     device,
-                    queue,
                     model,
                     models,
                     buffers,
@@ -121,6 +121,7 @@ impl Models {
                     textures,
                     &samplers,
                     is_instanced_static,
+                    default_textures,
                 )
             })
             .collect();
@@ -339,7 +340,7 @@ impl ModelGroup {
         instance_count: u32,
     ) {
         let buffers = &self.buffers[model.model_buffers_index];
-        let vertex_buffers = &buffers.vertex_buffers[mesh.vertex_buffer_index];
+        let vertex_buffers = &buffers.vertex_buffers[&mesh.vertex_buffer_index];
 
         if let Some(morph_buffers) = &vertex_buffers.morph_buffers {
             render_pass.set_vertex_buffer(0, morph_buffers.vertex_buffer0.slice(..));
@@ -360,7 +361,7 @@ impl ModelGroup {
         }
 
         // TODO: Are all indices u16?
-        let index_buffer = &buffers.index_buffers[mesh.index_buffer_index];
+        let index_buffer = &buffers.index_buffers[&mesh.index_buffer_index];
         render_pass.set_index_buffer(
             index_buffer.index_buffer.slice(..),
             wgpu::IndexFormat::Uint16,
@@ -371,7 +372,7 @@ impl ModelGroup {
 
     pub fn reset_morphs(&self, encoder: &mut wgpu::CommandEncoder) {
         for buffers in &self.buffers {
-            for vertex_buffer in &buffers.vertex_buffers {
+            for vertex_buffer in buffers.vertex_buffers.values() {
                 if let Some(morph_buffers) = &vertex_buffer.morph_buffers {
                     encoder.copy_buffer_to_buffer(
                         &vertex_buffer.vertex_buffer0,
@@ -387,7 +388,7 @@ impl ModelGroup {
 
     pub fn compute_morphs<'a>(&'a self, compute_pass: &mut wgpu::ComputePass<'a>) {
         for buffers in &self.buffers {
-            for vertex_buffer in &buffers.vertex_buffers {
+            for vertex_buffer in buffers.vertex_buffers.values() {
                 if let Some(morph_buffers) = &vertex_buffer.morph_buffers {
                     morph_buffers.bind_group0.set(compute_pass);
                     let [size_x, _, _] = crate::shader::morph::compute::MAIN_WORKGROUP_SIZE;
@@ -447,7 +448,7 @@ impl ModelGroup {
         let frame = animation.current_frame(current_time_seconds);
 
         for buffers in &self.buffers {
-            for buffer in &buffers.vertex_buffers {
+            for buffer in buffers.vertex_buffers.values() {
                 if let Some(morph_buffers) = &buffer.morph_buffers {
                     let weights = animation.morph_weights(
                         morph_controller_names,
@@ -483,13 +484,15 @@ pub fn load_model(
     // Compile shaders only once to improve loading times.
     let pipeline_data = ModelPipelineData::new(device);
 
+    // TODO: group with pipelinedata for shared data type?
+    let default_textures = DefaultTextures::new(device, queue);
+
     let mut groups = Vec::new();
     for root in roots {
         let textures = load_textures(device, queue, &root.image_textures);
         // TODO: Avoid clone?
         let group = create_model_group(
             device,
-            queue,
             &xc3_model::ModelGroup {
                 models: vec![root.models.clone()],
                 buffers: vec![root.buffers.clone()],
@@ -499,6 +502,7 @@ pub fn load_model(
             &pipeline_data,
             root.skeleton.as_ref(),
             monolib_shader,
+            &default_textures,
         );
         groups.push(group);
     }
@@ -520,19 +524,22 @@ pub fn load_map(
     // Compile shaders only once to improve loading times.
     let pipeline_data = ModelPipelineData::new(device);
 
+    // TODO: group with pipelinedata for shared data type?
+    let default_textures = DefaultTextures::new(device, queue);
+
     let mut groups = Vec::new();
     for root in roots {
         let textures = load_textures(device, queue, &root.image_textures);
         groups.par_extend(root.groups.par_iter().map(|group| {
             create_model_group(
                 device,
-                queue,
                 group,
                 &textures,
                 &root.image_textures,
                 &pipeline_data,
                 None,
                 monolib_shader,
+                &default_textures,
             )
         }));
     }
@@ -559,13 +566,13 @@ fn load_textures(
 #[tracing::instrument(skip_all)]
 fn create_model_group(
     device: &wgpu::Device,
-    queue: &wgpu::Queue,
     group: &xc3_model::ModelGroup,
     textures: &[wgpu::Texture],
     image_textures: &[ImageTexture],
     pipeline_data: &ModelPipelineData,
     skeleton: Option<&xc3_model::Skeleton>,
     monolib_shader: &MonolibShaderTextures,
+    default_textures: &DefaultTextures,
 ) -> ModelGroup {
     // Disable vertex skinning if the model does not have bones or weights.
     let enable_skinning = matches!(skeleton, Some(skeleton) if !skeleton.bones.is_empty())
@@ -615,30 +622,32 @@ fn create_model_group(
         &animated_transforms_inv_transpose,
     );
 
-    let buffers = group
+    let mut buffers: Vec<_> = group
         .buffers
         .iter()
-        .map(|buffers| ModelBuffers::from_buffers(device, buffers))
+        .map(|_| ModelBuffers::default())
         .collect();
 
     let mut pipeline_keys = HashSet::new();
 
-    let models = group
+    let models: Vec<_> = group
         .models
         .iter()
         .map(|models| {
             Models::from_models(
                 device,
-                queue,
                 models,
                 &group.buffers,
                 &mut pipeline_keys,
                 textures,
                 image_textures,
                 monolib_shader,
+                default_textures,
             )
         })
         .collect();
+
+    add_model_buffers(device, &models, group, &mut buffers);
 
     let start = std::time::Instant::now();
 
@@ -674,7 +683,6 @@ fn create_model_group(
 #[tracing::instrument(skip_all)]
 fn create_model(
     device: &wgpu::Device,
-    queue: &wgpu::Queue,
     model: &xc3_model::Model,
     models: &xc3_model::Models,
     buffers: &[xc3_model::vertex::ModelBuffers],
@@ -687,6 +695,7 @@ fn create_model(
     textures: &[wgpu::Texture],
     samplers: &[wgpu::Sampler],
     is_instanced_static: bool,
+    default_textures: &DefaultTextures,
 ) -> Model {
     let model_buffers = &buffers[model.model_buffers_index];
 
@@ -703,7 +712,6 @@ fn create_model(
                 .entry(mesh.material_index)
                 .or_insert(create_material(
                     device,
-                    queue,
                     pipelines,
                     &materials[mesh.material_index],
                     textures,
@@ -711,6 +719,7 @@ fn create_model(
                     image_textures,
                     monolib_shader,
                     is_instanced_static,
+                    default_textures,
                 ));
 
             Mesh {
@@ -739,6 +748,26 @@ fn create_model(
         max_xyz: model.max_xyz,
         model_buffers_index: model.model_buffers_index,
         instances,
+    }
+}
+
+#[tracing::instrument(skip_all)]
+fn add_model_buffers(
+    device: &wgpu::Device,
+    models: &[Models],
+    group: &xc3_model::ModelGroup,
+    buffers: &mut [ModelBuffers],
+) {
+    // Lazy load buffers since many buffers are unused.
+    for models in models {
+        for model in &models.models {
+            let buffers = &mut buffers[model.model_buffers_index];
+            let model_buffers = &group.buffers[model.model_buffers_index];
+            for mesh in &model.meshes {
+                buffers.add_vertex_buffer(device, model_buffers, mesh.vertex_buffer_index);
+                buffers.add_index_buffer(device, model_buffers, mesh.index_buffer_index);
+            }
+        }
     }
 }
 

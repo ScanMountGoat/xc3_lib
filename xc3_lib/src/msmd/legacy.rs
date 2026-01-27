@@ -46,6 +46,7 @@ pub struct MsmdV11 {
     #[xc3(count_offset(u32, u32))]
     pub textures: Vec<Texture>,
 
+    // TODO: string section for map regions like ma00a?
     #[br(parse_with = parse_string_ptr32)]
     #[xc3(offset(u32))]
     pub unk_name: String,
@@ -111,7 +112,7 @@ pub struct MsmdV11 {
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub map_terrain_buffers: Vec<StreamEntry<VertexData>>,
+    pub map_vertex_data: Vec<StreamEntry<VertexData>>,
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]

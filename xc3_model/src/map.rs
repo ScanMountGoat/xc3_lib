@@ -911,7 +911,7 @@ fn map_models_group_legacy(
     texture_cache: &mut TextureCache,
     shader_database: Option<&ShaderDatabase>,
 ) -> Result<ModelGroup, LoadMapError> {
-    let buffers = create_buffers_legacy(&msmd.map_terrain_buffers, wismda, compressed)?;
+    let buffers = create_buffers_legacy(&msmd.map_vertex_data, wismda, compressed)?;
 
     // Decompression is expensive, so run in parallel ahead of time.
     let map_model_data = msmd
@@ -959,13 +959,22 @@ fn load_map_model_group_legacy(
         .items2
         .iter()
         .zip(model_data.models.models.iter())
-        .map(|(group_index, model)| {
+        .filter_map(|(group_index, model)| {
             // TODO: Does switch use the same lookup for lods?
             let item1_index = *group_index as usize % model_data.unk8.items1.len();
             let lod_index = *group_index as usize / model_data.unk8.items1.len();
             let item1 = &model_data.unk8.items1[item1_index];
             let vertex_data_index = item1.unk1[lod_index] as usize;
-            Model::from_model_legacy(model, vec![Mat4::IDENTITY], vertex_data_index)
+            // Only load the high quality base LOD terrain for now.
+            if lod_index == 0 {
+                Some(Model::from_model_legacy(
+                    model,
+                    vec![Mat4::IDENTITY],
+                    vertex_data_index,
+                ))
+            } else {
+                None
+            }
         })
         .collect();
 

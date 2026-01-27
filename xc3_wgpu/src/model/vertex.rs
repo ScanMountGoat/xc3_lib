@@ -1,12 +1,16 @@
+use std::collections::BTreeMap;
+
 use glam::{UVec4, Vec4};
 use wgpu::util::DeviceExt;
 use xc3_model::vertex::AttributeData;
 
 use crate::{DeviceBufferExt, shader};
 
+// Buffer loading is expensive, so allow for only loading the needed buffers.
+#[derive(Default)]
 pub struct ModelBuffers {
-    pub vertex_buffers: Vec<VertexBuffer>,
-    pub index_buffers: Vec<IndexBuffer>,
+    pub vertex_buffers: BTreeMap<usize, VertexBuffer>,
+    pub index_buffers: BTreeMap<usize, IndexBuffer>,
 }
 
 pub struct VertexBuffer {
@@ -31,133 +35,133 @@ pub struct IndexBuffer {
 }
 
 impl ModelBuffers {
-    pub fn from_buffers(device: &wgpu::Device, buffers: &xc3_model::vertex::ModelBuffers) -> Self {
-        // TODO: How to handle vertex buffers being used with multiple skeletons?
-        let vertex_buffers = model_vertex_buffers(device, buffers);
-        let index_buffers = model_index_buffers(device, buffers);
+    #[tracing::instrument(skip_all)]
+    pub fn add_vertex_buffer(
+        &mut self,
+        device: &wgpu::Device,
+        buffers: &xc3_model::vertex::ModelBuffers,
+        index: usize,
+    ) {
+        self.vertex_buffers
+            .entry(index)
+            .or_insert_with(|| VertexBuffer::new(device, buffers, &buffers.vertex_buffers[index]));
+    }
 
-        // TODO: Each vertex buffer needs its own transformed matrices?
+    #[tracing::instrument(skip_all)]
+    pub fn add_index_buffer(
+        &mut self,
+        device: &wgpu::Device,
+        buffers: &xc3_model::vertex::ModelBuffers,
+        index: usize,
+    ) {
+        self.index_buffers
+            .entry(index)
+            .or_insert_with(|| IndexBuffer::new(device, &buffers.index_buffers[index]));
+    }
+}
+
+impl VertexBuffer {
+    fn new(
+        device: &wgpu::Device,
+        buffers: &xc3_model::vertex::ModelBuffers,
+        buffer: &xc3_model::vertex::VertexBuffer,
+    ) -> Self {
+        // Convert the attributes back to an interleaved representation for rendering.
+        // Unused attributes will use a default value.
+        // Using a single vertex representation reduces shader permutations.
+        let vertex_count = buffer.vertex_count();
+        let mut buffer0_vertices = vec![
+            shader::model::VertexInput0 {
+                position: Vec4::ZERO,
+                normal: Vec4::ZERO,
+                tangent: Vec4::ZERO,
+            };
+            vertex_count
+        ];
+
+        let mut buffer1_vertices = vec![
+            shader::model::VertexInput1 {
+                vertex_color: Vec4::ONE,
+                weight_index: UVec4::ZERO,
+                tex01: Vec4::ZERO,
+                tex23: Vec4::ZERO,
+                tex45: Vec4::ZERO,
+                tex67: Vec4::ZERO,
+                tex8: Vec4::ZERO,
+            };
+            vertex_count
+        ];
+
+        set_attributes(&mut buffer0_vertices, &mut buffer1_vertices, buffer);
+
+        // Avoid overwriting the existing attributes.
+        let mut outline_buffer0_vertices = buffer0_vertices.clone();
+        let mut outline_buffer1_vertices = buffer1_vertices.clone();
+        if let Some(outline_buffer) = buffer
+            .outline_buffer_index
+            .and_then(|i| buffers.outline_buffers.get(i))
+        {
+            set_buffer0_attributes(&mut outline_buffer0_vertices, &outline_buffer.attributes);
+            set_buffer1_attributes(&mut outline_buffer1_vertices, &outline_buffer.attributes);
+        }
+
+        let vertex_buffer0 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("vertex buffer 0"),
+            contents: bytemuck::cast_slice(&buffer0_vertices),
+            usage: wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_SRC,
+        });
+
+        let vertex_buffer1 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("vertex buffer 1"),
+            contents: bytemuck::cast_slice(&buffer1_vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let outline_vertex_buffer0 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("outline vertex buffer 0"),
+            contents: bytemuck::cast_slice(&outline_buffer0_vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let outline_vertex_buffer1 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("outline vertex buffer 1"),
+            contents: bytemuck::cast_slice(&outline_buffer1_vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        // TODO: morph targets?
+        let morph_buffers = if !buffer.morph_targets.is_empty() {
+            Some(morph_buffers(device, buffer0_vertices, buffer))
+        } else {
+            None
+        };
+
         Self {
-            vertex_buffers,
-            index_buffers,
+            vertex_buffer0,
+            vertex_buffer1,
+            outline_vertex_buffer0,
+            outline_vertex_buffer1,
+            morph_buffers,
+            vertex_count: vertex_count as u32,
         }
     }
 }
 
-fn model_index_buffers(
-    device: &wgpu::Device,
-    buffer: &xc3_model::vertex::ModelBuffers,
-) -> Vec<IndexBuffer> {
-    buffer
-        .index_buffers
-        .iter()
-        .map(|buffer| {
-            let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("index buffer"),
-                contents: bytemuck::cast_slice(&buffer.indices),
-                usage: wgpu::BufferUsages::INDEX,
-            });
+impl IndexBuffer {
+    pub fn new(device: &wgpu::Device, buffer: &xc3_model::vertex::IndexBuffer) -> Self {
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("index buffer"),
+            contents: bytemuck::cast_slice(&buffer.indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
 
-            IndexBuffer {
-                index_buffer,
-                vertex_index_count: buffer.indices.len() as u32,
-            }
-        })
-        .collect()
-}
-
-fn model_vertex_buffers(
-    device: &wgpu::Device,
-    buffers: &xc3_model::vertex::ModelBuffers,
-) -> Vec<VertexBuffer> {
-    buffers
-        .vertex_buffers
-        .iter()
-        .map(|buffer| {
-            // Convert the attributes back to an interleaved representation for rendering.
-            // Unused attributes will use a default value.
-            // Using a single vertex representation reduces shader permutations.
-            let vertex_count = buffer.vertex_count();
-            let mut buffer0_vertices = vec![
-                shader::model::VertexInput0 {
-                    position: Vec4::ZERO,
-                    normal: Vec4::ZERO,
-                    tangent: Vec4::ZERO,
-                };
-                vertex_count
-            ];
-
-            let mut buffer1_vertices = vec![
-                shader::model::VertexInput1 {
-                    vertex_color: Vec4::ONE,
-                    weight_index: UVec4::ZERO,
-                    tex01: Vec4::ZERO,
-                    tex23: Vec4::ZERO,
-                    tex45: Vec4::ZERO,
-                    tex67: Vec4::ZERO,
-                    tex8: Vec4::ZERO,
-                };
-                vertex_count
-            ];
-
-            set_attributes(&mut buffer0_vertices, &mut buffer1_vertices, buffer);
-
-            // Avoid overwriting the existing attributes.
-            let mut outline_buffer0_vertices = buffer0_vertices.clone();
-            let mut outline_buffer1_vertices = buffer1_vertices.clone();
-            if let Some(outline_buffer) = buffer
-                .outline_buffer_index
-                .and_then(|i| buffers.outline_buffers.get(i))
-            {
-                set_buffer0_attributes(&mut outline_buffer0_vertices, &outline_buffer.attributes);
-                set_buffer1_attributes(&mut outline_buffer1_vertices, &outline_buffer.attributes);
-            }
-
-            let vertex_buffer0 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("vertex buffer 0"),
-                contents: bytemuck::cast_slice(&buffer0_vertices),
-                usage: wgpu::BufferUsages::VERTEX
-                    | wgpu::BufferUsages::STORAGE
-                    | wgpu::BufferUsages::COPY_SRC,
-            });
-
-            let vertex_buffer1 = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("vertex buffer 1"),
-                contents: bytemuck::cast_slice(&buffer1_vertices),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
-
-            let outline_vertex_buffer0 =
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("outline vertex buffer 0"),
-                    contents: bytemuck::cast_slice(&outline_buffer0_vertices),
-                    usage: wgpu::BufferUsages::VERTEX,
-                });
-
-            let outline_vertex_buffer1 =
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("outline vertex buffer 1"),
-                    contents: bytemuck::cast_slice(&outline_buffer1_vertices),
-                    usage: wgpu::BufferUsages::VERTEX,
-                });
-
-            // TODO: morph targets?
-            let morph_buffers = if !buffer.morph_targets.is_empty() {
-                Some(morph_buffers(device, buffer0_vertices, buffer))
-            } else {
-                None
-            };
-
-            VertexBuffer {
-                vertex_buffer0,
-                vertex_buffer1,
-                outline_vertex_buffer0,
-                outline_vertex_buffer1,
-                morph_buffers,
-                vertex_count: vertex_count as u32,
-            }
-        })
-        .collect()
+        Self {
+            index_buffer,
+            vertex_index_count: buffer.indices.len() as u32,
+        }
+    }
 }
 
 fn morph_buffers(

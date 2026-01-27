@@ -32,11 +32,40 @@ pub(crate) struct Material {
 
 pub(crate) const ALPHA_TEST_TEXTURE: &str = "ALPHA_TEST_TEXTURE";
 
+pub(crate) struct DefaultTextures {
+    default_2d: wgpu::TextureView,
+    default_3d: wgpu::TextureView,
+    default_cube: wgpu::TextureView,
+}
+
+impl DefaultTextures {
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+        // TODO: Is there a better way to handle missing textures?
+        let default_2d = default_black_texture(device, queue)
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let default_3d =
+            default_black_3d_texture(device, queue).create_view(&wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::D3),
+                ..Default::default()
+            });
+        let default_cube =
+            default_black_cube_texture(device, queue).create_view(&wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::Cube),
+                ..Default::default()
+            });
+
+        Self {
+            default_2d,
+            default_3d,
+            default_cube,
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument(skip_all)]
 pub fn create_material(
     device: &wgpu::Device,
-    queue: &wgpu::Queue,
     pipelines: &mut HashSet<PipelineKey>,
     material: &xc3_model::material::Material,
     textures: &[wgpu::Texture],
@@ -44,21 +73,8 @@ pub fn create_material(
     image_textures: &[ImageTexture],
     monolib_shader: &MonolibShaderTextures,
     is_instanced_static: bool,
+    default_textures: &DefaultTextures,
 ) -> Material {
-    // TODO: Is there a better way to handle missing textures?
-    let default_2d =
-        default_black_texture(device, queue).create_view(&wgpu::TextureViewDescriptor::default());
-    let default_3d =
-        default_black_3d_texture(device, queue).create_view(&wgpu::TextureViewDescriptor {
-            dimension: Some(wgpu::TextureViewDimension::D3),
-            ..Default::default()
-        });
-    let default_cube =
-        default_black_cube_texture(device, queue).create_view(&wgpu::TextureViewDescriptor {
-            dimension: Some(wgpu::TextureViewDimension::Cube),
-            ..Default::default()
-        });
-
     let default_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         address_mode_u: wgpu::AddressMode::Repeat,
         address_mode_v: wgpu::AddressMode::Repeat,
@@ -166,19 +182,19 @@ pub fn create_material(
         &material_textures,
         &texture_views,
         |t| t.dimension() == wgpu::TextureDimension::D2 && t.depth_or_array_layers() == 1,
-        &default_2d,
+        &default_textures.default_2d,
     );
     let texture_array_3d = texture_view_array(
         &material_textures,
         &texture_views,
         |t| t.dimension() == wgpu::TextureDimension::D3,
-        &default_3d,
+        &default_textures.default_3d,
     );
     let texture_array_cube = texture_view_array(
         &material_textures,
         &texture_views,
         |t| t.dimension() == wgpu::TextureDimension::D2 && t.depth_or_array_layers() == 6,
-        &default_cube,
+        &default_textures.default_cube,
     );
 
     let sampler_array = std::array::from_fn(|i| {
