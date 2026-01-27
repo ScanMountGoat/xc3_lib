@@ -74,9 +74,6 @@ fn annotate_vertex_shader(
     shader: &xc3_lib::mths::Gx2VertexShader,
     technique: Option<&xc3_lib::mxmd::legacy::Technique>,
 ) {
-    // TODO: perform annotation here and output glsl?
-    // TODO: annotation will require the technique since attributes and params are just "Q"?
-    // TODO: Construct syntatically valid GLSL for parsing later?
     let text = std::fs::read_to_string(binary_path.with_extension("txt")).unwrap();
     let mut graph = Graph::from_latte_asm(&text).unwrap();
 
@@ -263,9 +260,6 @@ fn annotate_fragment_shader(
     vertex_shader: &xc3_lib::mths::Gx2VertexShader,
     pixel_shader: &xc3_lib::mths::Gx2PixelShader,
 ) {
-    // TODO: perform annotation here and output glsl?
-    // TODO: annotation will require the technique since attributes and params are just "Q"?
-    // TODO: Construct syntatically valid GLSL for parsing later?
     let text = std::fs::read_to_string(binary_path.with_extension("txt")).unwrap();
     let mut graph = Graph::from_latte_asm(&text).unwrap();
 
