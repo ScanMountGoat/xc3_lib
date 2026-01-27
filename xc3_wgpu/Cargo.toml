@@ -21,6 +21,7 @@ tracing.workspace = true
 indexmap.workspace = true
 smol_str.workspace = true
 indoc.workspace = true
+aho-corasick = "1.1.4"
 
 [build-dependencies]
 wgsl_to_wgpu = "0.17.0"
