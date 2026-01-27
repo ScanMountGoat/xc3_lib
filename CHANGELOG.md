@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## unreleased
 ### Added
-* Added support for Xenoblade Chronicles X DE for xc3_model wimdo export.
+* Added support for Xenoblade X DE for xc3_model wimdo export.
+* Added support for wismhd maps from Xenoblade X DE.
 
 ### Changed
 * Improved accuracy of wimdo file rebuilding.
