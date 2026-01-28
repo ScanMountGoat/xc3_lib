@@ -888,6 +888,7 @@ fn read_outline_buffer(
 
 impl ModelBuffers {
     /// Decode all the attributes from `vertex_data`.
+    #[tracing::instrument(skip_all)]
     pub fn from_vertex_data(vertex_data: &VertexData) -> BinResult<Self> {
         let (vertex_buffers, weights) = read_vertex_buffers(vertex_data)?;
         let index_buffers = read_index_buffers(vertex_data, Endian::Little)?;
@@ -921,6 +922,7 @@ impl ModelBuffers {
     }
 
     /// Decode all the attributes from `vertex_data`.
+    #[tracing::instrument(skip_all)]
     pub fn from_vertex_data_legacy(
         vertex_data: &xc3_lib::mxmd::legacy::VertexData,
         endian: Endian,

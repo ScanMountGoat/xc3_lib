@@ -1,4 +1,4 @@
-use std::{io::Cursor, path::Path};
+use std::{io::Cursor, path::Path, sync::Mutex};
 
 use glam::{Mat4, Vec3};
 use image_dds::Surface;
@@ -63,6 +63,7 @@ pub fn load_map<P: AsRef<Path>>(
 }
 
 impl MapRoot {
+    #[tracing::instrument(skip_all)]
     pub fn from_msmd_v11(
         msmd: &MsmdV11,
         wismda: &[u8],
@@ -79,14 +80,15 @@ impl MapRoot {
         let mut roots = Vec::new();
 
         let texture_indices: Vec<_> = (0..msmd.low_textures.len() as u16).collect();
-        let mut texture_cache = TextureCache::from_msmd_v11(msmd, wismda, compressed)?;
+        let texture_cache = TextureCache::from_msmd_v11(msmd, wismda, compressed)?;
+        let texture_cache = Mutex::new(texture_cache);
 
         let map_model_group = map_models_group_legacy(
             msmd,
             wismda,
             compressed,
             &texture_indices,
-            &mut texture_cache,
+            &texture_cache,
             shader_database,
         )?;
 
@@ -95,11 +97,11 @@ impl MapRoot {
             wismda,
             compressed,
             &texture_indices,
-            &mut texture_cache,
+            &texture_cache,
             shader_database,
         )?;
 
-        let image_textures = texture_cache.image_textures()?;
+        let image_textures = texture_cache.into_inner().unwrap().image_textures()?;
 
         roots.push(MapRoot {
             groups: vec![map_model_group, prop_model_group],
@@ -137,27 +139,19 @@ impl MapRoot {
 
         // TODO: How much does a mutable cache negatively impact parallelization?
         // TODO: Is there enough reuse for it to be worth caching these?
-        let mut texture_cache = TextureCache::from_msmd_v112(msmd, wismda, compressed)?;
+        let texture_cache = TextureCache::from_msmd_v112(msmd, wismda, compressed)?;
+        let texture_cache = Mutex::new(texture_cache);
 
-        let map_model_group = map_models_group(
-            msmd,
-            wismda,
-            compressed,
-            &mut texture_cache,
-            shader_database,
-        )?;
+        let map_model_group =
+            map_models_group(msmd, wismda, compressed, &texture_cache, shader_database)?;
 
-        let prop_model_group = props_group(
-            msmd,
-            wismda,
-            compressed,
-            &mut texture_cache,
-            shader_database,
-        )?;
+        let prop_model_group =
+            props_group(msmd, wismda, compressed, &texture_cache, shader_database)?;
 
+        let image_textures = texture_cache.into_inner().unwrap().image_textures()?;
         roots.push(MapRoot {
             groups: vec![map_model_group, prop_model_group],
-            image_textures: texture_cache.image_textures()?,
+            image_textures,
         });
 
         if let Some(child_models) = &msmd.child_models {
@@ -188,6 +182,7 @@ struct TextureKey {
 }
 
 impl TextureCache {
+    #[tracing::instrument(skip_all)]
     fn from_msmd_v11(
         msmd: &MsmdV11,
         wismda: &[u8],
@@ -197,37 +192,13 @@ impl TextureCache {
         let low_textures = msmd
             .low_textures
             .par_iter()
-            .map(|e| {
-                let textures = e.extract(&mut Cursor::new(&wismda), compressed)?;
-                textures
-                    .textures
-                    .iter()
-                    .map(|t| {
-                        Ok((
-                            t.usage,
-                            Mibl::from_bytes(&t.mibl_data)?.to_surface().unwrap(),
-                        ))
-                    })
-                    .collect::<Result<Vec<_>, LoadMapError>>()
-            })
+            .map(|e| load_low_textures(wismda, compressed, e))
             .collect::<Result<Vec<_>, _>>()?;
 
         let high_textures = msmd
             .textures
             .par_iter()
-            .map(|texture| {
-                let mut wismda = Cursor::new(&wismda);
-                let mibl_m = texture.mid.extract(&mut wismda, compressed)?;
-
-                if texture.base_mip.decompressed_size > 0 {
-                    let base_mip_level = texture.base_mip.decompress(&mut wismda, compressed)?;
-
-                    // TODO: Avoid unwrap.
-                    Ok(mibl_m.to_surface_with_base_mip(&base_mip_level).unwrap())
-                } else {
-                    Ok(mibl_m.to_surface().unwrap())
-                }
-            })
+            .map(|texture| load_high_texture(wismda, compressed, texture))
             .collect::<Result<Vec<_>, LoadMapError>>()?;
 
         Ok(Self {
@@ -237,6 +208,7 @@ impl TextureCache {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     fn from_msmd_v112(
         msmd: &MsmdV112,
         wismda: &[u8],
@@ -246,37 +218,13 @@ impl TextureCache {
         let low_textures = msmd
             .low_textures
             .par_iter()
-            .map(|e| {
-                let textures = e.extract(&mut Cursor::new(&wismda), compressed)?;
-                textures
-                    .textures
-                    .iter()
-                    .map(|t| {
-                        Ok((
-                            t.usage,
-                            Mibl::from_bytes(&t.mibl_data)?.to_surface().unwrap(),
-                        ))
-                    })
-                    .collect::<Result<Vec<_>, LoadMapError>>()
-            })
+            .map(|e| load_low_textures(wismda, compressed, e))
             .collect::<Result<Vec<_>, _>>()?;
 
         let high_textures = msmd
             .textures
             .par_iter()
-            .map(|texture| {
-                let mut wismda = Cursor::new(&wismda);
-                let mibl_m = texture.mid.extract(&mut wismda, compressed)?;
-
-                if texture.base_mip.decompressed_size > 0 {
-                    let base_mip_level = texture.base_mip.decompress(&mut wismda, compressed)?;
-
-                    // TODO: Avoid unwrap.
-                    Ok(mibl_m.to_surface_with_base_mip(&base_mip_level).unwrap())
-                } else {
-                    Ok(mibl_m.to_surface().unwrap())
-                }
-            })
+            .map(|texture| load_high_texture(wismda, compressed, texture))
             .collect::<Result<Vec<_>, LoadMapError>>()?;
 
         Ok(Self {
@@ -332,30 +280,76 @@ impl TextureCache {
         self.high_textures.get(index).map(|t| t.as_ref())
     }
 
+    #[tracing::instrument(skip_all)]
     fn image_textures(&self) -> Result<Vec<ImageTexture>, CreateImageTextureError> {
         self.texture_to_image_texture_index
             .par_iter()
-            .map(|(texture, _)| {
-                let low = self.get_low_texture(texture);
-
-                if let Some(surface) = self.get_high_texture(texture).or(low.map(|low| low.1)) {
-                    ImageTexture::from_surface(surface, None, low.map(|l| l.0))
-                } else {
-                    // TODO: Create a default instead to avoid potential panic.
-                    error!("No mibl for {texture:?}");
-                    let (usage, surface) = &self.low_textures[0][0];
-                    ImageTexture::from_surface(surface.as_ref(), None, Some(*usage))
-                }
-            })
+            .map(|(texture, _)| self.create_image_texture(texture))
             .collect()
+    }
+
+    #[tracing::instrument(skip_all)]
+    fn create_image_texture(
+        &self,
+        texture: &TextureKey,
+    ) -> Result<ImageTexture, CreateImageTextureError> {
+        let low = self.get_low_texture(texture);
+
+        if let Some(surface) = self.get_high_texture(texture).or(low.map(|low| low.1)) {
+            ImageTexture::from_surface(surface, None, low.map(|l| l.0))
+        } else {
+            // TODO: Create a default instead to avoid potential panic.
+            error!("No mibl for {texture:?}");
+            let (usage, surface) = &self.low_textures[0][0];
+            ImageTexture::from_surface(surface.as_ref(), None, Some(*usage))
+        }
     }
 }
 
+#[tracing::instrument(skip_all)]
+fn load_high_texture(
+    wismda: &[u8],
+    compressed: bool,
+    texture: &xc3_lib::msmd::Texture,
+) -> Result<Surface<Vec<u8>>, LoadMapError> {
+    let mut wismda = Cursor::new(&wismda);
+    let mibl_m = texture.mid.extract(&mut wismda, compressed)?;
+
+    if texture.base_mip.decompressed_size > 0 {
+        let base_mip_level = texture.base_mip.decompress(&mut wismda, compressed)?;
+
+        // TODO: Avoid unwrap.
+        Ok(mibl_m.to_surface_with_base_mip(&base_mip_level).unwrap())
+    } else {
+        Ok(mibl_m.to_surface().unwrap())
+    }
+}
+
+#[tracing::instrument(skip_all)]
+fn load_low_textures(
+    wismda: &[u8],
+    compressed: bool,
+    e: &StreamEntry<xc3_lib::msmd::LowTextures>,
+) -> Result<Vec<(TextureUsage, Surface<Vec<u8>>)>, LoadMapError> {
+    let textures = e.extract(&mut Cursor::new(&wismda), compressed)?;
+    textures
+        .textures
+        .iter()
+        .map(|t| {
+            Ok((
+                t.usage,
+                Mibl::from_bytes(&t.mibl_data)?.to_surface().unwrap(),
+            ))
+        })
+        .collect::<Result<Vec<_>, LoadMapError>>()
+}
+
+#[tracing::instrument(skip_all)]
 fn map_models_group(
     msmd: &MsmdV112,
     wismda: &[u8],
     compressed: bool,
-    texture_cache: &mut TextureCache,
+    texture_cache: &Mutex<TextureCache>,
     shader_database: Option<&ShaderDatabase>,
 ) -> Result<ModelGroup, LoadMapError> {
     let buffers = create_buffers(&msmd.map_vertex_data, wismda, compressed)?;
@@ -367,31 +361,39 @@ fn map_models_group(
         .map(|m| m.entry.extract(&mut Cursor::new(wismda), compressed))
         .collect::<Result<Vec<_>, _>>()?;
 
-    let mut models = Vec::new();
-    models.extend(map_model_data.iter().map(|model_data| {
-        // Remove one layer of indirection from texture lookups.
-        let material_root_texture_indices: Vec<_> = model_data
-            .textures
-            .iter()
-            .map(|t| texture_cache.insert(t, &model_data.low_texture_entry_indices))
-            .collect();
+    let models = map_model_data
+        .par_iter()
+        .map(|model_data| {
+            // Remove one layer of indirection from texture lookups.
+            let material_root_texture_indices: Vec<_> = model_data
+                .textures
+                .iter()
+                .map(|t| {
+                    texture_cache
+                        .lock()
+                        .unwrap()
+                        .insert(t, &model_data.low_texture_entry_indices)
+                })
+                .collect();
 
-        load_map_model_group(
-            model_data,
-            &material_root_texture_indices,
-            &model_data.spch,
-            shader_database,
-        )
-    }));
+            load_map_model_group(
+                model_data,
+                &material_root_texture_indices,
+                &model_data.spch,
+                shader_database,
+            )
+        })
+        .collect();
 
     Ok(ModelGroup { models, buffers })
 }
 
+#[tracing::instrument(skip_all)]
 fn props_group(
     msmd: &MsmdV112,
     wismda: &[u8],
     compressed: bool,
-    texture_cache: &mut TextureCache,
+    texture_cache: &Mutex<TextureCache>,
     shader_database: Option<&ShaderDatabase>,
 ) -> Result<ModelGroup, LoadMapError> {
     let buffers = create_buffers(&msmd.prop_vertex_data, wismda, compressed)?;
@@ -410,13 +412,18 @@ fn props_group(
         .collect::<Result<Vec<_>, _>>()?;
 
     let models = prop_model_data
-        .iter()
+        .par_iter()
         .map(|model_data| {
             // Remove layers of indirection from texture lookups.
             let material_root_texture_indices: Vec<_> = model_data
                 .textures
                 .iter()
-                .map(|t| texture_cache.insert(t, &model_data.low_texture_entry_indices))
+                .map(|t| {
+                    texture_cache
+                        .lock()
+                        .unwrap()
+                        .insert(t, &model_data.low_texture_entry_indices)
+                })
                 .collect();
 
             load_prop_model_group(
@@ -432,6 +439,7 @@ fn props_group(
     Ok(ModelGroup { models, buffers })
 }
 
+#[tracing::instrument(skip_all)]
 fn create_buffers(
     vertex_data: &[StreamEntry<xc3_lib::vertex::VertexData>],
     wismda: &[u8],
@@ -449,6 +457,7 @@ fn create_buffers(
         .collect()
 }
 
+#[tracing::instrument(skip_all)]
 fn load_prop_model_group(
     model_data: &xc3_lib::map::PropModelData,
     parts: Option<&MapParts>,
@@ -645,6 +654,7 @@ fn add_animated_part_instances(
     }
 }
 
+#[tracing::instrument(skip_all)]
 fn load_map_model_group(
     model_data: &xc3_lib::map::MapModelData,
     material_root_texture_indices: &[usize],
@@ -903,12 +913,13 @@ fn load_child_model(
     })
 }
 
+#[tracing::instrument(skip_all)]
 fn map_models_group_legacy(
     msmd: &MsmdV11,
     wismda: &[u8],
     compressed: bool,
     texture_indices: &[u16],
-    texture_cache: &mut TextureCache,
+    texture_cache: &Mutex<TextureCache>,
     shader_database: Option<&ShaderDatabase>,
 ) -> Result<ModelGroup, LoadMapError> {
     let buffers = create_buffers_legacy(&msmd.map_vertex_data, wismda, compressed)?;
@@ -920,26 +931,34 @@ fn map_models_group_legacy(
         .map(|m| m.entry.extract(&mut Cursor::new(wismda), compressed))
         .collect::<Result<Vec<_>, _>>()?;
 
-    let mut models = Vec::new();
-    models.extend(map_model_data.iter().map(|model_data| {
-        // Remove one layer of indirection from texture lookups.
-        let material_root_texture_indices: Vec<_> = model_data
-            .textures
-            .iter()
-            .map(|t| texture_cache.insert(t, &model_data.low_texture_indices))
-            .collect();
+    let models = map_model_data
+        .par_iter()
+        .map(|model_data| {
+            // Remove one layer of indirection from texture lookups.
+            let material_root_texture_indices: Vec<_> = model_data
+                .textures
+                .iter()
+                .map(|t| {
+                    texture_cache
+                        .lock()
+                        .unwrap()
+                        .insert(t, &model_data.low_texture_indices)
+                })
+                .collect();
 
-        load_map_model_group_legacy(
-            model_data,
-            texture_indices,
-            &material_root_texture_indices,
-            shader_database,
-        )
-    }));
+            load_map_model_group_legacy(
+                model_data,
+                texture_indices,
+                &material_root_texture_indices,
+                shader_database,
+            )
+        })
+        .collect();
 
     Ok(ModelGroup { models, buffers })
 }
 
+#[tracing::instrument(skip_all)]
 fn load_map_model_group_legacy(
     model_data: &xc3_lib::map::legacy::MapModelData,
     texture_indices: &[u16],
@@ -991,12 +1010,13 @@ fn load_map_model_group_legacy(
     }
 }
 
+#[tracing::instrument(skip_all)]
 fn props_group_legacy(
     msmd: &MsmdV11,
     wismda: &[u8],
     compressed: bool,
     texture_indices: &[u16],
-    texture_cache: &mut TextureCache,
+    texture_cache: &Mutex<TextureCache>,
     shader_database: Option<&ShaderDatabase>,
 ) -> Result<ModelGroup, LoadMapError> {
     let buffers = create_buffers_legacy(&msmd.prop_vertex_data, wismda, compressed)?;
@@ -1015,13 +1035,18 @@ fn props_group_legacy(
         .collect::<Result<Vec<_>, _>>()?;
 
     let models = prop_model_data
-        .iter()
+        .par_iter()
         .map(|model_data| {
             // Remove layers of indirection from texture lookups.
             let material_root_texture_indices: Vec<_> = model_data
                 .textures
                 .iter()
-                .map(|t| texture_cache.insert(t, &model_data.low_texture_entry_indices))
+                .map(|t| {
+                    texture_cache
+                        .lock()
+                        .unwrap()
+                        .insert(t, &model_data.low_texture_entry_indices)
+                })
                 .collect();
 
             load_prop_model_group_legacy(
@@ -1037,6 +1062,7 @@ fn props_group_legacy(
     Ok(ModelGroup { models, buffers })
 }
 
+#[tracing::instrument(skip_all)]
 fn load_prop_model_group_legacy(
     model_data: &xc3_lib::map::legacy::PropModelData,
     prop_positions: &[xc3_lib::map::legacy::PropPositions],
@@ -1119,6 +1145,7 @@ fn add_prop_instances_legacy(
     }
 }
 
+#[tracing::instrument(skip_all)]
 fn create_buffers_legacy(
     vertex_data: &[StreamEntry<xc3_lib::mxmd::legacy::VertexData>],
     wismda: &[u8],

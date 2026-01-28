@@ -1025,6 +1025,7 @@ where
     for<'a> T: BinRead<Args<'a> = ()>,
 {
     /// Decompress and read the data from a reader for a `.wismda` file.
+    #[tracing::instrument(skip_all)]
     pub fn extract<R: Read + Seek>(
         &self,
         wismda: &mut R,

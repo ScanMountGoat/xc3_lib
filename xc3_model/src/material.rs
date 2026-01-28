@@ -328,6 +328,7 @@ fn fur_shell_params(
     flags.fur_shells().then_some(params)
 }
 
+#[tracing::instrument(skip_all)]
 pub(crate) fn create_materials_samplers_legacy<S>(
     materials: &xc3_lib::mxmd::legacy::Materials,
     texture_indices: &[u16],
