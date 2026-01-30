@@ -29,7 +29,7 @@ use xc3_lib::{
     msrd::{Msrd, streaming::chr_folder},
     mths::Mths,
     mtxt::Mtxt,
-    mxmd::{Mxmd, MxmdV112, legacy::MxmdLegacy, legacy2::MxmdV40},
+    mxmd::{Mxmd, MxmdV40, MxmdV112, legacy::MxmdLegacy},
     offset::{OffsetRange, OffsetValidationError, read_type_get_offsets},
     sar1::{ChCl, Csvb, Sar1},
     spch::Spch,

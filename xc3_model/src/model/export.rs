@@ -5,8 +5,8 @@ use xc3_lib::{
     mibl::Mibl,
     msrd::{Msrd, streaming::ExtractedTexture},
     mxmd::{
-        self, AlphaTable, LodData, LodGroup, LodItem, Mxmd, MxmdV112, TextureUsage,
-        VertexAttribute, legacy2::MxmdV40,
+        self, AlphaTable, LodData, LodGroup, LodItem, Mxmd, MxmdV40, MxmdV112, TextureUsage,
+        VertexAttribute,
     },
     vertex::{DataType, VertexData},
 };

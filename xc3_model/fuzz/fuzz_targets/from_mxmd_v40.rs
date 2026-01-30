@@ -4,7 +4,7 @@ use libfuzzer_sys::fuzz_target;
 
 #[derive(Debug, arbitrary::Arbitrary)]
 struct Input {
-    mxmd: xc3_lib::mxmd::legacy2::MxmdV40,
+    mxmd: xc3_lib::mxmd::MxmdV40,
     skel: Option<xc3_lib::bc::skel::Skel>,
     vertex: xc3_lib::mxmd::legacy::VertexData,
     spch: xc3_lib::spch::Spch,

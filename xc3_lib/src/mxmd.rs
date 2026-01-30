@@ -16,16 +16,15 @@ use crate::{
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_opt_ptr32, parse_string_ptr32,
     spch::Spch,
+    spco::Spco,
     vertex::{DataType, VertexData},
     xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
 use binrw::{BinRead, BinWrite, args, binread};
-use legacy2::MxmdV40;
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 pub mod legacy;
-pub mod legacy2;
 
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -59,6 +58,45 @@ pub enum MxmdInner {
 
     #[br(pre_assert(version == 10112))]
     V112(#[br(args_raw(base_offset))] MxmdV112),
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
+pub struct MxmdV40 {
+    /// A collection of [Model](legacy::Model) and associated data.
+    #[br(parse_with = parse_ptr32)]
+    #[xc3(offset(u32), align(16))]
+    pub models: legacy::Models,
+
+    #[br(parse_with = parse_ptr32)]
+    #[xc3(offset(u32), align(16))]
+    pub materials: legacy::Materials,
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32), align(16))]
+    pub unk1: Option<legacy::Unk1>,
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32), align(4096))]
+    pub vertex_data: Option<legacy::VertexData>,
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32), align(4096))]
+    pub shaders: Option<Spco>,
+
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32))]
+    pub packed_textures: Option<PackedTextures>,
+
+    pub unk3: u32,
+
+    /// Streaming information for the .wismt file or [None] if no .wismt file.
+    #[br(parse_with = parse_opt_ptr32)]
+    #[xc3(offset(u32))]
+    pub streaming: Option<Streaming>,
+
+    // TODO: padding?
+    pub unk: [u32; 7],
 }
 
 // TODO: Test this against xc2 files.
@@ -2682,6 +2720,37 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
                 .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
 
+        Ok(())
+    }
+}
+
+impl Xc3WriteOffsets for MxmdV40Offsets<'_> {
+    type Args = ();
+
+    fn write_offsets<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: &mut W,
+        base_offset: u64,
+        data_ptr: &mut u64,
+        endian: xc3_write::Endian,
+        _args: Self::Args,
+    ) -> xc3_write::Xc3Result<()> {
+        // Different order than field order.
+        self.models
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.materials
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.vertex_data
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.shaders
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.packed_textures
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.streaming
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        self.unk1
+            .write_full(writer, base_offset, data_ptr, endian, ())?;
+        // TODO: sometimes aligned to 16 like with msrd?
         Ok(())
     }
 }

@@ -751,8 +751,7 @@ file_read_impl!(
     datasheet::DataSheet,
     wipac::Wipac,
     laft::Laft,
-    last::Last,
-    mxmd::legacy2::MxmdV40
+    last::Last
 );
 
 file_read_impl!(

@@ -54,7 +54,7 @@ pub struct ModelFilesV112<'a> {
 
 impl<'a> ModelFilesV40<'a> {
     pub fn from_files(
-        mxmd: &'a xc3_lib::mxmd::legacy2::MxmdV40,
+        mxmd: &'a xc3_lib::mxmd::MxmdV40,
         wismt_path: &Path,
         chr_folder: Option<&Path>,
     ) -> Result<ModelFilesV40<'a>, LoadModelError> {
