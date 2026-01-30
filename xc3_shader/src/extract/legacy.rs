@@ -9,6 +9,7 @@ use crate::graph::{Expr, Graph};
 use log::error;
 use xc3_lib::mths::Mths;
 
+#[tracing::instrument(skip_all)]
 pub fn extract_legacy_shaders<P: AsRef<Path>>(
     mths: &Mths,
     mths_bytes: &[u8],
@@ -51,6 +52,7 @@ pub fn annotate_legacy_shaders<P: AsRef<Path>>(
     annotate_fragment_shader(&binary_path, &vert, &pixel);
 }
 
+#[tracing::instrument(skip_all)]
 fn dissassemble_shader(binary_path: &Path, binary: &[u8], gfd_tool: &str) {
     std::fs::write(binary_path, binary).unwrap();
 

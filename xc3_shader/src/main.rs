@@ -16,6 +16,9 @@ use xc3_shader::graph::Graph;
 
 use xc3_shader::graph::glsl::{glsl_dependencies, shader_source_no_extensions};
 
+#[cfg(feature = "tracing")]
+use tracing_subscriber::prelude::*;
+
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
@@ -114,6 +117,12 @@ fn main() {
         .unwrap();
 
     let cli = Cli::parse();
+
+    #[cfg(feature = "tracing")]
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::registry().with(tracing_tracy::TracyLayer::default()),
+    )
+    .unwrap();
 
     let start = std::time::Instant::now();
     match cli.command {

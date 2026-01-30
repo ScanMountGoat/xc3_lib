@@ -141,6 +141,7 @@ pub fn extract_and_decompile_shaders(input: &str, output: &str, shader_tools: Op
         });
 }
 
+#[tracing::instrument(skip_all)]
 fn extract_and_decompile_msmd_shaders(
     path: &Path,
     msmd: Msmd,
@@ -326,6 +327,7 @@ pub fn annotate_all_legacy_shaders(input: &str, output: &str) {
         });
 }
 
+#[tracing::instrument(skip_all)]
 fn extract_shaders<P: AsRef<Path>>(
     spch: &Spch,
     output_folder: P,
@@ -398,6 +400,7 @@ pub fn nvsd_glsl_name(spch: &Spch, slct_index: usize, nvsd_index: usize) -> Stri
     }
 }
 
+#[tracing::instrument(skip_all)]
 fn process_shader<F>(
     binary_path: PathBuf,
     glsl_path: PathBuf,
