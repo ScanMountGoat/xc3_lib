@@ -24,7 +24,7 @@ const VAR_PREFIX: &str = "VAR";
 const VAR_PREFIX_XYZ: &str = "VAR_XYZ";
 
 static WGSL_REPLACEMENTS: LazyLock<AhoCorasick> = LazyLock::new(|| {
-    AhoCorasick::new(&[
+    AhoCorasick::new([
         "let ASSIGN_VARS = 0.0;",
         "let ALPHA_TEST_DISCARD_GENERATED = 0.0;",
         "let ASSIGN_NORMAL_INTENSITY_GENERATED = 0.0;",
@@ -123,124 +123,122 @@ fn write_assignment(
 }
 
 fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
-    let arg0 = arg(args, 0);
-    let arg1 = arg(args, 1);
-    let arg2 = arg(args, 2);
-    let arg3 = arg(args, 3);
-    let arg4 = arg(args, 4);
-    let arg5 = arg(args, 5);
-    let arg6 = arg(args, 6);
-    let arg7 = arg(args, 7);
+    let arg0 = args.first();
+    let arg1 = args.get(1);
+    let arg2 = args.get(2);
+    let arg3 = args.get(3);
+    let arg4 = args.get(4);
+    let arg5 = args.get(5);
+    let arg6 = args.get(6);
+    let arg7 = args.get(7);
 
+    let a = VAR_PREFIX;
     match op {
-        Operation::Unk => None,
-        Operation::Mix => Some(write!(wgsl, "mix({}, {}, {})", arg0?, arg1?, arg2?).unwrap()),
-        Operation::Mul => Some(write!(wgsl, "{} * {}", arg0?, arg1?).unwrap()),
-        Operation::Div => Some(write!(wgsl, "{} / {}", arg0?, arg1?).unwrap()),
-        Operation::Add => Some(write!(wgsl, "{} + {}", arg0?, arg1?).unwrap()),
-        Operation::AddNormalX => Some(write!(wgsl,
-            "add_normal_maps(create_normal_map({}, {}), create_normal_map({}, {}), {}).x * 0.5 + 0.5",
+        Operation::Unk => return None,
+        Operation::Mix => write!(wgsl, "mix({a}{}, {a}{}, {a}{})", arg0?, arg1?, arg2?).unwrap(),
+        Operation::Mul => write!(wgsl, "{a}{} * {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Div => write!(wgsl, "{a}{} / {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Add => write!(wgsl, "{a}{} + {a}{}", arg0?, arg1?).unwrap(),
+        Operation::AddNormalX => write!(wgsl,
+            "add_normal_maps(create_normal_map({a}{}, {a}{}), create_normal_map({a}{}, {a}{}), {a}{}).x * 0.5 + 0.5",
             arg0?, arg1?, arg2?, arg3?, arg4?
-        ).unwrap()),
-        Operation::AddNormalY => Some(write!(wgsl,
-            "add_normal_maps(create_normal_map({}, {}), create_normal_map({}, {}), {}).y * 0.5 + 0.5",
+        ).unwrap(),
+        Operation::AddNormalY => write!(wgsl,
+            "add_normal_maps(create_normal_map({a}{}, {a}{}), create_normal_map({a}{}, {a}{}), {a}{}).y * 0.5 + 0.5",
             arg0?, arg1?, arg2?, arg3?, arg4?
-        ).unwrap()),
-        Operation::OverlayRatio => Some(write!(wgsl,
-            "mix({0}, overlay_blend({0}, {1}), {2})",
+        ).unwrap(),
+        Operation::OverlayRatio => write!(wgsl,
+            "mix({a}{0}, overlay_blend({a}{0}, {a}{1}), {a}{2})",
             arg0?, arg1?, arg2?
-        ).unwrap()),
-        Operation::Overlay => Some(write!(wgsl, "overlay_blend({}, {})", arg0?, arg1?).unwrap()),
-        Operation::Overlay2 => Some(write!(wgsl, "overlay_blend2({}, {})", arg0?, arg1?).unwrap()),
-        Operation::Power => Some(write!(wgsl, "pow({}, {})", arg0?, arg1?).unwrap()),
-        Operation::Min => Some(write!(wgsl, "min({}, {})", arg0?, arg1?).unwrap()),
-        Operation::Max => Some(write!(wgsl, "max({}, {})", arg0?, arg1?).unwrap()),
-        Operation::Clamp => Some(write!(wgsl, "clamp({}, {}, {})", arg0?, arg1?, arg2?).unwrap()),
-        Operation::Sub => Some(write!(wgsl, "{} - {}", arg0?, arg1?).unwrap()),
-        Operation::Fma => Some(write!(wgsl, "{} * {} + {}", arg0?, arg1?, arg2?).unwrap()),
-        Operation::Abs => Some(write!(wgsl, "abs({})", arg0?).unwrap()),
-        Operation::Fresnel => Some(write!(wgsl, "fresnel_ratio({}, n_dot_v)", arg0?).unwrap()),
-        Operation::MulRatio => Some(write!(wgsl, "mix({0}, {0} * {1}, {2})", arg0?, arg1?, arg2?).unwrap()),
-        Operation::Sqrt => Some(write!(wgsl, "sqrt({})", arg0?).unwrap()),
-        Operation::TexMatrix => Some(write!(wgsl,
-            "dot(vec4({}, {}, 0.0, 1.0), vec4({}, {}, {}, {}))",
+        ).unwrap(),
+        Operation::Overlay => write!(wgsl, "overlay_blend({a}{}, {a}{})", arg0?, arg1?).unwrap(),
+        Operation::Overlay2 => write!(wgsl, "overlay_blend2({a}{}, {a}{})", arg0?, arg1?).unwrap(),
+        Operation::Power => write!(wgsl, "pow({a}{}, {a}{})", arg0?, arg1?).unwrap(),
+        Operation::Min => write!(wgsl, "min({a}{}, {a}{})", arg0?, arg1?).unwrap(),
+        Operation::Max => write!(wgsl, "max({a}{}, {a}{})", arg0?, arg1?).unwrap(),
+        Operation::Clamp => write!(wgsl, "clamp({a}{}, {a}{}, {a}{})", arg0?, arg1?, arg2?).unwrap(),
+        Operation::Sub => write!(wgsl, "{a}{} - {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Fma => write!(wgsl, "{a}{} * {a}{} + {a}{}", arg0?, arg1?, arg2?).unwrap(),
+        Operation::Abs => write!(wgsl, "abs({a}{})", arg0?).unwrap(),
+        Operation::Fresnel => write!(wgsl, "fresnel_ratio({a}{}, n_dot_v)", arg0?).unwrap(),
+        Operation::MulRatio => write!(wgsl, "mix({a}{0}, {a}{0} * {a}{1}, {a}{2})", arg0?, arg1?, arg2?).unwrap(),
+        Operation::Sqrt => write!(wgsl, "sqrt({a}{})", arg0?).unwrap(),
+        Operation::TexMatrix => write!(wgsl,
+            "dot(vec4({a}{}, {a}{}, 0.0, 1.0), vec4({a}{}, {a}{}, {a}{}, {a}{}))",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
-        ).unwrap()),
-        Operation::TexParallaxX => Some(write!(wgsl, "{} + uv_parallax(in, {}).x", arg0?, arg1?).unwrap()),
-        Operation::TexParallaxY => Some(write!(wgsl, "{} + uv_parallax(in, {}).y", arg0?, arg1?).unwrap()),
-        Operation::ReflectX => Some(write!(wgsl,
-            "reflect(vec3({}, {}, {}), vec3({}, {}, {})).x",
+        ).unwrap(),
+        Operation::TexParallaxX => write!(wgsl, "{a}{} + uv_parallax(in, {a}{}).x", arg0?, arg1?).unwrap(),
+        Operation::TexParallaxY => write!(wgsl, "{a}{} + uv_parallax(in, {a}{}).y", arg0?, arg1?).unwrap(),
+        Operation::ReflectX => write!(wgsl,
+            "reflect(vec3({a}{}, {a}{}, {a}{}), vec3({a}{}, {a}{}, {a}{})).x",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
-        ).unwrap()),
-        Operation::ReflectY => Some(write!(wgsl,
-            "reflect(vec3({}, {}, {}), vec3({}, {}, {})).y",
+        ).unwrap(),
+        Operation::ReflectY => write!(wgsl,
+            "reflect(vec3({a}{}, {a}{}, {a}{}), vec3({a}{}, {a}{}, {a}{})).y",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
-        ).unwrap()),
-        Operation::ReflectZ => Some(write!(wgsl,
-            "reflect(vec3({}, {}, {}), vec3({}, {}, {})).z",
+        ).unwrap(),
+        Operation::ReflectZ => write!(wgsl,
+            "reflect(vec3({a}{}, {a}{}, {a}{}), vec3({a}{}, {a}{}, {a}{})).z",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
-        ).unwrap()),
-        Operation::Floor => Some(write!(wgsl, "floor({})", arg0?).unwrap()),
-        Operation::Select => Some(write!(wgsl, "mix({}, {}, f32({}))", arg2?, arg1?, arg0?).unwrap()),
-        Operation::Equal => Some(write!(wgsl, "{} == {}", arg0?, arg1?).unwrap()),
-        Operation::NotEqual => Some(write!(wgsl, "{} != {}", arg0?, arg1?).unwrap()),
-        Operation::Less => Some(write!(wgsl, "{} < {}", arg0?, arg1?).unwrap()),
-        Operation::Greater => Some(write!(wgsl, "{} > {}", arg0?, arg1?).unwrap()),
-        Operation::LessEqual => Some(write!(wgsl, "{} <= {}", arg0?, arg1?).unwrap()),
-        Operation::GreaterEqual => Some(write!(wgsl, "{} >= {}", arg0?, arg1?).unwrap()),
-        Operation::Dot4 => Some(write!(wgsl,
-            "dot(vec4({}, {}, {}, {}), vec4({}, {}, {}, {}))",
+        ).unwrap(),
+        Operation::Floor => write!(wgsl, "floor({a}{})", arg0?).unwrap(),
+        Operation::Select => write!(wgsl, "mix({a}{}, {a}{}, f32({a}{}))", arg2?, arg1?, arg0?).unwrap(),
+        Operation::Equal => write!(wgsl, "{a}{} == {a}{}", arg0?, arg1?).unwrap(),
+        Operation::NotEqual => write!(wgsl, "{a}{} != {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Less => write!(wgsl, "{a}{} < {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Greater => write!(wgsl, "{a}{} > {a}{}", arg0?, arg1?).unwrap(),
+        Operation::LessEqual => write!(wgsl, "{a}{} <= {a}{}", arg0?, arg1?).unwrap(),
+        Operation::GreaterEqual => write!(wgsl, "{a}{} >= {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Dot4 => write!(wgsl,
+            "dot(vec4({a}{}, {a}{}, {a}{}, {a}{}), vec4({a}{}, {a}{}, {a}{}, {a}{}))",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?, arg6?, arg7?
-        ).unwrap()),
-        Operation::NormalMapX => Some(write!(wgsl,
-            "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).x",
+        ).unwrap(),
+        Operation::NormalMapX => write!(wgsl,
+            "apply_normal_map(create_normal_map({a}{}, {a}{}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).x",
             arg0?, arg1?
-        ).unwrap()),
-        Operation::NormalMapY => Some(write!(wgsl,
-            "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).y",
+        ).unwrap(),
+        Operation::NormalMapY => write!(wgsl,
+            "apply_normal_map(create_normal_map({a}{}, {a}{}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).y",
             arg0?, arg1?
-        ).unwrap()),
-        Operation::NormalMapZ => Some(write!(wgsl,
-            "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).z",
+        ).unwrap(),
+        Operation::NormalMapZ => write!(wgsl,
+            "apply_normal_map(create_normal_map({a}{}, {a}{}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).z",
             arg0?, arg1?
-        ).unwrap()),
-        Operation::MonochromeX => Some(write!(wgsl,
-            "monochrome({}, {}, {}, {}).x",
+        ).unwrap(),
+        Operation::MonochromeX => write!(wgsl,
+            "monochrome({a}{}, {a}{}, {a}{}, {a}{}).x",
             arg0?, arg1?, arg2?, arg3?
-        ).unwrap()),
-        Operation::MonochromeY => Some(write!(wgsl,
-            "monochrome({}, {}, {}, {}).y",
+        ).unwrap(),
+        Operation::MonochromeY => write!(wgsl,
+            "monochrome({a}{}, {a}{}, {a}{}, {a}{}).y",
             arg0?, arg1?, arg2?, arg3?
-        ).unwrap()),
-        Operation::MonochromeZ => Some(write!(wgsl,
-            "monochrome({}, {}, {}, {}).z",
+        ).unwrap(),
+        Operation::MonochromeZ => write!(wgsl,
+            "monochrome({a}{}, {a}{}, {a}{}, {a}{}).z",
             arg0?, arg1?, arg2?, arg3?
-        ).unwrap()),
-        Operation::Negate => Some(write!(wgsl, "-{}", arg0?).unwrap()),
+        ).unwrap(),
+        Operation::Negate => write!(wgsl, "-{a}{}", arg0?).unwrap(),
         // TODO: Pass instance index to fragment shader instead?
-        Operation::FurInstanceAlpha => Some(write!(wgsl, "in.vertex_color.a").unwrap()),
-        Operation::Float => Some(write!(wgsl, "f32({})", arg0?).unwrap()),
-        Operation::Int => Some(write!(wgsl, "i32({})", arg0?).unwrap()),
-        Operation::Uint => Some(write!(wgsl, "u32({})", arg0?).unwrap()),
-        Operation::Truncate => Some(write!(wgsl, "trunc({})", arg0?).unwrap()),
-        Operation::FloatBitsToInt => Some(write!(wgsl, "bitcast<i32>({})", arg0?).unwrap()),
-        Operation::IntBitsToFloat => Some(write!(wgsl, "bitcast<f32>({})", arg0?).unwrap()),
-        Operation::UintBitsToFloat => Some(write!(wgsl, "bitcast<f32>({})", arg0?).unwrap()),
-        Operation::InverseSqrt => Some(write!(wgsl, "inverseSqrt({})", arg0?).unwrap()),
-        Operation::Not => Some(write!(wgsl, "!{}", arg0?).unwrap()),
-        Operation::LeftShift => Some(write!(wgsl, "{} >> {}", arg0?, arg1?).unwrap()),
-        Operation::RightShift => Some(write!(wgsl, "{} >> {}", arg0?, arg1?).unwrap()),
-        Operation::PartialDerivativeX => Some(write!(wgsl, "dpdx({})", arg0?).unwrap()),
-        Operation::PartialDerivativeY => Some(write!(wgsl, "dpdy({})", arg0?).unwrap()),
-        Operation::Exp2 => Some(write!(wgsl, "exp2({})", arg0?).unwrap()),
-        Operation::Log2 => Some(write!(wgsl, "log2({})", arg0?).unwrap()),
-        Operation::Sin => Some(write!(wgsl, "sin({})", arg0?).unwrap()),
-        Operation::Cos => Some(write!(wgsl, "cos({})", arg0?).unwrap()),
+        Operation::FurInstanceAlpha => write!(wgsl, "in.vertex_color.a").unwrap(),
+        Operation::Float => write!(wgsl, "f32({a}{})", arg0?).unwrap(),
+        Operation::Int => write!(wgsl, "i32({a}{})", arg0?).unwrap(),
+        Operation::Uint => write!(wgsl, "u32({a}{})", arg0?).unwrap(),
+        Operation::Truncate => write!(wgsl, "trunc({a}{})", arg0?).unwrap(),
+        Operation::FloatBitsToInt => write!(wgsl, "bitcast<i32>({a}{})", arg0?).unwrap(),
+        Operation::IntBitsToFloat => write!(wgsl, "bitcast<f32>({a}{})", arg0?).unwrap(),
+        Operation::UintBitsToFloat => write!(wgsl, "bitcast<f32>({a}{})", arg0?).unwrap(),
+        Operation::InverseSqrt => write!(wgsl, "inverseSqrt({a}{})", arg0?).unwrap(),
+        Operation::Not => write!(wgsl, "!{a}{}", arg0?).unwrap(),
+        Operation::LeftShift => write!(wgsl, "{a}{} >> {a}{}", arg0?, arg1?).unwrap(),
+        Operation::RightShift => write!(wgsl, "{a}{} >> {a}{}", arg0?, arg1?).unwrap(),
+        Operation::PartialDerivativeX => write!(wgsl, "dpdx({a}{})", arg0?).unwrap(),
+        Operation::PartialDerivativeY => write!(wgsl, "dpdy({a}{})", arg0?).unwrap(),
+        Operation::Exp2 => write!(wgsl, "exp2({a}{})", arg0?).unwrap(),
+        Operation::Log2 => write!(wgsl, "log2({a}{})", arg0?).unwrap(),
+        Operation::Sin => write!(wgsl, "sin({a}{})", arg0?).unwrap(),
+        Operation::Cos => write!(wgsl, "cos({a}{})", arg0?).unwrap(),
     }
-}
-
-fn arg(args: &[usize], i: usize) -> Option<String> {
-    Some(format!("{VAR_PREFIX}{}", args.get(i)?))
+    Some(())
 }
 
 fn generate_alpha_test_wgsl(
@@ -356,89 +354,92 @@ fn write_assignment_value(
             let i = name_to_index.entry_index(t.name.clone());
 
             if i < TEXTURE_SAMPLER_COUNT as usize {
-                let coords = texture_coordinates(&t.texcoords)?;
-                let channels = channel_wgsl(t.channel);
                 // TODO: Support cube maps.
                 if t.texcoords.len() == 3 {
-                    Some(
-                        write!(
-                            wgsl,
-                            "textureSample(textures_d3[{i}], samplers[{i}], {coords}){channels}",
-                        )
-                        .unwrap(),
-                    )
+                    write!(wgsl, "textureSample(textures_d3[{i}], samplers[{i}], ",).unwrap();
                 } else {
-                    Some(
-                        write!(
-                            wgsl,
-                            "textureSample(textures[{i}], samplers[{i}], {coords}){channels}",
-                        )
-                        .unwrap(),
-                    )
+                    write!(wgsl, "textureSample(textures[{i}], samplers[{i}], ",).unwrap();
                 }
+                write_texture_coordinates(wgsl, &t.texcoords)?;
+                write!(wgsl, ")").unwrap();
+                write_channel(wgsl, t.channel);
             } else {
                 error!("Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}");
-                None
+                return None;
             }
         }
         AssignmentValue::Attribute { name, channel } => {
             // TODO: Support more attributes.
-            let c = channel_wgsl(*channel);
             match name.as_str() {
-                "vColor" => Some(write!(wgsl, "in.vertex_color{c}").unwrap()),
-                "vPos" => Some(write!(wgsl, "in.position{c}").unwrap()),
-                "vNormal" => Some(write!(wgsl, "in.normal{c}").unwrap()),
-                "vTan" => Some(write!(wgsl, "in.tangent{c}").unwrap()),
-                "vTex0" => Some(write!(wgsl, "tex0{c}").unwrap()),
-                "vTex1" => Some(write!(wgsl, "tex1{c}").unwrap()),
-                "vTex2" => Some(write!(wgsl, "tex2{c}").unwrap()),
-                "vTex3" => Some(write!(wgsl, "tex3{c}").unwrap()),
-                "vTex4" => Some(write!(wgsl, "tex4{c}").unwrap()),
-                "vTex5" => Some(write!(wgsl, "tex5{c}").unwrap()),
-                "vTex6" => Some(write!(wgsl, "tex6{c}").unwrap()),
-                "vTex7" => Some(write!(wgsl, "tex7{c}").unwrap()),
-                "vTex8" => Some(write!(wgsl, "tex8{c}").unwrap()),
+                "vColor" => write_attribute(wgsl, "in.vertex_color", channel),
+                "vPos" => write_attribute(wgsl, "in.position", channel),
+                "vNormal" => write_attribute(wgsl, "in.normal", channel),
+                "vTan" => write_attribute(wgsl, "in.tangent", channel),
+                "vTex0" => write_attribute(wgsl, "tex0", channel),
+                "vTex1" => write_attribute(wgsl, "tex1", channel),
+                "vTex2" => write_attribute(wgsl, "tex2", channel),
+                "vTex3" => write_attribute(wgsl, "tex3", channel),
+                "vTex4" => write_attribute(wgsl, "tex4", channel),
+                "vTex5" => write_attribute(wgsl, "tex5", channel),
+                "vTex6" => write_attribute(wgsl, "tex6", channel),
+                "vTex7" => write_attribute(wgsl, "tex7", channel),
+                "vTex8" => write_attribute(wgsl, "tex8", channel),
                 // The database uses "vBitan" to represent calculated bitangent attributes.
-                "vBitan" => Some(write!(wgsl, "bitangent{c}").unwrap()),
+                "vBitan" => write_attribute(wgsl, "bitangent", channel),
                 _ => {
-                    warn!("Unsupported attribute {name}{c}");
-                    None
+                    if let Some(c) = channel {
+                        warn!("Unsupported attribute {name}.{c}");
+                    } else {
+                        warn!("Unsupported attribute {name}");
+                    }
+                    return None;
                 }
             }
         }
         AssignmentValue::Float(f) => {
             if f.is_finite() {
-                Some(write!(wgsl, "{f:?}").unwrap())
+                write!(wgsl, "{f:?}").unwrap()
             } else {
                 error!("Unsupported float literal {f:?}");
-                None
+                return None;
             }
         }
         AssignmentValue::Int(i) => {
             if *i >= 0 {
-                Some(write!(wgsl, "{i}u").unwrap())
+                write!(wgsl, "{i}u").unwrap()
             } else {
-                Some(write!(wgsl, "{i}i").unwrap())
+                write!(wgsl, "{i}i").unwrap()
             }
         }
     }
+    Some(())
 }
 
-fn texture_coordinates(coords: &[usize]) -> Option<String> {
+fn write_attribute(wgsl: &mut String, name: &str, channel: &Option<char>) {
+    write!(wgsl, "{name}").unwrap();
+    write_channel(wgsl, *channel);
+}
+
+fn write_texture_coordinates(wgsl: &mut String, coords: &[usize]) -> Option<()> {
     match coords {
-        [u, v] => Some(format!("vec2({VAR_PREFIX}{u}, {VAR_PREFIX}{v})")),
-        [u, v, w] => Some(format!(
+        [u, v] => write!(wgsl, "vec2({VAR_PREFIX}{u}, {VAR_PREFIX}{v})").unwrap(),
+        [u, v, w] => write!(
+            wgsl,
             "vec3({VAR_PREFIX}{u}, {VAR_PREFIX}{v}, {VAR_PREFIX}{w})"
-        )),
+        )
+        .unwrap(),
         _ => {
             error!("Unexpected texture coordinates {coords:?}");
-            None
+            return None;
         }
     }
+    Some(())
 }
 
-fn channel_wgsl(c: Option<char>) -> String {
-    c.map(|c| format!(".{c}")).unwrap_or_default()
+fn write_channel(wgsl: &mut String, c: Option<char>) {
+    if let Some(c) = c {
+        write!(wgsl, ".{c}").unwrap();
+    }
 }
 
 fn write_assignment_xyz(
@@ -461,125 +462,122 @@ fn write_func_xyz(
     args: &[usize],
     output_index: usize,
 ) -> Option<()> {
-    let arg0 = arg_xyz(args, output_index, 0);
-    let arg1 = arg_xyz(args, output_index, 1);
-    let arg2 = arg_xyz(args, output_index, 2);
-    let arg3 = arg_xyz(args, output_index, 3);
-    let arg4 = arg_xyz(args, output_index, 4);
-    let arg5 = arg_xyz(args, output_index, 5);
-    let arg6 = arg_xyz(args, output_index, 6);
-    let arg7 = arg_xyz(args, output_index, 7);
+    let arg0 = args.first();
+    let arg1 = args.get(1);
+    let arg2 = args.get(2);
+    let arg3 = args.get(3);
+    let arg4 = args.get(4);
+    let arg5 = args.get(5);
+    let arg6 = args.get(6);
+    let arg7 = args.get(7);
 
-    // TODO: Will these all work with xyz inputs?
+    // TODO: Will these operations all work with xyz inputs?
+    let a = format_args!("{VAR_PREFIX_XYZ}_{output_index}_");
     match op {
-        Operation::Unk => None,
-        Operation::Mix => Some(write!(wgsl, "mix({}, {}, {})", arg0?, arg1?, arg2?).unwrap()),
-        Operation::Mul => Some(write!(wgsl, "{} * {}", arg0?, arg1?).unwrap()),
-        Operation::Div => Some(write!(wgsl, "{} / {}", arg0?, arg1?).unwrap()),
-        Operation::Add => Some(write!(wgsl, "{} + {}", arg0?, arg1?).unwrap()),
-        Operation::AddNormalX => Some(write!(wgsl,
-            "add_normal_maps(create_normal_map({}, {}), create_normal_map({}, {}), {}).x * 0.5 + 0.5",
+        Operation::Unk => return None,
+        Operation::Mix => write!(wgsl, "mix({a}{}, {a}{}, {a}{})", arg0?, arg1?, arg2?).unwrap(),
+        Operation::Mul => write!(wgsl, "{a}{} * {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Div => write!(wgsl, "{a}{} / {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Add => write!(wgsl, "{a}{} + {a}{}", arg0?, arg1?).unwrap(),
+        Operation::AddNormalX => write!(wgsl,
+            "add_normal_maps(create_normal_map({a}{}, {a}{}), create_normal_map({a}{}, {a}{}), {a}{}).x * 0.5 + 0.5",
             arg0?, arg1?, arg2?, arg3?, arg4?
-        ).unwrap()),
-        Operation::AddNormalY => Some(write!(wgsl,
-            "add_normal_maps(create_normal_map({}, {}), create_normal_map({}, {}), {}).y * 0.5 + 0.5",
+        ).unwrap(),
+        Operation::AddNormalY => write!(wgsl,
+            "add_normal_maps(create_normal_map({a}{}, {a}{}), create_normal_map({a}{}, {a}{}), {a}{}).y * 0.5 + 0.5",
             arg0?, arg1?, arg2?, arg3?, arg4?
-        ).unwrap()),
-        Operation::OverlayRatio => Some(write!(wgsl,
-            "mix({0}, overlay_blend_xyz({0}, {1}), {2})",
+        ).unwrap(),
+        Operation::OverlayRatio => write!(wgsl,
+            "mix({a}{0}, overlay_blend_xyz({a}{0}, {a}{1}), {a}{2})",
             arg0?, arg1?, arg2?
-        ).unwrap()),
-        Operation::Overlay => Some(write!(wgsl, "overlay_blend_xyz({}, {})", arg0?, arg1?).unwrap()),
-        Operation::Overlay2 => Some(write!(wgsl, "overlay_blend2_xyz({}, {})", arg0?, arg1?).unwrap()),
-        Operation::Power => Some(write!(wgsl, "pow({}, {})", arg0?, arg1?).unwrap()),
-        Operation::Min => Some(write!(wgsl, "min({}, {})", arg0?, arg1?).unwrap()),
-        Operation::Max => Some(write!(wgsl, "max({}, {})", arg0?, arg1?).unwrap()),
-        Operation::Clamp => Some(write!(wgsl, "clamp({}, {}, {})", arg0?, arg1?, arg2?).unwrap()),
-        Operation::Sub => Some(write!(wgsl, "{} - {}", arg0?, arg1?).unwrap()),
-        Operation::Fma => Some(write!(wgsl, "{} * {} + {}", arg0?, arg1?, arg2?).unwrap()),
-        Operation::Abs => Some(write!(wgsl, "abs({})", arg0?).unwrap()),
-        Operation::Fresnel => Some(write!(wgsl, "fresnel_ratio_xyz({}, n_dot_v)", arg0?).unwrap()),
-        Operation::MulRatio => Some(write!(wgsl, "mix({0}, {0} * {1}, {2})", arg0?, arg1?, arg2?).unwrap()),
-        Operation::Sqrt => Some(write!(wgsl, "sqrt({})", arg0?).unwrap()),
-        Operation::TexMatrix => Some(write!(wgsl,
-            "dot(vec4({}, {}, 0.0, 1.0), vec4({}, {}, {}, {}))",
+        ).unwrap(),
+        Operation::Overlay => write!(wgsl, "overlay_blend_xyz({a}{}, {a}{})", arg0?, arg1?).unwrap(),
+        Operation::Overlay2 => write!(wgsl, "overlay_blend2_xyz({a}{}, {a}{})", arg0?, arg1?).unwrap(),
+        Operation::Power => write!(wgsl, "pow({a}{}, {a}{})", arg0?, arg1?).unwrap(),
+        Operation::Min => write!(wgsl, "min({a}{}, {a}{})", arg0?, arg1?).unwrap(),
+        Operation::Max => write!(wgsl, "max({a}{}, {a}{})", arg0?, arg1?).unwrap(),
+        Operation::Clamp => write!(wgsl, "clamp({a}{}, {a}{}, {a}{})", arg0?, arg1?, arg2?).unwrap(),
+        Operation::Sub => write!(wgsl, "{a}{} - {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Fma => write!(wgsl, "{a}{} * {a}{} + {a}{}", arg0?, arg1?, arg2?).unwrap(),
+        Operation::Abs => write!(wgsl, "abs({a}{})", arg0?).unwrap(),
+        Operation::Fresnel => write!(wgsl, "fresnel_ratio_xyz({a}{}, n_dot_v)", arg0?).unwrap(),
+        Operation::MulRatio => write!(wgsl, "mix({a}{0}, {a}{0} * {a}{1}, {a}{2})", arg0?, arg1?, arg2?).unwrap(),
+        Operation::Sqrt => write!(wgsl, "sqrt({a}{})", arg0?).unwrap(),
+        Operation::TexMatrix => write!(wgsl,
+            "dot(vec4({a}{}, {a}{}, 0.0, 1.0), vec4({a}{}, {a}{}, {a}{}, {a}{}))",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
-        ).unwrap()),
-        Operation::TexParallaxX => Some(write!(wgsl, "{} + uv_parallax(in, {}).x", arg0?, arg1?).unwrap()),
-        Operation::TexParallaxY => Some(write!(wgsl, "{} + uv_parallax(in, {}).y", arg0?, arg1?).unwrap()),
-        Operation::ReflectX => Some(write!(wgsl,
-            "reflect(vec3({}, {}, {}), vec3({}, {}, {})).x",
+        ).unwrap(),
+        Operation::TexParallaxX => write!(wgsl, "{a}{} + uv_parallax(in, {a}{}).x", arg0?, arg1?).unwrap(),
+        Operation::TexParallaxY => write!(wgsl, "{a}{} + uv_parallax(in, {a}{}).y", arg0?, arg1?).unwrap(),
+        Operation::ReflectX => write!(wgsl,
+            "reflect(vec3({a}{}, {a}{}, {a}{}), vec3({a}{}, {a}{}, {a}{})).x",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
-        ).unwrap()),
-        Operation::ReflectY => Some(write!(wgsl,
-            "reflect(vec3({}, {}, {}), vec3({}, {}, {})).y",
+        ).unwrap(),
+        Operation::ReflectY => write!(wgsl,
+            "reflect(vec3({a}{}, {a}{}, {a}{}), vec3({a}{}, {a}{}, {a}{})).y",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
-        ).unwrap()),
-        Operation::ReflectZ => Some(write!(wgsl,
-            "reflect(vec3({}, {}, {}), vec3({}, {}, {})).z",
+        ).unwrap(),
+        Operation::ReflectZ => write!(wgsl,
+            "reflect(vec3({a}{}, {a}{}, {a}{}), vec3({a}{}, {a}{}, {a}{})).z",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
-        ).unwrap()),
-        Operation::Floor => Some(write!(wgsl, "floor({})", arg0?).unwrap()),
-        Operation::Select => Some(write!(wgsl, "mix({}, {}, vec3<f32>({}))", arg2?, arg1?, arg0?).unwrap()),
-        Operation::Equal => Some(write!(wgsl, "{} == {}", arg0?, arg1?).unwrap()),
-        Operation::NotEqual => Some(write!(wgsl, "{} != {}", arg0?, arg1?).unwrap()),
-        Operation::Less => Some(write!(wgsl, "{} < {}", arg0?, arg1?).unwrap()),
-        Operation::Greater => Some(write!(wgsl, "{} > {}", arg0?, arg1?).unwrap()),
-        Operation::LessEqual => Some(write!(wgsl, "{} <= {}", arg0?, arg1?).unwrap()),
-        Operation::GreaterEqual => Some(write!(wgsl, "{} >= {}", arg0?, arg1?).unwrap()),
-        Operation::Dot4 => Some(write!(wgsl,
-            "dot(vec4({}, {}, {}, {}), vec4({}, {}, {}, {}))",
+        ).unwrap(),
+        Operation::Floor => write!(wgsl, "floor({a}{})", arg0?).unwrap(),
+        Operation::Select => write!(wgsl, "mix({a}{}, {a}{}, vec3<f32>({a}{}))", arg2?, arg1?, arg0?).unwrap(),
+        Operation::Equal => write!(wgsl, "{a}{} == {a}{}", arg0?, arg1?).unwrap(),
+        Operation::NotEqual => write!(wgsl, "{a}{} != {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Less => write!(wgsl, "{a}{} < {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Greater => write!(wgsl, "{a}{} > {a}{}", arg0?, arg1?).unwrap(),
+        Operation::LessEqual => write!(wgsl, "{a}{} <= {a}{}", arg0?, arg1?).unwrap(),
+        Operation::GreaterEqual => write!(wgsl, "{a}{} >= {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Dot4 => write!(wgsl,
+            "dot(vec4({a}{}, {a}{}, {a}{}, {a}{}), vec4({a}{}, {a}{}, {a}{}, {a}{}))",
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?, arg6?, arg7?
-        ).unwrap()),
-        Operation::NormalMapX => Some(write!(wgsl,
-            "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).xxx",
+        ).unwrap(),
+        Operation::NormalMapX => write!(wgsl,
+            "apply_normal_map(create_normal_map({a}{}, {a}{}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).xxx",
             arg0?, arg1?
-        ).unwrap()),
-        Operation::NormalMapY => Some(write!(wgsl,
-            "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).yyy",
+        ).unwrap(),
+        Operation::NormalMapY => write!(wgsl,
+            "apply_normal_map(create_normal_map({a}{}, {a}{}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).yyy",
             arg0?, arg1?
-        ).unwrap()),
-        Operation::NormalMapZ => Some(write!(wgsl,
-            "apply_normal_map(create_normal_map({}, {}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).zzz",
+        ).unwrap(),
+        Operation::NormalMapZ => write!(wgsl,
+            "apply_normal_map(create_normal_map({a}{}, {a}{}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).zzz",
             arg0?, arg1?
-        ).unwrap()),
-        Operation::MonochromeX => Some(write!(wgsl,
-            "monochrome_xyz_x({}, {}, {}, {})",
+        ).unwrap(),
+        Operation::MonochromeX => write!(wgsl,
+            "monochrome_xyz_x({a}{}, {a}{}, {a}{}, {a}{})",
             arg0?, arg1?, arg2?, arg3?
-        ).unwrap()),
-        Operation::MonochromeY => Some(write!(wgsl,
-            "monochrome_xyz_y({}, {}, {}, {})",
+        ).unwrap(),
+        Operation::MonochromeY => write!(wgsl,
+            "monochrome_xyz_y({a}{}, {a}{}, {a}{}, {a}{})",
             arg0?, arg1?, arg2?, arg3?
-        ).unwrap()),
-        Operation::MonochromeZ => Some(write!(wgsl,
-            "monochrome_xyz_z({}, {}, {}, {})",
+        ).unwrap(),
+        Operation::MonochromeZ => write!(wgsl,
+            "monochrome_xyz_z({a}{}, {a}{}, {a}{}, {a}{})",
             arg0?, arg1?, arg2?, arg3?
-        ).unwrap()),
-        Operation::Negate => Some(write!(wgsl, "-{}", arg0?).unwrap()),
-        Operation::FurInstanceAlpha => Some(write!(wgsl, "in.vertex_color.a").unwrap()),
-        Operation::Float => Some(write!(wgsl, "vec3<f32>({})", arg0?).unwrap()),
-        Operation::Int => Some(write!(wgsl, "vec3<i32>({})", arg0?).unwrap()),
-        Operation::Uint => Some(write!(wgsl, "vec3<u32>({})", arg0?).unwrap()),
-        Operation::Truncate => Some(write!(wgsl, "trunc({})", arg0?).unwrap()),
-        Operation::FloatBitsToInt => Some(write!(wgsl, "bitcast<i32>({})", arg0?).unwrap()),
-        Operation::IntBitsToFloat => Some(write!(wgsl, "bitcast<f32>({})", arg0?).unwrap()),
-        Operation::UintBitsToFloat => Some(write!(wgsl, "bitcast<f32>({})", arg0?).unwrap()),
-        Operation::InverseSqrt => Some(write!(wgsl, "inverseSqrt({})", arg0?).unwrap()),
-        Operation::Not => Some(write!(wgsl, "!{}", arg0?).unwrap()),
-        Operation::LeftShift => Some(write!(wgsl, "{} >> {}", arg0?, arg1?).unwrap()),
-        Operation::RightShift => Some(write!(wgsl, "{} >> {}", arg0?, arg1?).unwrap()),
-        Operation::PartialDerivativeX => Some(write!(wgsl, "dpdx({})", arg0?).unwrap()),
-        Operation::PartialDerivativeY => Some(write!(wgsl, "dpdy({})", arg0?).unwrap()),
-        Operation::Exp2 => Some(write!(wgsl, "exp2({})", arg0?).unwrap()),
-        Operation::Log2 => Some(write!(wgsl, "log2({})", arg0?).unwrap()),
-        Operation::Sin => Some(write!(wgsl, "sin({})", arg0?).unwrap()),
-        Operation::Cos => Some(write!(wgsl, "cos({})", arg0?).unwrap()),
+        ).unwrap(),
+        Operation::Negate => write!(wgsl, "-{a}{}", arg0?).unwrap(),
+        Operation::FurInstanceAlpha => write!(wgsl, "in.vertex_color.a").unwrap(),
+        Operation::Float => write!(wgsl, "vec3<f32>({a}{})", arg0?).unwrap(),
+        Operation::Int => write!(wgsl, "vec3<i32>({a}{})", arg0?).unwrap(),
+        Operation::Uint => write!(wgsl, "vec3<u32>({a}{})", arg0?).unwrap(),
+        Operation::Truncate => write!(wgsl, "trunc({a}{})", arg0?).unwrap(),
+        Operation::FloatBitsToInt => write!(wgsl, "bitcast<i32>({a}{})", arg0?).unwrap(),
+        Operation::IntBitsToFloat => write!(wgsl, "bitcast<f32>({a}{})", arg0?).unwrap(),
+        Operation::UintBitsToFloat => write!(wgsl, "bitcast<f32>({a}{})", arg0?).unwrap(),
+        Operation::InverseSqrt => write!(wgsl, "inverseSqrt({a}{})", arg0?).unwrap(),
+        Operation::Not => write!(wgsl, "!{a}{}", arg0?).unwrap(),
+        Operation::LeftShift => write!(wgsl, "{a}{} >> {a}{}", arg0?, arg1?).unwrap(),
+        Operation::RightShift => write!(wgsl, "{a}{} >> {a}{}", arg0?, arg1?).unwrap(),
+        Operation::PartialDerivativeX => write!(wgsl, "dpdx({a}{})", arg0?).unwrap(),
+        Operation::PartialDerivativeY => write!(wgsl, "dpdy({a}{})", arg0?).unwrap(),
+        Operation::Exp2 => write!(wgsl, "exp2({a}{})", arg0?).unwrap(),
+        Operation::Log2 => write!(wgsl, "log2({a}{})", arg0?).unwrap(),
+        Operation::Sin => write!(wgsl, "sin({a}{})", arg0?).unwrap(),
+        Operation::Cos => write!(wgsl, "cos({a}{})", arg0?).unwrap(),
     }
-}
-
-// TODO: Function for formatting the variable name instead?
-fn arg_xyz(args: &[usize], output_index: usize, i: usize) -> Option<String> {
-    Some(format!("{VAR_PREFIX_XYZ}_{output_index}_{}", args.get(i)?))
+    Some(())
 }
 
 fn write_assignment_value_xyz(
@@ -592,26 +590,16 @@ fn write_assignment_value_xyz(
             let i = name_to_index.entry_index(t.name.clone());
 
             if i < TEXTURE_SAMPLER_COUNT as usize {
-                let coords = texture_coordinates(&t.texcoords)?;
                 let channels = channel_xyz_wgsl(t.channel);
                 // TODO: Support cube maps.
                 if t.texcoords.len() == 3 {
-                    Some(
-                        write!(
-                            wgsl,
-                            "textureSample(textures_d3[{i}], samplers[{i}], {coords}){channels}",
-                        )
-                        .unwrap(),
-                    )
+                    write!(wgsl, "textureSample(textures_d3[{i}], samplers[{i}], ",).unwrap();
                 } else {
-                    Some(
-                        write!(
-                            wgsl,
-                            "textureSample(textures[{i}], samplers[{i}], {coords}){channels}",
-                        )
-                        .unwrap(),
-                    )
+                    write!(wgsl, "textureSample(textures[{i}], samplers[{i}], ",).unwrap();
                 }
+                write_texture_coordinates(wgsl, &t.texcoords)?;
+                write!(wgsl, "){channels}").unwrap();
+                Some(())
             } else {
                 error!("Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}");
                 None
@@ -621,30 +609,32 @@ fn write_assignment_value_xyz(
             // TODO: Support more attributes.
             let c = channel_xyz_wgsl(*channel);
             match name.as_str() {
-                "vColor" => Some(write!(wgsl, "in.vertex_color{c}").unwrap()),
-                "vPos" => Some(write!(wgsl, "in.position{c}").unwrap()),
-                "vNormal" => Some(write!(wgsl, "in.normal{c}").unwrap()),
-                "vTan" => Some(write!(wgsl, "in.tangent{c}").unwrap()),
-                "vTex0" => Some(write!(wgsl, "tex0{c}").unwrap()),
-                "vTex1" => Some(write!(wgsl, "tex1{c}").unwrap()),
-                "vTex2" => Some(write!(wgsl, "tex2{c}").unwrap()),
-                "vTex3" => Some(write!(wgsl, "tex3{c}").unwrap()),
-                "vTex4" => Some(write!(wgsl, "tex4{c}").unwrap()),
-                "vTex5" => Some(write!(wgsl, "tex5{c}").unwrap()),
-                "vTex6" => Some(write!(wgsl, "tex6{c}").unwrap()),
-                "vTex7" => Some(write!(wgsl, "tex7{c}").unwrap()),
-                "vTex8" => Some(write!(wgsl, "tex8{c}").unwrap()),
+                "vColor" => write!(wgsl, "in.vertex_color{c}").unwrap(),
+                "vPos" => write!(wgsl, "in.position{c}").unwrap(),
+                "vNormal" => write!(wgsl, "in.normal{c}").unwrap(),
+                "vTan" => write!(wgsl, "in.tangent{c}").unwrap(),
+                "vTex0" => write!(wgsl, "tex0{c}").unwrap(),
+                "vTex1" => write!(wgsl, "tex1{c}").unwrap(),
+                "vTex2" => write!(wgsl, "tex2{c}").unwrap(),
+                "vTex3" => write!(wgsl, "tex3{c}").unwrap(),
+                "vTex4" => write!(wgsl, "tex4{c}").unwrap(),
+                "vTex5" => write!(wgsl, "tex5{c}").unwrap(),
+                "vTex6" => write!(wgsl, "tex6{c}").unwrap(),
+                "vTex7" => write!(wgsl, "tex7{c}").unwrap(),
+                "vTex8" => write!(wgsl, "tex8{c}").unwrap(),
                 // The database uses "vBitan" to represent calculated bitangent attributes.
-                "vBitan" => Some(write!(wgsl, "bitangent{c}").unwrap()),
+                "vBitan" => write!(wgsl, "bitangent{c}").unwrap(),
                 _ => {
                     warn!("Unsupported attribute {name}{c}");
-                    None
+                    return None;
                 }
             }
+            Some(())
         }
         AssignmentValueXyz::Float(f) => {
             if f.iter().all(|f| f.is_finite()) {
-                Some(write!(wgsl, "vec3({:?}, {:?}, {:?})", f[0], f[1], f[2]).unwrap())
+                write!(wgsl, "vec3({:?}, {:?}, {:?})", f[0], f[1], f[2]).unwrap();
+                Some(())
             } else {
                 error!("Unsupported float literals {f:?}");
                 None
