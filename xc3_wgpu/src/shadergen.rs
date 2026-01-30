@@ -182,7 +182,7 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
         ).unwrap(),
         Operation::Floor => write!(wgsl, "floor({a}{})", arg0?).unwrap(),
-        Operation::Select => write!(wgsl, "mix({a}{}, {a}{}, f32({a}{}))", arg2?, arg1?, arg0?).unwrap(),
+        Operation::Select => write!(wgsl, "mix(f32({a}{}), f32({a}{}), f32({a}{}))", arg2?, arg1?, arg0?).unwrap(),
         Operation::Equal => write!(wgsl, "{a}{} == {a}{}", arg0?, arg1?).unwrap(),
         Operation::NotEqual => write!(wgsl, "{a}{} != {a}{}", arg0?, arg1?).unwrap(),
         Operation::Less => write!(wgsl, "{a}{} < {a}{}", arg0?, arg1?).unwrap(),

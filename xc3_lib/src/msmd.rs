@@ -395,9 +395,10 @@ pub struct Light {
     offset_ty: [u32; 2],
 
     // TODO: data type depends on ty?
-    #[br(parse_with = parse_ptr32, args { offset: base_offset, inner: offset_ty[1] })]
-    #[xc3(offset(u32))]
-    pub params: LightParam,
+    // #[br(parse_with = parse_ptr32, args { offset: base_offset, inner: offset_ty[1] })]
+    // #[xc3(offset(u32))]
+    // pub params: LightParam,
+    pub params_offset: u32,
 
     pub ty: u32,
     pub flags: u32,
