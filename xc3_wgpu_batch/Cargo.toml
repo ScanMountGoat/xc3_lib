@@ -7,8 +7,7 @@ edition = "2024"
 xc3_wgpu = { path = "../xc3_wgpu" }
 xc3_model = { path = "../xc3_model" }
 wgpu.workspace = true
-futures = "0.3.27"
-futures-intrusive = "0.5.0"
+futures.workspace = true
 globwalk.workspace = true
 log.workspace = true
 simple_logger.workspace = true
@@ -17,3 +16,9 @@ glam.workspace = true
 clap = { workspace = true, features = ["derive"] }
 anyhow.workspace = true
 rayon.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, optional = true }
+tracing-tracy = { workspace = true, optional = true }
+
+[features]
+tracing = ["tracing-subscriber", "tracing-tracy"]

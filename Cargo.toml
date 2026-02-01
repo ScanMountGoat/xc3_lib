@@ -28,6 +28,7 @@ insta = "1.43.1"
 serde_json = "1.0"
 ahash = "0.8.11"
 arbitrary = "1.0"
+futures = "0.3.27"
 
 [profile.dev.package]
 insta.opt-level = 3
