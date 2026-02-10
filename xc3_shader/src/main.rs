@@ -2,8 +2,6 @@ use std::path::Path;
 
 use clap::{Parser, Subcommand};
 
-use glsl_lang::ast::TranslationUnit;
-use glsl_lang::parse::DefaultParse;
 use xc3_model::shader_database::ShaderDatabase;
 use xc3_shader::database::{
     create_shader_database, create_shader_database_legacy, shader_from_glsl, shader_graphviz,
@@ -14,7 +12,7 @@ use xc3_shader::extract::{
 };
 use xc3_shader::graph::Graph;
 
-use xc3_shader::graph::glsl::{glsl_dependencies, shader_source_no_extensions};
+use xc3_shader::graph::glsl::{GlslGraph, glsl_dependencies, shader_source_no_extensions};
 
 #[cfg(feature = "tracing")]
 use tracing_subscriber::prelude::*;
@@ -192,14 +190,14 @@ fn main() {
         Commands::GlslOutputDependencies { frag, output } => {
             let frag_glsl = std::fs::read_to_string(&frag).unwrap();
             let frag_glsl = shader_source_no_extensions(&frag_glsl);
-            let fragment = TranslationUnit::parse(frag_glsl).unwrap();
+            let fragment = GlslGraph::parse_glsl(frag_glsl).unwrap();
 
-            // TODO: make an argument for this?
+            // TODO: make an argument for the vertex path?
             let vert = std::fs::read_to_string(Path::new(&frag).with_extension("vert"))
                 .ok()
-                .map(|v| TranslationUnit::parse(&v).unwrap());
+                .map(|v| GlslGraph::parse_glsl(&v).unwrap());
 
-            let shader = shader_from_glsl(vert.as_ref(), &fragment);
+            let shader = shader_from_glsl(vert, fragment);
             if output.ends_with(".dot") {
                 std::fs::write(output, shader_graphviz(&shader)).unwrap();
             } else {

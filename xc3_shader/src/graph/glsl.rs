@@ -135,8 +135,7 @@ impl Visitor for AssignmentVisitor {
 }
 
 impl Graph {
-    /// Convert parsed GLSL into a graph representation.
-    pub fn from_glsl(translation_unit: &TranslationUnit) -> Self {
+    fn from_glsl(translation_unit: &TranslationUnit) -> Self {
         // Visit each assignment to establish data dependencies.
         // This converts the code to a directed acyclic graph (DAG).
         let mut visitor = AssignmentVisitor::default();
@@ -157,7 +156,7 @@ impl Graph {
         }
     }
 
-    /// Convert  GLSL into a graph representation.
+    /// Convert GLSL into a graph representation.
     pub fn parse_glsl(glsl: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let tu = TranslationUnit::parse(glsl)?;
         Ok(Graph::from_glsl(&tu))
@@ -329,8 +328,8 @@ impl Graph {
 
 pub fn glsl_dependencies(source: &str, variable: &str, channel: Option<char>) -> String {
     let source = shader_source_no_extensions(source);
-    let translation_unit = TranslationUnit::parse(source).unwrap();
-    Graph::from_glsl(&translation_unit).glsl_dependencies(variable, channel, None)
+    let graph = Graph::parse_glsl(source).unwrap();
+    graph.glsl_dependencies(variable, channel, None)
 }
 
 pub fn shader_source_no_extensions(glsl: &str) -> &str {
@@ -574,7 +573,7 @@ struct AttributeVisitor {
     attributes: Attributes,
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct Attributes {
     pub input_locations: BiBTreeMap<SmolStr, i32>,
     pub output_locations: BiBTreeMap<SmolStr, i32>,
@@ -629,38 +628,48 @@ impl Visitor for AttributeVisitor {
     }
 }
 
+/// A [Graph] and associated data specific to GLSL.
+pub struct GlslGraph {
+    pub graph: Graph,
+    pub attributes: Attributes,
+}
+
+impl GlslGraph {
+    /// Convert GLSL into a graph representation with additional GLSL data.
+    pub fn parse_glsl(glsl: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let tu = TranslationUnit::parse(glsl)?;
+        let graph = Graph::from_glsl(&tu);
+        let attributes = find_attribute_locations(&tu);
+        Ok(Self { graph, attributes })
+    }
+}
+
 pub fn find_attribute_locations(translation_unit: &TranslationUnit) -> Attributes {
     let mut visitor = AttributeVisitor::default();
     translation_unit.visit(&mut visitor);
     visitor.attributes
 }
 
-pub fn merge_vertex_fragment<F>(
-    vert: Graph,
-    vert_attributes: &Attributes,
-    frag: Graph,
-    frag_attributes: &Attributes,
-    modify_attribute: F,
-) -> Graph
+pub fn merge_vertex_fragment<F>(vert: GlslGraph, frag: GlslGraph, modify_attribute: F) -> Graph
 where
     F: Fn(&Graph, &Expr) -> Expr + Clone,
 {
-    let mut exprs: IndexSet<_> = vert.exprs.iter().cloned().collect();
-    let mut graph = vert;
+    let mut exprs: IndexSet<_> = vert.graph.exprs.iter().cloned().collect();
+    let mut graph = vert.graph;
 
     // Use an offset to make sure fragment node references are preserved properly.
     let start = graph.nodes.len();
-    for n in &frag.nodes {
+    for n in &frag.graph.nodes {
         let input = fragment_input_to_vertex_output(
             &graph,
-            vert_attributes,
-            &frag,
-            frag_attributes,
+            &vert.attributes,
+            &frag.graph,
+            &frag.attributes,
             n,
             modify_attribute.clone(),
         )
         .map(|e| exprs.insert_full(e).0)
-        .unwrap_or_else(|| reindex_node_expr(&frag, &mut exprs, n.input, start));
+        .unwrap_or_else(|| reindex_node_expr(&frag.graph, &mut exprs, n.input, start));
 
         graph.nodes.push(Node {
             output: n.output.clone(),
@@ -785,7 +794,6 @@ mod tests {
                 OUT_Color.x = c - d;
             }
         "};
-        let tu = TranslationUnit::parse(glsl).unwrap();
 
         let graph = Graph {
             nodes: vec![
@@ -875,7 +883,7 @@ mod tests {
                 Expr::Binary(BinaryOp::Sub, 6, 11),
             ],
         };
-        assert_eq!(graph, Graph::from_glsl(&tu));
+        assert_eq!(graph, Graph::parse_glsl(glsl).unwrap());
 
         assert_eq!(
             indoc! {"
@@ -902,7 +910,6 @@ mod tests {
                 float c = data[int(b)];
             }
         "};
-        let tu = TranslationUnit::parse(glsl).unwrap();
 
         let graph = Graph {
             nodes: vec![
@@ -980,7 +987,7 @@ mod tests {
                 },
             ],
         };
-        assert_eq!(graph, Graph::from_glsl(&tu));
+        assert_eq!(graph, Graph::parse_glsl(glsl).unwrap());
 
         assert_eq!(
             indoc! {"
@@ -1001,7 +1008,6 @@ mod tests {
                 PIX2.w = R12.w;
             }
         "};
-        let tu = TranslationUnit::parse(glsl).unwrap();
 
         let graph = Graph {
             nodes: vec![
@@ -1031,7 +1037,7 @@ mod tests {
                 },
             ],
         };
-        assert_eq!(graph, Graph::from_glsl(&tu));
+        assert_eq!(graph, Graph::parse_glsl(glsl).unwrap());
 
         assert_eq!(
             indoc! {"
@@ -1052,7 +1058,6 @@ mod tests {
                 f3 = U_Mate.gWrkCol[1].w;
             }
         "};
-        let tu = TranslationUnit::parse(glsl).unwrap();
 
         let graph = Graph {
             nodes: vec![
@@ -1126,7 +1131,7 @@ mod tests {
                 },
             ],
         };
-        assert_eq!(graph, Graph::from_glsl(&tu));
+        assert_eq!(graph, Graph::parse_glsl(glsl).unwrap());
 
         assert_eq!(
             indoc! {"

@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::fmt::Write;
 use std::{collections::BTreeMap, sync::LazyLock};
 
-use glsl_lang::{ast::TranslationUnit, parse::DefaultParse};
 use indoc::indoc;
 use log::error;
 use rayon::prelude::*;
@@ -13,7 +12,7 @@ use xc3_model::shader_database::{
 
 use crate::expr::{OutputExpr, Value, output_expr};
 use crate::graph::UnaryOp;
-use crate::graph::glsl::{find_attribute_locations, merge_vertex_fragment};
+use crate::graph::glsl::{GlslGraph, merge_vertex_fragment};
 use crate::{
     dependencies::buffer_dependency,
     extract::nvsd_glsl_name,
@@ -31,36 +30,30 @@ use query::*;
 type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
 type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
 
-pub fn shader_from_glsl(
-    vertex: Option<&TranslationUnit>,
-    fragment: &TranslationUnit,
-) -> ShaderProgram {
-    let frag = Graph::from_glsl(fragment);
-    let frag_attributes = find_attribute_locations(fragment);
-
-    let vertex = vertex.map(|v| (Graph::from_glsl(v), find_attribute_locations(v)));
-    let (vert, vert_attributes) = vertex.unzip();
-
+pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> ShaderProgram {
     // This doesn't work with a simplified graph.
-    let outline_width = vert
+    let outline_width = vertex
         .as_ref()
-        .map(outline_width_parameter)
+        .map(|v| outline_width_parameter(&v.graph))
         .unwrap_or_default();
+
+    let frag_attributes = fragment.attributes.clone();
 
     // Create a combined graph that links vertex outputs to fragment inputs.
     // This effectively moves all shader logic to the fragment shader.
     // This simplifies generating shader code or material nodes in 3D applications.
-    let graph = if let (Some(vert), Some(vert_attributes)) = (vert, vert_attributes) {
+    let graph = if let Some(vert) = vertex {
         // TODO: How much does it cost to simplify the vertex shader before and after merging?
         merge_vertex_fragment(
-            vert.simplify(),
-            &vert_attributes,
-            frag,
-            &frag_attributes,
+            GlslGraph {
+                graph: vert.graph.simplify(),
+                attributes: vert.attributes.clone(),
+            },
+            fragment,
             modify_attributes,
         )
     } else {
-        frag
+        fragment.graph
     };
     let graph = graph.simplify();
 
@@ -372,7 +365,7 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
         .map(|(hash, (vert, frag))| {
             let vertex = vert.and_then(|s| {
                 let source = shader_source_no_extensions(&s);
-                match TranslationUnit::parse(source) {
+                match GlslGraph::parse_glsl(source) {
                     Ok(vertex) => Some(vertex),
                     Err(e) => {
                         error!("Error parsing shader: {e}");
@@ -384,8 +377,8 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
             let shader_program = frag
                 .map(|s| {
                     let source = shader_source_no_extensions(&s);
-                    match TranslationUnit::parse(source) {
-                        Ok(fragment) => shader_from_glsl(vertex.as_ref(), &fragment),
+                    match GlslGraph::parse_glsl(source) {
+                        Ok(fragment) => shader_from_glsl(vertex, fragment),
                         Err(e) => {
                             error!("Error parsing shader: {e}");
                             ShaderProgram::default()
@@ -445,7 +438,7 @@ pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
     let programs = programs
         .into_par_iter()
         .map(|(hash, shader)| {
-            let vertex = match TranslationUnit::parse(&shader.vertex_source) {
+            let vertex = match GlslGraph::parse_glsl(&shader.vertex_source) {
                 Ok(vertex) => Some(vertex),
                 Err(e) => {
                     error!("Error parsing shader: {e}");
@@ -453,7 +446,7 @@ pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
                 }
             };
 
-            let fragment = match TranslationUnit::parse(&shader.fragment_source) {
+            let fragment = match GlslGraph::parse_glsl(&shader.fragment_source) {
                 Ok(vertex) => Some(vertex),
                 Err(e) => {
                     error!("Error parsing shader: {e}");
@@ -462,7 +455,7 @@ pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
             };
 
             let shader_program = fragment
-                .map(|fragment| shader_from_glsl(vertex.as_ref(), &fragment))
+                .map(|fragment| shader_from_glsl(vertex, fragment))
                 .unwrap_or_default();
 
             (hash, shader_program)
@@ -591,10 +584,10 @@ mod tests {
                 include_str!(concat!("data/", $folder, "/", $name, ".", $index, ".vert"));
             let frag_glsl =
                 include_str!(concat!("data/", $folder, "/", $name, ".", $index, ".frag"));
-            let vertex = TranslationUnit::parse(vert_glsl).unwrap();
-            let fragment = TranslationUnit::parse(frag_glsl).unwrap();
+            let vertex = GlslGraph::parse_glsl(vert_glsl).unwrap();
+            let fragment = GlslGraph::parse_glsl(frag_glsl).unwrap();
 
-            let shader = shader_from_glsl(Some(&vertex), &fragment);
+            let shader = shader_from_glsl(Some(vertex), fragment);
 
             let mut settings = insta::Settings::new();
             settings.set_prepend_module_to_snapshot(false);
