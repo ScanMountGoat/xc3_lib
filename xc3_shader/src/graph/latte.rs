@@ -1109,8 +1109,13 @@ impl Nodes {
         })
     }
 
-    fn previous_assignment_expr(&mut self, value: &str, channel: Option<char>) -> usize {
-        self.expr(previous_assignment(value, channel, self))
+    fn previous_assignment_expr(
+        &mut self,
+        value: &str,
+        channel: Option<char>,
+        inst_count: InstCount,
+    ) -> usize {
+        self.expr(previous_assignment(value, channel, self, inst_count))
     }
 }
 
@@ -1178,6 +1183,7 @@ fn add_exp_inst(exp: CfExpInst, nodes: &mut Nodes) {
                 input: nodes.previous_assignment_expr(
                     &format!("{source_name}{}", source_index + i),
                     Some(c),
+                    exp.inst_count,
                 ),
             };
             nodes.node(node);
@@ -1313,7 +1319,7 @@ fn get_scalar_data(
                 name: format!("{name}_backup").into(),
                 channel: *channel,
             },
-            input: nodes.previous_assignment_expr(&name, *channel),
+            input: nodes.previous_assignment_expr(&name, *channel, inst_count),
         };
         nodes.node(node);
     }
@@ -1347,6 +1353,7 @@ fn get_scalar_data(
                         kc0_buffer,
                         kc1_buffer,
                         &backup_gprs,
+                        group.inst_count,
                     )],
                 }
             }
@@ -1359,8 +1366,22 @@ fn get_scalar_data(
                     properties: s.properties,
                     output: alu_dst_output(s.dst, inst_count, alu_unit),
                     sources: vec![
-                        alu_src_expr(s.src1, nodes, kc0_buffer, kc1_buffer, &backup_gprs),
-                        alu_src_expr(s.src2, nodes, kc0_buffer, kc1_buffer, &backup_gprs),
+                        alu_src_expr(
+                            s.src1,
+                            nodes,
+                            kc0_buffer,
+                            kc1_buffer,
+                            &backup_gprs,
+                            group.inst_count,
+                        ),
+                        alu_src_expr(
+                            s.src2,
+                            nodes,
+                            kc0_buffer,
+                            kc1_buffer,
+                            &backup_gprs,
+                            group.inst_count,
+                        ),
                     ],
                 }
             }
@@ -1373,9 +1394,30 @@ fn get_scalar_data(
                     properties: s.properties,
                     output: alu_dst_output(s.dst, inst_count, alu_unit),
                     sources: vec![
-                        alu_src_expr(s.src1, nodes, kc0_buffer, kc1_buffer, &backup_gprs),
-                        alu_src_expr(s.src2, nodes, kc0_buffer, kc1_buffer, &backup_gprs),
-                        alu_src_expr(s.src3, nodes, kc0_buffer, kc1_buffer, &backup_gprs),
+                        alu_src_expr(
+                            s.src1,
+                            nodes,
+                            kc0_buffer,
+                            kc1_buffer,
+                            &backup_gprs,
+                            group.inst_count,
+                        ),
+                        alu_src_expr(
+                            s.src2,
+                            nodes,
+                            kc0_buffer,
+                            kc1_buffer,
+                            &backup_gprs,
+                            group.inst_count,
+                        ),
+                        alu_src_expr(
+                            s.src3,
+                            nodes,
+                            kc0_buffer,
+                            kc1_buffer,
+                            &backup_gprs,
+                            group.inst_count,
+                        ),
                     ],
                 }
             }
@@ -1843,13 +1885,22 @@ fn alu_src_expr(
     kc0: Option<&ConstantBuffer>,
     kc1: Option<&ConstantBuffer>,
     backup_gprs: &BTreeSet<(usize, Option<char>)>,
+    inst_count: InstCount,
 ) -> Expr {
     let negate = source.negate.is_some();
 
     let expr = match source.value {
         AluSrcValueOrAbs::Abs(abs_value) => {
             let channel = abs_value.swizzle;
-            let arg = value_expr(nodes, channel, abs_value.value, kc0, kc1, backup_gprs);
+            let arg = value_expr(
+                nodes,
+                channel,
+                abs_value.value,
+                kc0,
+                kc1,
+                backup_gprs,
+                inst_count,
+            );
             Expr::Func {
                 name: "abs".into(),
                 args: vec![nodes.expr(arg)],
@@ -1858,7 +1909,7 @@ fn alu_src_expr(
         }
         AluSrcValueOrAbs::Value(value) => {
             let channel = source.swizzle;
-            value_expr(nodes, channel, value, kc0, kc1, backup_gprs)
+            value_expr(nodes, channel, value, kc0, kc1, backup_gprs, inst_count)
         }
     };
 
@@ -1881,22 +1932,27 @@ fn value_expr(
     kc0: Option<&ConstantBuffer>,
     kc1: Option<&ConstantBuffer>,
     backup_gprs: &BTreeSet<(usize, Option<char>)>,
+    inst_count: InstCount,
 ) -> Expr {
     match value {
         AluSrcValue::Gpr(gpr) => {
             if backup_gprs.contains(&(gpr.0, channel)) {
                 // Find the backed up value from before this ALU group.
-                previous_assignment(&format!("{gpr}_backup"), channel, nodes)
+                previous_assignment(&format!("{gpr}_backup"), channel, nodes, inst_count)
             } else {
-                previous_assignment(&gpr.to_string(), channel, nodes)
+                previous_assignment(&gpr.to_string(), channel, nodes, inst_count)
             }
         }
         AluSrcValue::ConstantCache0(c0) => constant_buffer(c0.0, channel, kc0, nodes),
         AluSrcValue::ConstantCache1(c1) => constant_buffer(c1.0, channel, kc1, nodes),
         AluSrcValue::ConstantFile(cf) => constant_file(cf, channel),
         AluSrcValue::Literal(l) => literal(l),
-        AluSrcValue::PreviousScalar(s) => previous_assignment(&s.to_string(), channel, nodes),
-        AluSrcValue::PreviousVector(v) => previous_assignment(&v.to_string(), channel, nodes),
+        AluSrcValue::PreviousScalar(s) => {
+            previous_assignment(&s.to_string(), channel, nodes, inst_count)
+        }
+        AluSrcValue::PreviousVector(v) => {
+            previous_assignment(&v.to_string(), channel, nodes, inst_count)
+        }
     }
 }
 
@@ -1931,7 +1987,12 @@ fn constant_buffer(
     }
 }
 
-fn previous_assignment(value: &str, channel: Option<char>, nodes: &Nodes) -> Expr {
+fn previous_assignment(
+    value: &str,
+    channel: Option<char>,
+    nodes: &Nodes,
+    inst_count: InstCount,
+) -> Expr {
     // Find a previous assignment that modifies the desired channel for variables.
     // PV can also refer to an actual register if not all outputs were masked.
     nodes
@@ -1943,11 +2004,13 @@ fn previous_assignment(value: &str, channel: Option<char>, nodes: &Nodes) -> Exp
             channel,
         })
         .unwrap_or_else(|| {
-            // TODO: This shouldn't happen if attributes are set properly.
-            error!(
-                "Unable to find previous assignment for {value}{}",
-                channel.map(|c| format!(".{c}")).unwrap_or_default()
-            );
+            // Assignment errors for registers are probably just attribute values.
+            if value.starts_with("PV") || value.starts_with("PS") {
+                error!(
+                    "Unable to find previous assignment for {value}{} for instruction {inst_count}",
+                    channel.map(|c| format!(".{c}")).unwrap_or_default()
+                );
+            }
             Expr::Global {
                 name: value.into(),
                 channel,
@@ -2019,7 +2082,7 @@ fn tex_src_coords(tex: &TexInst, nodes: &mut Nodes) -> Option<usize> {
                         name: format!("{gpr}_backup").into(),
                         channel: Some(c),
                     },
-                    input: nodes.previous_assignment_expr(&gpr, Some(c)),
+                    input: nodes.previous_assignment_expr(&gpr, Some(c), tex.inst_count),
                 };
                 nodes.node(node)
             })
@@ -2040,8 +2103,8 @@ fn tex_src_coords(tex: &TexInst, nodes: &mut Nodes) -> Option<usize> {
         let mut channels = tex.src.swizzle.0.chars();
 
         vec![
-            nodes.previous_assignment_expr(&gpr, channels.next()),
-            nodes.previous_assignment_expr(&gpr, channels.next()),
+            nodes.previous_assignment_expr(&gpr, channels.next(), tex.inst_count),
+            nodes.previous_assignment_expr(&gpr, channels.next(), tex.inst_count),
         ]
     };
 
@@ -2061,7 +2124,7 @@ fn fetch_inst_node(tex: FetchInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
     let cb_name: SmolStr = format!("CB{cb_index}").into();
 
     // TODO: How should the OFFSET property be used?
-    let src_expr = previous_assignment(&src_name, src_channel, nodes);
+    let src_expr = previous_assignment(&src_name, src_channel, nodes, tex.inst_count);
     let src_index = nodes.float_to_uint_expr(src_expr);
 
     // Convert vector swizzles to scalar operations to simplify analysis code.

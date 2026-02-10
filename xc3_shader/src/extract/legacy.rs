@@ -168,7 +168,7 @@ fn annotate_vertex_shader(
         .enumerate()
         .take(shader.registers.num_sq_vtx_semantic as usize)
     {
-        if *location != 0xFF {
+        if *location != 0xFF && *location != 0xFFFFFFFF {
             if let Some(name) = attribute_names.get(location) {
                 // Register 0 is special, so we need to start with register 1.
                 for c in "xyzw".chars() {
