@@ -8,7 +8,8 @@ use glsl_lang::{
         SingleDeclaration, Statement, StatementData, StorageQualifierData, TranslationUnit,
         TypeQualifierSpecData,
     },
-    parse::DefaultParse,
+    lexer::{HasLexerError, LangLexer},
+    parse::{DefaultLexer, DefaultParse},
     transpiler::glsl::{FormattingState, show_expr, show_type_specifier},
     visitor::{Host, Visit, Visitor},
 };
@@ -634,9 +635,14 @@ pub struct GlslGraph {
     pub attributes: Attributes,
 }
 
+/// Errors returned by parsing GLSL source code.
+pub type ParseError<'a> = glsl_lang::parse::ParseError<
+    <<DefaultLexer<'a> as LangLexer<'a>>::Iter as HasLexerError>::Error,
+>;
+
 impl GlslGraph {
     /// Convert GLSL into a graph representation with additional GLSL data.
-    pub fn parse_glsl(glsl: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn parse_glsl(glsl: &str) -> Result<GlslGraph, ParseError<'_>> {
         let tu = TranslationUnit::parse(glsl)?;
         let graph = Graph::from_glsl(&tu);
         let attributes = find_attribute_locations(&tu);
