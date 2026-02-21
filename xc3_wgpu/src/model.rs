@@ -729,7 +729,7 @@ fn create_model(
                     device,
                     model_buffers,
                     mesh,
-                    material.pipeline_key.pass_type,
+                    material.pipeline_key.technique_type,
                     weights,
                 ),
             }
@@ -818,7 +818,7 @@ fn per_mesh_bind_group(
     device: &wgpu::Device,
     buffers: &xc3_model::vertex::ModelBuffers,
     mesh: &xc3_model::Mesh,
-    pass_type: xc3_lib::mxmd::RenderPassType,
+    technique_type: xc3_lib::mxmd::MaterialTechniqueType,
     weights: Option<&xc3_model::skinning::Weights>,
 ) -> shader::model::bind_groups::BindGroup3 {
     // TODO: Fix weight indexing calculations.
@@ -829,7 +829,7 @@ fn per_mesh_bind_group(
             weights.weight_groups.weights_start_index(
                 mesh.flags2.into(),
                 mesh.lod_item_index,
-                pass_type,
+                technique_type,
             )
         })
         .unwrap_or_default();
@@ -861,7 +861,7 @@ fn per_mesh_bind_group(
                     start,
                     max_index,
                     skin_weight_count,
-                    (mesh.flags2, mesh.lod_item_index, pass_type)
+                    (mesh.flags2, mesh.lod_item_index, technique_type)
                 );
             }
         }

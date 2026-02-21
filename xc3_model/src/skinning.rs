@@ -1,7 +1,7 @@
 //! Utilities for working with vertex skinning.
 use glam::{Vec3, Vec4};
 use log::error;
-use xc3_lib::{mxmd::RenderPassType, vertex::WeightLod};
+use xc3_lib::{mxmd::MaterialTechniqueType, vertex::WeightLod};
 
 /// See [Skinning](xc3_lib::mxmd::Skinning).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -167,7 +167,7 @@ impl WeightGroups {
         &self,
         flags2: u32,
         lod_item_index: Option<usize>,
-        unk_type: xc3_lib::mxmd::RenderPassType,
+        unk_type: xc3_lib::mxmd::MaterialTechniqueType,
     ) -> usize {
         match self {
             WeightGroups::Legacy { .. } => 0,
@@ -190,7 +190,7 @@ fn weight_group_index(
     weight_lods: &[WeightLod],
     skin_flags: u32,
     lod_item_index: Option<usize>,
-    unk_type: RenderPassType,
+    unk_type: MaterialTechniqueType,
 ) -> usize {
     if !weight_lods.is_empty() {
         // TODO: Should this check skin flags?
@@ -212,7 +212,7 @@ fn weight_group_index(
 }
 
 // TODO: Should this be the pass from flags2 instead?
-fn weight_pass_index(unk_type: RenderPassType, flags2: u32) -> usize {
+fn weight_pass_index(unk_type: MaterialTechniqueType, flags2: u32) -> usize {
     // TODO: skin_flags & 0xF has a max value of group_indices.len() - 1?
     // TODO: bit mask?
     // TODO: Test possible values by checking mesh flags and pass types in xc3_test?
@@ -224,15 +224,16 @@ fn weight_pass_index(unk_type: RenderPassType, flags2: u32) -> usize {
     // TODO: Test unique parameter combination using a modified weight group?
     // TODO: Detect if vertices move in game?
     let mut pass_index = match unk_type {
-        RenderPassType::Unk0 => 0,
-        RenderPassType::Unk1 => 1,
-        RenderPassType::Unk2 => todo!(),
-        RenderPassType::Unk3 => todo!(),
-        RenderPassType::Unk5 => todo!(),
-        RenderPassType::Unk6 => todo!(),
-        RenderPassType::Unk7 => 3, // TODO: also 4?
-        RenderPassType::Unk8 => todo!(),
-        RenderPassType::Unk9 => todo!(),
+        MaterialTechniqueType::Opaque => 0,
+        MaterialTechniqueType::Translucent => 1,
+        MaterialTechniqueType::Unk2 => todo!(),
+        MaterialTechniqueType::Unk3 => todo!(),
+        MaterialTechniqueType::LightPrepass => todo!(),
+        MaterialTechniqueType::Unk5 => todo!(),
+        MaterialTechniqueType::Masked => todo!(),
+        MaterialTechniqueType::GBufferLast => 3, // TODO: also 4?
+        MaterialTechniqueType::Refraction => todo!(),
+        MaterialTechniqueType::GBufferBlend => todo!(),
     };
     if flags2 == 64 {
         pass_index = 4;
@@ -667,11 +668,16 @@ mod tests {
         }];
         assert_eq!(
             0,
-            weight_group_index(&weight_lods, 16385, None, RenderPassType::Unk0)
+            weight_group_index(&weight_lods, 16385, None, MaterialTechniqueType::Opaque)
         );
         assert_eq!(
             1,
-            weight_group_index(&weight_lods, 16392, None, RenderPassType::Unk7)
+            weight_group_index(
+                &weight_lods,
+                16392,
+                None,
+                MaterialTechniqueType::GBufferLast
+            )
         );
     }
 
@@ -691,19 +697,19 @@ mod tests {
         ];
         assert_eq!(
             0,
-            weight_group_index(&weight_lods, 16385, Some(0), RenderPassType::Unk0)
+            weight_group_index(&weight_lods, 16385, Some(0), MaterialTechniqueType::Opaque)
         );
         assert_eq!(
             0,
-            weight_group_index(&weight_lods, 1, Some(0), RenderPassType::Unk0)
+            weight_group_index(&weight_lods, 1, Some(0), MaterialTechniqueType::Opaque)
         );
         assert_eq!(
             3,
-            weight_group_index(&weight_lods, 2, Some(1), RenderPassType::Unk1)
+            weight_group_index(&weight_lods, 2, Some(1), MaterialTechniqueType::Translucent)
         );
         assert_eq!(
             5,
-            weight_group_index(&weight_lods, 2, Some(2), RenderPassType::Unk1)
+            weight_group_index(&weight_lods, 2, Some(2), MaterialTechniqueType::Translucent)
         );
     }
 
@@ -723,11 +729,11 @@ mod tests {
         ];
         assert_eq!(
             0,
-            weight_group_index(&weight_lods, 64, Some(0), RenderPassType::Unk0)
+            weight_group_index(&weight_lods, 64, Some(0), MaterialTechniqueType::Opaque)
         );
         assert_eq!(
             6,
-            weight_group_index(&weight_lods, 16400, Some(1), RenderPassType::Unk0)
+            weight_group_index(&weight_lods, 16400, Some(1), MaterialTechniqueType::Opaque)
         );
     }
 

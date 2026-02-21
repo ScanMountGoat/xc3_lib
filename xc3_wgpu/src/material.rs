@@ -249,7 +249,7 @@ pub fn create_material(
         // TODO: Is there a better way to store depth prepass pipelines?
         // The depth writes and compare function only happen in the prepass.
         let pipeline_key = PipelineKey {
-            pass_type: material.pass_type,
+            technique_type: material.technique_type,
             flags: xc3_lib::mxmd::StateFlags {
                 depth_func: xc3_lib::mxmd::DepthFunc::Equal,
                 depth_write_mode: 1,
@@ -270,7 +270,7 @@ pub fn create_material(
     } else {
         (
             PipelineKey {
-                pass_type: material.pass_type,
+                technique_type: material.technique_type,
                 flags: material.state_flags,
                 is_outline: material.name.ends_with("_outline"),
                 output5_type,

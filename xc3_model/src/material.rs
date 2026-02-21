@@ -1,10 +1,11 @@
 use assignments::{OutputAssignments, infer_assignment_from_textures, output_assignments};
 use log::warn;
 
+use xc3_lib::mxmd::WorkCallbackType;
 pub use xc3_lib::mxmd::{
     BlendMode, ColorWriteMode, CullMode, DepthFunc, FurShellParams, MaterialFlags,
-    MaterialRenderFlags, RenderPassType, StateFlags, StencilMode, StencilValue, TextureUsage,
-    WorkCallback,
+    MaterialRenderFlags, MaterialTechniqueType, MaterialVariable, StateFlags, StencilMode,
+    StencilValue, TextureUsage, WorkCallback,
 };
 
 use crate::{
@@ -33,7 +34,7 @@ pub struct Material {
     pub alpha_test: Option<Texture>,
 
     pub work_values: Vec<f32>,
-    pub shader_vars: Vec<(u16, u16)>,
+    pub variables: Vec<MaterialVariable>,
     pub work_callbacks: Vec<WorkCallback>,
 
     // TODO: final byte controls reference?
@@ -52,7 +53,7 @@ pub struct Material {
 
     // material technique
     pub technique_index: usize,
-    pub pass_type: RenderPassType,
+    pub technique_type: MaterialTechniqueType,
 
     // TODO: keep these as views over the work values?
     // TODO: is there another way to preserve the work value buffer?
@@ -240,8 +241,8 @@ pub(crate) fn create_materials(
                 .unwrap_or_default()
                 .to_vec();
 
-            let shader_var_start = material.shader_var_start_index as usize;
-            let shader_var_end = shader_var_start + material.shader_var_count as usize;
+            let var_start = material.variable_start_index as usize;
+            let var_end = var_start + material.variable_count as usize;
 
             let callback_start = material.callback_start_index as usize;
             let callback_end = callback_start + material.callback_count as usize;
@@ -264,9 +265,9 @@ pub(crate) fn create_materials(
                 alpha_test_ref: material.alpha_test_ref,
                 shader,
                 work_values,
-                shader_vars: materials
-                    .shader_vars
-                    .get(shader_var_start..shader_var_end)
+                variables: materials
+                    .variables
+                    .get(var_start..var_end)
                     .unwrap_or_default()
                     .to_vec(),
                 work_callbacks: materials
@@ -280,11 +281,11 @@ pub(crate) fn create_materials(
                     .first()
                     .map(|t| t.technique_index as usize)
                     .unwrap_or_default(),
-                pass_type: material
+                technique_type: material
                     .techniques
                     .first()
-                    .map(|t| t.pass_type)
-                    .unwrap_or(RenderPassType::Unk0),
+                    .map(|t| t.technique_type)
+                    .unwrap_or(MaterialTechniqueType::Opaque),
                 parameters,
                 m_unks1_1: material.m_unks1_1,
                 m_unks1_2: material.m_unks1_2,
@@ -358,8 +359,8 @@ where
                 .unwrap_or_default()
                 .to_vec();
 
-            let shader_var_start = m.shader_var_start_index as usize;
-            let shader_var_end = shader_var_start + m.shader_var_count as usize;
+            let var_start = m.variable_start_index as usize;
+            let var_end = var_start + m.variable_count as usize;
 
             let alpha_test =
                 find_alpha_test_texture_legacy(materials, m, &mut samplers, texture_indices);
@@ -394,16 +395,16 @@ where
                     .last()
                     .map(|t| t.technique_index as usize)
                     .unwrap_or_default(),
-                pass_type: m
+                technique_type: m
                     .techniques
                     .last()
-                    .map(|t| t.pass_type)
-                    .unwrap_or(RenderPassType::Unk0),
+                    .map(|t| t.technique_type)
+                    .unwrap_or(MaterialTechniqueType::Opaque),
                 parameters,
                 work_values,
-                shader_vars: materials
-                    .shader_vars
-                    .get(shader_var_start..shader_var_end)
+                variables: materials
+                    .variables
+                    .get(var_start..var_end)
                     .unwrap_or_default()
                     .to_vec(),
                 work_callbacks: Vec::new(),
@@ -694,21 +695,21 @@ fn apply_callbacks(work_values: &[f32], callbacks: &[WorkCallback]) -> Vec<f32> 
     // Callbacks are applied directly to the work values.
     // TODO: What do the remaining callback types do?
     for callback in callbacks {
-        match callback.unk1 {
-            25 => {
+        match callback.callback_type {
+            WorkCallbackType::OutLineVal => {
                 // TODO: outline width?
             }
-            26 => {
+            WorkCallbackType::ToonId => {
                 // (26, i) for dividing work value i value by 255?
                 // TODO: do these values always come in pairs?
-                let start = callback.unk2 as usize;
+                let start = callback.value as usize;
                 if start + 1 < work_values.len() {
                     // Shader parameters reference the first value in the pair.
                     // Only editing the second value in the pair seems to matter in game.
                     work_values[start] = work_values[start + 1] / 255.0;
                 }
             }
-            36 => {
+            WorkCallbackType::Unk36 => {
                 // TODO: DpRat values are set from callbacks?
                 // TODO: set value to previous value?
             }
@@ -898,8 +899,14 @@ mod tests {
             apply_callbacks(
                 &work_values,
                 &[
-                    WorkCallback { unk1: 26, unk2: 11 },
-                    WorkCallback { unk1: 36, unk2: 15 }
+                    WorkCallback {
+                        callback_type: WorkCallbackType::ToonId,
+                        value: 11
+                    },
+                    WorkCallback {
+                        callback_type: WorkCallbackType::Unk36,
+                        value: 15
+                    }
                 ]
             )
         );

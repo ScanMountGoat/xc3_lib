@@ -10,7 +10,7 @@ use xc3_lib::{
     map::{FoliageMaterials, PropInstance, PropLod, PropPositions},
     mibl::Mibl,
     msmd::{ChannelType, MapParts, Msmd, MsmdV112, StreamEntry, legacy::MsmdV11},
-    mxmd::{RenderPassType, StateFlags, TextureUsage},
+    mxmd::{MaterialTechniqueType, StateFlags, TextureUsage},
 };
 
 use crate::{
@@ -836,10 +836,10 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                 shader,
                 alpha_test_ref: 0.5,
                 technique_index: 0,
-                pass_type: RenderPassType::Unk0,
+                technique_type: MaterialTechniqueType::Opaque,
                 parameters: Default::default(),
                 work_values: Vec::new(),
-                shader_vars: Vec::new(),
+                variables: Vec::new(),
                 work_callbacks: Vec::new(),
                 m_unks1_1: 0,
                 m_unks1_2: 0,

@@ -240,7 +240,7 @@ pub struct Materials {
     // TODO: Some sort of index or offset?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub shader_vars: Vec<(u16, u16)>, // shader vars (u8, u8, u16)?
+    pub variables: Vec<MaterialVariable>,
 
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
@@ -409,6 +409,14 @@ pub enum ParamType {
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct MaterialVariable {
+    pub var_type: u8, // TODO: enum?
+    pub param: u8,
+    pub work_value_index: u16,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialCallbacks {
@@ -422,10 +430,9 @@ pub struct MaterialCallbacks {
     #[xc3(offset_count(u32, u32))]
     pub material_indices: Vec<u16>,
 
-    // TODO: [index, ???]
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub unk1: Vec<[u32; 2]>,
+    pub work_pre_callbacks: Vec<WorkPreCallback>,
 
     // TODO: padding?
     pub unk: [u32; 6],
@@ -434,12 +441,74 @@ pub struct MaterialCallbacks {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct WorkCallback {
-    // TODO: enum 0, 12, 22, 25, 26, 27, 28, 35, 36, 38, 40, 41, 42, 43, 45, 46, 47, 58, 50
-    // 25 outline width
-    // 26 next value / 255.0
-    pub unk1: u16,
+    pub callback_type: WorkCallbackType,
     // TODO: index?
-    pub unk2: u16,
+    pub value: u16,
+}
+
+// 25 outline width
+// 26 next value / 255.0
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u16))]
+pub enum WorkCallbackType {
+    MatxView = 0,
+    EmissiveTime = 1,
+    RgbTime = 2,
+    RTime = 3,
+    AccRgb1 = 4,
+    AccRgb2 = 5,
+    AccRgb3 = 6,
+    AccRgb4 = 7,
+    AccMulRgb1 = 8,
+    AccMulRgb2 = 9,
+    AccMulRgb3 = 10,
+    AccMulRgb4 = 11,
+    AccVal1 = 12,
+    AccVal2 = 13,
+    AccVal3 = 14,
+    AccVal4 = 15,
+    AccMulVal1 = 16,
+    AccMulVal2 = 17,
+    AccMulVal3 = 18,
+    AccMulVal4 = 19,
+    WaterFog = 20,
+    MatxInvView = 21,
+    FurShader = 22,
+    CalcBloom = 23,
+    CalcColor = 24,
+    OutLineVal = 25,
+    ToonId = 26,
+    VolumeTest = 27,
+    BaseColor = 28,
+    BaseVal = 29,
+    TransVal = 30,
+    CalcPrjView = 31,
+    CalcPrjChgView = 32,
+    CalcPrjDefCall = 33,
+    CalcPrjAlpha = 34,
+    // TODO: is this actually part of the pre callback data?
+    Unk35 = 35,
+    Unk36 = 36,
+    Unk38 = 38,
+    Unk40 = 40,
+    Unk41 = 41,
+    Unk42 = 42,
+    Unk43 = 43,
+    Unk45 = 45,
+    Unk46 = 46,
+    Unk47 = 47,
+    Unk48 = 48,
+    Unk58 = 58,
+    Unk50 = 50,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct WorkPreCallback {
+    pub material_index: u32,
+    pub callback_count: u16,
+    pub callback_start_index: u16,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -585,9 +654,9 @@ pub struct Material {
     pub work_value_start_index: u32,
 
     // TODO: each material has its own unique range of values?
-    /// Index into [shader_vars](struct.Materials.html#structfield.shader_vars).
-    pub shader_var_start_index: u32,
-    pub shader_var_count: u32,
+    /// Index into [variables](struct.Materials.html#structfield.variables).
+    pub variable_start_index: u32,
+    pub variable_count: u32,
 
     // TODO: always count 1?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
@@ -808,9 +877,19 @@ pub struct MaterialTechnique {
     /// Index into [techniques](struct.Materials.html#structfield.techniques).
     /// This can also be assumed to be the index into the [Spch] programs.
     pub technique_index: u32,
-    pub pass_type: RenderPassType,
+    pub technique_type: MaterialTechniqueType,
     pub material_buffer_index: u16,
-    pub flags: u32, // 1 for switch, 0x01000000 for XCX
+    pub flags: MaterialTechniqueFlags,
+}
+
+#[bitsize(32)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(DebugBits, TryFromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
+#[br(try_map = |x: u32| x.try_into().map_err(|e| format!("{e:?}")))]
+#[bw(map = |&x| u32::from(x))]
+pub struct MaterialTechniqueFlags {
+    pub use_work_buffer: bool,
+    pub unk: u31,
 }
 
 // TODO: Use in combination with mesh render flags?
@@ -822,16 +901,17 @@ pub struct MaterialTechnique {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, BinWrite, PartialEq, Eq, Clone, Copy, Hash)]
 #[brw(repr(u16))]
-pub enum RenderPassType {
-    Unk0 = 0, // main opaque + some transparent?
-    Unk1 = 1, // transparent pass with color output
-    Unk2 = 2, // XCX DE
-    Unk3 = 3, // XCX DE
-    Unk5 = 5, // XCX DE
-    Unk6 = 6, // used for maps?
-    Unk7 = 7, // transparent pass but writes to all outputs
-    Unk8 = 8, // XCX DE
-    Unk9 = 9, // used for maps?
+pub enum MaterialTechniqueType {
+    Opaque = 0,       // main opaque + some transparent?
+    Translucent = 1,  // transparent pass with color output
+    Unk2 = 2,         // XCX DE
+    Unk3 = 3,         // XCX DE
+    LightPrepass = 4, // TODO: is this used?
+    Unk5 = 5,         // XCX DE
+    Masked = 6,       // used for maps?
+    GBufferLast = 7,  // transparent pass but writes to all outputs
+    Refraction = 8,   // XCX DE
+    GBufferBlend = 9, // used for maps?
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -2447,7 +2527,7 @@ pub struct Unk1Unk4 {
 
 xc3_write_binwrite_impl!(
     ParamType,
-    RenderPassType,
+    MaterialTechniqueType,
     StateFlags,
     ModelsFlags,
     SamplerFlags,
@@ -2456,7 +2536,9 @@ xc3_write_binwrite_impl!(
     MeshRenderFlags2,
     MaterialFlags,
     MaterialRenderFlags,
-    BoneFlags
+    BoneFlags,
+    MaterialTechniqueFlags,
+    WorkCallbackType
 );
 
 impl Xc3WriteOffsets for SkinningOffsets<'_> {
@@ -2675,7 +2757,7 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
 
         self.work_values
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.shader_vars
+        self.variables
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         for material in &materials.0 {
@@ -3027,7 +3109,7 @@ impl Xc3WriteOffsets for MaterialCallbacksOffsets<'_> {
         // Different order than field order.
         self.work_callbacks
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk1
+        self.work_pre_callbacks
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.material_indices
             .write_full(writer, base_offset, data_ptr, endian, ())?;

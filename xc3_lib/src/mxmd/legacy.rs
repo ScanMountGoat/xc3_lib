@@ -11,8 +11,8 @@ use binrw::{BinRead, BinWrite, args, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 use super::{
-    FurShells, MaterialFlags, MaterialTechnique, MaterialUnk2, MaterialUnk6, ModelUnk3,
-    SamplerFlags, StateFlags,
+    FurShells, MaterialFlags, MaterialTechnique, MaterialUnk2, MaterialUnk6, MaterialVariable,
+    ModelUnk3, SamplerFlags, StateFlags,
 };
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -451,7 +451,7 @@ pub struct Materials {
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub shader_vars: Vec<(u16, u16)>,
+    pub variables: Vec<MaterialVariable>,
 
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset })]
@@ -565,8 +565,8 @@ pub struct Material {
 
     pub work_value_start_index: u32,
 
-    pub shader_var_start_index: u32,
-    pub shader_var_count: u32,
+    pub variable_start_index: u32,
+    pub variable_count: u32,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
@@ -1099,7 +1099,7 @@ impl Xc3WriteOffsets for MaterialsOffsets<'_> {
             .write(writer, base_offset, data_ptr, endian)?;
         self.work_values
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.shader_vars
+        self.variables
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         for m in &materials.0 {

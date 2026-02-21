@@ -571,7 +571,7 @@ fn add_models(
                         w.weight_groups.weights_start_index(
                             mesh.flags2.into(),
                             mesh.lod_item_index,
-                            material.pass_type,
+                            material.technique_type,
                         )
                     })
                     .unwrap_or_default();

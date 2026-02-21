@@ -279,7 +279,7 @@ impl ModelRoot {
         // Recreate start indices and counts by assuming value ranges don't overlap.
         mxmd.materials.materials.clear();
         mxmd.materials.work_values.clear();
-        mxmd.materials.shader_vars.clear();
+        mxmd.materials.variables.clear();
 
         // Don't assume callbacks are used.
         let mut callbacks = mxmd.materials.callbacks.as_mut();
@@ -298,9 +298,9 @@ impl ModelRoot {
             // TODO: Is it ok to potentially add a new buffer index here?
             let technique = xc3_lib::mxmd::MaterialTechnique {
                 technique_index: m.technique_index as u32,
-                pass_type: m.pass_type,
+                technique_type: m.technique_type,
                 material_buffer_index: i as u16,
-                flags: 1,
+                flags: xc3_lib::mxmd::MaterialTechniqueFlags::new(true, 0u16.into()),
             };
 
             // TODO: Are alpha texture indices ever used more than once?
@@ -337,8 +337,8 @@ impl ModelRoot {
                 m_unks1_3: m.m_unks1_3,
                 m_unks1_4: m.m_unks1_4,
                 work_value_start_index: mxmd.materials.work_values.len() as u32,
-                shader_var_start_index: mxmd.materials.shader_vars.len() as u32,
-                shader_var_count: m.shader_vars.len() as u32,
+                variable_start_index: mxmd.materials.variables.len() as u32,
+                variable_count: m.variables.len() as u32,
                 techniques: vec![technique],
                 unk5: 0,
                 callback_start_index: callbacks
@@ -356,7 +356,7 @@ impl ModelRoot {
             mxmd.materials.materials.push(new_material);
 
             mxmd.materials.work_values.extend_from_slice(&m.work_values);
-            mxmd.materials.shader_vars.extend_from_slice(&m.shader_vars);
+            mxmd.materials.variables.extend_from_slice(&m.variables);
             if let Some(callbacks) = callbacks.as_mut() {
                 callbacks
                     .work_callbacks
@@ -415,7 +415,7 @@ impl ModelRoot {
         // Recreate start indices and counts by assuming value ranges don't overlap.
         mxmd.materials.materials.clear();
         mxmd.materials.work_values.clear();
-        mxmd.materials.shader_vars.clear();
+        mxmd.materials.variables.clear();
 
         // Don't assume callbacks are used.
         let mut callbacks = mxmd.materials.callbacks.as_mut();
@@ -434,9 +434,9 @@ impl ModelRoot {
             // TODO: Is it ok to potentially add a new buffer index here?
             let technique = xc3_lib::mxmd::MaterialTechnique {
                 technique_index: m.technique_index as u32,
-                pass_type: m.pass_type,
+                technique_type: m.technique_type,
                 material_buffer_index: i as u16,
-                flags: 1,
+                flags: xc3_lib::mxmd::MaterialTechniqueFlags::new(true, 0u16.into()),
             };
 
             // TODO: Are alpha texture indices ever used more than once?
@@ -471,8 +471,8 @@ impl ModelRoot {
                 m_unks1_3: m.m_unks1_3,
                 m_unks1_4: m.m_unks1_4,
                 work_value_start_index: mxmd.materials.work_values.len() as u32,
-                shader_var_start_index: mxmd.materials.shader_vars.len() as u32,
-                shader_var_count: m.shader_vars.len() as u32,
+                variable_start_index: mxmd.materials.variables.len() as u32,
+                variable_count: m.variables.len() as u32,
                 techniques: vec![technique],
                 unk4: [0; 6], // TODO: elements not always zero?
                 alt_textures: m.alt_textures.as_ref().map(|a| {
@@ -490,7 +490,7 @@ impl ModelRoot {
             mxmd.materials.materials.push(new_material);
 
             mxmd.materials.work_values.extend_from_slice(&m.work_values);
-            mxmd.materials.shader_vars.extend_from_slice(&m.shader_vars);
+            mxmd.materials.variables.extend_from_slice(&m.variables);
 
             if let Some(params) = &m.fur_params {
                 // Each material uses its own params in practice.

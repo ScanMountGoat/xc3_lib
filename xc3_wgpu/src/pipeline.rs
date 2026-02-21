@@ -1,4 +1,4 @@
-use xc3_model::material::{BlendMode, ColorWriteMode, CullMode, RenderPassType, StateFlags};
+use xc3_model::material::{BlendMode, ColorWriteMode, CullMode, MaterialTechniqueType, StateFlags};
 
 use crate::{
     DEPTH_STENCIL_FORMAT, GBUFFER_COLOR_FORMAT, GBUFFER_NORMAL_FORMAT, shadergen::ShaderWgsl,
@@ -20,7 +20,7 @@ impl ModelPipelineData {
 /// The non shared components of a pipeline for use with pipeline caching.
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct PipelineKey {
-    pub pass_type: RenderPassType,
+    pub technique_type: MaterialTechniqueType,
     pub flags: StateFlags,
     pub is_outline: bool,
     pub output5_type: Output5Type,
