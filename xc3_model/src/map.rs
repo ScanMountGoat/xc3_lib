@@ -805,8 +805,8 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
             // TODO: Where are the textures?
             let textures = vec![Texture {
                 image_texture_index: 0,
+                mipmap_sampler_index: 0,
                 sampler_index: 0,
-                sampler_index2: 0,
             }];
 
             // TODO: Foliage shaders?

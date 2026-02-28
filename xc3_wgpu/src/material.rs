@@ -211,7 +211,6 @@ pub fn create_material(
             textures_d3: &texture_array_3d,
             textures_cube: &texture_array_cube,
             samplers: &sampler_array,
-            // TODO: Move alpha test to a separate pass?
             alpha_test_sampler: material
                 .alpha_test
                 .as_ref()

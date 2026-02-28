@@ -920,11 +920,12 @@ pub struct Texture {
     /// Index into the textures in [streaming](struct.Mxmd.html#structfield.streaming)
     /// or [packed_textures](struct.Mxmd.html#structfield.packed_textures).
     pub texture_index: u16,
-    /// Index into the samplers in [samplers](struct.Materials.html#structfield.samplers).
-    pub sampler_index: u16,
+    /// Index into the samplers in [samplers](struct.Materials.html#structfield.samplers)
+    /// for the mipmap filtering.
+    pub mipmap_sampler_index: u16,
     /// Index into the samplers in [samplers](struct.Materials.html#structfield.samplers).
     // TODO: This sampler is the same as above but with a float value of 0.0?
-    pub sampler_index2: u16,
+    pub sampler_index: u16,
     pub unk3: u16, // 0, 1 (some alpha test textures)
 }
 

@@ -326,8 +326,8 @@ impl ModelRoot {
                     .iter()
                     .map(|t| xc3_lib::mxmd::Texture {
                         texture_index: t.image_texture_index as u16,
+                        mipmap_sampler_index: t.mipmap_sampler_index as u16,
                         sampler_index: t.sampler_index as u16,
-                        sampler_index2: t.sampler_index2 as u16,
                         unk3: 0,
                     })
                     .collect(),
@@ -404,8 +404,8 @@ impl ModelRoot {
             .iter()
             .map(|t| xc3_lib::mxmd::Texture {
                 texture_index: t.image_texture_index as u16,
+                mipmap_sampler_index: t.mipmap_sampler_index as u16,
                 sampler_index: t.sampler_index as u16,
-                sampler_index2: t.sampler_index2 as u16,
                 unk3: 0,
             })
             .collect();

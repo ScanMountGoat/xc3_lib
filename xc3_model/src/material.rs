@@ -201,10 +201,11 @@ pub struct Texture {
     /// The index of the [ImageTexture] in [image_textures](struct.ModelRoot.html#structfield.image_textures).
     pub image_texture_index: usize,
     // TODO: Don't index the sampler?
-    /// The index of the [Sampler] in [samplers](struct.ModelGroup.html#structfield.samplers).
-    pub sampler_index: usize,
+    /// The index of the [Sampler] in [samplers](struct.ModelGroup.html#structfield.samplers)
+    /// for the mipmap filtering.
+    pub mipmap_sampler_index: usize,
     /// The index of the second [Sampler] in [samplers](struct.ModelGroup.html#structfield.samplers).
-    pub sampler_index2: usize,
+    pub sampler_index: usize,
 }
 
 pub(crate) fn create_materials(
@@ -313,8 +314,8 @@ fn texture_from_modern(
                     .unwrap_or_default()
             })
             .unwrap_or(texture.texture_index as usize),
+        mipmap_sampler_index: texture.mipmap_sampler_index as usize,
         sampler_index: texture.sampler_index as usize,
-        sampler_index2: texture.sampler_index2 as usize,
     }
 }
 
@@ -434,8 +435,8 @@ fn texture_from_legacy(
             .iter()
             .position(|i| *i == t.texture_index)
             .unwrap_or_default(),
+        mipmap_sampler_index: sampler_index,
         sampler_index,
-        sampler_index2: sampler_index,
     }
 }
 
