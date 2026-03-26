@@ -80,6 +80,7 @@ pub const LIMITS: wgpu::Limits = wgpu::Limits {
     max_color_attachments: 8,
     max_binding_array_elements_per_shader_stage: 32 * 4,
     max_binding_array_sampler_elements_per_shader_stage: 32,
+    max_storage_buffers_per_shader_stage: 6,
     ..wgpu::Limits::downlevel_defaults()
 };
 

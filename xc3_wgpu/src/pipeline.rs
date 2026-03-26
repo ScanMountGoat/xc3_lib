@@ -159,7 +159,7 @@ fn model_prepass_pipeline(
 fn model_pipeline_normal_inner<const N: usize>(
     device: &wgpu::Device,
     data: &ModelPipelineData,
-    fragment: crate::shader::model::FragmentEntry<N>,
+    fragment: crate::shader::FragmentEntry<N>,
     key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
     if key.is_instanced_static {
@@ -181,8 +181,8 @@ fn model_pipeline_normal_inner<const N: usize>(
 fn model_pipeline_inner<const M: usize, const N: usize>(
     device: &wgpu::Device,
     data: &ModelPipelineData,
-    vertex_entry: crate::shader::model::VertexEntry<M>,
-    fragment_entry: crate::shader::model::FragmentEntry<N>,
+    vertex_entry: crate::shader::VertexEntry<M>,
+    fragment_entry: crate::shader::FragmentEntry<N>,
     key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
     let source = key.wgsl.create_model_shader();
@@ -197,11 +197,8 @@ fn model_pipeline_inner<const M: usize, const N: usize>(
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Model Pipeline"),
         layout: Some(&data.layout),
-        vertex: crate::shader::model::vertex_state(&module, &vertex_entry),
-        fragment: Some(crate::shader::model::fragment_state(
-            &module,
-            &fragment_entry,
-        )),
+        vertex: crate::shader::vertex_state(&module, &vertex_entry),
+        fragment: Some(crate::shader::fragment_state(&module, &fragment_entry)),
         primitive: wgpu::PrimitiveState {
             // TODO: Do all meshes using indexed triangle lists?
             topology: wgpu::PrimitiveTopology::TriangleList,
@@ -212,11 +209,11 @@ fn model_pipeline_inner<const M: usize, const N: usize>(
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,
             // TODO: affected by alpha test depth prepass?
-            depth_write_enabled: key.flags.depth_write_mode != 1,
+            depth_write_enabled: Some(key.flags.depth_write_mode != 1),
             depth_compare: match key.flags.depth_func {
-                xc3_model::material::DepthFunc::Disabled => wgpu::CompareFunction::Always,
-                xc3_model::material::DepthFunc::LessEqual => wgpu::CompareFunction::LessEqual,
-                xc3_model::material::DepthFunc::Equal => wgpu::CompareFunction::Equal,
+                xc3_model::material::DepthFunc::Disabled => Some(wgpu::CompareFunction::Always),
+                xc3_model::material::DepthFunc::LessEqual => Some(wgpu::CompareFunction::LessEqual),
+                xc3_model::material::DepthFunc::Equal => Some(wgpu::CompareFunction::Equal),
             },
             stencil: stencil_state(key.flags.stencil_mode),
             bias: wgpu::DepthBiasState::default(),

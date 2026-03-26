@@ -95,9 +95,9 @@ fn main() {
         },
         None => wgpu::Backends::all(),
     };
-    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends,
-        ..Default::default()
+        ..wgpu::InstanceDescriptor::new_without_display_handle()
     });
 
     let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {

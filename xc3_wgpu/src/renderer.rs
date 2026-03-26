@@ -1154,10 +1154,7 @@ fn deferred_pipeline(device: &wgpu::Device, entry_point: &str) -> wgpu::RenderPi
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Deferred Pipeline"),
         layout: Some(&render_pipeline_layout),
-        vertex: crate::shader::deferred::vertex_state(
-            &module,
-            &crate::shader::deferred::vs_main_entry(),
-        ),
+        vertex: crate::shader::vertex_state(&module, &crate::shader::deferred::vs_main_entry()),
         fragment: Some(wgpu::FragmentState {
             module: &module,
             entry_point: Some(entry_point),
@@ -1171,8 +1168,8 @@ fn deferred_pipeline(device: &wgpu::Device, entry_point: &str) -> wgpu::RenderPi
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
             format: MAT_ID_DEPTH_FORMAT,
-            depth_write_enabled: false,
-            depth_compare: wgpu::CompareFunction::Equal,
+            depth_write_enabled: Some(false),
+            depth_compare: Some(wgpu::CompareFunction::Equal),
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
@@ -1190,11 +1187,8 @@ fn deferred_debug_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Deferred Debug Pipeline"),
         layout: Some(&render_pipeline_layout),
-        vertex: crate::shader::deferred::vertex_state(
-            &module,
-            &crate::shader::deferred::vs_main_entry(),
-        ),
-        fragment: Some(crate::shader::deferred::fragment_state(
+        vertex: crate::shader::vertex_state(&module, &crate::shader::deferred::vs_main_entry()),
+        fragment: Some(crate::shader::fragment_state(
             &module,
             &crate::shader::deferred::fs_debug_entry([Some(wgpu::ColorTargetState {
                 format: COLOR_FORMAT,
@@ -1205,8 +1199,8 @@ fn deferred_debug_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
             format: MAT_ID_DEPTH_FORMAT,
-            depth_write_enabled: false,
-            depth_compare: wgpu::CompareFunction::Always,
+            depth_write_enabled: Some(false),
+            depth_compare: Some(wgpu::CompareFunction::Always),
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
@@ -1227,11 +1221,11 @@ fn solid_pipeline(
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some(label),
         layout: Some(&render_pipeline_layout),
-        vertex: crate::shader::solid::vertex_state(
+        vertex: crate::shader::vertex_state(
             &module,
             &crate::shader::solid::vs_main_entry(wgpu::VertexStepMode::Vertex),
         ),
-        fragment: Some(crate::shader::solid::fragment_state(
+        fragment: Some(crate::shader::fragment_state(
             &module,
             &crate::shader::solid::fs_main_entry([Some(format.into())]),
         )),
@@ -1242,8 +1236,8 @@ fn solid_pipeline(
         },
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(wgpu::CompareFunction::LessEqual),
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
@@ -1264,14 +1258,14 @@ fn collision_pipeline(
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some(label),
         layout: Some(&render_pipeline_layout),
-        vertex: crate::shader::collision::vertex_state(
+        vertex: crate::shader::vertex_state(
             &module,
             &crate::shader::collision::vs_main_entry(
                 wgpu::VertexStepMode::Vertex,
                 wgpu::VertexStepMode::Instance,
             ),
         ),
-        fragment: Some(crate::shader::collision::fragment_state(
+        fragment: Some(crate::shader::fragment_state(
             &module,
             &crate::shader::collision::fs_main_entry([Some(format.into())]),
         )),
@@ -1282,8 +1276,8 @@ fn collision_pipeline(
         },
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(wgpu::CompareFunction::LessEqual),
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
@@ -1300,19 +1294,19 @@ fn unbranch_to_depth_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Unbranch to Depth Pipeline"),
         layout: Some(&render_pipeline_layout),
-        vertex: crate::shader::unbranch_to_depth::vertex_state(
+        vertex: crate::shader::vertex_state(
             &module,
             &crate::shader::unbranch_to_depth::vs_main_entry(),
         ),
-        fragment: Some(crate::shader::unbranch_to_depth::fragment_state(
+        fragment: Some(crate::shader::fragment_state(
             &module,
             &crate::shader::unbranch_to_depth::fs_main_entry([]),
         )),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
             format: MAT_ID_DEPTH_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::Always,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(wgpu::CompareFunction::Always),
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
@@ -1330,19 +1324,16 @@ fn snn_filter_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("SNN Filter Pipeline"),
         layout: Some(&render_pipeline_layout),
-        vertex: crate::shader::snn_filter::vertex_state(
-            &module,
-            &crate::shader::snn_filter::vs_main_entry(),
-        ),
-        fragment: Some(crate::shader::snn_filter::fragment_state(
+        vertex: crate::shader::vertex_state(&module, &crate::shader::snn_filter::vs_main_entry()),
+        fragment: Some(crate::shader::fragment_state(
             &module,
             &crate::shader::snn_filter::fs_main_entry([Some(COLOR_FORMAT.into())]),
         )),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,
-            depth_write_enabled: false,
-            depth_compare: wgpu::CompareFunction::Always,
+            depth_write_enabled: Some(false),
+            depth_compare: Some(wgpu::CompareFunction::Always),
             stencil: wgpu::StencilState {
                 front: wgpu::StencilFaceState {
                     compare: wgpu::CompareFunction::Equal,
@@ -1374,16 +1365,16 @@ fn blit_hair_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgp
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Blit Hair Pipeline"),
         layout: Some(&render_pipeline_layout),
-        vertex: crate::shader::blit::vertex_state(&module, &crate::shader::blit::vs_main_entry()),
-        fragment: Some(crate::shader::blit::fragment_state(
+        vertex: crate::shader::vertex_state(&module, &crate::shader::blit::vs_main_entry()),
+        fragment: Some(crate::shader::fragment_state(
             &module,
             &crate::shader::blit::fs_main_entry([Some(format.into())]),
         )),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,
-            depth_write_enabled: false,
-            depth_compare: wgpu::CompareFunction::Always,
+            depth_write_enabled: Some(false),
+            depth_compare: Some(wgpu::CompareFunction::Always),
             stencil: wgpu::StencilState {
                 front: wgpu::StencilFaceState {
                     compare: wgpu::CompareFunction::Equal,
@@ -1415,16 +1406,16 @@ fn blit_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::Re
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Blit Pipeline"),
         layout: Some(&render_pipeline_layout),
-        vertex: crate::shader::blit::vertex_state(&module, &crate::shader::blit::vs_main_entry()),
-        fragment: Some(crate::shader::blit::fragment_state(
+        vertex: crate::shader::vertex_state(&module, &crate::shader::blit::vs_main_entry()),
+        fragment: Some(crate::shader::fragment_state(
             &module,
             &crate::shader::blit::fs_main_entry([Some(format.into())]),
         )),
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,
-            depth_write_enabled: false,
-            depth_compare: wgpu::CompareFunction::Always,
+            depth_write_enabled: Some(false),
+            depth_compare: Some(wgpu::CompareFunction::Always),
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),

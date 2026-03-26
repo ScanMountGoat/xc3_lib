@@ -23,14 +23,14 @@ impl BoneRenderer {
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Bone Pipeline"),
             layout: Some(&render_pipeline_layout),
-            vertex: crate::shader::bone::vertex_state(
+            vertex: crate::shader::vertex_state(
                 &module,
                 &crate::shader::bone::vs_main_entry(
                     wgpu::VertexStepMode::Vertex,
                     wgpu::VertexStepMode::Instance,
                 ),
             ),
-            fragment: Some(crate::shader::bone::fragment_state(
+            fragment: Some(crate::shader::fragment_state(
                 &module,
                 &crate::shader::bone::fs_main_entry([Some(format.into())]),
             )),
@@ -41,8 +41,8 @@ impl BoneRenderer {
             },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_STENCIL_FORMAT,
-                depth_write_enabled: false,
-                depth_compare: wgpu::CompareFunction::Always,
+                depth_write_enabled: Some(false),
+                depth_compare: Some(wgpu::CompareFunction::Always),
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
