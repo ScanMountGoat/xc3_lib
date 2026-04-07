@@ -536,16 +536,13 @@ fn load_prop_model_group(
         .zip(model_data.model_vertex_data_indices.iter())
         .zip(model_instances.into_iter())
     {
-        // Avoid loading unused prop models.
-        if !instances.is_empty() {
-            let group = Model::from_model_v112(
-                model,
-                instances,
-                *vertex_data_index as usize,
-                model_data.models.alpha_table.as_ref(),
-            );
-            models.models.push(group);
-        }
+        let group = Model::from_model_v112(
+            model,
+            instances,
+            *vertex_data_index as usize,
+            model_data.models.alpha_table.as_ref(),
+        );
+        models.models.push(group);
     }
 
     models
@@ -557,15 +554,13 @@ fn add_prop_instances(
     instances: &[PropInstance],
 ) {
     // TODO: Why do XC2 maps have instances for empty models?
-    if !model_instances.is_empty() {
-        for instance in instances {
-            let prop_lod = &props[instance.prop_index as usize];
-            // Only the first 28 bits should be used to properly load XC3 DLC maps.
-            let base_lod_index = (prop_lod.base_lod_index & 0xFFFFFFF) as usize;
-            // TODO: Should we also index into the PropModelLod?
-            // TODO: Is PropModelLod.index always the same as its index in the list?
-            model_instances[base_lod_index].push(Mat4::from_cols_array_2d(&instance.transform));
-        }
+    for instance in instances {
+        let prop_lod = &props[instance.prop_index as usize];
+        // Only the first 28 bits should be used to properly load XC3 DLC maps.
+        let base_lod_index = (prop_lod.base_lod_index & 0xFFFFFFF) as usize;
+        // TODO: Should we also index into the PropModelLod?
+        // TODO: Is PropModelLod.index always the same as its index in the list?
+        model_instances[base_lod_index].push(Mat4::from_cols_array_2d(&instance.transform));
     }
 }
 
@@ -1115,11 +1110,8 @@ fn load_prop_model_group_legacy(
         .zip(model_data.model_vertex_data_indices.iter())
         .zip(model_instances.into_iter())
     {
-        // Avoid loading unused prop models.
-        if !instances.is_empty() {
-            let group = Model::from_model_legacy(model, instances, *vertex_data_index as usize);
-            models.models.push(group);
-        }
+        let group = Model::from_model_legacy(model, instances, *vertex_data_index as usize);
+        models.models.push(group);
     }
 
     models
@@ -1130,19 +1122,17 @@ fn add_prop_instances_legacy(
     props: &[xc3_lib::map::legacy::PropLod],
     instances: &[xc3_lib::map::legacy::PropInstance],
 ) {
-    if !model_instances.is_empty() {
-        for instance in instances {
-            let prop_lod = &props[instance.prop_index as usize];
-            // Only the first 28 bits should be used to properly load XC3 DLC maps.
-            let base_lod_index = (prop_lod.base_lod_index & 0xFFFFFFF) as usize;
-            // TODO: Should we also index into the PropModelLod?
-            // TODO: Is PropModelLod.index always the same as its index in the list?
-            if base_lod_index >= model_instances.len() {
-                // TODO: Why does this happen?
-                dbg!(base_lod_index);
-            } else {
-                model_instances[base_lod_index].push(Mat4::from_cols_array_2d(&instance.transform));
-            }
+    for instance in instances {
+        let prop_lod = &props[instance.prop_index as usize];
+        // Only the first 28 bits should be used to properly load XC3 DLC maps.
+        let base_lod_index = (prop_lod.base_lod_index & 0xFFFFFFF) as usize;
+        // TODO: Should we also index into the PropModelLod?
+        // TODO: Is PropModelLod.index always the same as its index in the list?
+        if base_lod_index >= model_instances.len() {
+            // TODO: Why does this happen?
+            dbg!(base_lod_index);
+        } else {
+            model_instances[base_lod_index].push(Mat4::from_cols_array_2d(&instance.transform));
         }
     }
 }

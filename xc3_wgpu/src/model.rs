@@ -361,6 +361,10 @@ impl ModelGroup {
         }
 
         if is_instanced_static {
+            if model.instances.count == 0 {
+                // TODO: Why are there map models with no instances?
+                return;
+            }
             render_pass.set_vertex_buffer(2, model.instances.transforms.slice(..));
         }
 

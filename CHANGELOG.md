@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 * Improved accuracy of wimdo file rebuilding.
 * Changed the ZLIB encoding quality from level 9 (best) to level 1 (fast) for `xc3_lib::xbc1::Xbc1`. This dramatically speeds up encoding times for a small increase in file size.
+* Changed map model loading to always load models even if there are no detected instances.
 
 ### Fixed
 * Fixed an issue where map loading would not include some additional models in some cases.
