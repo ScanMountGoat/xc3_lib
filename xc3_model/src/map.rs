@@ -1,4 +1,4 @@
-use std::{io::Cursor, path::Path, sync::Mutex};
+use std::{collections::BTreeSet, io::Cursor, path::Path, sync::Mutex};
 
 use glam::{Mat4, Vec3};
 use image_dds::Surface;
@@ -492,12 +492,12 @@ fn load_prop_model_group(
         // TODO: This doesn't work on all maps?
     }
 
-    // TODO: Is this the correct way to handle animated props?
     // TODO: Document how this works in xc3_lib.
     // Add additional animated prop instances to the appropriate models.
     if let Some(parts) = parts {
         add_animated_part_instances(
             &mut model_instances,
+            &model_data.lods.props,
             model_data.lods.animated_parts_start_index as usize,
             model_data.lods.animated_parts_count as usize,
             parts,
@@ -529,20 +529,31 @@ fn load_prop_model_group(
         max_xyz: model_data.models.max_xyz.into(),
     };
 
-    for ((model, vertex_data_index), instances) in model_data
+    let base_lods: BTreeSet<_> = model_data
+        .lods
+        .props
+        .iter()
+        .map(|p| p.base_lod_index)
+        .collect();
+
+    for (i, ((model, vertex_data_index), instances)) in model_data
         .models
         .models
         .iter()
         .zip(model_data.model_vertex_data_indices.iter())
         .zip(model_instances.into_iter())
+        .enumerate()
     {
-        let group = Model::from_model_v112(
-            model,
-            instances,
-            *vertex_data_index as usize,
-            model_data.models.alpha_table.as_ref(),
-        );
-        models.models.push(group);
+        // Only keep the base LOD.
+        if base_lods.contains(&(i as u32)) {
+            let group = Model::from_model_v112(
+                model,
+                instances,
+                *vertex_data_index as usize,
+                model_data.models.alpha_table.as_ref(),
+            );
+            models.models.push(group);
+        }
     }
 
     models
@@ -566,6 +577,7 @@ fn add_prop_instances(
 
 fn add_animated_part_instances(
     model_instances: &mut [Vec<Mat4>],
+    props: &[PropLod],
     start_index: usize,
     count: usize,
     parts: &MapParts,
@@ -647,7 +659,9 @@ fn add_animated_part_instances(
             * Mat4::from_euler(glam::EulerRot::XYZ, rot_x, rot_y, rot_z)
             * Mat4::from_scale(scale)
             * transform;
-        model_instances[instance.prop_index as usize].push(transform);
+
+        let model_index = props[instance.prop_index as usize].base_lod_index;
+        model_instances[model_index as usize].push(transform);
     }
 }
 
@@ -1103,15 +1117,26 @@ fn load_prop_model_group_legacy(
         max_xyz: model_data.models.max_xyz.into(),
     };
 
-    for ((model, vertex_data_index), instances) in model_data
+    let base_lods: BTreeSet<_> = model_data
+        .lods
+        .props
+        .iter()
+        .map(|p| p.base_lod_index)
+        .collect();
+
+    for (i, ((model, vertex_data_index), instances)) in model_data
         .models
         .models
         .iter()
         .zip(model_data.model_vertex_data_indices.iter())
         .zip(model_instances.into_iter())
+        .enumerate()
     {
-        let group = Model::from_model_legacy(model, instances, *vertex_data_index as usize);
-        models.models.push(group);
+        // Only keep the base LOD.
+        if base_lods.contains(&(i as u32)) {
+            let group = Model::from_model_legacy(model, instances, *vertex_data_index as usize);
+            models.models.push(group);
+        }
     }
 
     models
