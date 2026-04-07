@@ -83,6 +83,8 @@ impl MapRoot {
         let texture_cache = TextureCache::from_msmd_v11(msmd, wismda, compressed)?;
         let texture_cache = Mutex::new(texture_cache);
 
+        // TODO: load sky/env models first to match ordering for switch?
+
         let map_model_group = map_models_group_legacy(
             msmd,
             wismda,

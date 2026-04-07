@@ -31,6 +31,10 @@ pub struct ModelGroup {
     animated_transforms: wgpu::Buffer,
     animated_transforms_inv_transpose: wgpu::Buffer,
 
+    // Preserve the indices to allow rendering individual map models.
+    pub root_index: usize,
+    pub group_index: usize,
+
     // Cache pipelines by their creation parameters.
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
 }
@@ -488,7 +492,7 @@ pub fn load_model(
     let default_textures = DefaultTextures::new(device, queue);
 
     let mut groups = Vec::new();
-    for root in roots {
+    for (i, root) in roots.into_iter().enumerate() {
         let textures = load_textures(device, queue, &root.image_textures);
         // TODO: Avoid clone?
         let group = create_model_group(
@@ -497,6 +501,8 @@ pub fn load_model(
                 models: vec![root.models.clone()],
                 buffers: vec![root.buffers.clone()],
             },
+            i,
+            0,
             &textures,
             &root.image_textures,
             &pipeline_data,
@@ -528,20 +534,27 @@ pub fn load_map(
     let default_textures = DefaultTextures::new(device, queue);
 
     let mut groups = Vec::new();
-    for root in roots {
+    for (root_index, root) in roots.into_iter().enumerate() {
         let textures = load_textures(device, queue, &root.image_textures);
-        groups.par_extend(root.groups.par_iter().map(|group| {
-            create_model_group(
-                device,
-                group,
-                &textures,
-                &root.image_textures,
-                &pipeline_data,
-                None,
-                monolib_shader,
-                &default_textures,
-            )
-        }));
+        groups.par_extend(
+            root.groups
+                .par_iter()
+                .enumerate()
+                .map(|(group_index, group)| {
+                    create_model_group(
+                        device,
+                        group,
+                        root_index,
+                        group_index,
+                        &textures,
+                        &root.image_textures,
+                        &pipeline_data,
+                        None,
+                        monolib_shader,
+                        &default_textures,
+                    )
+                }),
+        );
     }
 
     info!("Load {} model groups: {:?}", roots.len(), start.elapsed());
@@ -567,6 +580,8 @@ fn load_textures(
 fn create_model_group(
     device: &wgpu::Device,
     group: &xc3_model::ModelGroup,
+    root_index: usize,
+    group_index: usize,
     textures: &[wgpu::Texture],
     image_textures: &[ImageTexture],
     pipeline_data: &ModelPipelineData,
@@ -673,6 +688,8 @@ fn create_model_group(
         bone_animated_transforms,
         bone_count,
         pipelines,
+        root_index,
+        group_index,
     }
 }
 

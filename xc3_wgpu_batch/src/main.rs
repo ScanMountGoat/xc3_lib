@@ -1,6 +1,6 @@
 use std::{
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 
 use clap::{Parser, ValueEnum};
@@ -145,14 +145,14 @@ fn main() {
     let output = device.create_texture(&texture_desc);
     let output_view = output.create_view(&Default::default());
 
-    let renderer = Mutex::new(Renderer::new(
+    let renderer = Arc::new(Mutex::new(Renderer::new(
         &device,
         &queue,
         WIDTH,
         HEIGHT,
         texture_desc.format,
         monolib_shader,
-    ));
+    )));
 
     // Initialize the camera transform.
     let translation = vec3(0.0, -1.0, -10.0);
@@ -162,6 +162,7 @@ fn main() {
 
     let database = cli
         .shader_database
+        .clone()
         .map(ShaderDatabase::from_file)
         .transpose()
         .unwrap();
@@ -169,111 +170,154 @@ fn main() {
     // TODO: Output which model fails if there is a panic?
     let ext = cli.extension.ext();
     let paths = collect_paths(&cli.root_folder, &[format!("*.{ext}")]);
-    paths.par_iter().for_each(|path| {
-        // Create a unique buffer to avoid mapping a buffer from multiple threads.
-        let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            size: WIDTH as u64 * HEIGHT as u64 * 4,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            label: None,
-            mapped_at_creation: false,
+    if cli.extension == FileExtension::Wismhd {
+        // TODO: why does wgpu fail with out of memory errors with par_iter?
+        paths.iter().for_each(|path| {
+            render_model(
+                &device,
+                &queue,
+                monolib_shader,
+                size,
+                &output,
+                &output_view,
+                renderer.clone(),
+                database.as_ref(),
+                path,
+                &cli,
+            );
         });
+    } else {
+        paths.par_iter().for_each(|path| {
+            render_model(
+                &device,
+                &queue,
+                monolib_shader,
+                size,
+                &output,
+                &output_view,
+                renderer.clone(),
+                database.as_ref(),
+                path,
+                &cli,
+            );
+        });
+    }
 
-        let model_path = path.to_string_lossy().to_string();
+    println!("Finished in {:?}", start.elapsed());
+}
 
-        let groups = load_groups(
-            &device,
-            &queue,
-            &model_path,
-            cli.extension,
-            monolib_shader,
-            database.as_ref(),
-        );
+fn render_model(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    monolib_shader: &MonolibShaderTextures,
+    size: wgpu::Extent3d,
+    output: &wgpu::Texture,
+    output_view: &wgpu::TextureView,
+    renderer: Arc<Mutex<Renderer>>,
+    database: Option<&ShaderDatabase>,
+    path: &Path,
+    cli: &Cli,
+) {
+    let model_path = path.to_string_lossy().to_string();
 
-        match groups {
-            Ok(groups) => {
-                if cli.anim {
-                    find_and_apply_idle_anim(&queue, path, &groups);
-                }
+    let groups = load_groups(
+        &device,
+        &queue,
+        &model_path,
+        cli.extension,
+        monolib_shader,
+        database,
+    );
 
-                for (group_index, group) in groups.iter().enumerate() {
-                    let groups = &groups[group_index..group_index + 1];
+    match groups {
+        Ok(groups) => {
+            if cli.anim {
+                find_and_apply_idle_anim(&queue, path, &groups);
+            }
 
-                    for (models_index, models) in group.models.iter().enumerate() {
-                        for (model_index, model) in models.models.iter().enumerate() {
-                            let span = trace_span!("render_model");
-                            span.in_scope(|| {
-                                let mut encoder = device.create_command_encoder(
-                                    &wgpu::CommandEncoderDescriptor {
-                                        label: Some("Render Encoder"),
-                                    },
-                                );
+            for (i, group) in groups.iter().enumerate() {
+                let root_index = group.root_index;
+                let group_index = group.group_index;
+                let groups = &groups[i..i + 1];
 
-                                // Each model updates the renderer's internal buffers for camera framing.
-                                // We need to hold the lock until the output image has been copied to the buffer.
-                                // Rendering is cheap, so this has little performance impact in practice.
-                                let mut renderer = renderer.lock().unwrap();
+                for (models_index, models) in group.models.iter().enumerate() {
+                    for (model_index, model) in models.models.iter().enumerate() {
+                        let span = trace_span!("render_model");
+                        span.in_scope(|| {
+                            let mut encoder =
+                                device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                                    label: Some("Render Encoder"),
+                                });
 
-                                frame_bounds(&queue, &mut renderer, model.min_xyz, model.max_xyz);
-
-                                renderer.render_models(
-                                    &output_view,
-                                    &mut encoder,
-                                    groups,
-                                    &[],
-                                    false,
-                                    cli.bones,
-                                    Some(models_index),
-                                    Some(model_index),
-                                );
-
-                                encoder.copy_texture_to_buffer(
-                                    wgpu::TexelCopyTextureInfo {
-                                        aspect: wgpu::TextureAspect::All,
-                                        texture: &output,
-                                        mip_level: 0,
-                                        origin: wgpu::Origin3d::ZERO,
-                                    },
-                                    wgpu::TexelCopyBufferInfo {
-                                        buffer: &output_buffer,
-                                        layout: wgpu::TexelCopyBufferLayout {
-                                            offset: 0,
-                                            bytes_per_row: Some(WIDTH * 4),
-                                            rows_per_image: Some(HEIGHT),
-                                        },
-                                    },
-                                    size,
-                                );
-
-                                let output_path = if cli.extension == FileExtension::Wismhd {
-                                    path.with_extension(format!(
-                                        "{group_index}_{models_index}_{model_index}.png"
-                                    ))
-                                } else {
-                                    path.with_extension("png")
-                                };
-
-                                let buffer = output_buffer.clone();
-                                encoder.map_buffer_on_submit(
-                                    &output_buffer,
-                                    wgpu::MapMode::Read,
-                                    0..,
-                                    move |result| {
-                                        if let Ok(()) = result {
-                                            save_screenshot(&buffer, output_path);
-                                        }
-                                    },
-                                );
-                                queue.submit([encoder.finish()]);
+                            // Create a unique buffer to avoid mapping a buffer from multiple threads.
+                            let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                                size: WIDTH as u64 * HEIGHT as u64 * 4,
+                                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                                label: Some(&path.to_string_lossy()),
+                                mapped_at_creation: false,
                             });
-                        }
+
+                            // Each model updates the renderer's internal buffers for camera framing.
+                            // We need to hold the lock until the output image has been copied to the buffer.
+                            // Rendering is cheap, so this has little performance impact in practice.
+                            let mut renderer = renderer.lock().unwrap();
+
+                            frame_bounds(&queue, &mut renderer, model.min_xyz, model.max_xyz);
+
+                            renderer.render_models(
+                                &output_view,
+                                &mut encoder,
+                                groups,
+                                &[],
+                                false,
+                                cli.bones,
+                                Some(models_index),
+                                Some(model_index),
+                            );
+
+                            encoder.copy_texture_to_buffer(
+                                wgpu::TexelCopyTextureInfo {
+                                    aspect: wgpu::TextureAspect::All,
+                                    texture: &output,
+                                    mip_level: 0,
+                                    origin: wgpu::Origin3d::ZERO,
+                                },
+                                wgpu::TexelCopyBufferInfo {
+                                    buffer: &output_buffer,
+                                    layout: wgpu::TexelCopyBufferLayout {
+                                        offset: 0,
+                                        bytes_per_row: Some(WIDTH * 4),
+                                        rows_per_image: Some(HEIGHT),
+                                    },
+                                },
+                                size,
+                            );
+
+                            let output_path = if cli.extension == FileExtension::Wismhd {
+                                path.with_extension(format!(
+                                    "{root_index}_{group_index}_{models_index}_{model_index}.png"
+                                ))
+                            } else {
+                                path.with_extension("png")
+                            };
+                            let buffer = output_buffer.clone();
+                            encoder.map_buffer_on_submit(
+                                &output_buffer,
+                                wgpu::MapMode::Read,
+                                0..,
+                                move |result| match result {
+                                    Ok(_) => save_screenshot(&buffer, output_path),
+                                    Err(e) => println!("Error mapping buffer: {e}"),
+                                },
+                            );
+                            queue.submit([encoder.finish()]);
+                        });
                     }
                 }
             }
-            Err(e) => println!("Error loading {model_path:?}: {e:?}"),
         }
-    });
-
-    println!("Finished in {:?}", start.elapsed());
+        Err(e) => println!("Error loading {model_path:?}: {e:?}"),
+    }
 }
 
 fn find_and_apply_idle_anim(queue: &wgpu::Queue, path: &Path, groups: &[xc3_wgpu::ModelGroup]) {
@@ -388,11 +432,12 @@ fn frame_bounds(queue: &wgpu::Queue, renderer: &mut Renderer, min_xyz: Vec3, max
 
 #[tracing::instrument(skip_all)]
 fn save_screenshot(output_buffer: &wgpu::Buffer, output_path: PathBuf) {
-    // Save the output texture.
     let buffer_slice = output_buffer.slice(..);
-    let data = buffer_slice.get_mapped_range();
+    let data = buffer_slice.get_mapped_range().to_owned();
+
+    // Save the output texture.
     rayon::spawn(move || {
-        let mut buffer = image::RgbaImage::from_raw(WIDTH, HEIGHT, data.to_owned()).unwrap();
+        let mut buffer = image::RgbaImage::from_raw(WIDTH, HEIGHT, data).unwrap();
         // Force opaque to match sm4sh_viewer.
         buffer.pixels_mut().for_each(|rgba| rgba[3] = 255u8);
         buffer.save(output_path).unwrap();

@@ -53,6 +53,7 @@ struct State {
     draw_bounds: bool,
 
     root_index: Option<usize>,
+    group_index: Option<usize>,
     models_index: Option<usize>,
     model_index: Option<usize>,
 
@@ -289,6 +290,15 @@ impl State {
         }
         let animation_index = cli.anim_index.unwrap_or_default();
 
+        // Filter the groups to render ahead of time.
+        let groups: Vec<_> = groups
+            .into_iter()
+            .filter(|g| {
+                cli.root.map(|i| g.root_index == i).unwrap_or(true)
+                    && cli.group.map(|i| g.group_index == i).unwrap_or(true)
+            })
+            .collect();
+
         Ok(Self {
             window,
             surface,
@@ -310,6 +320,7 @@ impl State {
             draw_bones: cli.bones,
             draw_bounds: cli.bounds,
             root_index: cli.root,
+            group_index: cli.group,
             models_index: cli.models,
             model_index: cli.model,
             render_mode: RenderMode::Shaded,
@@ -367,14 +378,10 @@ impl State {
                 label: Some("Render Encoder"),
             });
 
-        let groups = self
-            .root_index
-            .map(|i| &self.groups[i..i + 1])
-            .unwrap_or(&self.groups);
         self.renderer.render_models(
             &output_view,
             &mut encoder,
-            groups,
+            &self.groups,
             &self.collisions,
             self.draw_bounds,
             self.draw_bones,
@@ -517,6 +524,9 @@ impl State {
         if let Some(i) = self.root_index {
             title = format!("{title} root {i}");
         }
+        if let Some(i) = self.group_index {
+            title = format!("{title} group {i}");
+        }
         if let Some(i) = self.models_index {
             title = format!("{title} models {i}");
         }
@@ -606,6 +616,10 @@ struct Cli {
     /// If not specified, all roots will be rendered.
     #[arg(long)]
     root: Option<usize>,
+    /// Index for the group of model collections to render.
+    /// If not specified, all groups will be rendered.
+    #[arg(long)]
+    group: Option<usize>,
     /// Index for the model collections to render.
     /// If not specified, all model collections will be rendered.
     #[arg(long)]
@@ -630,7 +644,7 @@ impl ApplicationHandler<()> for App {
         let window = event_loop
             .create_window(
                 Window::default_attributes()
-                    .with_title(concat!("xc3_wgpu ", env!("CARGO_PKG_VERSION"))),
+                    .with_title(concat!("xc3_viewer ", env!("CARGO_PKG_VERSION"))),
             )
             .unwrap();
 

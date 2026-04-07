@@ -501,6 +501,7 @@ pub enum WorkCallbackType {
     Unk48 = 48,
     Unk58 = 58,
     Unk50 = 50,
+    Unk51 = 51,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

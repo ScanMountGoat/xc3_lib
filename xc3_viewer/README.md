@@ -18,6 +18,8 @@ Select the [G-Buffer texture](https://scanmountgoat.github.io/xenoblade-renderin
 
 The graphics API can be changed using the `--backend` argument. See `xc3_viewer --help` for details. This mostly applies to Windows users that may have better compatibility using `--backend dx12` instead of the default backend selection.
 
+Loading a wismhd map will render all models by default. Render individual models by specifying the `--root`, `--group`, `--models`, and `--model` arguments. These match the `name.root_group_models_model` naming convention used for xc3_wgpu_batch and xenoblade_blender.
+
 | Key | Name | Channels |
 | --- | --- | --- |
 | 0 | Shaded | *lighting and shading with no channel selection* |
