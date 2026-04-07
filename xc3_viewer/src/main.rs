@@ -649,6 +649,9 @@ impl ApplicationHandler<()> for App {
             .unwrap();
 
         self.state = block_on(State::new(window, &self.cli, event_loop)).ok();
+        if let Some(state) = &self.state {
+            state.set_window_title();
+        }
     }
 
     fn window_event(
