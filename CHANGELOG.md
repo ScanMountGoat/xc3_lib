@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Added support for Xenoblade X DE for xc3_model wimdo export.
 * Added support for wismhd maps from Xenoblade X DE.
+* Added the `--group` arg to xc3_viewer for rendering individual models.
 
 ### Changed
 * Improved accuracy of wimdo file rebuilding.
