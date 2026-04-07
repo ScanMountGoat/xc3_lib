@@ -1076,7 +1076,7 @@ fn props_group_legacy(
 #[tracing::instrument(skip_all)]
 fn load_prop_model_group_legacy(
     model_data: &xc3_lib::map::legacy::PropModelData,
-    prop_positions: &[xc3_lib::map::legacy::PropPositions],
+    _prop_positions: &[xc3_lib::map::legacy::PropPositions],
     texture_indices: &[u16],
     material_root_texture_indices: &[usize],
     shader_database: Option<&ShaderDatabase>,

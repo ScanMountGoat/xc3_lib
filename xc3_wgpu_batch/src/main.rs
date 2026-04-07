@@ -221,8 +221,8 @@ fn render_model(
     let model_path = path.to_string_lossy().to_string();
 
     let groups = load_groups(
-        &device,
-        &queue,
+        device,
+        queue,
         &model_path,
         cli.extension,
         monolib_shader,
@@ -232,7 +232,7 @@ fn render_model(
     match groups {
         Ok(groups) => {
             if cli.anim {
-                find_and_apply_idle_anim(&queue, path, &groups);
+                find_and_apply_idle_anim(queue, path, &groups);
             }
 
             for (i, group) in groups.iter().enumerate() {
@@ -262,10 +262,10 @@ fn render_model(
                             // Rendering is cheap, so this has little performance impact in practice.
                             let mut renderer = renderer.lock().unwrap();
 
-                            frame_bounds(&queue, &mut renderer, model.min_xyz, model.max_xyz);
+                            frame_bounds(queue, &mut renderer, model.min_xyz, model.max_xyz);
 
                             renderer.render_models(
-                                &output_view,
+                                output_view,
                                 &mut encoder,
                                 groups,
                                 &[],
@@ -278,7 +278,7 @@ fn render_model(
                             encoder.copy_texture_to_buffer(
                                 wgpu::TexelCopyTextureInfo {
                                     aspect: wgpu::TextureAspect::All,
-                                    texture: &output,
+                                    texture: output,
                                     mip_level: 0,
                                     origin: wgpu::Origin3d::ZERO,
                                 },

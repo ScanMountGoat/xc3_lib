@@ -171,7 +171,7 @@ impl ModelGroup {
         render_pass: &mut wgpu::RenderPass<'a>,
         write_to_all_outputs: bool,
         pass_id: MeshRenderPass,
-        camera: &CameraData,
+        _camera: &CameraData,
         output5_type: Option<Output5Type>,
         models_index: Option<usize>,
         model_index: Option<usize>,
@@ -496,7 +496,7 @@ pub fn load_model(
     let default_textures = DefaultTextures::new(device, queue);
 
     let mut groups = Vec::new();
-    for (i, root) in roots.into_iter().enumerate() {
+    for (i, root) in roots.iter().enumerate() {
         let textures = load_textures(device, queue, &root.image_textures);
         // TODO: Avoid clone?
         let group = create_model_group(
@@ -538,7 +538,7 @@ pub fn load_map(
     let default_textures = DefaultTextures::new(device, queue);
 
     let mut groups = Vec::new();
-    for (root_index, root) in roots.into_iter().enumerate() {
+    for (root_index, root) in roots.iter().enumerate() {
         let textures = load_textures(device, queue, &root.image_textures);
         groups.par_extend(
             root.groups
