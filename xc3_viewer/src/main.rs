@@ -797,12 +797,12 @@ impl ApplicationHandler<()> for App {
                 WindowEvent::RedrawRequested => {
                     match state.surface.get_current_texture() {
                         wgpu::CurrentSurfaceTexture::Success(output) => state.render(output),
-                        wgpu::CurrentSurfaceTexture::Suboptimal(_)   => state.resize(state.size),
-                        wgpu::CurrentSurfaceTexture::Timeout         => {}
-                        wgpu::CurrentSurfaceTexture::Occluded        => {}
-                        wgpu::CurrentSurfaceTexture::Outdated        => state.resize(state.size),
-                        wgpu::CurrentSurfaceTexture::Lost            => state.resize(state.size),
-                        wgpu::CurrentSurfaceTexture::Validation      => {}
+                        wgpu::CurrentSurfaceTexture::Suboptimal(_) => state.resize(state.size),
+                        wgpu::CurrentSurfaceTexture::Timeout => {}
+                        wgpu::CurrentSurfaceTexture::Occluded => {}
+                        wgpu::CurrentSurfaceTexture::Outdated => state.resize(state.size),
+                        wgpu::CurrentSurfaceTexture::Lost => state.resize(state.size),
+                        wgpu::CurrentSurfaceTexture::Validation => {}
                     }
                     state.window.request_redraw();
                 }
