@@ -415,7 +415,15 @@ impl State {
         }
 
         if let Some(anim) = self.animations.get(self.animation_index) {
+            // Framerate independent animation timing.
+            // This relies on interpolation or frame skipping.
+            let current_frame_start = std::time::Instant::now();
+            let delta_t = current_frame_start
+                .duration_since(self.previous_frame_start)
+                .as_secs_f64() as f32;
             self.current_time_seconds += delta_t;
+            self.previous_frame_start = current_frame_start;
+
             for group in &self.groups {
                 group.update_bone_transforms(&self.queue, anim, self.current_time_seconds);
                 group.update_morph_weights(&self.queue, anim, self.current_time_seconds);
