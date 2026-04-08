@@ -60,7 +60,7 @@ struct State {
     model_index: Option<usize>,
 
     input_state: InputState,
-    movement: bool,
+    fps_camera: bool,
     movement_speed: f32,
     mouse_sensitivity: f32,
 }
@@ -172,13 +172,13 @@ impl State {
         );
 
         // Initialize the camera transform.
-        let translation = if cli.movement {
+        let translation = if cli.fps_camera {
             vec3(0.0, 0.5, 15.0)
         } else {
             vec3(0.0, -0.5, -15.0)
         };
         let rotation_xyz = Vec3::ZERO;
-        let camera_data = calculate_camera_data(size, translation, rotation_xyz, cli.movement);
+        let camera_data = calculate_camera_data(size, translation, rotation_xyz, cli.fps_camera);
         renderer.update_camera(&queue, &camera_data);
 
         let start = std::time::Instant::now();
@@ -355,14 +355,15 @@ impl State {
             models_index: cli.models,
             model_index: cli.model,
             render_mode: RenderMode::Shaded,
-            movement: cli.movement,
+            fps_camera: cli.fps_camera,
             movement_speed: cli.movement_speed,
             mouse_sensitivity: cli.mouse_sensitivity,
         })
     }
 
     fn update_camera(&mut self, size: winit::dpi::PhysicalSize<u32>) {
-        let camera_data = calculate_camera_data(size, self.translation, self.rotation_xyz, self.movement);
+        let camera_data =
+            calculate_camera_data(size, self.translation, self.rotation_xyz, self.fps_camera);
         self.renderer.update_camera(&self.queue, &camera_data);
     }
 
@@ -387,21 +388,32 @@ impl State {
 
     fn render(&mut self, output: wgpu::SurfaceTexture) {
         let now = std::time::Instant::now();
-        let delta_t = now
-            .duration_since(self.previous_frame_start)
-            .as_secs_f64() as f32;
+        let delta_t = now.duration_since(self.previous_frame_start).as_secs_f64() as f32;
+        self.previous_frame_start = now;
         self.previous_frame_start = now;
 
-        if self.movement {
+        if self.fps_camera {
             let speed = self.movement_speed * delta_t;
             let (forward, right) = camera_directions(self.rotation_xyz.x, self.rotation_xyz.y);
 
-            if self.input_state.move_forward  { self.translation += forward * speed; }
-            if self.input_state.move_backward { self.translation -= forward * speed; }
-            if self.input_state.move_right    { self.translation += right   * speed; }
-            if self.input_state.move_left     { self.translation -= right   * speed; }
-            if self.input_state.move_up       { self.translation.y += speed; }
-            if self.input_state.move_down     { self.translation.y -= speed; }
+            if self.input_state.move_forward {
+                self.translation += forward * speed;
+            }
+            if self.input_state.move_backward {
+                self.translation -= forward * speed;
+            }
+            if self.input_state.move_right {
+                self.translation += right * speed;
+            }
+            if self.input_state.move_left {
+                self.translation -= right * speed;
+            }
+            if self.input_state.move_up {
+                self.translation.y += speed;
+            }
+            if self.input_state.move_down {
+                self.translation.y -= speed;
+            }
 
             if self.input_state.move_forward
                 || self.input_state.move_backward
@@ -417,12 +429,7 @@ impl State {
         if let Some(anim) = self.animations.get(self.animation_index) {
             // Framerate independent animation timing.
             // This relies on interpolation or frame skipping.
-            let current_frame_start = std::time::Instant::now();
-            let delta_t = current_frame_start
-                .duration_since(self.previous_frame_start)
-                .as_secs_f64() as f32;
             self.current_time_seconds += delta_t;
-            self.previous_frame_start = current_frame_start;
 
             for group in &self.groups {
                 group.update_bone_transforms(&self.queue, anim, self.current_time_seconds);
@@ -475,16 +482,34 @@ impl State {
                         _ => (),
                     },
                     winit::keyboard::Key::Character(c) => {
-                        let pressed  = event.state == ElementState::Pressed;
+                        let pressed = event.state == ElementState::Pressed;
 
-                        if self.movement {
+                        if self.fps_camera {
                             match c.as_str() {
-                                "w" | "W" => { self.input_state.move_forward  = pressed; return; }
-                                "s" | "S" => { self.input_state.move_backward = pressed; return; }
-                                "a" | "A" => { self.input_state.move_left     = pressed; return; }
-                                "d" | "D" => { self.input_state.move_right    = pressed; return; }
-                                "q" | "Q" => { self.input_state.move_down     = pressed; return; }
-                                "e" | "E" => { self.input_state.move_up       = pressed; return; }
+                                "w" | "W" => {
+                                    self.input_state.move_forward = pressed;
+                                    return;
+                                }
+                                "s" | "S" => {
+                                    self.input_state.move_backward = pressed;
+                                    return;
+                                }
+                                "a" | "A" => {
+                                    self.input_state.move_left = pressed;
+                                    return;
+                                }
+                                "d" | "D" => {
+                                    self.input_state.move_right = pressed;
+                                    return;
+                                }
+                                "q" | "Q" => {
+                                    self.input_state.move_down = pressed;
+                                    return;
+                                }
+                                "e" | "E" => {
+                                    self.input_state.move_up = pressed;
+                                    return;
+                                }
                                 _ => {}
                             }
                         }
@@ -551,7 +576,7 @@ impl State {
                 let dy = (position.y - self.input_state.previous_cursor_position.y) as f32;
 
                 if self.input_state.is_mouse_left_clicked {
-                    if self.movement {
+                    if self.fps_camera {
                         self.rotation_xyz.y += dx * 0.01 * self.mouse_sensitivity;
                         self.rotation_xyz.x += dy * 0.01 * self.mouse_sensitivity;
                         self.rotation_xyz.x = self.rotation_xyz.x.clamp(-MAX_PITCH, MAX_PITCH);
@@ -560,11 +585,12 @@ impl State {
                         self.rotation_xyz.y += (dx * 0.01) as f32;
                     }
                 } else if self.input_state.is_mouse_right_clicked {
-                    if self.movement {
+                    if self.fps_camera {
                         let (_forward, right) =
                             camera_directions(self.rotation_xyz.x, self.rotation_xyz.y);
                         // Derive camera up from right × forward (already normalized).
-                        let (_fwd, _r) = camera_directions(self.rotation_xyz.x, self.rotation_xyz.y);
+                        let (_fwd, _r) =
+                            camera_directions(self.rotation_xyz.x, self.rotation_xyz.y);
                         let fac = self.movement_speed * 0.002;
                         self.translation -= right * dx * fac;
                         self.translation.y += dy * fac;
@@ -581,10 +607,10 @@ impl State {
             WindowEvent::MouseWheel { delta, .. } => {
                 let scroll = match delta {
                     MouseScrollDelta::LineDelta(_x, y) => *y,
-                    MouseScrollDelta::PixelDelta(p)    => p.y as f32 * 0.05,
+                    MouseScrollDelta::PixelDelta(p) => p.y as f32 * 0.05,
                 };
 
-                if self.movement {
+                if self.fps_camera {
                     let (forward, _) = camera_directions(self.rotation_xyz.x, self.rotation_xyz.y);
                     self.translation += forward * scroll * self.movement_speed * 0.5;
                 } else {
@@ -638,7 +664,7 @@ fn calculate_camera_data(
     let aspect = size.width as f32 / size.height as f32;
 
     let view = if movement {
-        let yaw   = rotation.y;
+        let yaw = rotation.y;
         let pitch = rotation.x;
         Mat4::from_rotation_x(pitch)
             * Mat4::from_rotation_y(yaw)
@@ -731,7 +757,7 @@ struct Cli {
     /// Enable freecam: W/S = forward/back, A/D = strafe, Q/E = down/up.
     /// Left-drag to look around, right-drag to pan, scroll to dolly.
     #[arg(long)]
-    movement: bool,
+    fps_camera: bool,
 
     /// Freecam movement speed in units per second (default: 10).
     /// Use a higher value for large maps, lower for small models.
