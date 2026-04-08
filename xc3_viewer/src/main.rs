@@ -23,6 +23,8 @@ const FOV_Y: f32 = 0.5;
 const Z_NEAR: f32 = 0.1;
 const Z_FAR: f32 = 100000.0;
 
+const MAX_PITCH: f32 = std::f32::consts::FRAC_PI_2 * 0.988;
+
 struct State {
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
@@ -58,6 +60,9 @@ struct State {
     model_index: Option<usize>,
 
     input_state: InputState,
+    fps_camera: bool,
+    movement_speed: f32,
+    mouse_sensitivity: f32,
 }
 
 #[derive(Default)]
@@ -65,6 +70,28 @@ struct InputState {
     is_mouse_left_clicked: bool,
     is_mouse_right_clicked: bool,
     previous_cursor_position: PhysicalPosition<f64>,
+    move_forward: bool,  // W
+    move_backward: bool, // S
+    move_left: bool,     // A
+    move_right: bool,    // D
+    move_up: bool,       // E
+    move_down: bool,     // Q
+}
+
+/// Returns the camera's world-space forward and right unit vectors for the
+/// current pitch/yaw. Uses pure trigonometry so there is no matrix inversion
+/// or floating-point drift. Yaw rotates around the global Y axis; pitch tilts
+/// up/down from that horizontal plane.
+///
+/// Convention matches glam's right-handed coordinate system (−Z forward at rest).
+fn camera_directions(pitch: f32, yaw: f32) -> (Vec3, Vec3) {
+    let forward = Vec3::new(
+        yaw.sin() * pitch.cos(),
+        -pitch.sin(),
+        -yaw.cos() * pitch.cos(),
+    );
+    let right = Vec3::new(yaw.cos(), 0.0, yaw.sin());
+    (forward, right)
 }
 
 impl State {
@@ -145,9 +172,13 @@ impl State {
         );
 
         // Initialize the camera transform.
-        let translation = vec3(0.0, -0.5, -15.0);
+        let translation = if cli.fps_camera {
+            vec3(0.0, 0.5, 15.0)
+        } else {
+            vec3(0.0, -0.5, -15.0)
+        };
         let rotation_xyz = Vec3::ZERO;
-        let camera_data = calculate_camera_data(size, translation, rotation_xyz);
+        let camera_data = calculate_camera_data(size, translation, rotation_xyz, cli.fps_camera);
         renderer.update_camera(&queue, &camera_data);
 
         let start = std::time::Instant::now();
@@ -324,11 +355,15 @@ impl State {
             models_index: cli.models,
             model_index: cli.model,
             render_mode: RenderMode::Shaded,
+            fps_camera: cli.fps_camera,
+            movement_speed: cli.movement_speed,
+            mouse_sensitivity: cli.mouse_sensitivity,
         })
     }
 
     fn update_camera(&mut self, size: winit::dpi::PhysicalSize<u32>) {
-        let camera_data = calculate_camera_data(size, self.translation, self.rotation_xyz);
+        let camera_data =
+            calculate_camera_data(size, self.translation, self.rotation_xyz, self.fps_camera);
         self.renderer.update_camera(&self.queue, &camera_data);
     }
 
@@ -352,15 +387,49 @@ impl State {
     }
 
     fn render(&mut self, output: wgpu::SurfaceTexture) {
+        let now = std::time::Instant::now();
+        let delta_t = now.duration_since(self.previous_frame_start).as_secs_f64() as f32;
+        self.previous_frame_start = now;
+        self.previous_frame_start = now;
+
+        if self.fps_camera {
+            let speed = self.movement_speed * delta_t;
+            let (forward, right) = camera_directions(self.rotation_xyz.x, self.rotation_xyz.y);
+
+            if self.input_state.move_forward {
+                self.translation += forward * speed;
+            }
+            if self.input_state.move_backward {
+                self.translation -= forward * speed;
+            }
+            if self.input_state.move_right {
+                self.translation += right * speed;
+            }
+            if self.input_state.move_left {
+                self.translation -= right * speed;
+            }
+            if self.input_state.move_up {
+                self.translation.y += speed;
+            }
+            if self.input_state.move_down {
+                self.translation.y -= speed;
+            }
+
+            if self.input_state.move_forward
+                || self.input_state.move_backward
+                || self.input_state.move_right
+                || self.input_state.move_left
+                || self.input_state.move_up
+                || self.input_state.move_down
+            {
+                self.update_camera(self.size);
+            }
+        }
+
         if let Some(anim) = self.animations.get(self.animation_index) {
             // Framerate independent animation timing.
             // This relies on interpolation or frame skipping.
-            let current_frame_start = std::time::Instant::now();
-            let delta_t = current_frame_start
-                .duration_since(self.previous_frame_start)
-                .as_secs_f64() as f32;
             self.current_time_seconds += delta_t;
-            self.previous_frame_start = current_frame_start;
 
             for group in &self.groups {
                 group.update_bone_transforms(&self.queue, anim, self.current_time_seconds);
@@ -413,6 +482,38 @@ impl State {
                         _ => (),
                     },
                     winit::keyboard::Key::Character(c) => {
+                        let pressed = event.state == ElementState::Pressed;
+
+                        if self.fps_camera {
+                            match c.as_str() {
+                                "w" | "W" => {
+                                    self.input_state.move_forward = pressed;
+                                    return;
+                                }
+                                "s" | "S" => {
+                                    self.input_state.move_backward = pressed;
+                                    return;
+                                }
+                                "a" | "A" => {
+                                    self.input_state.move_left = pressed;
+                                    return;
+                                }
+                                "d" | "D" => {
+                                    self.input_state.move_right = pressed;
+                                    return;
+                                }
+                                "q" | "Q" => {
+                                    self.input_state.move_down = pressed;
+                                    return;
+                                }
+                                "e" | "E" => {
+                                    self.input_state.move_up = pressed;
+                                    return;
+                                }
+                                _ => {}
+                            }
+                        }
+
                         match c.as_str() {
                             // Debug a selected G-Buffer texture.
                             // This also resets the color channel to all channels.
@@ -450,6 +551,7 @@ impl State {
                     _ => (),
                 }
             }
+
             WindowEvent::MouseInput { button, state, .. } => {
                 // Track mouse clicks to only rotate when dragging while clicked.
                 match (button, state) {
@@ -468,40 +570,54 @@ impl State {
                     _ => (),
                 }
             }
+
             WindowEvent::CursorMoved { position, .. } => {
+                let dx = (position.x - self.input_state.previous_cursor_position.x) as f32;
+                let dy = (position.y - self.input_state.previous_cursor_position.y) as f32;
+
                 if self.input_state.is_mouse_left_clicked {
-                    let delta_x = position.x - self.input_state.previous_cursor_position.x;
-                    let delta_y = position.y - self.input_state.previous_cursor_position.y;
-
-                    // Swap XY so that dragging left/right rotates left/right.
-                    self.rotation_xyz.x += (delta_y * 0.01) as f32;
-                    self.rotation_xyz.y += (delta_x * 0.01) as f32;
+                    if self.fps_camera {
+                        self.rotation_xyz.y += dx * 0.01 * self.mouse_sensitivity;
+                        self.rotation_xyz.x += dy * 0.01 * self.mouse_sensitivity;
+                        self.rotation_xyz.x = self.rotation_xyz.x.clamp(-MAX_PITCH, MAX_PITCH);
+                    } else {
+                        self.rotation_xyz.x += (dy * 0.01) as f32;
+                        self.rotation_xyz.y += (dx * 0.01) as f32;
+                    }
                 } else if self.input_state.is_mouse_right_clicked {
-                    let delta_x = position.x - self.input_state.previous_cursor_position.x;
-                    let delta_y = position.y - self.input_state.previous_cursor_position.y;
-
-                    // Translate an equivalent distance in screen space based on the camera.
-                    // The viewport height and vertical field of view define the conversion.
-                    let fac = FOV_Y.sin() * self.translation.z.abs() / self.size.height as f32;
-
-                    // Negate y so that dragging up "drags" the model up.
-                    self.translation.x += delta_x as f32 * fac;
-                    self.translation.y -= delta_y as f32 * fac;
+                    if self.fps_camera {
+                        let (_forward, right) =
+                            camera_directions(self.rotation_xyz.x, self.rotation_xyz.y);
+                        // Derive camera up from right × forward (already normalized).
+                        let (_fwd, _r) =
+                            camera_directions(self.rotation_xyz.x, self.rotation_xyz.y);
+                        let fac = self.movement_speed * 0.002;
+                        self.translation -= right * dx * fac;
+                        self.translation.y += dy * fac;
+                    } else {
+                        let fac = FOV_Y.sin() * self.translation.z.abs() / self.size.height as f32;
+                        self.translation.x += dx * fac;
+                        self.translation.y -= dy * fac;
+                    }
                 }
-                // Always update the position to avoid jumps when moving between clicks.
+
                 self.input_state.previous_cursor_position = *position;
             }
+
             WindowEvent::MouseWheel { delta, .. } => {
-                // Scale zoom speed with distance to make it easier to zoom out large scenes.
-                let delta_z = match delta {
-                    MouseScrollDelta::LineDelta(_x, y) => *y * self.translation.z.abs() * 0.1,
-                    MouseScrollDelta::PixelDelta(p) => {
-                        p.y as f32 * self.translation.z.abs() * 0.005
-                    }
+                let scroll = match delta {
+                    MouseScrollDelta::LineDelta(_x, y) => *y,
+                    MouseScrollDelta::PixelDelta(p) => p.y as f32 * 0.05,
                 };
 
-                self.translation.z += delta_z;
+                if self.fps_camera {
+                    let (forward, _) = camera_directions(self.rotation_xyz.x, self.rotation_xyz.y);
+                    self.translation += forward * scroll * self.movement_speed * 0.5;
+                } else {
+                    self.translation.z += scroll * self.translation.z.abs() * 0.1;
+                }
             }
+
             _ => (),
         }
     }
@@ -543,12 +659,21 @@ fn calculate_camera_data(
     size: winit::dpi::PhysicalSize<u32>,
     translation: glam::Vec3,
     rotation: glam::Vec3,
+    movement: bool,
 ) -> CameraData {
     let aspect = size.width as f32 / size.height as f32;
 
-    let view = glam::Mat4::from_translation(translation)
-        * glam::Mat4::from_rotation_x(rotation.x)
-        * glam::Mat4::from_rotation_y(rotation.y);
+    let view = if movement {
+        let yaw = rotation.y;
+        let pitch = rotation.x;
+        Mat4::from_rotation_x(pitch)
+            * Mat4::from_rotation_y(yaw)
+            * Mat4::from_translation(-translation)
+    } else {
+        Mat4::from_translation(translation)
+            * Mat4::from_rotation_x(rotation.x)
+            * Mat4::from_rotation_y(rotation.y)
+    };
 
     let projection = glam::Mat4::perspective_rh(FOV_Y, aspect, Z_NEAR, Z_FAR);
 
@@ -628,6 +753,23 @@ struct Cli {
     /// If not specified, all models will be rendered.
     #[arg(long)]
     model: Option<usize>,
+
+    /// Enable freecam: W/S = forward/back, A/D = strafe, Q/E = down/up.
+    /// Left-drag to look around, right-drag to pan, scroll to dolly.
+    #[arg(long)]
+    fps_camera: bool,
+
+    /// Freecam movement speed in units per second (default: 10).
+    /// Use a higher value for large maps, lower for small models.
+    ///   e.g. --movement-speed 50
+    #[arg(long, default_value_t = 10.0)]
+    movement_speed: f32,
+
+    /// Mouse look sensitivity multiplier for freecam (default: 0.3).
+    /// Does not affect orbit mode. Range 0.1 (slow) – 2.0 (fast).
+    ///   e.g. --mouse-sensitivity 0.5
+    #[arg(long, default_value_t = 0.3)]
+    mouse_sensitivity: f32,
 }
 
 struct App {
