@@ -58,6 +58,7 @@ pub mod dhal;
 pub mod efb0;
 pub mod error;
 pub mod eva;
+pub mod evpa;
 pub mod fnt;
 pub mod hash;
 pub mod hkt;
@@ -658,6 +659,7 @@ file_write_full_impl!(
     wipac::Wipac,
     laft::Laft,
     last::Last,
+    evpa::Evpa,
     // TODO: This can be big endian for camdo
     mxmd::legacy::VertexData
 );
@@ -751,7 +753,8 @@ file_read_impl!(
     datasheet::DataSheet,
     wipac::Wipac,
     laft::Laft,
-    last::Last
+    last::Last,
+    evpa::Evpa
 );
 
 file_read_impl!(

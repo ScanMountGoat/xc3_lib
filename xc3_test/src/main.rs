@@ -17,6 +17,7 @@ use xc3_lib::{
     dhal::Dhal,
     efb0::Efb0,
     eva::Eva,
+    evpa::Evpa,
     fnt::Fnt,
     idcm::Idcm,
     laft::Laft,
@@ -117,6 +118,10 @@ struct Cli {
     /// Process LAST files from .wisty
     #[arg(long)]
     last: bool,
+
+    /// Process EVPA files from .evpa
+    #[arg(long)]
+    evpa: bool,
 
     /// Process MTXT files from .catex, .calut, and .caavp
     #[arg(long)]
@@ -267,6 +272,11 @@ fn main() {
     if cli.last || cli.all {
         println!("Checking Last files ...");
         check_all::<MaybeXbc1<Last>>(root, &["*.wisty"], Endian::Little, cli.rw);
+    }
+
+    if cli.evpa || cli.all {
+        println!("Checking Evpa files ...");
+        check_all::<Evpa>(root, &["*.evpa"], Endian::Little, cli.rw);
     }
 
     if cli.mtxt || cli.all {
@@ -1293,6 +1303,20 @@ impl CheckFile for Fnt {
         }
         if check_read_write && !write_be_bytes_equals(&self, original_bytes) {
             println!("Fnt read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
+impl CheckFile for Evpa {
+    fn check_file(
+        self,
+        path: &Path,
+        original_bytes: &[u8],
+        _original_ranges: &[OffsetRange],
+        check_read_write: bool,
+    ) {
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("Evpa read/write not 1:1 for {path:?}");
         }
     }
 }
