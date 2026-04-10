@@ -42,6 +42,7 @@ use xc3_lib::{
     apmd::Apmd,
     bc::Bc,
     error::{DecompressStreamError, ReadFileError},
+    evpa::Evpa,
     hkt::Hkt,
     msrd::streaming::chr_folder,
     mxmd::{Mxmd, legacy::MxmdLegacy},
@@ -439,7 +440,7 @@ fn load_wimdo(wimdo_path: &Path) -> Result<Mxmd, LoadModelError> {
     }
 }
 
-/// Load all animations from a `.anm`, `.mot`, or `.motstm_data` file.
+/// Load all animations from a `.anm`, `.mot`, `.motstm_data`, or `.evpa` file.
 ///
 /// # Examples
 /// ``` rust no_run
@@ -485,6 +486,7 @@ pub fn load_animations<P: AsRef<Path>>(
 enum AnimFile {
     Sar1(Sar1),
     Bc(Bc),
+    Evpa(Evpa),
 }
 
 fn add_anim_file(animations: &mut Vec<Animation>, anim: AnimFile) {
@@ -498,6 +500,13 @@ fn add_anim_file(animations: &mut Vec<Animation>, anim: AnimFile) {
         }
         AnimFile::Bc(bc) => {
             add_bc_animations(animations, bc);
+        }
+        AnimFile::Evpa(evpa) => {
+            for e in &evpa.entries {
+                if let Ok(bc) = Bc::from_bytes(&e.entry_data) {
+                    add_bc_animations(animations, bc);
+                }
+            }
         }
     }
 }
