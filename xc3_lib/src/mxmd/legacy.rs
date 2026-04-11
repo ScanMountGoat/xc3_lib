@@ -2,9 +2,9 @@
 use std::io::SeekFrom;
 
 use crate::{
-    StringOffset32, msrd::StreamingDataLegacyInner, parse_count32_offset32, parse_offset32_count32,
-    parse_opt_ptr32, parse_ptr32, parse_string_ptr32, vertex::VertexAttribute,
-    xc3_write_binwrite_impl,
+    StringOffset32, msrd::StreamingDataLegacyInner, mxmd::WorkCallback, parse_count32_offset32,
+    parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
+    vertex::VertexAttribute, xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
 use binrw::{BinRead, BinWrite, args, binread};
@@ -516,17 +516,17 @@ pub struct Materials {
     pub unk: [u32; 2],
 }
 
-// TODO: same as xc2?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MaterialCallbacks {
     // TODO: affects material parameter assignment?
+    // TODO: are the callback type values the same as xc2?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub work_callbacks: Vec<(u16, u16)>,
+    pub work_callbacks: Vec<WorkCallback>,
 
-    // TODO: Doesn't always include all materials?
+    /// Indices into [materials](struct.Materials.html#structfield.materials) for [Material] that use callbacks.
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub material_indices: Vec<u16>,
@@ -572,7 +572,13 @@ pub struct Material {
     #[xc3(offset_count(u32, u32))]
     pub techniques: Vec<MaterialTechnique>,
 
-    pub unk4: [u16; 6],
+    pub unk4: [u16; 2],
+
+    /// Index into [work_callbacks](struct.MaterialCallbacks.html#structfield.work_callbacks).
+    pub callback_start_index: u16,
+    pub callback_count: u16,
+
+    pub unk4_1: [u16; 2],
 
     // TODO: Is this always contained within the textures list?
     // TODO: alternate textures offset for non opaque rendering?

@@ -421,7 +421,7 @@ impl ModelRoot {
         let mut callbacks = mxmd.materials.callbacks.as_mut();
         if let Some(callbacks) = callbacks.as_mut() {
             callbacks.work_callbacks.clear();
-            callbacks.material_indices = (0..self.models.materials.len() as u16).collect();
+            callbacks.material_indices.clear();
         }
 
         let mut fur_params = Vec::new();
@@ -474,7 +474,13 @@ impl ModelRoot {
                 variable_start_index: mxmd.materials.variables.len() as u32,
                 variable_count: m.variables.len() as u32,
                 techniques: vec![technique],
-                unk4: [0; 6], // TODO: elements not always zero?
+                unk4: [0; 2], // TODO: elements not always zero?
+                callback_start_index: callbacks
+                    .as_ref()
+                    .map(|c| c.work_callbacks.len() as u16)
+                    .unwrap_or_default(),
+                callback_count: m.work_callbacks.len() as u16,
+                unk4_1: [0; 2],
                 alt_textures: m.alt_textures.as_ref().map(|a| {
                     a.iter()
                         .map(|t| xc3_lib::mxmd::legacy::Texture {
@@ -491,6 +497,12 @@ impl ModelRoot {
 
             mxmd.materials.work_values.extend_from_slice(&m.work_values);
             mxmd.materials.variables.extend_from_slice(&m.variables);
+            if let Some(callbacks) = callbacks.as_mut() {
+                callbacks
+                    .work_callbacks
+                    .extend_from_slice(&m.work_callbacks);
+                callbacks.material_indices.push(i as u16);
+            }
 
             if let Some(params) = &m.fur_params {
                 // Each material uses its own params in practice.

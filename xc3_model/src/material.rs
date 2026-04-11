@@ -363,6 +363,9 @@ where
             let var_start = m.variable_start_index as usize;
             let var_end = var_start + m.variable_count as usize;
 
+            let callback_start = m.callback_start_index as usize;
+            let callback_end = callback_start + m.callback_count as usize;
+
             let alpha_test =
                 find_alpha_test_texture_legacy(materials, m, &mut samplers, texture_indices);
 
@@ -408,7 +411,12 @@ where
                     .get(var_start..var_end)
                     .unwrap_or_default()
                     .to_vec(),
-                work_callbacks: Vec::new(),
+                work_callbacks: materials
+                    .callbacks
+                    .as_ref()
+                    .and_then(|c| c.work_callbacks.get(callback_start..callback_end))
+                    .unwrap_or_default()
+                    .to_vec(),
                 m_unks1_1: 0,
                 m_unks1_2: 0,
                 m_unks1_3: 0,
