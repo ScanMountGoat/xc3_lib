@@ -10,10 +10,17 @@ use futures::executor::block_on;
 use glam::{Mat4, Vec3, vec3};
 use log::info;
 use winit::{
-    application::ApplicationHandler, dpi::PhysicalPosition, event::*, event_loop::EventLoop,
-    keyboard::NamedKey, window::Window,
+    application::ApplicationHandler,
+    dpi::PhysicalPosition,
+    event::*,
+    event_loop::{EventLoop, OwnedDisplayHandle},
+    keyboard::NamedKey,
+    window::Window,
 };
-use xc3_model::{animation::Animation, load_animations, shader_database::ShaderDatabase};
+use xc3_model::{
+    MapRoot, ModelRoot, animation::Animation, collision::CollisionMeshes, load_animations,
+    shader_database::ShaderDatabase,
+};
 use xc3_wgpu::{CameraData, Collision, ModelGroup, MonolibShaderTextures, RenderMode, Renderer};
 
 #[cfg(feature = "tracing")]
@@ -96,11 +103,13 @@ fn camera_directions(pitch: f32, yaw: f32) -> (Vec3, Vec3) {
 
 impl State {
     async fn new(
-        window: Window,
+        window: Arc<Window>,
+        display: OwnedDisplayHandle,
         cli: &Cli,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-    ) -> anyhow::Result<Self> {
-        let window = Arc::new(window);
+        model_roots: &[ModelRoot],
+        map_roots: &[MapRoot],
+        collision_meshes: &[CollisionMeshes],
+    ) -> Self {
         let backends = match &cli.backend {
             Some(backend) => match backend.to_lowercase().as_str() {
                 "dx12" => wgpu::Backends::DX12,
@@ -112,9 +121,7 @@ impl State {
         };
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends,
-            ..wgpu::InstanceDescriptor::new_with_display_handle(Box::new(
-                event_loop.owned_display_handle(),
-            ))
+            ..wgpu::InstanceDescriptor::new_with_display_handle(Box::new(display))
         });
         let surface = instance.create_surface(window.clone()).unwrap();
         let adapter = instance
@@ -181,83 +188,15 @@ impl State {
         let camera_data = calculate_camera_data(size, translation, rotation_xyz, cli.fps_camera);
         renderer.update_camera(&queue, &camera_data);
 
-        let start = std::time::Instant::now();
-
-        let database = match &cli.database {
-            Some(p) => Some(
-                ShaderDatabase::from_file(p)
-                    .with_context(|| format!("{p:?} is not a valid shader database file"))?,
-            ),
-            None => ShaderDatabase::from_file(database_path()?).ok(),
-        };
-
-        info!("Load shader database: {:?}", start.elapsed());
+        let collisions = collision_meshes
+            .iter()
+            .flat_map(|m| xc3_wgpu::load_collisions(&device, m))
+            .collect();
 
         let start = std::time::Instant::now();
 
+        // TODO: apply the index filters here improve load times?
         let mut groups = Vec::new();
-        let mut collisions = Vec::new();
-
-        let mut model_roots = Vec::new();
-        let mut map_roots = Vec::new();
-
-        for file in &cli.files {
-            match Path::new(file).extension().unwrap().to_str().unwrap() {
-                "wimdo" | "pcmdo" => {
-                    // TODO: merge roots or just merge skeletons?
-                    let root = xc3_model::load_model(file, database.as_ref())
-                        .with_context(|| format!("failed to load .wimdo model from {file:?}"))?;
-                    model_roots.push(root);
-                }
-                "camdo" => {
-                    let root = xc3_model::load_model_legacy(file, database.as_ref())
-                        .with_context(|| format!("failed to load .camdo model from {file:?}"))?;
-                    model_roots.push(root);
-                }
-                "wismhd" => {
-                    let roots = xc3_model::load_map(file, database.as_ref())
-                        .with_context(|| format!("failed to load .wismhd map from {file:?}"))?;
-                    map_roots.extend(roots);
-                }
-                "wiidcm" | "idcm" => {
-                    let collision_meshes = xc3_model::load_collisions(file)
-                        .with_context(|| format!("failed to load collisions from {file:?}"))?;
-                    collisions.extend(xc3_wgpu::load_collisions(&device, &collision_meshes));
-                }
-                ext => return Err(anyhow!(format!("unrecognized file extension {ext}"))),
-            }
-        }
-
-        // Disable instancing if we only want to render a single model.
-        if cli.model.is_some() {
-            for root in &mut map_roots {
-                for group in &mut root.groups {
-                    for models in &mut group.models {
-                        for model in &mut models.models {
-                            model.instances = vec![Mat4::IDENTITY];
-                        }
-                    }
-                }
-            }
-        }
-
-        if !model_roots.is_empty() || !map_roots.is_empty() {
-            info!(
-                "Load {} roots: {:?}",
-                model_roots.len() + map_roots.len(),
-                start.elapsed()
-            );
-        }
-        if !collisions.is_empty() {
-            info!(
-                "Load {} collisions: {:?}",
-                collisions.len(),
-                start.elapsed()
-            );
-        }
-
-        let start = std::time::Instant::now();
-
         if !model_roots.is_empty() {
             groups.extend(xc3_wgpu::load_model(
                 &device,
@@ -309,7 +248,8 @@ impl State {
         let start = std::time::Instant::now();
         let animations = match &cli.anim {
             Some(p) => load_animations(p)
-                .with_context(|| format!("{p:?} is not a valid animation file"))?,
+                .with_context(|| format!("{p:?} is not a valid animation file"))
+                .unwrap(),
             None => Vec::new(),
         };
         if !animations.is_empty() {
@@ -330,7 +270,7 @@ impl State {
             })
             .collect();
 
-        Ok(Self {
+        Self {
             window,
             surface,
             device,
@@ -358,7 +298,7 @@ impl State {
             fps_camera: cli.fps_camera,
             movement_speed: cli.movement_speed,
             mouse_sensitivity: cli.mouse_sensitivity,
-        })
+        }
     }
 
     fn update_camera(&mut self, size: winit::dpi::PhysicalSize<u32>) {
@@ -654,6 +594,86 @@ impl State {
     }
 }
 
+fn load_files(
+    cli: &Cli,
+) -> Result<
+    (
+        Vec<xc3_model::ModelRoot>,
+        Vec<xc3_model::MapRoot>,
+        Vec<xc3_model::collision::CollisionMeshes>,
+    ),
+    anyhow::Error,
+> {
+    let start = std::time::Instant::now();
+    let database = match &cli.database {
+        Some(p) => Some(
+            ShaderDatabase::from_file(p)
+                .with_context(|| format!("{p:?} is not a valid shader database file"))?,
+        ),
+        None => ShaderDatabase::from_file(database_path()?).ok(),
+    };
+    info!("Load shader database: {:?}", start.elapsed());
+
+    let start = std::time::Instant::now();
+
+    let mut collisions = Vec::new();
+    let mut model_roots = Vec::new();
+    let mut map_roots = Vec::new();
+
+    for file in &cli.files {
+        match Path::new(file).extension().unwrap().to_str().unwrap() {
+            "wimdo" | "pcmdo" => {
+                // TODO: merge roots or just merge skeletons?
+                let root = xc3_model::load_model(file, database.as_ref())
+                    .with_context(|| format!("failed to load .wimdo model from {file:?}"))?;
+                model_roots.push(root);
+            }
+            "camdo" => {
+                let root = xc3_model::load_model_legacy(file, database.as_ref())
+                    .with_context(|| format!("failed to load .camdo model from {file:?}"))?;
+                model_roots.push(root);
+            }
+            "wismhd" => {
+                let roots = xc3_model::load_map(file, database.as_ref())
+                    .with_context(|| format!("failed to load .wismhd map from {file:?}"))?;
+                map_roots.extend(roots);
+            }
+            "wiidcm" | "idcm" => {
+                let collision_meshes = xc3_model::load_collisions(file)
+                    .with_context(|| format!("failed to load collisions from {file:?}"))?;
+                collisions.push(collision_meshes);
+            }
+            ext => return Err(anyhow!(format!("unrecognized file extension {ext}"))),
+        }
+    }
+    if cli.model.is_some() {
+        for root in &mut map_roots {
+            for group in &mut root.groups {
+                for models in &mut group.models {
+                    for model in &mut models.models {
+                        model.instances = vec![Mat4::IDENTITY];
+                    }
+                }
+            }
+        }
+    }
+    if !model_roots.is_empty() || !map_roots.is_empty() {
+        info!(
+            "Load {} roots: {:?}",
+            model_roots.len() + map_roots.len(),
+            start.elapsed()
+        );
+    }
+    if !collisions.is_empty() {
+        info!(
+            "Load {} collisions: {:?}",
+            collisions.len(),
+            start.elapsed()
+        );
+    }
+    Ok((model_roots, map_roots, collisions))
+}
+
 // TODO: Move to xc3_wgpu?
 fn calculate_camera_data(
     size: winit::dpi::PhysicalSize<u32>,
@@ -715,21 +735,27 @@ fn database_path() -> std::io::Result<std::path::PathBuf> {
 struct Cli {
     /// The wimdo, wismhd, camdo, wiidcm, or idcm files.
     files: Vec<String>,
+
     /// The shader database generated by xc3_shader.
     #[arg(long)]
     database: Option<String>,
+
     /// The .mot animation file.
     #[arg(long)]
     anim: Option<String>,
+
     /// The BC entry index for the ANIM. Defaults to 0.
     #[arg(long)]
     anim_index: Option<usize>,
+
     /// Draw axes for each bone in the skeleton.
     #[arg(long)]
     bones: bool,
+
     /// Draw model bounding boxes.
     #[arg(long)]
     bounds: bool,
+
     /// Override for the graphics backend.
     #[arg(
         long,
@@ -737,18 +763,22 @@ struct Cli {
         ["dx12", "vulkan", "metal"]
     ))]
     backend: Option<String>,
+
     /// Index for the wimdo or camdo or root in a wismhd to render.
     /// If not specified, all roots will be rendered.
     #[arg(long)]
     root: Option<usize>,
+
     /// Index for the group of model collections to render.
     /// If not specified, all groups will be rendered.
     #[arg(long)]
     group: Option<usize>,
+
     /// Index for the model collections to render.
     /// If not specified, all model collections will be rendered.
     #[arg(long)]
     models: Option<usize>,
+
     /// Index for the model to render.
     /// If not specified, all models will be rendered.
     #[arg(long)]
@@ -775,6 +805,9 @@ struct Cli {
 struct App {
     state: Option<State>,
     cli: Cli,
+    model_roots: Vec<ModelRoot>,
+    map_roots: Vec<MapRoot>,
+    collision_meshes: Vec<CollisionMeshes>,
 }
 
 impl ApplicationHandler<()> for App {
@@ -783,59 +816,62 @@ impl ApplicationHandler<()> for App {
             return;
         }
 
-        let window = event_loop
-            .create_window(
-                Window::default_attributes()
-                    .with_title(concat!("xc3_viewer ", env!("CARGO_PKG_VERSION"))),
-            )
-            .unwrap();
+        let window = Arc::new(
+            event_loop
+                .create_window(
+                    Window::default_attributes()
+                        .with_title(concat!("xc3_viewer ", env!("CARGO_PKG_VERSION"))),
+                )
+                .unwrap(),
+        );
 
-        self.state = block_on(State::new(window, &self.cli, event_loop)).ok();
+        self.state = Some(block_on(State::new(
+            window.clone(),
+            event_loop.owned_display_handle(),
+            &self.cli,
+            &self.model_roots,
+            &self.map_roots,
+            &self.collision_meshes,
+        )));
         if let Some(state) = &self.state {
             state.set_window_title();
         }
+
+        window.request_redraw();
     }
 
     fn window_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
-        window_id: winit::window::WindowId,
+        _window_id: winit::window::WindowId,
         event: WindowEvent,
     ) {
-        if event == WindowEvent::CloseRequested {
-            event_loop.exit();
-            return;
-        };
-
-        // Window specific event handling.
-        if let Some(state) = self.state.as_mut() {
-            if window_id != state.window.id() {
-                return;
+        let state = self.state.as_mut().unwrap();
+        match event {
+            WindowEvent::CloseRequested => {
+                event_loop.exit();
             }
-
-            match event {
-                WindowEvent::Resized(physical_size) => {
-                    state.resize(physical_size);
-                    state.update_camera(physical_size);
-                    state.window.request_redraw();
+            WindowEvent::Resized(physical_size) => {
+                state.resize(physical_size);
+                state.update_camera(physical_size);
+                state.window.request_redraw();
+            }
+            WindowEvent::ScaleFactorChanged { .. } => {}
+            WindowEvent::RedrawRequested => {
+                match state.surface.get_current_texture() {
+                    wgpu::CurrentSurfaceTexture::Success(output) => state.render(output),
+                    wgpu::CurrentSurfaceTexture::Suboptimal(_) => state.resize(state.size),
+                    wgpu::CurrentSurfaceTexture::Timeout => {}
+                    wgpu::CurrentSurfaceTexture::Occluded => {}
+                    wgpu::CurrentSurfaceTexture::Outdated => state.resize(state.size),
+                    wgpu::CurrentSurfaceTexture::Lost => state.resize(state.size),
+                    wgpu::CurrentSurfaceTexture::Validation => {}
                 }
-                WindowEvent::ScaleFactorChanged { .. } => {}
-                WindowEvent::RedrawRequested => {
-                    match state.surface.get_current_texture() {
-                        wgpu::CurrentSurfaceTexture::Success(output) => state.render(output),
-                        wgpu::CurrentSurfaceTexture::Suboptimal(_) => state.resize(state.size),
-                        wgpu::CurrentSurfaceTexture::Timeout => {}
-                        wgpu::CurrentSurfaceTexture::Occluded => {}
-                        wgpu::CurrentSurfaceTexture::Outdated => state.resize(state.size),
-                        wgpu::CurrentSurfaceTexture::Lost => state.resize(state.size),
-                        wgpu::CurrentSurfaceTexture::Validation => {}
-                    }
-                    state.window.request_redraw();
-                }
-                _ => {
-                    state.handle_input(&event);
-                    state.update_camera(state.window.inner_size());
-                }
+                state.window.request_redraw();
+            }
+            _ => {
+                state.handle_input(&event);
+                state.update_camera(state.window.inner_size());
             }
         }
     }
@@ -860,8 +896,16 @@ fn main() -> anyhow::Result<()> {
 
     let cli = Cli::parse();
 
+    let (model_roots, map_roots, collision_meshes) = load_files(&cli)?;
+
     let event_loop = EventLoop::new().unwrap();
-    let mut app = App { state: None, cli };
+    let mut app = App {
+        state: None,
+        cli,
+        model_roots,
+        map_roots,
+        collision_meshes,
+    };
     event_loop
         .run_app(&mut app)
         .with_context(|| "failed to complete event loop")?;
