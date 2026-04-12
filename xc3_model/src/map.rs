@@ -1089,6 +1089,7 @@ fn load_prop_model_group_legacy(
     add_prop_instances_legacy(
         &mut model_instances,
         &model_data.lods.props,
+        &model_data.lods.lods,
         &model_data.lods.instances,
     );
 
@@ -1144,21 +1145,20 @@ fn load_prop_model_group_legacy(
 
 fn add_prop_instances_legacy(
     model_instances: &mut [Vec<Mat4>],
-    props: &[xc3_lib::map::legacy::PropLod],
+    prop_lods: &[xc3_lib::map::legacy::PropLod],
+    model_lods: &[xc3_lib::map::legacy::PropModelLod],
     instances: &[xc3_lib::map::legacy::PropInstance],
 ) {
+    // TODO: Should xc2 also use the extra index here?
+    // TODO: Is the index always only the first 28 bits like XC3?
     for instance in instances {
-        let prop_lod = &props[instance.prop_index as usize];
-        // Only the first 28 bits should be used to properly load XC3 DLC maps.
+        let prop_lod = &prop_lods[instance.prop_lod_index as usize];
         let base_lod_index = (prop_lod.base_lod_index & 0xFFFFFFF) as usize;
-        // TODO: Should we also index into the PropModelLod?
-        // TODO: Is PropModelLod.index always the same as its index in the list?
-        if base_lod_index >= model_instances.len() {
-            // TODO: Why does this happen?
-            dbg!(base_lod_index);
-        } else {
-            model_instances[base_lod_index].push(Mat4::from_cols_array_2d(&instance.transform));
-        }
+
+        let model_lod = &model_lods[base_lod_index];
+        let model_index = (model_lod.model_index & 0xFFFFFF) as usize;
+
+        model_instances[model_index].push(Mat4::from_cols_array_2d(&instance.transform));
     }
 }
 

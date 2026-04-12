@@ -114,7 +114,7 @@ pub struct PropLods {
     #[xc3(count_offset(u32, u32))]
     pub instances: Vec<PropInstance>,
 
-    // render tree node indices?
+    // TODO: render tree node indices?
     pub count2: u32,
     pub offset2: u32,
 

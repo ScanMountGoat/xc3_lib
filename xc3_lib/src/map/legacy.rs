@@ -160,7 +160,6 @@ pub struct PropLods {
     #[xc3(count_offset(u32, u32))]
     pub props: Vec<PropLod>,
 
-    // TODO: PropModelLod?
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
     pub lods: Vec<PropModelLod>,
@@ -169,11 +168,12 @@ pub struct PropLods {
     #[xc3(count_offset(u32, u32))]
     pub instances: Vec<PropInstance>,
 
+    // TODO: count, offset?
     pub unk2: [u32; 2],
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub items4: Vec<[f32; 8]>,
+    pub items4: Vec<PropUnk4>,
 
     pub unk3: [u32; 3],
 
@@ -197,6 +197,9 @@ pub struct PropLods {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropLod {
+    /// The index of the base LOD (highest quality)
+    /// in [lods](struct.PropModelData.html#structfield.lods).
+    /// Only the first 28 bits (0xFFFFFFF) contain the actual index.
     pub base_lod_index: u32,
     pub lod_count: u32,
 }
@@ -205,7 +208,8 @@ pub struct PropLod {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropModelLod {
     pub unk1: [f32; 8], // TODO: bounds + distance?
-    pub index: u32,
+    /// Index into the models in [models](struct.PropModelData.html#structfield.models).
+    pub model_index: u32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -215,12 +219,24 @@ pub struct PropInstance {
     pub position: [f32; 3],
     pub unk2: [f32; 3],
     pub unk3: f32,
-    pub prop_index: u16,
+    pub prop_lod_index: u16,
     pub unk5: u16,
     pub unk6: u16,
     pub unk7: u16,
-    pub unk8: u32,
+    pub unk8: u32, // TODO: u16 index?
     pub unk9: u32,
+}
+
+// TODO: similar to InstanceRenderTreeNode for xc2?
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct PropUnk4 {
+    pub center: [f32; 3],
+    pub radius: f32,
+    pub unk1: f32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub unk4: u32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
