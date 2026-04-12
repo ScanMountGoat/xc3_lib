@@ -7,7 +7,7 @@ use log::error;
 use rayon::prelude::*;
 use xc3_lib::{
     error::DecompressStreamError,
-    map::{FoliageMaterials, PropInstance, PropLod, PropPositions},
+    map::{FoliageMaterials, PropInstance, PropLod, PropModelLod, PropPositions},
     mibl::Mibl,
     msmd::{ChannelType, MapParts, Msmd, MsmdV112, StreamEntry, legacy::MsmdV11},
     mxmd::{MaterialTechniqueType, StateFlags, TextureUsage},
@@ -475,6 +475,7 @@ fn load_prop_model_group(
     add_prop_instances(
         &mut model_instances,
         &model_data.lods.props,
+        &model_data.lods.lods,
         &model_data.lods.instances,
     );
 
@@ -485,11 +486,11 @@ fn load_prop_model_group(
         add_prop_instances(
             &mut model_instances,
             &model_data.lods.props,
+            &model_data.lods.lods,
             &additional_instances.instances,
         );
 
         // TODO: Add animated parts from the additional instances
-        // TODO: This doesn't work on all maps?
     }
 
     // TODO: Document how this works in xc3_lib.
@@ -559,19 +560,22 @@ fn load_prop_model_group(
     models
 }
 
+// TODO: share code with legacy props?
 fn add_prop_instances(
     model_instances: &mut [Vec<Mat4>],
-    props: &[PropLod],
+    prop_lods: &[PropLod],
+    model_lods: &[PropModelLod],
     instances: &[PropInstance],
 ) {
-    // TODO: Why do XC2 maps have instances for empty models?
+    // The indices only use the first 28 bits (0xFFFFFF).
     for instance in instances {
-        let prop_lod = &props[instance.prop_index as usize];
-        // Only the first 28 bits should be used to properly load XC3 DLC maps.
+        let prop_lod = &prop_lods[instance.prop_lod_index as usize];
         let base_lod_index = (prop_lod.base_lod_index & 0xFFFFFFF) as usize;
-        // TODO: Should we also index into the PropModelLod?
-        // TODO: Is PropModelLod.index always the same as its index in the list?
-        model_instances[base_lod_index].push(Mat4::from_cols_array_2d(&instance.transform));
+
+        let model_lod = &model_lods[base_lod_index];
+        let model_index = (model_lod.model_index & 0xFFFFFF) as usize;
+
+        model_instances[model_index].push(Mat4::from_cols_array_2d(&instance.transform));
     }
 }
 
@@ -660,7 +664,7 @@ fn add_animated_part_instances(
             * Mat4::from_scale(scale)
             * transform;
 
-        let model_index = props[instance.prop_index as usize].base_lod_index;
+        let model_index = props[instance.prop_lod_index as usize].base_lod_index;
         model_instances[model_index as usize].push(transform);
     }
 }
@@ -1149,8 +1153,7 @@ fn add_prop_instances_legacy(
     model_lods: &[xc3_lib::map::legacy::PropModelLod],
     instances: &[xc3_lib::map::legacy::PropInstance],
 ) {
-    // TODO: Should xc2 also use the extra index here?
-    // TODO: Is the index always only the first 28 bits like XC3?
+    // The indices only use the first 28 bits (0xFFFFFF).
     for instance in instances {
         let prop_lod = &prop_lods[instance.prop_lod_index as usize];
         let base_lod_index = (prop_lod.base_lod_index & 0xFFFFFFF) as usize;

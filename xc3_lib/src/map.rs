@@ -138,9 +138,8 @@ pub struct PropLods {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropLod {
-    // TODO: Do these actually index into the PropModelLod?
-    /// The index of the base LOD (highest quality) [ModelV112](crate::mxmd::ModelV112)
-    /// in [models](struct.PropModelData.html#structfield.models).
+    /// The index of the base LOD (highest quality)
+    /// in [lods](struct.PropModelData.html#structfield.lods).
     /// Only the first 28 bits (0xFFFFFFF) contain the actual index.
     pub base_lod_index: u32,
     /// The number of LOD models with higher indices having lower quality.
@@ -152,8 +151,9 @@ pub struct PropLod {
 pub struct PropModelLod {
     pub radius: f32,
     pub distance: f32,
-    // TODO: Index into PropModelData.models?
-    pub index: u32,
+    /// Index into the models in [models](struct.PropModelData.html#structfield.models).
+    /// Only the first 28 bits (0xFFFFFFF) contain the actual index.
+    pub model_index: u32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -166,7 +166,7 @@ pub struct PropInstance {
     pub center: [f32; 3],
 
     /// Index into [props](struct.PropLods.html#structfield.props).
-    pub prop_index: u32,
+    pub prop_lod_index: u32,
 
     pub unk1: u16,
 

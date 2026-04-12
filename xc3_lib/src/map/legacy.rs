@@ -209,6 +209,7 @@ pub struct PropLod {
 pub struct PropModelLod {
     pub unk1: [f32; 8], // TODO: bounds + distance?
     /// Index into the models in [models](struct.PropModelData.html#structfield.models).
+    /// Only the first 28 bits (0xFFFFFFF) contain the actual index.
     pub model_index: u32,
 }
 
