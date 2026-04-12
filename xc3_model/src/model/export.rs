@@ -501,7 +501,9 @@ impl ModelRoot {
                 callbacks
                     .work_callbacks
                     .extend_from_slice(&m.work_callbacks);
-                callbacks.material_indices.push(i as u16);
+                if !m.work_callbacks.is_empty() {
+                    callbacks.material_indices.push(i as u16);
+                }
             }
 
             if let Some(params) = &m.fur_params {

@@ -279,12 +279,12 @@ pub(crate) fn create_materials(
                     .to_vec(),
                 technique_index: material
                     .techniques
-                    .first()
+                    .last()
                     .map(|t| t.technique_index as usize)
                     .unwrap_or_default(),
                 technique_type: material
                     .techniques
-                    .first()
+                    .last()
                     .map(|t| t.technique_type)
                     .unwrap_or(MaterialTechniqueType::Opaque),
                 parameters,
@@ -377,7 +377,7 @@ where
 
             Material {
                 name: m.name.clone(),
-                flags: MaterialFlags::from(0u32),
+                flags: m.flags,
                 render_flags: MaterialRenderFlags::from(0u32),
                 state_flags: m.state_flags,
                 color: m.color,
@@ -560,7 +560,7 @@ impl GetProgramHash for xc3_lib::spch::Spch {
             .read_slct(&self.slct_section)
             .ok()?;
         let binaries = self.program_data_vertex_fragment_binaries(&slct);
-        let (p, v, f) = binaries.first()?;
+        let (p, v, f) = binaries.last()?;
         Some(ProgramHash::from_spch_program(p, v, f))
     }
 }
