@@ -201,7 +201,7 @@ impl State {
             groups.extend(xc3_wgpu::load_model(
                 &device,
                 &queue,
-                &model_roots,
+                model_roots,
                 &monolib_shader,
             ));
         }
@@ -209,7 +209,7 @@ impl State {
             groups.extend(xc3_wgpu::load_map(
                 &device,
                 &queue,
-                &map_roots,
+                map_roots,
                 &monolib_shader,
             ));
         }
@@ -521,8 +521,8 @@ impl State {
                         self.rotation_xyz.x += dy * 0.01 * self.mouse_sensitivity;
                         self.rotation_xyz.x = self.rotation_xyz.x.clamp(-MAX_PITCH, MAX_PITCH);
                     } else {
-                        self.rotation_xyz.x += (dy * 0.01) as f32;
-                        self.rotation_xyz.y += (dx * 0.01) as f32;
+                        self.rotation_xyz.x += dy * 0.01;
+                        self.rotation_xyz.y += dx * 0.01;
                     }
                 } else if self.input_state.is_mouse_right_clicked {
                     if self.fps_camera {
