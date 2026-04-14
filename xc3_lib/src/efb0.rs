@@ -7,8 +7,8 @@
 //! | Xenoblade 1 DE | |  |
 //! | Xenoblade 2 | | `effect/**/*.wiefb` |
 //! | Xenoblade 3 |  |  |
-use crate::{parse_opt_ptr32, xc3_write_binwrite_impl};
-use binrw::{BinRead, BinWrite, NullString, binread};
+use crate::parse_opt_ptr32;
+use binrw::{NullString, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: .wieab also has data?
@@ -43,18 +43,11 @@ pub struct Efb0 {
     // TODO: Difference between unk2 and next unk2 is next efb0 offset?
     pub unk2: u32,
 
-    pub text: EfbString,
+    #[br(map = |x: NullString| x.to_string(), pad_size_to = 60)]
+    #[xc3(pad_size_to(60))]
+    pub text: String,
     // TODO: embedded data
 }
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, BinWrite, PartialEq, Clone)]
-pub struct EfbString(
-    #[br(map = |x: NullString| x.to_string())]
-    #[bw(map = |x: &String| NullString::from(x.as_str()))]
-    #[brw(pad_size_to = 60)]
-    String,
-);
 
 // TODO: Only present for type 0x1
 /// `FxHeader` in Xenoblade 2 binary.
@@ -74,5 +67,3 @@ pub struct FxHeader {
     pub unk3: i32,
     pub unk4: u32, // offset?
 }
-
-xc3_write_binwrite_impl!(EfbString);
