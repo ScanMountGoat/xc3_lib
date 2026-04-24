@@ -284,8 +284,7 @@ impl ModelGroup {
                 let is_instanced_static = material.pipeline_key.is_instanced_static;
 
                 if let Some(key) = &material.prepass_pipeline_key {
-                    // TODO: How to make sure the pipeline outputs match the render pass?
-                    // TODO: Should the prepass be a separate render pass entirely?
+                    // TODO: This should be done in a dedicated render pass with no fragment outputs.
                     let pipeline = &self.pipelines[key];
                     render_pass.set_pipeline(pipeline);
 

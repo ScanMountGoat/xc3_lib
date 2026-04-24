@@ -52,12 +52,10 @@ struct OutputAssignment {
 struct PerMaterial {
     // Shader database information.
     assignments: array<OutputAssignment, 6>,
-
     fur_params: FurShellParams,
 
     // Assume outline width is always set via a parameter or constant.
     outline_width: f32,
-
     alpha_test_ref: f32
 }
 
@@ -112,6 +110,8 @@ struct InstanceInput {
     @location(12) model_matrix_2: vec4<f32>,
     @location(13) model_matrix_3: vec4<f32>,
 }
+
+// TODO: Store additional attributes without exceeding attribute limit?
 
 // wgpu recommends @invariant for position with depth func equals.
 struct VertexOutput {
@@ -463,7 +463,7 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let ASSIGN_VARS = 0.0;
 
     let ASSIGN_NORMAL_GENERATED = 0.0;
-    
+
     // Not all materials and shaders use normal mapping.
     if assignments[2].has_channels.x != 0u || assignments[2].has_channels.y != 0u {
         var intensity = 1.0;
@@ -523,4 +523,13 @@ fn fs_depth_prepass(in: VertexOutput) -> FragmentOutput {
     // TODO: This should have no outputs.
     var output: FragmentOutput;
     return output;
+}
+
+@fragment
+fn fs_depth_prepass_single_output(in: VertexOutput) -> @location(0) vec4<f32> {
+    let tex0 = in.tex01.xy;
+    let ALPHA_TEST_DISCARD_GENERATED = 0.0;
+
+    // TODO: This should have no outputs.
+    return vec4(0.0);
 }

@@ -145,15 +145,22 @@ fn model_prepass_pipeline(
     data: &ModelPipelineData,
     key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
-    let fragment = crate::shader::model::fs_depth_prepass_entry([
-        Some(GBUFFER_COLOR_FORMAT.into()),
-        Some(GBUFFER_COLOR_FORMAT.into()),
-        Some(GBUFFER_NORMAL_FORMAT.into()),
-        Some(GBUFFER_COLOR_FORMAT.into()),
-        Some(GBUFFER_COLOR_FORMAT.into()),
-        Some(GBUFFER_COLOR_FORMAT.into()),
-    ]);
-    model_pipeline_normal_inner(device, data, fragment, key)
+    if key.write_to_all_outputs() {
+        let fragment = crate::shader::model::fs_depth_prepass_entry([
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_NORMAL_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+            Some(GBUFFER_COLOR_FORMAT.into()),
+        ]);
+        model_pipeline_normal_inner(device, data, fragment, key)
+    } else {
+        let fragment = crate::shader::model::fs_depth_prepass_single_output_entry([Some(
+            GBUFFER_COLOR_FORMAT.into(),
+        )]);
+        model_pipeline_normal_inner(device, data, fragment, key)
+    }
 }
 
 fn model_pipeline_normal_inner<const N: usize>(
