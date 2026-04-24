@@ -399,18 +399,19 @@ fn add_programs(
     spch_path: std::path::PathBuf,
 ) {
     if let Ok(spch) = Spch::from_file(&spch_path) {
-        for (i, slct_offset) in spch.slct_offsets.iter().enumerate() {
+        for (slct_index, slct_offset) in spch.slct_offsets.iter().enumerate() {
             let slct = slct_offset.read_slct(&spch.slct_section).unwrap();
 
-            // Only check the first shader for now.
-            // TODO: What do additional nvsd shader entries do?
-            if let Some((p, vert, frag)) = spch.program_data_vertex_fragment_binaries(&slct).first()
+            for (nvsd_index, (p, vert, frag)) in spch
+                .program_data_vertex_fragment_binaries(&slct)
+                .iter()
+                .enumerate()
             {
                 let hash = ProgramHash::from_spch_program(p, vert, frag);
 
                 programs.entry(hash).or_insert_with(|| {
                     let path = spch_path
-                        .with_file_name(nvsd_glsl_name(&spch, i, 0))
+                        .with_file_name(nvsd_glsl_name(&spch, slct_index, nvsd_index))
                         .with_extension("frag");
 
                     // TODO: Should the vertex shader be mandatory?
