@@ -1,0 +1,223 @@
+00 CALL_FS NO_BARRIER
+
+01 ALU: ADDR(32) CNT(11) KCACHE0(CB4:0-15)
+  0   x: MOV             R10.x, 1.0f
+      y: MOV             R10.y, R6.y
+      z: MOV             R6.z, 0.0f
+      w: MOV             R1.w, (0x3F800000, 1)
+      t: MULLO_INT       R0.z, R1.x, (0x00000003, 4e-45) SCL_210
+
+  1   x: ADD_INT         R1.x, PS0, 1
+      y: MUL             R9.y, PV0.x, KC0[1].w
+      w: ADD_INT         R0.w, PS0, (0x00000002, 3e-45)
+      t: MUL             R9.x, PV0.x, KC0[0].w
+
+02 TEX: ADDR(192) CNT(3)
+
+  2      FETCH           R7.xyzw, R0.z, b129 FETCH_TYPE(NO_INDEX_OFFSET) MEGA(16) OFFSET(0)
+
+  3      FETCH           R8.xyzw, R1.x, b129 FETCH_TYPE(NO_INDEX_OFFSET) MEGA(16) OFFSET(0)
+
+  4      FETCH           R0.xyzw, R0.w, b129 FETCH_TYPE(NO_INDEX_OFFSET) MEGA(16) OFFSET(0)
+
+03 EXP: PARAM0, R2.xyzw
+
+04 ALU: ADDR(43) CNT(109) KCACHE0(CB3:0-31) KCACHE1(CB2:0-15)
+  5   x: DOT4            R2.x, R4.x, R7.x
+      y: DOT4            ____, R4.y, R7.y
+      z: DOT4            ____, R4.z, R7.z
+      w: DOT4            ____, R4.w, R7.w
+      t: MUL             R127.x, R3.z, R7.z
+
+  6   x: DOT4            ____, R4.x, R8.x
+      y: DOT4            R2.y, R4.y, R8.y
+      z: DOT4            ____, R4.z, R8.z
+      w: DOT4            ____, R4.w, R8.w
+      t: MUL             R126.x, R3.z, R8.z
+
+  7   x: DOT4            ____, R4.x, R0.x
+      y: DOT4            ____, R4.y, R0.y
+      z: DOT4            R2.z, R4.z, R0.z
+      w: DOT4            ____, R4.w, R0.w
+      t: MUL             R125.x, R3.z, R0.z
+
+  8   x: DOT4            ____, KC0[5].x, R2.x
+      y: DOT4            ____, KC0[5].y, R2.y VEC_102
+      z: DOT4            R4.z, KC0[5].z, PV7.x
+      w: DOT4            ____, KC0[5].w, R1.w
+      t: MULADD          R122.x, R3.y, R7.y, R127.x
+
+  9   x: DOT4            R4.x, KC0[3].x, R2.x VEC_102
+      y: DOT4            ____, KC0[3].y, R2.y
+      z: DOT4            ____, KC0[3].z, R2.z
+      w: DOT4            ____, KC0[3].w, R1.w
+      t: MULADD          R1.x, R3.x, R7.x, PS8
+
+  10  x: DOT4            ____, KC0[4].x, R2.x
+      y: DOT4            R4.y, KC0[4].y, R2.y VEC_102
+      z: DOT4            ____, KC0[4].z, R2.z
+      w: DOT4            ____, KC0[4].w, R1.w
+      t: MULADD          R122.x, R3.y, R8.y, R126.x
+
+  11  x: DOT4            ____, KC0[6].x, R2.x VEC_102
+      y: DOT4            ____, KC0[6].y, R2.y
+      z: DOT4            ____, KC0[6].z, R2.z
+      w: DOT4            R4.w, KC0[6].w, R1.w
+      t: MULADD          R1.y, R3.x, R8.x, PS10
+
+  12  x: DOT4_IEEE       ____, R2.x, R2.x
+      y: DOT4_IEEE       ____, R2.y, R2.y
+      z: DOT4_IEEE       ____, R2.z, R2.z
+      w: DOT4_IEEE       ____, (0x80000000, -0), 0.0f
+      t: ADD             ____, -R2.z, -KC1[5].x
+
+  13  x: MUL             ____, KC1[5].y, PS12 CLAMP
+      y: MULADD          R127.y, R3.y, R0.y, R125.x
+      z: ADD             R127.z, R4.z, -KC0[23].y
+      w: MUL             ____, R5.z, R7.z VEC_120
+      t: RECIPSQRT_IEEE  ____, PV12.x SCL_210
+
+  14  x: MUL             R125.x, R2.x, PS13
+      y: MUL             R126.y, R2.y, PS13
+      z: MUL             R126.z, R2.z, PS13
+      w: MULADD          R127.w, R5.y, R7.y, PV13.w VEC_120
+      t: LOG_CLAMPED     R126.w, PV13.x SCL_210
+
+  15  x: DOT4            ____, PV14.x, KC1[0].x
+      y: DOT4            ____, PV14.y, KC1[0].y
+      z: DOT4            ____, PV14.z, KC1[0].z
+      w: DOT4            ____, (0x80000000, -0), 0.0f
+      t: MULADD          R1.z, R3.x, R0.x, R127.y
+
+  16  x: MULADD          R3.x, R5.x, R7.x, R127.w
+      y: MAX_DX10        ____, PV15.x, -PV15.x
+      z: MUL             ____, KC1[5].z, R126.w
+      w: MOV             R7.w, R4.w
+      t: MUL             R7.z, KC0[23].z, R127.z
+
+  17  x: ADD             R126.x, -PV16.y, 1.0f CLAMP
+      y: MUL             R125.y, R1.z, PV16.x
+      z: MUL             ____, R126.z, KC1[1].z VEC_120
+      w: MUL             R127.w, R5.y, R8.y
+      t: EXP_IEEE        R127.y, PV16.z SCL_210
+
+  18  x: DOT4            ____, R125.x, KC1[1].x CLAMP
+      y: DOT4            ____, R126.y, KC1[1].y CLAMP
+      z: DOT4            ____, PV17.z, 1.0f CLAMP
+      w: DOT4            ____, (0x80000000, -0), 0.0f CLAMP
+      t: LOG_CLAMPED     ____, PV17.x SCL_210
+
+  19  x: MULADD          R123.x, R5.z, R8.z, R127.w
+      y: MUL             R11.y, KC1[5].w, R127.y
+      z: MUL             R126.z, KC1[3].w, PS18
+      w: MUL             ____, R5.z, R0.z VEC_021
+      t: LOG_CLAMPED     R125.x, PV18.x SCL_210
+
+  20  x: DOT4            ____, R5.x, R0.x VEC_201
+      y: DOT4            ____, R5.y, R0.y
+      z: DOT4            R3.z, PV19.w, 1.0f
+      w: DOT4            ____, (0x80000000, -0), 0.0f
+      t: MULADD          R3.y, R5.x, R8.x, PV19.x
+
+  21  x: MUL             R125.x, KC1[4].w, R125.x
+      y: MULADD          R125.y, -PV20.x, R1.x, R125.y VEC_021
+      z: MUL             ____, R1.x, PS20
+      w: MUL             ____, R1.y, PV20.x
+      t: EXP_IEEE        R127.y, R126.z SCL_210
+
+  22  x: ADD             ____, PS21, -(0x3F4CCCCD, 0.8)
+      y: MULADD          R123.y, -R3.y, R1.z, PV21.w
+      z: MULADD          R126.z, R126.x, (0x3F733333, 0.95), -PS21
+      w: MULADD          R123.w, -R3.x, R1.y, PV21.z VEC_120
+      t: MOV             R7.x, R4.x
+
+  23  x: MUL             R5.x, R5.w, PV22.y
+      y: MOV             R7.y, R4.y
+      z: MUL             R5.z, R5.w, PV22.w
+      w: MUL             ____, PV22.x, (0x40A00000, 5) CLAMP
+      t: MUL             R5.y, R5.w, R125.y
+
+  24  y: MULADD          R127.y, R126.z, PV23.w, R127.y
+      t: EXP_IEEE        R126.z, R125.x SCL_210
+
+  25  x: MULADD          R125.x, KC1[3].x, PV24.y, KC1[2].x
+      w: MULADD          R127.w, KC1[3].y, PV24.y, KC1[2].y
+
+  26  z: MULADD          R123.z, KC1[3].z, R127.y, KC1[2].z
+
+  27  x: MULADD          R0.x, KC1[4].x, R126.z, R125.x
+      y: MULADD          R0.y, KC1[4].y, R126.z, R127.w
+      z: MULADD          R0.z, KC1[4].z, R126.z, PV26.z
+
+05 EXP_DONE: POS0, R4.xyzw
+
+06 EXP: PARAM1, R7.xyzw NO_BARRIER
+
+07 EXP: PARAM2, R5.xyzw NO_BARRIER
+
+08 EXP: PARAM3, R3.xyzw NO_BARRIER
+
+09 EXP: PARAM4, R2.xyzw NO_BARRIER
+
+10 EXP: PARAM5, R1.xyzw NO_BARRIER
+
+11 ALU: ADDR(152) CNT(37) KCACHE0(CB4:0-15)
+  28  x: DOT4            ____, R6.x, KC0[0].x
+      y: DOT4            ____, R10.y, KC0[0].y
+      z: DOT4            ____, R6.z, KC0[0].z
+      w: DOT4            ____, R9.x, 1.0f VEC_120
+
+  29  x: DOT4            ____, R6.x, KC0[1].x
+      y: DOT4            ____, R10.y, KC0[1].y
+      z: DOT4            ____, R6.z, KC0[1].z
+      w: DOT4            ____, R9.y, 1.0f VEC_120
+      t: MOV             R9.z, PV28.x
+
+  30  x: DOT4            ____, R6.x, KC0[6].x
+      y: DOT4            ____, R10.y, KC0[6].y
+      z: DOT4            ____, R6.z, KC0[6].z
+      w: DOT4            ____, R10.x, KC0[6].w VEC_120
+      t: MOV             R9.w, PV29.x
+
+  31  x: DOT4            ____, R6.x, KC0[7].x
+      y: DOT4            ____, R10.y, KC0[7].y
+      z: DOT4            ____, R6.z, KC0[7].z
+      w: DOT4            ____, R10.x, KC0[7].w VEC_120
+      t: MOV             R1.z, PV30.x
+
+  32  x: DOT4            R9.x, R6.x, KC0[4].x
+      y: DOT4            ____, R10.y, KC0[4].y
+      z: DOT4            ____, R6.z, KC0[4].z
+      w: DOT4            ____, R10.x, KC0[4].w VEC_120
+      t: MOV             R1.w, PV31.x
+
+  33  x: DOT4            ____, R6.x, KC0[5].x
+      y: DOT4            R9.y, R10.y, KC0[5].y
+      z: DOT4            ____, R6.z, KC0[5].z
+      w: DOT4            ____, R10.x, KC0[5].w VEC_120
+
+  34  x: DOT4            R1.x, R6.x, KC0[2].x
+      y: DOT4            ____, R10.y, KC0[2].y
+      z: DOT4            ____, R6.z, KC0[2].z
+      w: DOT4            ____, R10.x, KC0[2].w VEC_120
+
+  35  x: DOT4            ____, R6.x, KC0[3].x
+      y: DOT4            R1.y, R10.y, KC0[3].y
+      z: DOT4            ____, R6.z, KC0[3].z
+      w: DOT4            ____, R10.x, KC0[3].w VEC_120
+
+  36  w: MUL             R0.w, KC0[8].y, R11.y
+
+12 EXP: PARAM6, R0.xyzw
+
+13 EXP: PARAM7, R9.xyzw NO_BARRIER
+
+14 EXP_DONE: PARAM8, R1.xyzw NO_BARRIER
+
+15 ALU: ADDR(189) CNT(1)
+  37  x: NOP             ____
+
+16 NOP
+
+END_OF_PROGRAM
+

@@ -57,13 +57,17 @@ where
     Op: Operation + std::hash::Hash + Eq + Default,
 {
     // The first arg is always the texture name.
-    // texture(arg0, vec2(arg2, arg3, ...))
+    // texture(arg0, vec2(arg1, arg2))
     if let Some(Expr::Func { args, .. }) = args.get(1).map(|a| &graph.exprs[*a]) {
         args.iter()
             .map(|e| output_expr(&graph.exprs[*e], graph, exprs, expr_to_index))
             .collect::<Vec<_>>()
     } else {
-        Vec::new()
+        // textureCube(arg0, vec3(arg1, arg2, arg3))
+        args.iter()
+            .skip(1)
+            .map(|e| output_expr(&graph.exprs[*e], graph, exprs, expr_to_index))
+            .collect::<Vec<_>>()
     }
 }
 

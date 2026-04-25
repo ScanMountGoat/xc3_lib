@@ -2195,4 +2195,20 @@ mod tests {
         let graph = Graph::from_latte_asm(asm).unwrap();
         assert_glsl_snapshot!(graph.to_glsl());
     }
+
+    #[test]
+    fn graph_from_asm_np002101_vert_8() {
+        // Vandham's eyes.
+        let asm = include_str!("../data/xcx/np002101.8.vert.txt");
+        let graph = Graph::from_latte_asm(asm).unwrap();
+        assert_glsl_snapshot!(graph.to_glsl());
+    }
+
+    #[test]
+    fn graph_from_asm_np002101_frag_8() {
+        // Vandham's eyes.
+        let asm = include_str!("../data/xcx/np002101.8.frag.txt");
+        let graph = Graph::from_latte_asm(asm).unwrap();
+        assert_glsl_snapshot!(graph.to_glsl());
+    }
 }

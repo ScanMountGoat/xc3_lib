@@ -307,7 +307,11 @@ impl crate::expr::Operation for Operation {
             expr = new_expr;
         }
 
-        Cow::Borrowed(expr)
+        if let Some(new_expr) = latte_texture_cube_coords(graph, expr) {
+            Cow::Owned(new_expr)
+        } else {
+            Cow::Borrowed(expr)
+        }
     }
 
     fn preprocess_value_expr<'a>(graph: &'a Graph, expr: &'a Expr) -> Cow<'a, Expr> {
@@ -772,5 +776,12 @@ mod tests {
         // xenoxde/chr/fc/fc282010, "fc282010hair", shd0001
         // Check Xenoblade X hair forward shading.
         assert_shader_snapshot!("xcxde", "fc282010", "1");
+    }
+
+    #[test]
+    fn shader_from_glsl_vandham_eye() {
+        // xenox/chr_np/np002101, "np002101hair", 8
+        // Check latte cube map instructions.
+        assert_shader_snapshot!("xcx", "np002101", "8");
     }
 }
