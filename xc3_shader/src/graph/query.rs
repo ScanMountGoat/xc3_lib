@@ -183,22 +183,25 @@ fn check_exprs<'a>(
         }
         (
             Expr::Parameter {
-                name: n1,
-                field: f1,
+                name: _n1,
+                field: _f1,
                 index: i1,
                 channel: c1,
             },
             Expr::Parameter {
-                name: n2,
-                field: f2,
+                name: _n2,
+                field: _f2,
                 index: i2,
                 channel: c2,
             },
-        ) => match (i1, i2) {
-            (Some(i1), Some(i2)) => n1 == n2 && f1 == f2 && c1 == c2 && check(&[*i1], &[*i2]),
-            (None, None) => n1 == n2 && f1 == f2 && c1 == c2,
-            _ => false,
-        },
+        ) => {
+            // TODO: does it make sense to match buffer and field names?
+            match (i1, i2) {
+                (Some(i1), Some(i2)) => c1 == c2 && check(&[*i1], &[*i2]),
+                (None, None) => c1 == c2,
+                _ => false,
+            }
+        }
         (Expr::Global { name, channel }, i) => {
             // TODO: What happens if the var is already in the map?
             // TODO: Special case to check name if query and input are both Expr::Global?

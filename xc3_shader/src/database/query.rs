@@ -574,27 +574,21 @@ pub fn normal_map_fma<'a>(graph: &'a Graph, nom_work: &'a Expr) -> Option<&'a Ex
     }
 }
 
+// TODO: This can also have the order swapped with tan -> normal -> bitan
+// TODO: better channel detection?
 static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
-    // TODO: remove lines like x = x;
-    // TODO: detect normalize on attributes to properly differentiate channels
     let query = indoc! {"
         void main() {
             inverse_length_tangent = inversesqrt(tangent_length);
-            tangent = tangent.x;
-            normalize_tangent = tangent * inverse_length_tangent;
-            result_x = result_x;
+            normalize_tangent = tangent.x * inverse_length_tangent;
             result = result_x * normalize_tangent;
 
             inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent_x;
-            normalize_bitangent = bitangent * inverse_length_bitangent;
-            result_y = result_y;
+            normalize_bitangent = bitangent.x * inverse_length_bitangent;
             result = fma(result_y, normalize_bitangent, result);
 
             inverse_length_normal = inversesqrt(normal_length);
-            normal = normal_x;
-            normalize_normal = normal * inverse_length_normal;
-            result_z = result_z;
+            normalize_normal = normal.x * inverse_length_normal;
             result = fma(result_z, normalize_normal, result);
         }
     "};
@@ -602,26 +596,18 @@ static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
 });
 
 static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
-    // TODO: remove lines like x = x;
-    // TODO: detect normalize on attributes to properly differentiate channels
     let query = indoc! {"
         void main() {
             inverse_length_tangent = inversesqrt(tangent_length);
-            tangent = tangent.y;
-            normalize_tangent = tangent * inverse_length_tangent;
-            result_x = result_x;
+            normalize_tangent = tangent.y * inverse_length_tangent;
             result = result_x * normalize_tangent;
 
             inverse_length_normal = inversesqrt(normal_length);
-            normal = normal_y;
-            normalize_normal = normal * inverse_length_normal;
-            result_z = result_z;
+            normalize_normal = normal.y * inverse_length_normal;
             result = fma(result_z, normalize_normal, result);
 
             inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent_y;
-            normalize_bitangent = bitangent * inverse_length_bitangent;
-            result_y = result_y;
+            normalize_bitangent = bitangent.y * inverse_length_bitangent;
             result = fma(result_y, normalize_bitangent, result);
         }
     "};
@@ -631,6 +617,7 @@ static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
 pub fn calc_normal_map<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<[&'a Expr; 3]> {
     let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_X)
         .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_MAP_Y))?;
+    // TODO: detect TBN vectors to properly differentiate result_xyz
     Some([
         result.get("result_x")?,
         result.get("result_y")?,
@@ -1217,177 +1204,179 @@ pub fn skin_attribute_clip_space_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> O
     }
 }
 
-static SKIN_ATTRIBUTE_BITANGENT_X: LazyLock<Graph> = LazyLock::new(|| {
+// TODO: reduce repetition?
+static SKIN_ATTRIBUTE_BITANGENT_XC3_X: LazyLock<Graph> = LazyLock::new(|| {
+    // TODO: This can be U_OdB (XC3) or U_Bone (XC1)
     let query = indoc! {"
         void main() {
             temp_0 = nWgtIdx.x;
-            temp_1 = floatBitsToInt(temp_0) & 65535;
-            temp_2 = temp_1 * 48;
-            temp_3 = vNormal.x;
-            temp_4 = floatBitsToUint(temp_0) >> 16;
-            temp_5 = int(temp_4) * 48;
-            temp_6 = temp_5 << 16;
-            temp_7 = temp_6 + temp_2;
-            temp_8 = vTan.x;
-            temp_10 = temp_7 + 32;
-            temp_13 = temp_7 + 16;
-            temp_14 = vNormal.y;
-            temp_15 = vTan.y;
-            temp_17 = vNormal.z;
-            temp_18 = uint(temp_10) >> 2;
-            temp_19 = uintBitsToFloat(U_Bone.data[int(temp_18)]);
-            temp_20 = temp_10 + 4;
-            temp_21 = uint(temp_20) >> 2;
-            temp_22 = uintBitsToFloat(U_Bone.data[int(temp_21)]);
-            temp_23 = temp_10 + 8;
-            temp_24 = uint(temp_23) >> 2;
-            temp_25 = uintBitsToFloat(U_Bone.data[int(temp_24)]);
-            temp_29 = vTan.z;
-            temp_41 = uint(temp_13) >> 2;
-            temp_42 = uintBitsToFloat(U_Bone.data[int(temp_41)]);
-            temp_43 = temp_13 + 4;
-            temp_44 = uint(temp_43) >> 2;
-            temp_45 = uintBitsToFloat(U_Bone.data[int(temp_44)]);
-            temp_46 = temp_13 + 8;
-            temp_47 = uint(temp_46) >> 2;
-            temp_48 = uintBitsToFloat(U_Bone.data[int(temp_47)]);
-            temp_54 = vTan.w;
-            temp_62 = temp_19 * temp_3;
-            temp_64 = temp_42 * temp_3;
-            temp_65 = temp_19 * temp_8;
-            temp_66 = temp_42 * temp_8;
-            temp_68 = fma(temp_22, temp_14, temp_62);
-            temp_77 = fma(temp_22, temp_15, temp_65);
-            temp_80 = fma(temp_45, temp_14, temp_64);
-            temp_81 = fma(temp_45, temp_15, temp_66);
-            temp_82 = fma(temp_25, temp_29, temp_77);
-            temp_83 = fma(temp_25, temp_17, temp_68);
-            temp_87 = fma(temp_48, temp_29, temp_81);
-            temp_88 = fma(temp_48, temp_17, temp_80);
-            temp_92 = temp_83 * temp_87;
-            temp_97 = 0.0 - temp_92;
-            temp_98 = fma(temp_82, temp_88, temp_97);
-            temp_101 = temp_98 * temp_54;
+            temp_2 = vNormal.x;
+            temp_3 = vTan.x;
+            temp_5 = vNormal.y;
+            temp_6 = floatBitsToInt(temp_0) & 65535;
+            temp_7 = temp_6 * 48;
+            temp_8 = vTan.y;
+            temp_9 = floatBitsToUint(temp_0) >> 16;
+            temp_10 = int(temp_9) * 48;
+            temp_11 = temp_10 << 16;
+            temp_12 = temp_11 + temp_7;
+            temp_13 = vNormal.z;
+            temp_14 = vTan.z;
+            temp_15 = temp_12 + 16;
+            temp_18 = vTan.w;
+            temp_19 = temp_12 + 32;
+            temp_34 = uint(temp_15) >> 2;
+            temp_35 = uintBitsToFloat(U_OdB.data[int(temp_34)]);
+            temp_36 = temp_15 + 4;
+            temp_37 = uint(temp_36) >> 2;
+            temp_38 = uintBitsToFloat(U_OdB.data[int(temp_37)]);
+            temp_39 = temp_15 + 8;
+            temp_40 = uint(temp_39) >> 2;
+            temp_41 = uintBitsToFloat(U_OdB.data[int(temp_40)]);
+            temp_46 = uint(temp_19) >> 2;
+            temp_47 = uintBitsToFloat(U_OdB.data[int(temp_46)]);
+            temp_48 = temp_19 + 4;
+            temp_49 = uint(temp_48) >> 2;
+            temp_50 = uintBitsToFloat(U_OdB.data[int(temp_49)]);
+            temp_51 = temp_19 + 8;
+            temp_52 = uint(temp_51) >> 2;
+            temp_53 = uintBitsToFloat(U_OdB.data[int(temp_52)]);
+            temp_94 = temp_35 * temp_2;
+            temp_95 = temp_35 * temp_3;
+            temp_100 = temp_47 * temp_2;
+            temp_104 = temp_47 * temp_3;
+            temp_107 = fma(temp_38, temp_5, temp_94);
+            temp_109 = fma(temp_50, temp_5, temp_100);
+            temp_110 = fma(temp_38, temp_8, temp_95);
+            temp_113 = fma(temp_50, temp_8, temp_104);
+            temp_114 = fma(temp_53, temp_13, temp_109);
+            temp_115 = fma(temp_41, temp_14, temp_110);
+            temp_117 = fma(temp_41, temp_13, temp_107);
+            temp_118 = fma(temp_53, temp_14, temp_113);
+            temp_119 = temp_114 * temp_115;
+            temp_126 = 0.0 - temp_119;
+            temp_127 = fma(temp_118, temp_117, temp_126);
+            temp_177 = temp_127 * temp_18;
         }
     "};
     Graph::parse_glsl(query).unwrap().simplify()
 });
 
-static SKIN_ATTRIBUTE_BITANGENT_Y: LazyLock<Graph> = LazyLock::new(|| {
+static SKIN_ATTRIBUTE_BITANGENT_XC3_Y: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
             temp_0 = nWgtIdx.x;
-            temp_1 = floatBitsToInt(temp_0) & 65535;
-            temp_2 = temp_1 * 48;
-            temp_3 = vNormal.x;
-            temp_4 = floatBitsToUint(temp_0) >> 16;
-            temp_5 = int(temp_4) * 48;
-            temp_6 = temp_5 << 16;
-            temp_7 = temp_6 + temp_2;
-            temp_8 = vTan.x;
-            temp_10 = temp_7 + 32;
-            temp_14 = vNormal.y;
-            temp_15 = vTan.y;
-            temp_17 = vNormal.z;
-            temp_18 = uint(temp_10) >> 2;
-            temp_19 = uintBitsToFloat(U_Bone.data[int(temp_18)]);
-            temp_20 = temp_10 + 4;
-            temp_21 = uint(temp_20) >> 2;
-            temp_22 = uintBitsToFloat(U_Bone.data[int(temp_21)]);
-            temp_23 = temp_10 + 8;
-            temp_24 = uint(temp_23) >> 2;
-            temp_25 = uintBitsToFloat(U_Bone.data[int(temp_24)]);
-            temp_29 = vTan.z;
-            temp_30 = uint(temp_7) >> 2;
-            temp_31 = uintBitsToFloat(U_Bone.data[int(temp_30)]);
-            temp_32 = temp_7 + 4;
-            temp_33 = uint(temp_32) >> 2;
-            temp_34 = uintBitsToFloat(U_Bone.data[int(temp_33)]);
-            temp_35 = temp_7 + 8;
-            temp_36 = uint(temp_35) >> 2;
-            temp_37 = uintBitsToFloat(U_Bone.data[int(temp_36)]);
-            temp_54 = vTan.w;
-            temp_59 = temp_31 * temp_3;
-            temp_60 = temp_31 * temp_8;
-            temp_62 = temp_19 * temp_3;
-            temp_65 = temp_19 * temp_8;
-            temp_68 = fma(temp_22, temp_14, temp_62);
-            temp_69 = fma(temp_34, temp_14, temp_59);
-            temp_71 = fma(temp_34, temp_15, temp_60);
-            temp_73 = fma(temp_37, temp_17, temp_69);
-            temp_74 = fma(temp_37, temp_29, temp_71);
-            temp_77 = fma(temp_22, temp_15, temp_65);
-            temp_82 = fma(temp_25, temp_29, temp_77);
-            temp_83 = fma(temp_25, temp_17, temp_68);
-            temp_94 = temp_73 * temp_82;
-            temp_104 = 0.0 - temp_94;
-            temp_105 = fma(temp_74, temp_83, temp_104);
-            temp_109 = temp_105 * temp_54;
+            temp_2 = vNormal.x;
+            temp_3 = vTan.x;
+            temp_5 = vNormal.y;
+            temp_6 = floatBitsToInt(temp_0) & 65535;
+            temp_7 = temp_6 * 48;
+            temp_8 = vTan.y;
+            temp_9 = floatBitsToUint(temp_0) >> 16;
+            temp_10 = int(temp_9) * 48;
+            temp_11 = temp_10 << 16;
+            temp_12 = temp_11 + temp_7;
+            temp_13 = vNormal.z;
+            temp_14 = vTan.z;
+            temp_18 = vTan.w;
+            temp_19 = temp_12 + 32;
+            temp_46 = uint(temp_19) >> 2;
+            temp_47 = uintBitsToFloat(U_OdB.data[int(temp_46)]);
+            temp_48 = temp_19 + 4;
+            temp_49 = uint(temp_48) >> 2;
+            temp_50 = uintBitsToFloat(U_OdB.data[int(temp_49)]);
+            temp_51 = temp_19 + 8;
+            temp_52 = uint(temp_51) >> 2;
+            temp_53 = uintBitsToFloat(U_OdB.data[int(temp_52)]);
+            temp_58 = uint(temp_12) >> 2;
+            temp_59 = uintBitsToFloat(U_OdB.data[int(temp_58)]);
+            temp_60 = temp_12 + 4;
+            temp_61 = uint(temp_60) >> 2;
+            temp_62 = uintBitsToFloat(U_OdB.data[int(temp_61)]);
+            temp_63 = temp_12 + 8;
+            temp_64 = uint(temp_63) >> 2;
+            temp_65 = uintBitsToFloat(U_OdB.data[int(temp_64)]);
+            temp_96 = temp_59 * temp_2;
+            temp_98 = temp_59 * temp_3;
+            temp_99 = fma(temp_62, temp_5, temp_96);
+            temp_100 = temp_47 * temp_2;
+            temp_103 = fma(temp_62, temp_8, temp_98);
+            temp_104 = temp_47 * temp_3;
+            temp_109 = fma(temp_50, temp_5, temp_100);
+            temp_113 = fma(temp_50, temp_8, temp_104);
+            temp_114 = fma(temp_53, temp_13, temp_109);
+            temp_118 = fma(temp_53, temp_14, temp_113);
+            temp_120 = fma(temp_65, temp_14, temp_103);
+            temp_123 = fma(temp_65, temp_13, temp_99);
+            temp_132 = temp_118 * temp_123;
+            temp_139 = 0.0 - temp_132;
+            temp_140 = fma(temp_114, temp_120, temp_139);
+            temp_152 = temp_140 * temp_18;
         }
     "};
     Graph::parse_glsl(query).unwrap().simplify()
 });
 
-static SKIN_ATTRIBUTE_BITANGENT_Z: LazyLock<Graph> = LazyLock::new(|| {
+static SKIN_ATTRIBUTE_BITANGENT_XC3_Z: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         void main() {
             temp_0 = nWgtIdx.x;
-            temp_1 = floatBitsToInt(temp_0) & 65535;
-            temp_2 = temp_1 * 48;
-            temp_3 = vNormal.x;
-            temp_4 = floatBitsToUint(temp_0) >> 16;
-            temp_5 = int(temp_4) * 48;
-            temp_6 = temp_5 << 16;
-            temp_7 = temp_6 + temp_2;
-            temp_8 = vTan.x;
-            temp_13 = temp_7 + 16;
-            temp_14 = vNormal.y;
-            temp_15 = vTan.y;
-            temp_17 = vNormal.z;
-            temp_29 = vTan.z;
-            temp_30 = uint(temp_7) >> 2;
-            temp_31 = uintBitsToFloat(U_Bone.data[int(temp_30)]);
-            temp_32 = temp_7 + 4;
-            temp_33 = uint(temp_32) >> 2;
-            temp_34 = uintBitsToFloat(U_Bone.data[int(temp_33)]);
-            temp_35 = temp_7 + 8;
-            temp_36 = uint(temp_35) >> 2;
-            temp_37 = uintBitsToFloat(U_Bone.data[int(temp_36)]);
-            temp_41 = uint(temp_13) >> 2;
-            temp_42 = uintBitsToFloat(U_Bone.data[int(temp_41)]);
-            temp_43 = temp_13 + 4;
-            temp_44 = uint(temp_43) >> 2;
-            temp_45 = uintBitsToFloat(U_Bone.data[int(temp_44)]);
-            temp_46 = temp_13 + 8;
-            temp_47 = uint(temp_46) >> 2;
-            temp_48 = uintBitsToFloat(U_Bone.data[int(temp_47)]);
-            temp_54 = vTan.w;
-            temp_59 = temp_31 * temp_3;
-            temp_60 = temp_31 * temp_8;
-            temp_64 = temp_42 * temp_3;
-            temp_66 = temp_42 * temp_8;
-            temp_69 = fma(temp_34, temp_14, temp_59);
-            temp_71 = fma(temp_34, temp_15, temp_60);
-            temp_73 = fma(temp_37, temp_17, temp_69);
-            temp_74 = fma(temp_37, temp_29, temp_71);
-            temp_80 = fma(temp_45, temp_14, temp_64);
-            temp_81 = fma(temp_45, temp_15, temp_66);
-            temp_87 = fma(temp_48, temp_29, temp_81);
-            temp_88 = fma(temp_48, temp_17, temp_80);
-            temp_91 = temp_74 * temp_88;
-            temp_95 = 0.0 - temp_91;
-            temp_96 = fma(temp_73, temp_87, temp_95);
-            temp_116 = temp_96 * temp_54;
+            temp_2 = vNormal.x;
+            temp_3 = vTan.x;
+            temp_5 = vNormal.y;
+            temp_6 = floatBitsToInt(temp_0) & 65535;
+            temp_7 = temp_6 * 48;
+            temp_8 = vTan.y;
+            temp_9 = floatBitsToUint(temp_0) >> 16;
+            temp_10 = int(temp_9) * 48;
+            temp_11 = temp_10 << 16;
+            temp_12 = temp_11 + temp_7;
+            temp_13 = vNormal.z;
+            temp_14 = vTan.z;
+            temp_15 = temp_12 + 16;
+            temp_18 = vTan.w;
+            temp_34 = uint(temp_15) >> 2;
+            temp_35 = uintBitsToFloat(U_OdB.data[int(temp_34)]);
+            temp_36 = temp_15 + 4;
+            temp_37 = uint(temp_36) >> 2;
+            temp_38 = uintBitsToFloat(U_OdB.data[int(temp_37)]);
+            temp_39 = temp_15 + 8;
+            temp_40 = uint(temp_39) >> 2;
+            temp_41 = uintBitsToFloat(U_OdB.data[int(temp_40)]);
+            temp_58 = uint(temp_12) >> 2;
+            temp_59 = uintBitsToFloat(U_OdB.data[int(temp_58)]);
+            temp_60 = temp_12 + 4;
+            temp_61 = uint(temp_60) >> 2;
+            temp_62 = uintBitsToFloat(U_OdB.data[int(temp_61)]);
+            temp_63 = temp_12 + 8;
+            temp_64 = uint(temp_63) >> 2;
+            temp_65 = uintBitsToFloat(U_OdB.data[int(temp_64)]);
+            temp_94 = temp_35 * temp_2;
+            temp_95 = temp_35 * temp_3;
+            temp_96 = temp_59 * temp_2;
+            temp_98 = temp_59 * temp_3;
+            temp_99 = fma(temp_62, temp_5, temp_96);
+            temp_103 = fma(temp_62, temp_8, temp_98);
+            temp_107 = fma(temp_38, temp_5, temp_94);
+            temp_110 = fma(temp_38, temp_8, temp_95);
+            temp_115 = fma(temp_41, temp_14, temp_110);
+            temp_117 = fma(temp_41, temp_13, temp_107);
+            temp_120 = fma(temp_65, temp_14, temp_103);
+            temp_123 = fma(temp_65, temp_13, temp_99);
+            temp_128 = temp_117 * temp_120;
+            temp_133 = 0.0 - temp_128;
+            temp_134 = fma(temp_115, temp_123, temp_133);
+            temp_156 = temp_134 * temp_18;
         }
     "};
     Graph::parse_glsl(query).unwrap().simplify()
 });
 
 pub fn skin_attribute_bitangent<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
-    let channel = query_nodes(expr, graph, &SKIN_ATTRIBUTE_BITANGENT_X)
+    let channel = query_nodes(expr, graph, &SKIN_ATTRIBUTE_BITANGENT_XC3_X)
         .map(|_| 'x')
-        .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_BITANGENT_Y).map(|_| 'y'))
-        .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_BITANGENT_Z).map(|_| 'z'))?;
+        .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_BITANGENT_XC3_Y).map(|_| 'y'))
+        .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_BITANGENT_XC3_Z).map(|_| 'z'))?;
     Some(Expr::Global {
         name: "vBitan".into(),
         channel: Some(channel),
