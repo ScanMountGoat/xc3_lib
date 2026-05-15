@@ -6,7 +6,7 @@ use xc3_model::shader_database::Operation;
 
 use crate::graph::{
     BinaryOp, Expr, Graph, UnaryOp,
-    query::{assign_x_recursive, fma_a_b_c, normalize, query_nodes},
+    query::{assign_x_recursive, dot3_a_b, fma_a_b_c, normalize, query_nodes},
 };
 
 pub fn op_func<'a>(
@@ -1372,11 +1372,137 @@ static SKIN_ATTRIBUTE_BITANGENT_XC3_Z: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap().simplify()
 });
 
-pub fn skin_attribute_bitangent<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
+pub fn skin_attribute_bitangent(graph: &Graph, expr: &Expr) -> Option<Expr> {
     let channel = query_nodes(expr, graph, &SKIN_ATTRIBUTE_BITANGENT_XC3_X)
         .map(|_| 'x')
         .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_BITANGENT_XC3_Y).map(|_| 'y'))
         .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_BITANGENT_XC3_Z).map(|_| 'z'))?;
+    Some(Expr::Global {
+        name: "vBitan".into(),
+        channel: Some(channel),
+    })
+}
+
+pub fn attribute_gm_cal_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    // vGmCal1.xyz, vGmCal2.xyz, vGmCal3.xyz make up a 3x3 matrix.
+    // TODO: Add a way for queries to match identifiers exactly like "#vGmCal1"?
+    let (a, b) = dot3_a_b(graph, expr)?;
+    match (a, b) {
+        (
+            [
+                Expr::Global {
+                    name: n1,
+                    channel: Some('x'),
+                },
+                Expr::Global {
+                    name: n2,
+                    channel: Some('y'),
+                },
+                Expr::Global {
+                    name: n3,
+                    channel: Some('z'),
+                },
+            ],
+            [x, y, z],
+        ) => {
+            // TODO: find a nicer way of writing this
+            if n1 == "vGmCal1" && n1 == n2 && n2 == n3 {
+                Some(x)
+            } else if n1 == "vGmCal2" && n1 == n2 && n2 == n3 {
+                Some(y)
+            } else if n1 == "vGmCal3" && n1 == n2 && n2 == n3 {
+                Some(z)
+            } else {
+                None
+            }
+        }
+        (
+            [x, y, z],
+            [
+                Expr::Global {
+                    name: n1,
+                    channel: Some('x'),
+                },
+                Expr::Global {
+                    name: n2,
+                    channel: Some('y'),
+                },
+                Expr::Global {
+                    name: n3,
+                    channel: Some('z'),
+                },
+            ],
+        ) => {
+            if n1 == "vGmCal1" && n1 == n2 && n2 == n3 {
+                Some(x)
+            } else if n1 == "vGmCal2" && n1 == n2 && n2 == n3 {
+                Some(y)
+            } else if n1 == "vGmCal3" && n1 == n2 && n2 == n3 {
+                Some(z)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+static BITANGENT_GM_CAL_XYZ: LazyLock<Graph> = LazyLock::new(|| {
+    // The channels differ only in their gmCal names.
+    let query = indoc! {"
+        void main() {
+            temp_5 = vGmCal_A.x;
+            temp_6 = vGmCal_B.x;
+            temp_7 = vNormal.x;
+            temp_8 = vTan.x;
+            temp_9 = vGmCal_B.y;
+            temp_10 = vNormal.y;
+            temp_14 = vGmCal_A.y;
+            temp_15 = vTan.y;
+            temp_17 = vGmCal_A.z;
+            temp_18 = vTan.z;
+            temp_22 = vGmCal_B.z;
+            temp_24 = vNormal.z;
+            temp_29 = vTan.w;
+            temp_35 = temp_6 * temp_8;
+            temp_36 = temp_6 * temp_7;
+            temp_37 = temp_5 * temp_7;
+            temp_39 = temp_5 * temp_8;
+            temp_41 = fma(temp_9, temp_10, temp_36);
+            temp_44 = fma(temp_14, temp_10, temp_37);
+            temp_46 = fma(temp_9, temp_15, temp_35);
+            temp_47 = fma(temp_14, temp_15, temp_39);
+            temp_50 = fma(temp_22, temp_24, temp_41);
+            temp_52 = fma(temp_17, temp_18, temp_47);
+            temp_53 = fma(temp_22, temp_18, temp_46);
+            temp_55 = fma(temp_17, temp_24, temp_44);
+            temp_58 = temp_50 * temp_52;
+            temp_62 = 0.0 - temp_58;
+            temp_63 = fma(temp_55, temp_53, temp_62);
+            temp_70 = temp_63 * temp_29;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap().simplify()
+});
+
+pub fn bitangent_gm_cal_xyz(graph: &Graph, expr: &Expr) -> Option<Expr> {
+    // vGmCal1.xyz, vGmCal2.xyz, vGmCal3.xyz make up a 3x3 matrix.
+    let result = query_nodes(expr, graph, &BITANGENT_GM_CAL_XYZ)?;
+
+    let a = result.get("vGmCal_A")?;
+    let b = result.get("vGmCal_B")?;
+
+    let channel = match (a, b) {
+        (Expr::Global { name: n1, .. }, Expr::Global { name: n2, .. }) => {
+            match (n1.as_str(), n2.as_str()) {
+                ("vGmCal2", "vGmCal3") => Some('x'),
+                ("vGmCal3", "vGmCal1") => Some('y'),
+                ("vGmCal1", "vGmCal2") => Some('z'),
+                _ => None,
+            }
+        }
+        _ => None,
+    }?;
     Some(Expr::Global {
         name: "vBitan".into(),
         channel: Some(channel),
@@ -1503,7 +1629,7 @@ static U_MDL_VIEW_BITANGENT_Z: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap().simplify()
 });
 
-pub fn u_mdl_view_bitangent_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
+pub fn u_mdl_view_bitangent_xyz(graph: &Graph, expr: &Expr) -> Option<Expr> {
     let channel = query_nodes(expr, graph, &U_MDL_VIEW_BITANGENT_X)
         .map(|_| 'x')
         .or_else(|| query_nodes(expr, graph, &U_MDL_VIEW_BITANGENT_Y).map(|_| 'y'))
@@ -1880,7 +2006,7 @@ static LATTE_TEXTURE_CUBE_W: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(&query).unwrap().simplify()
 });
 
-pub fn latte_texture_cube_coords<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
+pub fn latte_texture_cube_coords(graph: &Graph, expr: &Expr) -> Option<Expr> {
     // Find the reflection vector R from latte cube coordinates.
     let (result, channel) = query_nodes(expr, graph, &LATTE_TEXTURE_CUBE_X)
         .map(|r| (r, 'x'))

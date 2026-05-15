@@ -337,13 +337,15 @@ pub fn modify_attributes(graph: &Graph, expr: &Expr) -> Expr {
         .or_else(|| u_mdl_clip_attribute_xyzw(graph, expr))
         .or_else(|| u_mdl_view_attribute_xyzw(graph, expr))
         .or_else(|| u_mdl_attribute_xyz(graph, expr))
+        .or_else(|| attribute_gm_cal_xyz(graph, expr))
     {
         expr = new_expr;
     }
 
     let mut expr = expr.clone();
-    if let Some(new_expr) =
-        skin_attribute_bitangent(graph, &expr).or_else(|| u_mdl_view_bitangent_xyz(graph, &expr))
+    if let Some(new_expr) = skin_attribute_bitangent(graph, &expr)
+        .or_else(|| u_mdl_view_bitangent_xyz(graph, &expr))
+        .or_else(|| bitangent_gm_cal_xyz(graph, &expr))
     {
         expr = new_expr;
     }
@@ -520,21 +522,43 @@ pub fn shader_str(s: &ShaderProgram) -> String {
 
 fn expr_str(s: &ShaderProgram, v: usize) -> String {
     // Substitute all args to produce a single line of condensed output.
+    let mut output = String::new();
+    write_expr(&mut output, s, v);
+    output
+}
+
+fn write_expr(output: &mut String, s: &ShaderProgram, v: usize) {
     match &s.exprs[v] {
         xc3_model::shader_database::OutputExpr::Value(Dependency::Texture(t)) => {
-            let args: Vec<_> = t.texcoords.iter().map(|a| expr_str(s, *a)).collect();
-            format!(
-                "Texture({}, {}){}",
-                t.name,
-                args.join(", "),
+            write!(output, "Texture({}, ", t.name,).unwrap();
+            // Don't write a trailing comma.
+            if let Some((last, args)) = t.texcoords.split_last() {
+                for a in args {
+                    write_expr(output, s, *a);
+                    write!(output, ", ").unwrap();
+                }
+                write_expr(output, s, *last);
+            }
+            write!(
+                output,
+                "){}",
                 t.channel.map(|c| format!(".{c}")).unwrap_or_default()
             )
+            .unwrap();
         }
         xc3_model::shader_database::OutputExpr::Func { op, args } => {
-            let args: Vec<_> = args.iter().map(|a| expr_str(s, *a)).collect();
-            format!("{op}({})", args.join(", "))
+            write!(output, "{op}(").unwrap();
+            // Don't write a trailing comma.
+            if let Some((last, args)) = args.split_last() {
+                for a in args {
+                    write_expr(output, s, *a);
+                    write!(output, ", ").unwrap();
+                }
+                write_expr(output, s, *last);
+            }
+            write!(output, ")").unwrap();
         }
-        xc3_model::shader_database::OutputExpr::Value(v) => v.to_string(),
+        xc3_model::shader_database::OutputExpr::Value(v) => write!(output, "{v}").unwrap(),
     }
 }
 

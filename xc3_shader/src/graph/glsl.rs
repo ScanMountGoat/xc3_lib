@@ -234,6 +234,7 @@ impl Graph {
                 channel,
             } => {
                 write!(output, "{name}(").unwrap();
+                // Don't write a trailing comma.
                 if let Some((last, args)) = args.split_last() {
                     for a in args {
                         self.write_expr_glsl(output, *a);
