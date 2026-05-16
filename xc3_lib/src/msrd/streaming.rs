@@ -574,10 +574,10 @@ impl StreamingData {
                             // XCX DE: chr/cmntex/abcdefgh_m.wismt, chr/cmntex/abcdefgh_h.wismt
                             let cmn_tex = chr_folder.join("cmntex");
                             let m_path = cmn_tex.join(&hash[0..2]).join(format!("{hash}_m.wismt"));
-                            let mid = read_chr_tex_m_texture(&m_path)?;
+                            let mid = read_chr_cmntex_m_texture(&m_path)?;
 
                             let h_path = cmn_tex.join(&hash[0..2]).join(format!("{hash}_h.wismt"));
-                            let base_mip = read_chr_tex_h_texture(&h_path)?;
+                            let base_mip = read_chr_cmntex_h_texture(&h_path)?;
                             (mid, base_mip)
                         };
 
@@ -615,6 +615,38 @@ fn read_chr_tex_m_texture<T: FromBytes>(m_path: &Path) -> Result<T, ExtractStrea
         })
     })?;
     Ok(mid)
+}
+
+fn read_chr_cmntex_h_texture(h_path: &Path) -> Result<Vec<u8>, ExtractStreamFilesError> {
+    read_cmntex_bytes(h_path)
+}
+
+fn read_chr_cmntex_m_texture<T: FromBytes>(m_path: &Path) -> Result<T, ExtractStreamFilesError> {
+    let bytes = read_cmntex_bytes(m_path)?;
+    let mid = T::from_bytes(bytes).map_err(|e| {
+        ExtractStreamFilesError::ChrTexTexture(ReadFileError {
+            path: m_path.to_owned(),
+            source: e,
+        })
+    })?;
+    Ok(mid)
+}
+
+fn read_cmntex_bytes(path: &Path) -> Result<Vec<u8>, ExtractStreamFilesError> {
+    // XCX DE technically supports reading from uncompressed .wismt files.
+    // This is never used by any in game files in practice.
+    // XC3 must use Xbc1 compressed archives.
+    Xbc1::from_file(path)
+        .map_err(ExtractStreamFilesError::ChrTexTexture)
+        .and_then(|xbc1| xbc1.decompress().map_err(ExtractStreamFilesError::Stream))
+        .or_else(|_| {
+            std::fs::read(path).map_err(|e| {
+                ExtractStreamFilesError::ChrTexTexture(ReadFileError {
+                    path: path.into(),
+                    source: e.into(),
+                })
+            })
+        })
 }
 
 fn pack_files<V, S>(
