@@ -1,4 +1,4 @@
-use glam::Mat4;
+use glam::{Mat4, vec4};
 use indexmap::IndexMap;
 use log::warn;
 use xc3_lib::{
@@ -716,6 +716,7 @@ fn match_technique_attributes(
         .collect();
 }
 
+// TODO: convert this to a function
 macro_rules! attribute {
     ($buffer:ident, $count: expr, $variant:path $(, $fallback_variant:path)*) => {
         $buffer
@@ -748,6 +749,42 @@ macro_rules! attribute {
                     stringify!($variant)
                 );
                 $variant(vec![Default::default(); $count])
+            })
+    };
+}
+
+macro_rules! attribute_default {
+    ($buffer:ident, $count: expr, $default: expr, $variant:path $(, $fallback_variant:path)*) => {
+        $buffer
+            .attributes
+            .iter()
+            .find_map(|a| {
+                if matches!(a, $variant(_)) {
+                    Some(a.clone())
+                } else {
+                    None
+                }
+            })
+            $(
+                .or_else(|| {
+                    $buffer
+                        .attributes
+                        .iter()
+                        .find_map(|a| {
+                            if matches!(a, $fallback_variant(_)) {
+                                Some(a.clone())
+                            } else {
+                                None
+                            }
+                    })
+                })
+            )*
+            .unwrap_or_else(|| {
+                log::warn!(
+                    "Assigning default values for missing required attribute {}",
+                    stringify!($variant)
+                );
+                $variant(vec![$default; $count])
             })
     };
 }
@@ -803,13 +840,11 @@ fn match_attribute(
                 AttributeData::Normal3
             )
         }
-        DataType::ValInf => attribute!(
+        DataType::ValInf => attribute_default!(
             buffer,
             count,
-            AttributeData::ValInf,
-            AttributeData::Normal,
-            AttributeData::Normal2,
-            AttributeData::Normal3
+            vec4(1.0, 0.0, 0.0, 0.0),
+            AttributeData::ValInf
         ),
         DataType::Normal3 => {
             attribute!(
