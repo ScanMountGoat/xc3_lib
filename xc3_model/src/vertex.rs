@@ -184,14 +184,14 @@ pub enum AttributeData {
     Unk18(Vec<Vec3>),
 
     // TODO: Only used for buffer 1 for stages and some post processing shaders?
-    /// Data for [DataType::Unk24].
-    Unk24(Vec<Vec4>),
+    /// Data for [DataType::GmCal1].
+    GmCal1(Vec<Vec4>),
 
-    /// Data for [DataType::Unk25].
-    Unk25(Vec<Vec4>),
+    /// Data for [DataType::GmCal2].
+    GmCal2(Vec<Vec4>),
 
-    /// Data for [DataType::Unk26].
-    Unk26(Vec<Vec4>),
+    /// Data for [DataType::GmCal3].
+    GmCal3(Vec<Vec4>),
 
     /// Data for [DataType::Normal].
     Normal(Vec<Vec4>),
@@ -264,9 +264,9 @@ impl AttributeData {
             AttributeData::Unk16(v) => v.len(),
             AttributeData::VertexColor(v) => v.len(),
             AttributeData::Unk18(v) => v.len(),
-            AttributeData::Unk24(v) => v.len(),
-            AttributeData::Unk25(v) => v.len(),
-            AttributeData::Unk26(v) => v.len(),
+            AttributeData::GmCal1(v) => v.len(),
+            AttributeData::GmCal2(v) => v.len(),
+            AttributeData::GmCal3(v) => v.len(),
             AttributeData::Normal(v) => v.len(),
             AttributeData::Tangent(v) => v.len(),
             AttributeData::Unk30(v) => v.len(),
@@ -321,9 +321,9 @@ impl AttributeData {
             AttributeData::Unk16(values) => a.write(writer, values, write_u16x2),
             AttributeData::VertexColor(values) => a.write(writer, values, write_unorm8x4),
             AttributeData::Unk18(values) => a.write(writer, values, write_f32x3),
-            AttributeData::Unk24(values) => a.write(writer, values, write_f32x4),
-            AttributeData::Unk25(values) => a.write(writer, values, write_f32x4),
-            AttributeData::Unk26(values) => a.write(writer, values, write_f32x4),
+            AttributeData::GmCal1(values) => a.write(writer, values, write_f32x4),
+            AttributeData::GmCal2(values) => a.write(writer, values, write_f32x4),
+            AttributeData::GmCal3(values) => a.write(writer, values, write_f32x4),
             AttributeData::Normal(values) => a.write(writer, values, write_snorm8x4),
             AttributeData::Tangent(values) => a.write(writer, values, write_snorm8x4),
             AttributeData::Unk30(values) => a.write(writer, values, write_unorm8x4),
@@ -360,9 +360,9 @@ impl AttributeData {
             AttributeData::TexCoord8(_) => DataType::TexCoord8,
             AttributeData::VertexColor(_) => DataType::VertexColor,
             AttributeData::Unk18(_) => DataType::Unk18,
-            AttributeData::Unk24(_) => DataType::Unk24,
-            AttributeData::Unk25(_) => DataType::Unk25,
-            AttributeData::Unk26(_) => DataType::Unk26,
+            AttributeData::GmCal1(_) => DataType::GmCal1,
+            AttributeData::GmCal2(_) => DataType::GmCal2,
+            AttributeData::GmCal3(_) => DataType::GmCal3,
             AttributeData::Blend(_) => DataType::Blend,
             AttributeData::Unk15(_) => DataType::Unk15,
             AttributeData::Unk16(_) => DataType::Unk16,
@@ -661,9 +661,9 @@ fn read_attribute(
         DataType::Unk16 => a.read(b, read_u16x2).map(AttributeData::Unk16),
         DataType::VertexColor => a.read(b, read_unorm8x4).map(AttributeData::VertexColor),
         DataType::Unk18 => a.read(b, read_f32x3).map(AttributeData::Unk18),
-        DataType::Unk24 => a.read(b, read_f32x4).map(AttributeData::Unk24),
-        DataType::Unk25 => a.read(b, read_f32x4).map(AttributeData::Unk25),
-        DataType::Unk26 => a.read(b, read_f32x4).map(AttributeData::Unk26),
+        DataType::GmCal1 => a.read(b, read_f32x4).map(AttributeData::GmCal1),
+        DataType::GmCal2 => a.read(b, read_f32x4).map(AttributeData::GmCal2),
+        DataType::GmCal3 => a.read(b, read_f32x4).map(AttributeData::GmCal3),
         DataType::Normal => a.read(b, read_snorm8x4).map(AttributeData::Normal),
         DataType::Tangent => a.read(b, read_snorm8x4).map(AttributeData::Tangent),
         DataType::Unk30 => a.read(b, read_unorm8x4).map(AttributeData::Unk30),

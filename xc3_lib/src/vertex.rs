@@ -208,12 +208,18 @@ pub enum DataType {
     VertexColor = 17,
     /// Float32x3 ??? in shaders.
     Unk18 = 18,
-    /// ??? "vGmCal1" in shaders.
-    Unk24 = 24,
-    /// ??? "vGmCal2" in shaders.
-    Unk25 = 25,
-    /// ??? "vGmCal3" in shaders.
-    Unk26 = 26,
+    /// Float32x4 "vGmCal1" in shaders.
+    ///
+    /// The first vector of the 3x4 instance transform matrix.
+    GmCal1 = 24,
+    /// Float32x4 "vGmCal2" in shaders.
+    ///
+    /// The second vector of the 3x4 instance transform matrix.
+    GmCal2 = 25,
+    /// Float32x4 "vGmCal3" in shaders.
+    ///
+    /// The third vector of the 3x4 instance transform matrix.
+    GmCal3 = 26,
     /// Snorm8x4 "vNormal" in shaders.
     Normal = 28,
     /// Snorm8x4 "vTan" in shaders with bitangent sign in the fourth component.
@@ -538,9 +544,9 @@ impl DataType {
             DataType::Unk16 => 8,
             DataType::VertexColor => 4,
             DataType::Unk18 => 12,
-            DataType::Unk24 => 16,
-            DataType::Unk25 => 16,
-            DataType::Unk26 => 16,
+            DataType::GmCal1 => 16,
+            DataType::GmCal2 => 16,
+            DataType::GmCal3 => 16,
             DataType::Normal => 4,
             DataType::Tangent => 4,
             DataType::Unk30 => 4, // TODO: size?

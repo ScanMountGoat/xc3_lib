@@ -779,9 +779,9 @@ fn match_attribute(
         DataType::Unk16 => attribute!(buffer, count, AttributeData::Unk16),
         DataType::VertexColor => attribute!(buffer, count, AttributeData::VertexColor),
         DataType::Unk18 => attribute!(buffer, count, AttributeData::Unk18),
-        DataType::Unk24 => attribute!(buffer, count, AttributeData::Unk24),
-        DataType::Unk25 => attribute!(buffer, count, AttributeData::Unk25),
-        DataType::Unk26 => attribute!(buffer, count, AttributeData::Unk26),
+        DataType::GmCal1 => attribute!(buffer, count, AttributeData::GmCal1),
+        DataType::GmCal2 => attribute!(buffer, count, AttributeData::GmCal2),
+        DataType::GmCal3 => attribute!(buffer, count, AttributeData::GmCal3),
         DataType::Normal => {
             attribute!(
                 buffer,

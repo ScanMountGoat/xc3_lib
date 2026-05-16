@@ -1384,7 +1384,7 @@ pub fn skin_attribute_bitangent(graph: &Graph, expr: &Expr) -> Option<Expr> {
 }
 
 pub fn attribute_gm_cal_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
-    // vGmCal1.xyz, vGmCal2.xyz, vGmCal3.xyz make up a 3x3 matrix.
+    // vGmCal1.xyz, vGmCal2.xyz, vGmCal3.xyz make up the 3x3 instance transform matrix.
     // TODO: Add a way for queries to match identifiers exactly like "#vGmCal1"?
     let (a, b) = dot3_a_b(graph, expr)?;
     match (a, b) {
@@ -1486,7 +1486,7 @@ static BITANGENT_GM_CAL_XYZ: LazyLock<Graph> = LazyLock::new(|| {
 });
 
 pub fn bitangent_gm_cal_xyz(graph: &Graph, expr: &Expr) -> Option<Expr> {
-    // vGmCal1.xyz, vGmCal2.xyz, vGmCal3.xyz make up a 3x3 matrix.
+    // vGmCal1.xyz, vGmCal2.xyz, vGmCal3.xyz make up the 3x3 instance transform matrix.
     let result = query_nodes(expr, graph, &BITANGENT_GM_CAL_XYZ)?;
 
     let a = result.get("vGmCal_A")?;
