@@ -172,7 +172,7 @@ pub struct PropInstance {
 
     // TODO: part_id of MapPart?
     // TODO: Does a value of 0 indicate no parent MapPart?
-    pub part_id: u16,
+    pub map_part_id: u16,
 
     pub unk3: u16,
     pub unk4: u16,

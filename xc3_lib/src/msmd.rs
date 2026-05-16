@@ -209,11 +209,15 @@ pub struct Texture {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MapModel {
     pub bounds: BoundingBox,
-    // bounding sphere?
-    pub unk2: [f32; 4],
+    pub unk1: u16,
+    pub map_part_id: u16,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub bounds_radius: f32,
     /// `.wismda` data with names like `bina_basefix.temp_wi`.
     pub entry: StreamEntry<MapModelData>,
-    pub unk3: [f32; 4],
+    // TODO: padding?
+    pub unk4: [u32; 4],
 }
 
 // TODO: Better name for this?
@@ -221,11 +225,13 @@ pub struct MapModel {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropModel {
     pub bounds: BoundingBox,
-    // bounding sphere?
-    pub unk2: [f32; 4],
+    pub map_part_id: u32,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub streaming_distance: f32,
     /// `.wismda` data with names like `/seamwork/inst/out/00000.te`.
     pub entry: StreamEntry<PropModelData>,
-    pub unk3: u32,
+    pub unk4: u32,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -255,8 +261,8 @@ pub struct MapLowModel {
     pub unk1: f32,
     /// `.wismda` data with names like `/seamwork/lowmap/ma11a/bina`.
     pub entry: StreamEntry<MapLowModelData>,
-    pub unk2: u16,
-    pub unk3: u16,
+    pub map_part_id: u16,
+    pub parent_base_chunk_index: u16,
     // TODO: padding?
     pub unk: [u32; 5],
 }
@@ -265,7 +271,8 @@ pub struct MapLowModel {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct FoliageModel {
     pub unk1: [f32; 9],
-    pub unk: [u32; 3],
+    pub map_part_id: u32,
+    pub unk: [u32; 2],
     pub unk2: f32,
     /// `.wismda` data with names like `/seamwork/mpfmap/ma11a/bina`.
     pub entry: StreamEntry<FoliageModelData>,
@@ -913,6 +920,7 @@ pub struct MapPartInstanceAnimationKeyframe {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct MapPart {
+    // TODO: name can be map names like ma06a for xc2 ma05a.wismhd?
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub name: String,
@@ -922,7 +930,7 @@ pub struct MapPart {
 
     // TODO: matches with PropInstance part id?
     // TODO: Multiple MapPart can have the same ID?
-    pub part_id: u16,
+    pub map_part_id: u16,
 
     pub flags: u16,
     pub animation_start: u8,

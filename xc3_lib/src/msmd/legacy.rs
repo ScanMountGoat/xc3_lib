@@ -159,10 +159,14 @@ pub struct CsvbBlockItem {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MapModel {
     pub bounds: BoundingBox,
-    pub unk1: [f32; 4],
+    pub unk1: u16,
+    pub map_part_id: u16,
+    pub unk2: u32,
+    pub unk3: u32,
+    pub bounds_radius: f32,
     pub entry: StreamEntry<MapModelData>,
     // TODO: padding?
-    pub unk2: [u32; 4],
+    pub unk4: [u32; 4],
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -180,7 +184,8 @@ pub struct Collision {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct PropModel {
     pub bounds: BoundingBox,
-    pub unk1: u32,
+    pub unk1: u16,
+    pub map_part_id: u16,
     pub unk2: [f32; 3],
     pub entry: StreamEntry<PropModelData>,
     pub unk3: u32,
