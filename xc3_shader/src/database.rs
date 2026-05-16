@@ -13,6 +13,7 @@ use xc3_model::shader_database::{
 use crate::expr::{OutputExpr, Value, output_expr};
 use crate::graph::UnaryOp;
 use crate::graph::glsl::{GlslGraph, merge_vertex_fragment};
+use crate::graph::query::fma_normalize;
 use crate::{
     dependencies::buffer_dependency,
     extract::nvsd_glsl_name,
@@ -292,7 +293,7 @@ impl crate::expr::Operation for Operation {
             .or_else(|| op_func(graph, expr, "sin", Operation::Sin))
             .or_else(|| op_func(graph, expr, "cos", Operation::Cos))
             .or_else(|| {
-                error!("Unsuported expression {expr:?}");
+                error!("Unsupported expression {expr:?}");
                 None
             })
     }
@@ -307,7 +308,9 @@ impl crate::expr::Operation for Operation {
             expr = new_expr;
         }
 
-        if let Some(new_expr) = latte_texture_cube_coords(graph, expr) {
+        if let Some(new_expr) =
+            latte_texture_cube_coords(graph, expr).or_else(|| fma_normalize(graph, expr))
+        {
             Cow::Owned(new_expr)
         } else {
             Cow::Borrowed(expr)
@@ -338,6 +341,7 @@ pub fn modify_attributes(graph: &Graph, expr: &Expr) -> Expr {
         .or_else(|| u_mdl_view_attribute_xyzw(graph, expr))
         .or_else(|| u_mdl_attribute_xyz(graph, expr))
         .or_else(|| attribute_gm_cal_xyz(graph, expr))
+        .or_else(|| gm_cal_clip_attribute_xyzw(graph, expr))
     {
         expr = new_expr;
     }
@@ -758,6 +762,13 @@ mod tests {
         // xeno2/bl/bl000501, "fur_Fur", shd0006
         // Check instanced fur shell rendering
         assert_shader_snapshot!("xc2", "bl000501", "6");
+    }
+
+    #[test]
+    fn shader_from_glsl_xc2_ma30a_branches() {
+        // xeno2/map/ma30a, props, "TR0502d_BaseTrunkA", shd0001
+        // Test multiple normal layers and prop instancing.
+        assert_shader_snapshot!("xc2", "ma30a.props", "1");
     }
 
     #[test]

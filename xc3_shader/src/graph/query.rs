@@ -352,6 +352,25 @@ pub fn normalize<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
     result.get("result").copied()
 }
 
+static FMA_NORMALIZE: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            inv_length = inversesqrt(length);
+            result = fma(a, inv_length, b);
+        }
+    "};
+    Graph::parse_glsl(query).unwrap().simplify()
+});
+
+pub fn fma_normalize(graph: &Graph, expr: &Expr) -> Option<Expr> {
+    let result = query_nodes(expr, graph, &FMA_NORMALIZE)?;
+    let a = result.get("a")?;
+    let b = result.get("b")?;
+    let a = graph.exprs.iter().position(|e| e == *a)?;
+    let b = graph.exprs.iter().position(|e| e == *b)?;
+    Some(Expr::Binary(BinaryOp::Add, a, b))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
