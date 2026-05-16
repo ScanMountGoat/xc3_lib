@@ -466,17 +466,38 @@ impl Graph {
                     name,
                     args,
                     channel,
-                } => Expr::Func {
-                    name: name.clone(),
-                    args: args
+                } => {
+                    let args: Vec<_> = args
                         .iter()
                         .map(|arg| {
                             let new_arg = self.simplify_expr(*arg, simplified, exprs);
                             exprs.insert_full(new_arg).0
                         })
-                        .collect(),
-                    channel: *channel,
-                },
+                        .collect();
+
+                    if name == "fma" {
+                        // TODO: reuse the logic for multiplication and addition simplification?
+                        if exprs[args[2]] == Expr::Float(0.0.into()) {
+                            Expr::Binary(BinaryOp::Mul, args[0], args[1])
+                        } else if exprs[args[0]] == Expr::Float(1.0.into()).into() {
+                            Expr::Binary(BinaryOp::Add, args[1], args[2])
+                        } else if exprs[args[1]] == Expr::Float(1.0.into()).into() {
+                            Expr::Binary(BinaryOp::Add, args[0], args[2])
+                        } else {
+                            Expr::Func {
+                                name: name.clone(),
+                                args,
+                                channel: *channel,
+                            }
+                        }
+                    } else {
+                        Expr::Func {
+                            name: name.clone(),
+                            args,
+                            channel: *channel,
+                        }
+                    }
+                }
                 Expr::Parameter {
                     name,
                     field,
@@ -705,6 +726,27 @@ mod tests {
                 c = -x;
                 d = -x;
                 e3 = -x / 1.0;
+            "},
+            graph.simplify().to_glsl()
+        );
+    }
+
+    #[test]
+    fn simplify_fma() {
+        let glsl = indoc! {"
+            void main() {     
+                a = fma(1.0, x, 2.0);
+                b = fma(x, 1.0, 3.0);
+                c = fma(x, 2.0, 0.0);
+            }
+        "};
+        let graph = Graph::parse_glsl(glsl).unwrap();
+
+        assert_eq!(
+            indoc! {"
+                a = x + 2.0;
+                b = x + 3.0;
+                c = x * 2.0;
             "},
             graph.simplify().to_glsl()
         );
