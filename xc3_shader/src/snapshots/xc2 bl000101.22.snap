@@ -26,3 +26,4 @@ source: xc3_shader/src/database.rs
 "o5.w": "0.0"
 outline_width: None
 normal_intensity: None
+val_inf_intensity: None

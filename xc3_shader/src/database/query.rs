@@ -691,10 +691,14 @@ pub fn calc_normal_map_w_intensity<'a>(
     ))
 }
 
-fn calc_normal_map_val_inf_xcx_query(c: char) -> String {
+fn calc_normal_map_val_inf_query(c: char) -> String {
+    // A fix for mirrored normal map seams used for XCX, XCXDE, and XC3.
     // TODO: is this gram-schmidt process to make bump normal and view(vValInf) orthogonal?
     // TODO: neg_dot_val_inf_normal is multipled by intensity?
+    // TODO: intensity is only 1.0 for seams?
+    // TODO: is vValInf some sort of seam adjustment?
     // intensity = clamp(1.0 - sqrt(normal.w), 0.0, 1.0)
+    // TODO: should this be its own operation?
     formatdoc! {"
         void main() {{
             inverse_length_tangent = inversesqrt(tangent_length);
@@ -715,6 +719,13 @@ fn calc_normal_map_val_inf_xcx_query(c: char) -> String {
             result_y = result_y;
             result = fma(result_y, normalize_bitangent, result);
 
+            intensity = sqrt(intensity);
+            intensity = 0.0 - intensity;
+            intensity = intensity + 1.0;
+            intensity = clamp(intensity, 0.0, 1.0);
+            dot_val_inf_normal = dot_val_inf_normal * intensity;
+            neg_dot_val_inf_normal = 0.0 - dot_val_inf_normal;
+
             inverse_length_normal = inversesqrt(normal_length);
             result = result * inverse_length_normal;
             result = fma(normalize_val_inf, neg_dot_val_inf_normal, result);
@@ -723,28 +734,34 @@ fn calc_normal_map_val_inf_xcx_query(c: char) -> String {
 }
 
 static CALC_NORMAL_MAP_VAL_INF_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
-    let query = calc_normal_map_val_inf_xcx_query('x');
+    let query = calc_normal_map_val_inf_query('x');
     Graph::parse_glsl(&query).unwrap().simplify()
 });
 
 static CALC_NORMAL_MAP_VAL_INF_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
-    let query = calc_normal_map_val_inf_xcx_query('y');
+    let query = calc_normal_map_val_inf_query('y');
     Graph::parse_glsl(&query).unwrap().simplify()
 });
 
 static CALC_NORMAL_MAP_VAL_INF_XCX_Z: LazyLock<Graph> = LazyLock::new(|| {
-    let query = calc_normal_map_val_inf_xcx_query('z');
+    let query = calc_normal_map_val_inf_query('z');
     Graph::parse_glsl(&query).unwrap().simplify()
 });
 
-pub fn calc_normal_map_xcx<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<[&'a Expr; 3]> {
+pub fn calc_normal_map_val_inf<'a>(
+    graph: &'a Graph,
+    expr: &'a Expr,
+) -> Option<([&'a Expr; 3], &'a Expr)> {
     let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_X)
         .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_Y))?;
-    Some([
-        result.get("result_x")?,
-        result.get("result_y")?,
-        result.get("result_z")?,
-    ])
+    Some((
+        [
+            result.get("result_x")?,
+            result.get("result_y")?,
+            result.get("result_z")?,
+        ],
+        result.get("intensity")?,
+    ))
 }
 
 fn calc_normal_map_xcx_query(c: char) -> String {

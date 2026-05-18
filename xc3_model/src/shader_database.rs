@@ -113,6 +113,9 @@ pub struct ShaderProgram {
     /// Index into [exprs](#structfield.exprs) for the normal map intensity.
     pub normal_intensity: Option<usize>,
 
+    /// Index into [exprs](#structfield.exprs) for the vValInf intensity.
+    pub val_inf_intensity: Option<usize>,
+
     /// Unique exprs used for this program.
     pub exprs: Vec<OutputExpr>,
 }

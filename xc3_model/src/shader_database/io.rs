@@ -21,8 +21,8 @@ type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
 pub struct ShaderDatabaseIndexed {
     // File version numbers should be updated with each release.
     // This improves the error when parsing an incompatible version.
-    #[br(assert(version == 4))]
-    #[bw(calc = 4)]
+    #[br(assert(version == 5))]
+    #[bw(calc = 5)]
     version: u32,
 
     // Store unique shader programs across all models and maps.
@@ -79,6 +79,7 @@ struct ShaderProgramIndexed {
 
     outline_width: OptVarInt,
     normal_intensity: OptVarInt,
+    val_inf_intensity: OptVarInt,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, BinRead, BinWrite)]
@@ -252,6 +253,7 @@ impl ShaderDatabaseIndexed {
                     .map(|d| self.add_dependency(d, &p.exprs, &mut expr_indices).0),
             ),
             normal_intensity: OptVarInt(p.normal_intensity.map(|i| expr_indices[i].0)),
+            val_inf_intensity: OptVarInt(p.val_inf_intensity.map(|i| expr_indices[i].0)),
         }
     }
 
@@ -329,6 +331,10 @@ impl ShaderDatabaseIndexed {
             }),
             normal_intensity: p
                 .normal_intensity
+                .0
+                .map(|i| self.output_expr_from_indexed(i, &mut exprs, &mut expr_to_index)),
+            val_inf_intensity: p
+                .val_inf_intensity
                 .0
                 .map(|i| self.output_expr_from_indexed(i, &mut exprs, &mut expr_to_index)),
             exprs: exprs.into_iter().collect(),

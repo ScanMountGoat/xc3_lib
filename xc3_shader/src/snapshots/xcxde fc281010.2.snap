@@ -7,3 +7,4 @@ source: xc3_shader/src/database.rs
 "o0.w": "Mul(Mul(Texture(s0, TexMatrix(vTex0.x, vTex0.y, U_Mate.gTexMat[2].x, U_Mate.gTexMat[2].y, U_Mate.gTexMat[2].z, U_Mate.gTexMat[2].w), TexMatrix(vTex0.x, vTex0.y, U_Mate.gTexMat[3].x, U_Mate.gTexMat[3].y, U_Mate.gTexMat[3].z, U_Mate.gTexMat[3].w)).w, vColor.w), U_Mate.gAlInf.z)"
 outline_width: None
 normal_intensity: None
+val_inf_intensity: None

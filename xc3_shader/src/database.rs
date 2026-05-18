@@ -60,6 +60,7 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
 
     let mut output_dependencies = IndexMap::default();
     let mut normal_intensity = None;
+    let mut val_inf_intensity = None;
 
     // Cache graph expr -> output expr index to visit nodes only once.
     let mut exprs = IndexSet::default();
@@ -84,11 +85,15 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
             let value;
             if i == 2 && (c == 'x' || c == 'y') {
                 // The normals use XY for output index 2 for all games.
-                let (new_value, intensity) =
+                if let Some((new_value, intensity, inf_intensity)) =
                     normal_output_expr(&graph, &dependent_lines, &mut exprs, &mut expr_to_index)
-                        .unzip();
-                value = new_value;
-                normal_intensity = intensity.flatten();
+                {
+                    value = Some(new_value);
+                    normal_intensity = intensity;
+                    val_inf_intensity = inf_intensity;
+                } else {
+                    value = None;
+                }
             } else if i == 2 && c == 'w' {
                 // o2.w is n.z * 1000 + 0.5 for XC1 DE, XC2, and XC3.
                 // This can be easily handled by consuming applications.
@@ -118,6 +123,7 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
         output_dependencies,
         outline_width: outline_width.map(Into::into),
         normal_intensity,
+        val_inf_intensity,
         exprs: exprs
             .into_iter()
             .map(|e| match e {
@@ -198,7 +204,7 @@ fn normal_output_expr(
     dependent_lines: &[usize],
     exprs: &mut IndexSet<OutputExpr<Operation>>,
     expr_to_index: &mut IndexMap<Expr, usize>,
-) -> Option<(usize, Option<usize>)> {
+) -> Option<(usize, Option<usize>, Option<usize>)> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
 
@@ -215,10 +221,12 @@ fn normal_output_expr(
     // TODO: front facing in calcNormalZAbs in pcmdo?
 
     // nomWork input for getCalcNormalMap in pcmdo shaders.
-    let (nom_work, intensity) = calc_normal_map(frag, view_normal)
-        .map(|n| (n, None))
-        .or_else(|| calc_normal_map_xcx(frag, view_normal).map(|n| (n, None)))
-        .or_else(|| calc_normal_map_w_intensity(frag, view_normal).map(|(n, i)| (n, Some(i))))?;
+    let (nom_work, intensity, val_inf_intensity) = calc_normal_map(frag, view_normal)
+        .map(|n| (n, None, None))
+        .or_else(|| calc_normal_map_val_inf(frag, view_normal).map(|(n, i)| (n, None, Some(i))))
+        .or_else(|| {
+            calc_normal_map_w_intensity(frag, view_normal).map(|(n, i)| (n, Some(i), None))
+        })?;
 
     let nom_work = match last_node.output.channel {
         Some('x') => nom_work[0],
@@ -230,8 +238,9 @@ fn normal_output_expr(
     let value = output_expr(nom_work, frag, exprs, expr_to_index);
 
     let intensity = intensity.map(|i| output_expr(i, frag, exprs, expr_to_index));
+    let val_inf_intensity = val_inf_intensity.map(|i| output_expr(i, frag, exprs, expr_to_index));
 
-    Some((value, intensity))
+    Some((value, intensity, val_inf_intensity))
 }
 
 impl crate::expr::Operation for Operation {
@@ -519,6 +528,12 @@ pub fn shader_str(s: &ShaderProgram) -> String {
             writeln!(&mut output, "normal_intensity: {:?}", expr_str(s, i)).unwrap();
         }
         None => writeln!(&mut output, "normal_intensity: None").unwrap(),
+    }
+    match s.val_inf_intensity {
+        Some(i) => {
+            writeln!(&mut output, "val_inf_intensity: {:?}", expr_str(s, i)).unwrap();
+        }
+        None => writeln!(&mut output, "val_inf_intensity: None").unwrap(),
     }
 
     output

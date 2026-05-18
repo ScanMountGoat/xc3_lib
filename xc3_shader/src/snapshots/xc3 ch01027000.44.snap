@@ -20,3 +20,4 @@ source: xc3_shader/src/database.rs
 "o4.w": "vColor.x"
 outline_width: None
 normal_intensity: None
+val_inf_intensity: None

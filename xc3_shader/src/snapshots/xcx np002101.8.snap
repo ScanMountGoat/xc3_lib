@@ -7,3 +7,4 @@ source: xc3_shader/src/database.rs
 "o0.w": "Mul(U_Mate.values[11].z, Mul(vColor.w, Texture(s1, Dot4(vTex0.x, vTex0.y, 0.0, 1.0, U_Mate.values[2].x, U_Mate.values[2].y, U_Mate.values[2].z, U_Mate.values[2].w), Dot4(vTex0.x, vTex0.y, 0.0, 1.0, U_Mate.values[3].x, U_Mate.values[3].y, U_Mate.values[3].z, U_Mate.values[3].w)).w))"
 outline_width: None
 normal_intensity: None
+val_inf_intensity: None
