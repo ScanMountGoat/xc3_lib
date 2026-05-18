@@ -23,7 +23,7 @@ use crate::{
 // Organize the model data to ensure shared resources are created only once.
 pub struct ModelGroup {
     pub models: Vec<Models>,
-    buffers: Vec<ModelBuffers>,
+    pub(crate) buffers: Vec<ModelBuffers>,
     skeleton: Option<xc3_model::Skeleton>,
     per_group: crate::shader::model::bind_groups::BindGroup1,
     pub(crate) bone_animated_transforms: wgpu::Buffer,
@@ -54,12 +54,12 @@ pub struct Model {
     pub meshes: Vec<Mesh>,
     pub min_xyz: Vec3,
     pub max_xyz: Vec3,
-    model_buffers_index: usize,
+    pub model_buffers_index: usize,
     instances: Instances,
 }
 
 pub struct Mesh {
-    vertex_buffer_index: usize,
+    pub(crate) vertex_buffer_index: usize,
     index_buffer_index: usize,
     material_index: usize,
     flags2: MeshRenderFlags2,

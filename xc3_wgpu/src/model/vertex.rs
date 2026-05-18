@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use glam::{UVec4, Vec4};
+use glam::{UVec4, Vec3, Vec4, Vec4Swizzles, vec3};
 use wgpu::util::DeviceExt;
 use xc3_model::vertex::AttributeData;
 
@@ -18,8 +18,9 @@ pub struct VertexBuffer {
     pub vertex_buffer1: wgpu::Buffer,
     pub outline_vertex_buffer0: wgpu::Buffer,
     pub outline_vertex_buffer1: wgpu::Buffer,
-    pub vertex_count: u32,
     pub morph_buffers: Option<MorphBuffers>,
+    pub vertex_count: u32,
+    pub vector_debug_buffer: VectorDebugBuffer,
 }
 
 pub struct MorphBuffers {
@@ -27,6 +28,11 @@ pub struct MorphBuffers {
     pub weights_buffer: wgpu::Buffer,
     pub bind_group0: crate::shader::morph::bind_groups::BindGroup0,
     pub morph_target_controller_indices: Vec<usize>,
+}
+
+pub struct VectorDebugBuffer {
+    pub vertex_buffer: wgpu::Buffer,
+    pub vertex_count: u32,
 }
 
 pub struct IndexBuffer {
@@ -75,6 +81,7 @@ impl VertexBuffer {
                 position: Vec4::ZERO,
                 normal: Vec4::ZERO,
                 tangent: Vec4::ZERO,
+                val_inf: Vec4::ZERO,
             };
             vertex_count
         ];
@@ -138,12 +145,15 @@ impl VertexBuffer {
             None
         };
 
+        let vector_debug_buffer = vector_debug_buffer(device, buffer);
+
         Self {
             vertex_buffer0,
             vertex_buffer1,
             outline_vertex_buffer0,
             outline_vertex_buffer1,
             morph_buffers,
+            vector_debug_buffer,
             vertex_count: vertex_count as u32,
         }
     }
@@ -259,6 +269,7 @@ fn set_buffer0_attributes(verts: &mut [shader::model::VertexInput0], attributes:
             AttributeData::Normal(vals) => set_attribute0(verts, vals, |v, t| v.normal = t),
             AttributeData::Normal2(vals) => set_attribute0(verts, vals, |v, t| v.normal = t),
             AttributeData::Tangent(vals) => set_attribute0(verts, vals, |v, t| v.tangent = t),
+            AttributeData::ValInf(vals) => set_attribute0(verts, vals, |v, t| v.val_inf = t),
             // Morph blend target attributes
             AttributeData::Position2(vals) => {
                 set_attribute0(verts, vals, |v, t| v.position = t.extend(1.0))
@@ -342,4 +353,97 @@ where
     for (vertex, value) in vertices.iter_mut().zip(values) {
         assign(vertex, *value);
     }
+}
+
+fn vector_debug_buffer(
+    device: &wgpu::Device,
+    buffer: &xc3_model::vertex::VertexBuffer,
+) -> VectorDebugBuffer {
+    let mut vertices = Vec::new();
+
+    let mut positions = Vec::new();
+    for attribute in &buffer.attributes {
+        if let AttributeData::Position(values) = attribute {
+            positions = values.clone();
+        }
+    }
+
+    // Assume only one tangent attribute and one normal attribute.
+    let mut tangents = Vec::new();
+    for attribute in &buffer.attributes {
+        match attribute {
+            AttributeData::Tangent(values) => {
+                tangents = values.clone();
+            }
+            AttributeData::Tangent2(values) => {
+                tangents = values.clone();
+            }
+            _ => (),
+        }
+    }
+    let mut normals = Vec::new();
+    for attribute in &buffer.attributes {
+        match attribute {
+            AttributeData::Normal(values) => {
+                normals = values.clone();
+            }
+            AttributeData::Normal2(values) => {
+                normals = values.clone();
+            }
+            AttributeData::Normal3(values) => {
+                normals = values.clone();
+            }
+            AttributeData::Normal4(values) => {
+                normals = values.clone();
+            }
+            _ => (),
+        }
+    }
+
+    // Create a line that points in the direction of each vector.
+
+    for attribute in &buffer.attributes {
+        if let AttributeData::ValInf(values) = attribute {
+            // add_vector_debug_lines(&mut vertices, &positions, values, vec3(1.0, 1.0, 1.0));
+            for (((n, p), t), v) in normals.iter().zip(&positions).zip(&tangents).zip(values) {
+                // Simulate the bitangents calculated in the fragment shader.
+                if n.w < 1.0 {
+                    let bitangent = (n.xyz().cross(t.xyz()) * t.w).extend(0.0);
+                    add_vector_debug_line(&mut vertices, vec3(1.0, 0.0, 0.0), *p, *t);
+                    add_vector_debug_line(&mut vertices, vec3(0.0, 1.0, 0.0), *p, bitangent);
+                    add_vector_debug_line(&mut vertices, vec3(0.0, 0.0, 1.0), *p, *n);
+                    add_vector_debug_line(&mut vertices, vec3(1.0, 1.0, 1.0), *p, *v);
+                }
+            }
+        }
+    }
+    let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Vector Debug vertex buffer"),
+        contents: bytemuck::cast_slice(&vertices),
+        usage: wgpu::BufferUsages::VERTEX
+            | wgpu::BufferUsages::STORAGE
+            | wgpu::BufferUsages::COPY_SRC,
+    });
+
+    VectorDebugBuffer {
+        vertex_buffer,
+        vertex_count: vertices.len() as u32,
+    }
+}
+
+fn add_vector_debug_line(
+    vertices: &mut Vec<shader::vector::VertexInput>,
+    color: Vec3,
+    pos: Vec3,
+    value: Vec4,
+) {
+    // TODO: configure the scale?
+    vertices.push(shader::vector::VertexInput {
+        position: pos.extend(1.0),
+        color: color.extend(0.0),
+    });
+    vertices.push(shader::vector::VertexInput {
+        position: (pos + value.xyz() * 0.05).extend(1.0),
+        color: color.extend(0.0),
+    });
 }

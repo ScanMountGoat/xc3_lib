@@ -30,6 +30,7 @@ fn main() {
         "snn_filter",
         "solid",
         "unbranch_to_depth",
+        "vector",
     ] {
         println!("cargo:rerun-if-changed=src/shader/{name}.wgsl");
 

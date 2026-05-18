@@ -49,6 +49,7 @@ mod shader;
 mod shadergen;
 mod skeleton;
 mod texture;
+mod vector;
 
 pub use collision::{Collision, load_collisions};
 pub use model::{Mesh, Model, ModelGroup, Models, load_map, load_model};

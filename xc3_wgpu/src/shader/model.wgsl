@@ -91,24 +91,25 @@ struct VertexInput0 {
     @location(0) position: vec4<f32>,
     @location(1) normal: vec4<f32>,
     @location(2) tangent: vec4<f32>,
+    @location(3) val_inf: vec4<f32>,
 }
 
 // Store attributes unaffected by skinning or morphs separately.
 struct VertexInput1 {
-    @location(3) vertex_color: vec4<f32>,
-    @location(4) weight_index: vec4<u32>,
-    @location(5) tex01: vec4<f32>,
-    @location(6) tex23: vec4<f32>,
-    @location(7) tex45: vec4<f32>,
-    @location(8) tex67: vec4<f32>,
-    @location(9) tex8: vec4<f32>,
+    @location(4) vertex_color: vec4<f32>,
+    @location(5) weight_index: vec4<u32>,
+    @location(6) tex01: vec4<f32>,
+    @location(7) tex23: vec4<f32>,
+    @location(8) tex45: vec4<f32>,
+    @location(9) tex67: vec4<f32>,
+    @location(10) tex8: vec4<f32>,
 }
 
 struct InstanceInput {
-    @location(10) model_matrix_0: vec4<f32>,
-    @location(11) model_matrix_1: vec4<f32>,
-    @location(12) model_matrix_2: vec4<f32>,
-    @location(13) model_matrix_3: vec4<f32>,
+    @location(11) model_matrix_0: vec4<f32>,
+    @location(12) model_matrix_1: vec4<f32>,
+    @location(13) model_matrix_2: vec4<f32>,
+    @location(14) model_matrix_3: vec4<f32>,
 }
 
 // TODO: Store additional attributes without exceeding attribute limit?
@@ -119,12 +120,13 @@ struct VertexOutput {
     @location(0) position: vec4<f32>,
     @location(1) normal: vec4<f32>,
     @location(2) tangent: vec4<f32>,
-    @location(3) vertex_color: vec4<f32>,
-    @location(4) tex01: vec4<f32>,
-    @location(5) tex23: vec4<f32>,
-    @location(6) tex45: vec4<f32>,
-    @location(7) tex67: vec4<f32>,
-    @location(8) tex8: vec4<f32>,
+    @location(3) val_inf: vec4<f32>,
+    @location(4) vertex_color: vec4<f32>,
+    @location(5) tex01: vec4<f32>,
+    @location(6) tex23: vec4<f32>,
+    @location(7) tex45: vec4<f32>,
+    @location(8) tex67: vec4<f32>,
+    @location(9) tex8: vec4<f32>,
 }
 
 struct FragmentOutput {
@@ -143,11 +145,13 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
     var position = in0.position.xyz;
     var normal_xyz = in0.normal.xyz;
     var tangent_xyz = in0.tangent.xyz;
+    var val_inf_xyz = in0.val_inf.xyz;
 
     if per_group.enable_skinning.x == 1u {
         position = vec3(0.0);
         normal_xyz = vec3(0.0);
         tangent_xyz = vec3(0.0);
+        val_inf_xyz = vec3(0.0);
 
         // Weights require an extra layer of indirection.
         // This is done in game using a buffer of bone transforms with weights already applied.
@@ -165,6 +169,7 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
             position += skin_weight * (animated_transforms[bone_index] * vec4(in0.position.xyz, 1.0)).xyz;
             tangent_xyz += skin_weight * (animated_transforms_inv_transpose[bone_index] * vec4(in0.tangent.xyz, 0.0)).xyz;
             normal_xyz += skin_weight * (animated_transforms_inv_transpose[bone_index] * vec4(in0.normal.xyz, 0.0)).xyz;
+            val_inf_xyz += skin_weight * (animated_transforms_inv_transpose[bone_index] * vec4(in0.val_inf.xyz, 0.0)).xyz;
         }
     }
 
@@ -173,6 +178,7 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
     position = (camera.view * vec4(position, 1.0)).xyz;
     normal_xyz = (camera.view * vec4(normalize(normal_xyz), 0.0)).xyz;
     tangent_xyz = (camera.view * vec4(normalize(tangent_xyz), 0.0)).xyz;
+    val_inf_xyz = (camera.view * vec4(val_inf_xyz, 0.0)).xyz;
 
     var vertex_color = in1.vertex_color;
 
@@ -216,6 +222,7 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
 
     out.normal = vec4(normal_xyz, in0.normal.w);
     out.tangent = vec4(tangent_xyz, in0.tangent.w);
+    out.val_inf = vec4(val_inf_xyz, in0.val_inf.w);
     return out;
 }
 
@@ -471,6 +478,14 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
         intensity = pow(intensity, 0.7);
         let normal_map = create_normal_map(g_normal.x, g_normal.y) * vec3(intensity, intensity, 1.0);
         normal = apply_normal_map(normal_map, tangent, bitangent, vertex_normal);
+
+        // Gram-Schmidt orthogonalization to fix seams for mirrored normal maps.
+        // TODO: figure out how vValInf and vNormal.w are generated.
+        var val_inf_intensity = 1.0;
+        let ASSIGN_VAL_INF_INTENSITY_GENERATED = 0.0;
+        val_inf_intensity = clamp(1.0 - sqrt(val_inf_intensity), 0.0, 1.0);
+        normal = normal - val_inf_intensity * dot(normal, in.val_inf.xyz) * in.val_inf.xyz;
+
     }
     let ao = g_normal.z;
 

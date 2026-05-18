@@ -23,6 +23,9 @@ pub struct OutputAssignments {
     /// Index into [assignments](#structfield.assignments) for the intensity map for normal mapping.
     pub normal_intensity: Option<usize>,
 
+    /// Index into [assignments](#structfield.assignments) for the intensity for vValInf normal mapping.
+    pub val_inf_intensity: Option<usize>,
+
     /// Unique values shared between all outputs.
     pub assignments: Vec<Assignment>,
 }
@@ -350,6 +353,7 @@ pub(crate) fn output_assignments(
             .as_ref()
             .and_then(|d| AssignmentValue::from_dependency(d, parameters)),
         normal_intensity: shader.normal_intensity,
+        val_inf_intensity: shader.val_inf_intensity,
         assignments,
     }
 }
@@ -481,6 +485,7 @@ pub(crate) fn infer_assignment_from_textures(
         ],
         outline_width: None,
         normal_intensity: None,
+        val_inf_intensity: None,
         assignments: assignments.into_iter().collect(),
     }
 }

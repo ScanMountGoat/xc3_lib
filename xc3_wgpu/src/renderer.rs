@@ -5,7 +5,7 @@ use xc3_model::MeshRenderPass;
 use crate::{
     COLOR_FORMAT, Collision, DeviceBufferExt, GBUFFER_COLOR_FORMAT, GBUFFER_NORMAL_FORMAT,
     MonolibShaderTextures, QueueBufferExt, model::ModelGroup, pipeline::Output5Type,
-    skeleton::BoneRenderer,
+    skeleton::BoneRenderer, vector::VectorRenderer,
 };
 
 const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24PlusStencil8;
@@ -47,6 +47,8 @@ pub struct Renderer {
     collisions_pipeline: wgpu::RenderPipeline,
 
     bone_renderer: BoneRenderer,
+
+    vector_renderer: VectorRenderer,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -295,6 +297,7 @@ impl Renderer {
         );
 
         let bone_renderer = BoneRenderer::new(device, &camera_buffer, surface_format);
+        let vector_renderer = VectorRenderer::new(device, &camera_buffer, surface_format);
 
         let collisions_pipeline = collision_pipeline(device, surface_format, "Collisions Pipeline");
 
@@ -320,6 +323,7 @@ impl Renderer {
             solid_culled_bind_group1,
             bone_renderer,
             collisions_pipeline,
+            vector_renderer,
         }
     }
 
@@ -1000,6 +1004,24 @@ impl Renderer {
                     &group.bone_animated_transforms,
                     group.bone_count as u32,
                 );
+            }
+        }
+
+        // TODO: draw vectors for tbn and valinf
+        // TODO: move this to models.rs?
+        for group in groups {
+            for models in &group.models {
+                for model in &models.models {
+                    for mesh in &model.meshes {
+                        let vertex_buffer = &group.buffers[model.model_buffers_index]
+                            .vertex_buffers[&mesh.vertex_buffer_index];
+                        self.vector_renderer.draw_vectors(
+                            &mut render_pass,
+                            &vertex_buffer.vector_debug_buffer.vertex_buffer,
+                            vertex_buffer.vector_debug_buffer.vertex_count,
+                        );
+                    }
+                }
             }
         }
 

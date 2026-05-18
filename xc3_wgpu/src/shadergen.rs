@@ -28,6 +28,7 @@ static WGSL_REPLACEMENTS: LazyLock<AhoCorasick> = LazyLock::new(|| {
         "let ASSIGN_VARS = 0.0;",
         "let ALPHA_TEST_DISCARD_GENERATED = 0.0;",
         "let ASSIGN_NORMAL_INTENSITY_GENERATED = 0.0;",
+        "let ASSIGN_VAL_INF_INTENSITY_GENERATED = 0.0;",
         "let ASSIGN_COLOR_GENERATED = 0.0;",
         "let ASSIGN_ETC_GENERATED = 0.0;",
         "let ASSIGN_NORMAL_GENERATED = 0.0;",
@@ -43,6 +44,7 @@ pub struct ShaderWgsl {
     outputs: Vec<String>,
     alpha_test: String,
     normal_intensity: String,
+    val_inf_intensity: String,
 }
 
 impl ShaderWgsl {
@@ -75,11 +77,18 @@ impl ShaderWgsl {
             .map(|i| generate_normal_intensity_wgsl(*i))
             .unwrap_or_default();
 
+        let val_inf_intensity = output_assignments
+            .val_inf_intensity
+            .as_ref()
+            .map(|i| generate_normal_intensity_wgsl(*i))
+            .unwrap_or_default();
+
         Self {
             assignments,
             outputs,
             alpha_test,
             normal_intensity,
+            val_inf_intensity,
         }
     }
 
@@ -89,6 +98,7 @@ impl ShaderWgsl {
             &self.alpha_test,
             // TODO: Avoid these replace calls?
             &self.normal_intensity.replace(OUT_VAR, "intensity"),
+            &self.val_inf_intensity.replace(OUT_VAR, "val_inf_intensity"),
             &self.outputs[0].replace(OUT_VAR, "g_color"),
             &self.outputs[1].replace(OUT_VAR, "g_etc_buffer"),
             &self.outputs[2].replace(OUT_VAR, "g_normal"),
