@@ -1,4 +1,4 @@
-//! Map data in `.nvda` or `.winvda` files.
+//! Map data for an [Nvms](crate::nvms::Nvms) in `.nvda` or `.winvda` files.
 //!
 //! # File Paths
 //! | Game | Versions | File Patterns |
@@ -11,6 +11,8 @@ use crate::parse_offset32_count32;
 use binrw::{BinRead, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
+// TODO: xcx wii u format is similar
+/// The data for an [Nvms](crate::nvms::Nvms).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"NVDA"))]
@@ -19,7 +21,7 @@ pub struct Nvda {
     pub unk1: u32,       // 4115 (xc3), 4160 (xc1, xc2, xcxde)
     pub unk2: [u32; 14], // TODO: padding?
 
-    // TODO: parse entries until end of file
+    // TODO: parse bytes until end of file
     // TODO: nvpt for xcx de and xbc1 for other games?
     pub entry: Nvpt,
 }

@@ -76,6 +76,7 @@ pub mod mths;
 pub mod mtxt;
 pub mod mxmd;
 pub mod nvda;
+pub mod nvms;
 pub mod offset;
 pub mod sar1;
 pub mod spch;
@@ -662,6 +663,7 @@ file_write_full_impl!(
     last::Last,
     evpa::Evpa,
     nvda::Nvda,
+    nvms::Nvms,
     // TODO: This can be big endian for camdo
     mxmd::legacy::VertexData
 );
@@ -757,7 +759,8 @@ file_read_impl!(
     laft::Laft,
     last::Last,
     evpa::Evpa,
-    nvda::Nvda
+    nvda::Nvda,
+    nvms::Nvms
 );
 
 file_read_impl!(
