@@ -52,6 +52,7 @@ pub mod bc;
 pub mod beb;
 pub mod beh;
 pub mod bmn;
+pub mod csvb;
 pub mod datasheet;
 pub mod dds;
 pub mod dhal;
@@ -664,6 +665,7 @@ file_write_full_impl!(
     evpa::Evpa,
     nvda::Nvda,
     nvms::Nvms,
+    csvb::Csvb,
     // TODO: This can be big endian for camdo
     mxmd::legacy::VertexData
 );
@@ -760,7 +762,8 @@ file_read_impl!(
     last::Last,
     evpa::Evpa,
     nvda::Nvda,
-    nvms::Nvms
+    nvms::Nvms,
+    csvb::Csvb
 );
 
 file_read_impl!(

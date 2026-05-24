@@ -14,6 +14,7 @@ use xc3_lib::{
     beb::{Beb, BebData},
     beh::Beh,
     bmn::Bmn,
+    csvb::Csvb,
     dhal::Dhal,
     efb0::Efb0,
     eva::Eva,
@@ -32,7 +33,7 @@ use xc3_lib::{
     mtxt::Mtxt,
     mxmd::{Mxmd, MxmdV40, MxmdV112, legacy::MxmdLegacy},
     offset::{OffsetRange, OffsetValidationError, read_type_get_offsets},
-    sar1::{ChCl, Csvb, Sar1},
+    sar1::{ChCl, Sar1},
     spch::Spch,
     xbc1::{MaybeXbc1, Xbc1},
 };
@@ -41,6 +42,7 @@ use xc3_model::{
     model::import::{ModelFilesV40, ModelFilesV111, ModelFilesV112},
     monolib::ShaderTextures,
     shader_database::ShaderDatabase,
+    vertex::AttributeData,
 };
 use xc3_write::WriteFull;
 
@@ -122,6 +124,10 @@ struct Cli {
     /// Process EVPA files from .evpa
     #[arg(long)]
     evpa: bool,
+
+    /// Process CSBV files from .wiefp
+    #[arg(long)]
+    csvb: bool,
 
     /// Process MTXT files from .catex, .calut, and .caavp
     #[arg(long)]
@@ -277,6 +283,11 @@ fn main() {
     if cli.evpa || cli.all {
         println!("Checking Evpa files ...");
         check_all::<Evpa>(root, &["*.evpa"], Endian::Little, cli.rw);
+    }
+
+    if cli.csvb || cli.all {
+        println!("Checking Csvb files ...");
+        check_all::<Csvb>(root, &["*.wiefp"], Endian::Little, cli.rw);
     }
 
     if cli.mtxt || cli.all {
@@ -1317,6 +1328,20 @@ impl CheckFile for Evpa {
     ) {
         if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
             println!("Evpa read/write not 1:1 for {path:?}");
+        }
+    }
+}
+
+impl CheckFile for Csvb {
+    fn check_file(
+        self,
+        path: &Path,
+        original_bytes: &[u8],
+        _original_ranges: &[OffsetRange],
+        check_read_write: bool,
+    ) {
+        if check_read_write && !write_le_bytes_equals(&self, original_bytes) {
+            println!("Csvb read/write not 1:1 for {path:?}");
         }
     }
 }
