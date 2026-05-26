@@ -42,7 +42,6 @@ use xc3_model::{
     model::import::{ModelFilesV40, ModelFilesV111, ModelFilesV112},
     monolib::ShaderTextures,
     shader_database::ShaderDatabase,
-    vertex::AttributeData,
 };
 use xc3_write::WriteFull;
 
@@ -1633,7 +1632,7 @@ fn check_all_animations(root: &Path, _check_read_write: bool) {
 }
 
 fn check_all_collisions(root: &Path, _check_read_write: bool) {
-    let paths = collect_paths(root, &["*.{mot, anm, motstm_data}"]);
+    let paths = collect_paths(root, &["*.{wiidcm, idcm}"]);
     paths
         .par_iter()
         .for_each(|path| match xc3_model::load_collisions(path) {
