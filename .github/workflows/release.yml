@@ -12,7 +12,7 @@ jobs:
   build-linux:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     - name: Build xc3_gltf
       run: cargo rustc --release -p xc3_gltf -- -C link-args=-lstdc++
     - name: Build xc3_shader
@@ -27,12 +27,12 @@ jobs:
       working-directory: target/release
       run: zip xc3_lib_linux_x64.zip xc3_gltf xc3_shader xc3_tex xc3_viewer xc3_wgpu_batch
     - name: Upload Zip
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: xc3_lib_linux
         path: target/release/xc3_lib_linux_x64.zip
     - name: Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: target/release/xc3_lib_linux_x64.zip
@@ -42,19 +42,19 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     - name: Build
       run: cargo build --release
     - name: Create Release Zip
       working-directory: target/release
       run: Compress-Archive -path xc3_gltf.exe, xc3_shader.exe, xc3_tex.exe, xc3_viewer.exe, xc3_wgpu_batch.exe -destinationPath xc3_lib_win_x64.zip
     - name: Upload Zip
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: xc3_lib_win
         path: target/release/xc3_lib_win_x64.zip
     - name: Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: target/release/xc3_lib_win_x64.zip
@@ -71,7 +71,7 @@ jobs:
           - target: aarch64-apple-darwin
             desc: apple_silicon
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     - name: Install Rust Toolchain
       uses: actions-rs/toolchain@v1
       with:
@@ -91,12 +91,12 @@ jobs:
       working-directory: target/${{matrix.target}}/release
       run: zip xc3_lib_macos_${{matrix.desc}}.zip xc3_gltf xc3_shader xc3_tex xc3_viewer xc3_wgpu_batch
     - name: Upload Zip
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: xc3_lib_macos_${{matrix.desc}}
         path: target/${{matrix.target}}/release/xc3_lib_macos_${{matrix.desc}}.zip
     - name: Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: target/${{matrix.target}}/release/xc3_lib_macos_${{matrix.desc}}.zip
