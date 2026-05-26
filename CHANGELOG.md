@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added support for wismhd maps from Xenoblade X DE.
 * Added the `--group` arg to xc3_viewer for rendering individual models.
 * Added support for `.evpa` files.
+* Added the `--normals` arg to xc3_viewer and xc3_wgpu_batch for debug rendering of normal mapping vertex attributes.
 
 ### Changed
 * Improved accuracy of wimdo file rebuilding.

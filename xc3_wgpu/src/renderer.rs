@@ -335,6 +335,7 @@ impl Renderer {
         collisions: &[Collision],
         draw_bounds: bool,
         draw_bones: bool,
+        draw_vectors: bool,
         models_index: Option<usize>,
         model_index: Option<usize>,
     ) {
@@ -376,6 +377,7 @@ impl Renderer {
             collisions,
             draw_bounds,
             draw_bones,
+            draw_vectors,
         );
     }
 
@@ -947,6 +949,7 @@ impl Renderer {
         collisions: &[Collision],
         draw_bounds: bool,
         draw_bones: bool,
+        draw_vectors: bool,
     ) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Final Pass"),
@@ -1009,17 +1012,19 @@ impl Renderer {
 
         // TODO: draw vectors for tbn and valinf
         // TODO: move this to models.rs?
-        for group in groups {
-            for models in &group.models {
-                for model in &models.models {
-                    for mesh in &model.meshes {
-                        let vertex_buffer = &group.buffers[model.model_buffers_index]
-                            .vertex_buffers[&mesh.vertex_buffer_index];
-                        self.vector_renderer.draw_vectors(
-                            &mut render_pass,
-                            &vertex_buffer.vector_debug_buffer.vertex_buffer,
-                            vertex_buffer.vector_debug_buffer.vertex_count,
-                        );
+        if draw_vectors {
+            for group in groups {
+                for models in &group.models {
+                    for model in &models.models {
+                        for mesh in &model.meshes {
+                            let vertex_buffer = &group.buffers[model.model_buffers_index]
+                                .vertex_buffers[&mesh.vertex_buffer_index];
+                            self.vector_renderer.draw_vectors(
+                                &mut render_pass,
+                                &vertex_buffer.vector_debug_buffer.vertex_buffer,
+                                vertex_buffer.vector_debug_buffer.vertex_count,
+                            );
+                        }
                     }
                 }
             }

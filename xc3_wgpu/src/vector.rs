@@ -34,7 +34,7 @@ impl VectorRenderer {
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_STENCIL_FORMAT,
                 depth_write_enabled: Some(true),
-                depth_compare: Some(wgpu::CompareFunction::LessEqual),
+                depth_compare: Some(wgpu::CompareFunction::Always),
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),

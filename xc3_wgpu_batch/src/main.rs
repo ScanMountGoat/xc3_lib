@@ -41,6 +41,10 @@ struct Cli {
     #[arg(long)]
     bones: bool,
 
+    /// Draw the vectors used for normal mapping.
+    #[arg(long)]
+    normals: bool,
+
     /// Override for the graphics backend.
     #[arg(
         long,
@@ -271,6 +275,7 @@ fn render_model(
                                 &[],
                                 false,
                                 cli.bones,
+                                cli.normals,
                                 Some(models_index),
                                 Some(model_index),
                             );

@@ -401,10 +401,8 @@ fn vector_debug_buffer(
     }
 
     // Create a line that points in the direction of each vector.
-
     for attribute in &buffer.attributes {
         if let AttributeData::ValInf(values) = attribute {
-            // add_vector_debug_lines(&mut vertices, &positions, values, vec3(1.0, 1.0, 1.0));
             for (((n, p), t), v) in normals.iter().zip(&positions).zip(&tangents).zip(values) {
                 // Simulate the bitangents calculated in the fragment shader.
                 if n.w < 1.0 {
@@ -443,7 +441,7 @@ fn add_vector_debug_line(
         color: color.extend(0.0),
     });
     vertices.push(shader::vector::VertexInput {
-        position: (pos + value.xyz() * 0.05).extend(1.0),
+        position: (pos + value.xyz() * 0.025).extend(1.0),
         color: color.extend(0.0),
     });
 }

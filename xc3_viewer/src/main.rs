@@ -60,6 +60,7 @@ struct State {
 
     draw_bones: bool,
     draw_bounds: bool,
+    draw_vectors: bool,
 
     root_index: Option<usize>,
     group_index: Option<usize>,
@@ -290,6 +291,7 @@ impl State {
             previous_frame_start: Instant::now(),
             draw_bones: cli.bones,
             draw_bounds: cli.bounds,
+            draw_vectors: cli.normals,
             root_index: cli.root,
             group_index: cli.group,
             models_index: cli.models,
@@ -394,6 +396,7 @@ impl State {
             &self.collisions,
             self.draw_bounds,
             self.draw_bones,
+            self.draw_vectors,
             self.models_index,
             self.model_index,
         );
@@ -755,6 +758,10 @@ struct Cli {
     /// Draw model bounding boxes.
     #[arg(long)]
     bounds: bool,
+
+    /// Draw the vectors used for normal mapping.
+    #[arg(long)]
+    normals: bool,
 
     /// Override for the graphics backend.
     #[arg(
