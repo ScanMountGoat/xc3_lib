@@ -1,3 +1,5 @@
+use futures::executor::block_on;
+use log::error;
 use xc3_model::material::{BlendMode, ColorWriteMode, CullMode, MaterialTechniqueType, StateFlags};
 
 use crate::{
@@ -196,10 +198,23 @@ fn model_pipeline_inner<const M: usize, const N: usize>(
 
     // TODO: Is it even worth caching these?
     // TODO: Better to add technique index and material name?
-    let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+
+    let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+    let mut module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: None,
         source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(source)),
     });
+    if let Some(error) = block_on(scope.pop()) {
+        // The error scope converts a panic into an error.
+        // The default value for the shader module at this point isn't valid, so set it here.
+        error!("Error compiling pipeline: {error}");
+        module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
+                crate::shader::model::SOURCE,
+            )),
+        })
+    }
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Model Pipeline"),

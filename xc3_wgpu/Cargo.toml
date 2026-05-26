@@ -22,6 +22,7 @@ indexmap.workspace = true
 smol_str.workspace = true
 indoc.workspace = true
 aho-corasick = "1.1.4"
+futures.workspace = true
 
 [build-dependencies]
 wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu", rev = "11ea948" }
