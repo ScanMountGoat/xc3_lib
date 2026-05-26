@@ -25,5 +25,5 @@ aho-corasick = "1.1.4"
 futures.workspace = true
 
 [build-dependencies]
-wgsl_to_wgpu = { git = "https://github.com/ScanMountGoat/wgsl_to_wgpu", rev = "11ea948" }
+wgsl_to_wgpu = "0.18.0"
 wesl = { version = "0.3.1", features = ["naga-ext"] }
