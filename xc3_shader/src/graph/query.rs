@@ -271,13 +271,11 @@ fn assign_x<'a>(graph: &'a Graph, expr: &Expr) -> Option<&'a Expr> {
 
 static MIX_A_B_RATIO: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            neg_a = 0.0 - a;
-            b_minus_a = neg_a + b;
-            result = fma(b_minus_a, ratio, a);
-        }
+        neg_a = 0.0 - a;
+        b_minus_a = neg_a + b;
+        result = fma(b_minus_a, ratio, a);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn mix_a_b_ratio<'a>(
@@ -293,13 +291,11 @@ pub fn mix_a_b_ratio<'a>(
 
 static DOT3_A_B: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            result = a1 * b1;
-            result = fma(a2, b2, result);
-            result = fma(a3, b3, result);
-        }
+        result = a1 * b1;
+        result = fma(a2, b2, result);
+        result = fma(a3, b3, result);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn dot3_a_b<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<([&'a Expr; 3], [&'a Expr; 3])> {
@@ -327,7 +323,7 @@ pub fn fma_a_b_c<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(&'a Expr, &'a 
 }
 
 static FMA_HALF_HALF: LazyLock<Graph> = LazyLock::new(|| {
-    Graph::parse_glsl("void main() { result = fma(x, 0.5, 0.5); }")
+    Graph::parse_glsl_query("result = fma(x, 0.5, 0.5);")
         .unwrap()
         .simplify()
 });
@@ -339,12 +335,10 @@ pub fn fma_half_half<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
 
 static NORMALIZE: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            inv_length = inversesqrt(length);
-            result = result * inv_length;
-        }
+        inv_length = inversesqrt(length);
+        result = result * inv_length;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn normalize<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -354,12 +348,10 @@ pub fn normalize<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
 
 static FMA_NORMALIZE: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            inv_length = inversesqrt(length);
-            result = fma(a, inv_length, b);
-        }
+        inv_length = inversesqrt(length);
+        result = fma(a, inv_length, b);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn fma_normalize(graph: &Graph, expr: &Expr) -> Option<Expr> {
@@ -377,8 +369,8 @@ mod tests {
     use indoc::indoc;
 
     fn query_glsl(graph_glsl: &str, query_glsl: &str) -> Option<BTreeMap<String, Expr>> {
-        let graph = Graph::parse_glsl(&format!("void main() {{ {graph_glsl} }}")).unwrap();
-        let query = Graph::parse_glsl(&format!("void main() {{ {query_glsl} }}")).unwrap();
+        let graph = Graph::parse_glsl_query(graph_glsl).unwrap();
+        let query = Graph::parse_glsl_query(query_glsl).unwrap();
 
         // TODO: Check vars?
         graph.query(&query).map(|v| {
@@ -389,8 +381,8 @@ mod tests {
     }
 
     fn query_glsl_simplified(graph_glsl: &str, query_glsl: &str) -> Option<BTreeMap<String, Expr>> {
-        let graph = Graph::parse_glsl(&format!("void main() {{ {graph_glsl} }}")).unwrap();
-        let query = Graph::parse_glsl(&format!("void main() {{ {query_glsl} }}")).unwrap();
+        let graph = Graph::parse_glsl_query(graph_glsl).unwrap();
+        let query = Graph::parse_glsl_query(query_glsl).unwrap();
 
         let graph = graph.simplify();
         let query = query.simplify();

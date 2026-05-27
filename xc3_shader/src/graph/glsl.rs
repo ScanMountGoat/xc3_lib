@@ -163,6 +163,12 @@ impl Graph {
         Ok(Graph::from_glsl(&tu))
     }
 
+    pub(crate) fn parse_glsl_query(glsl: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let glsl = format!("void main() {{ {glsl} }}");
+        let tu = TranslationUnit::parse(&glsl)?;
+        Ok(Graph::from_glsl(&tu))
+    }
+
     /// Pretty print the graph as GLSL code with an assignment line for each node.
     /// The output may not be valid GLSL and should only be used for debugging.
     pub fn to_glsl(&self) -> String {

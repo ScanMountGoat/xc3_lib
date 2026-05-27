@@ -29,25 +29,21 @@ pub fn op_func<'a>(
 
 static OP_OVER: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            neg_a = 0.0 - a;
-            b_minus_a = neg_a + b;
-            result = fma(b_minus_a, ratio, a);
-        }
+        neg_a = 0.0 - a;
+        b_minus_a = neg_a + b;
+        result = fma(b_minus_a, ratio, a);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static OP_OVER2: LazyLock<Graph> = LazyLock::new(|| {
     // Alternative form used for some shaders.
     let query = indoc! {"
-        void main() {
-            neg_ratio = 0.0 - ratio;
-            a_inv_ratio = fma(a, neg_ratio, a);
-            result = fma(b, ratio, a_inv_ratio);
-        }
+        neg_ratio = 0.0 - ratio;
+        a_inv_ratio = fma(a, neg_ratio, a);
+        result = fma(b, ratio, a_inv_ratio);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn op_mix<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -62,13 +58,11 @@ pub fn op_mix<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'
 
 static OP_RATIO: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            neg_a = 0.0 - a;
-            ab_minus_a = fma(a, b, neg_a);
-            result = fma(ab_minus_a, ratio, a);
-        }
+        neg_a = 0.0 - a;
+        ab_minus_a = fma(a, b, neg_a);
+        result = fma(ab_minus_a, ratio, a);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 // TODO: Is it better to just detect this as mix -> mul?
@@ -94,23 +88,21 @@ pub fn op_fma<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'
 
 static OP_OVERLAY_XC2: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            two_a = 2.0 * a;
-            a_b_multiply = two_a * b;
-            neg_a_b_multiply = 0.0 - a_b_multiply;
-            a_b_multiply = fma(a_gt_half, neg_a_b_multiply, a_b_multiply);
+        two_a = 2.0 * a;
+        a_b_multiply = two_a * b;
+        neg_a_b_multiply = 0.0 - a_b_multiply;
+        a_b_multiply = fma(a_gt_half, neg_a_b_multiply, a_b_multiply);
 
-            a_b_screen = fma(b, neg_temp, temp);
-            neg_a_gt_half = 0.0 - a_gt_half;
-            a_b_screen = fma(a_b_screen, neg_a_gt_half, a_gt_half);
+        a_b_screen = fma(b, neg_temp, temp);
+        neg_a_gt_half = 0.0 - a_gt_half;
+        a_b_screen = fma(a_b_screen, neg_a_gt_half, a_gt_half);
 
-            a_b_overlay = a_b_screen + a_b_multiply;
-            neg_ratio = 0.0 - ratio;
-            result = fma(a, neg_ratio, a);
-            result = fma(a_b_overlay, ratio, result);
-        }
+        a_b_overlay = a_b_screen + a_b_multiply;
+        neg_ratio = 0.0 - ratio;
+        result = fma(a, neg_ratio, a);
+        result = fma(a_b_overlay, ratio, result);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 // TODO: This can just be detected as mix -> overlay2?
@@ -129,23 +121,21 @@ pub fn op_overlay_ratio<'a>(
 
 static OP_OVERLAY_XCX_DE: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            neg_b = 0.0 - b; 
-            one_minus_b = neg_b + 1.0;
-            two_b = b * 2.0;
-            multiply = two_b * a;
-            temp_181 = a + -0.5;
-            temp_182 = 0.0 - one_minus_b;
-            temp_183 = fma(a, temp_182, one_minus_b);
-            temp_189 = temp_181 * 1000.0;
-            is_a_gt_half = clamp(temp_189, 0.0, 1.0);
-            temp_193 = 0.0 - multiply;
-            temp_194 = fma(temp_183, -2.0, temp_193);
-            temp_208 = fma(is_a_gt_half, temp_194, is_a_gt_half);
-            result = multiply + temp_208;
-        }
+        neg_b = 0.0 - b; 
+        one_minus_b = neg_b + 1.0;
+        two_b = b * 2.0;
+        multiply = two_b * a;
+        temp_181 = a + -0.5;
+        temp_182 = 0.0 - one_minus_b;
+        temp_183 = fma(a, temp_182, one_minus_b);
+        temp_189 = temp_181 * 1000.0;
+        is_a_gt_half = clamp(temp_189, 0.0, 1.0);
+        temp_193 = 0.0 - multiply;
+        temp_194 = fma(temp_183, -2.0, temp_193);
+        temp_208 = fma(is_a_gt_half, temp_194, is_a_gt_half);
+        result = multiply + temp_208;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn op_overlay<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -161,35 +151,31 @@ static FRESNEL_RATIO: LazyLock<Graph> = LazyLock::new(|| {
     // getPixelCalcFresnel in pcmdo shaders for XC3.
     // pow(1.0 - n_dot_v, ratio * 5.0)
     let query = indoc! {"
-        void main() {
-            n_dot_v = abs(n_dot_v);
-            neg_n_dot_v = 0.0 - n_dot_v;
-            one_minus_n_dot_v = neg_n_dot_v + 1.0;
-            result = log2(one_minus_n_dot_v);
-            ratio = ratio * 5.0;
-            result = ratio * result;
-            result = exp2(result);
-        }
+        n_dot_v = abs(n_dot_v);
+        neg_n_dot_v = 0.0 - n_dot_v;
+        one_minus_n_dot_v = neg_n_dot_v + 1.0;
+        result = log2(one_minus_n_dot_v);
+        ratio = ratio * 5.0;
+        result = ratio * result;
+        result = exp2(result);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static FRESNEL_RATIO2: LazyLock<Graph> = LazyLock::new(|| {
     // Variant for XCX DE shaders with log2(abs()) instead of log2().
     // pow(1.0 - n_dot_v, ratio * 5.0)
     let query = indoc! {"
-        void main() {
-            n_dot_v = abs(n_dot_v);
-            neg_n_dot_v = 0.0 - n_dot_v;
-            one_minus_n_dot_v = neg_n_dot_v + 1.0;
-            one_minus_n_dot_v = abs(one_minus_n_dot_v);
-            result = log2(one_minus_n_dot_v);
-            ratio = ratio * 5.0;
-            result = ratio * result;
-            result = exp2(result);
-        }
+        n_dot_v = abs(n_dot_v);
+        neg_n_dot_v = 0.0 - n_dot_v;
+        one_minus_n_dot_v = neg_n_dot_v + 1.0;
+        one_minus_n_dot_v = abs(one_minus_n_dot_v);
+        result = log2(one_minus_n_dot_v);
+        ratio = ratio * 5.0;
+        result = ratio * result;
+        result = exp2(result);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn op_fresnel_ratio<'a>(
@@ -205,26 +191,22 @@ pub fn op_fresnel_ratio<'a>(
 static OP_POW: LazyLock<Graph> = LazyLock::new(|| {
     // Equivalent to pow(a, b)
     let query = indoc! {"
-        void main() {
-            a = abs(a);
-            a = log2(a);
-            a = a * b;
-            a = exp2(a);
-        }
+        a = abs(a);
+        a = log2(a);
+        a = a * b;
+        a = exp2(a);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static OP_POW2: LazyLock<Graph> = LazyLock::new(|| {
     // Equivalent to pow(a, b)
     let query = indoc! {"
-        void main() {
-            a = log2(a);
-            a = a * b;
-            a = exp2(a);
-        }
+        a = log2(a);
+        a = a * b;
+        a = exp2(a);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn op_pow<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -238,16 +220,14 @@ pub fn op_pow<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'
 static OP_SQRT: LazyLock<Graph> = LazyLock::new(|| {
     // Equivalent to sqrt(result)
     let query = indoc! {"
-        void main() {
-            result = inversesqrt(result);
-            result = 1.0 / result;
-        }
+        result = inversesqrt(result);
+        result = 1.0 / result;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static OP_SQRT2: LazyLock<Graph> = LazyLock::new(|| {
-    Graph::parse_glsl("void main() { result = sqrt(result); }")
+    Graph::parse_glsl_query("result = sqrt(result);")
         .unwrap()
         .simplify()
 });
@@ -260,12 +240,8 @@ pub fn op_sqrt<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&
 }
 
 static OP_DOT4: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        void main() {
-            result = dot(vec4(ax, ay, az, aw), vec4(bx, by, bz, bw));
-        }
-    "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    let query = "result = dot(vec4(ax, ay, az, aw), vec4(bx, by, bz, bw));";
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn op_dot<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -296,19 +272,17 @@ pub fn ternary<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&
 }
 
 static OP_SUB: LazyLock<Graph> = LazyLock::new(|| {
-    Graph::parse_glsl("void main() { result = a - b; }")
+    Graph::parse_glsl_query("result = a - b;")
         .unwrap()
         .simplify()
 });
 
 static OP_SUB2: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-            void main() {
-                neg_b = 0.0 - b;
-                result = a + neg_b;
-            }
-        "};
-    Graph::parse_glsl(query).unwrap().simplify()
+        neg_b = 0.0 - b;
+        result = a + neg_b;
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn op_sub<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -321,19 +295,17 @@ pub fn op_sub<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'
 }
 
 static OP_DIV: LazyLock<Graph> = LazyLock::new(|| {
-    Graph::parse_glsl("void main() { result = a / b; }")
+    Graph::parse_glsl_query("result = a / b;")
         .unwrap()
         .simplify()
 });
 
 static OP_DIV2: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-            void main() {
-                one_over_b = 1.0 / b;
-                result = a * one_over_b;
-            }
-        "};
-    Graph::parse_glsl(query).unwrap().simplify()
+        one_over_b = 1.0 / b;
+        result = a * one_over_b;
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn op_div<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -375,31 +347,27 @@ pub fn binary_op<'a>(
 static OP_MONOCHROME: LazyLock<Graph> = LazyLock::new(|| {
     // result = mix(color, dot(color, vec3(0.01, 0.01, 0.01), ratio))
     let query = indoc! {"
-        void main() {
-            b = x * 0.01;
-            b = fma(y, 0.01, b);
-            b = fma(z, 0.01, b);
-            neg_a = 0.0 - a;
-            b_minus_a = neg_a + b;
-            result = fma(b_minus_a, ratio, a);
-        }
+        b = x * 0.01;
+        b = fma(y, 0.01, b);
+        b = fma(z, 0.01, b);
+        neg_a = 0.0 - a;
+        b_minus_a = neg_a + b;
+        result = fma(b_minus_a, ratio, a);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static OP_MONOCHROME_XC1: LazyLock<Graph> = LazyLock::new(|| {
     // result = mix(color, dot(color, vec3(0.3, 0.59, 0.11), ratio))
     let query = indoc! {"
-        void main() {
-            b = x * 0.3;
-            b = fma(y, 0.59, b);
-            b = fma(z, 0.11, b);
-            neg_a = 0.0 - a;
-            b_minus_a = neg_a + b;
-            result = fma(b_minus_a, ratio, a);
-        }
+        b = x * 0.3;
+        b = fma(y, 0.59, b);
+        b = fma(z, 0.11, b);
+        neg_a = 0.0 - a;
+        b_minus_a = neg_a + b;
+        result = fma(b_minus_a, ratio, a);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn op_monochrome<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -431,47 +399,43 @@ static OP_ADD_NORMAL: LazyLock<Graph> = LazyLock::new(|| {
     // r = t * dot(t, u) - u * t.z;
     // result = normalize(mix(n1, normalize(r), ratio));
     let query = indoc! {"
-        void main() {
-            n1_x = 0.0 + n1_x;
-            neg_n1_x = 0.0 - n1_x;
-            dot_t_u = n2_x * neg_n1_x;
-            n1_y = 0.0 + n1_y;
-            neg_n1_y = 0.0 - n1_y;
-            dot_t_u = fma(n2_y, neg_n1_y, dot_t_u);
-            one_plus_n1_z = n1_z + 1.0;
-            dot_t_u = fma(n2_z, one_plus_n1_z, dot_t_u);
-            temp6 = fma(temp2, dot_t_u, neg_n2);
+        n1_x = 0.0 + n1_x;
+        neg_n1_x = 0.0 - n1_x;
+        dot_t_u = n2_x * neg_n1_x;
+        n1_y = 0.0 + n1_y;
+        neg_n1_y = 0.0 - n1_y;
+        dot_t_u = fma(n2_y, neg_n1_y, dot_t_u);
+        one_plus_n1_z = n1_z + 1.0;
+        dot_t_u = fma(n2_z, one_plus_n1_z, dot_t_u);
+        temp6 = fma(temp2, dot_t_u, neg_n2);
 
-            n_inv_sqrt = inversesqrt(temp4);
-            r = fma(temp6, n_inv_sqrt, neg_n1);
+        n_inv_sqrt = inversesqrt(temp4);
+        r = fma(temp6, n_inv_sqrt, neg_n1);
 
-            nom_work = fma(r, ratio, nom_work);
-        }
+        nom_work = fma(r, ratio, nom_work);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static OP_ADD_NORMAL_OUTER: LazyLock<Graph> = LazyLock::new(|| {
     // Slightly different version of dot(t, u) for the outermost call.
     let query = indoc! {"
-        void main() {
-            n1_x = fma(n1_x, n1_inverse_sqrt, 0.0);
-            n1_y = fma(n1_y, n1_inverse_sqrt, 0.0);
-            n1_z_plus_one = fma(n1_z, n1_inverse_sqrt, 1.0);
-            neg_n1_x = 0.0 - n1_x;
-            dot_t_u = n2_x * neg_n1_x;
-            neg_n1_y = 0.0 - n1_y;
-            dot_t_u = fma(n2_y, neg_n1_y, dot_t_u);
-            dot_t_u = fma(n2_z, n1_z_plus_one, dot_t_u);
-            temp6 = fma(n1_x, dot_t_u, neg_n2);
+        n1_x = fma(n1_x, n1_inverse_sqrt, 0.0);
+        n1_y = fma(n1_y, n1_inverse_sqrt, 0.0);
+        n1_z_plus_one = fma(n1_z, n1_inverse_sqrt, 1.0);
+        neg_n1_x = 0.0 - n1_x;
+        dot_t_u = n2_x * neg_n1_x;
+        neg_n1_y = 0.0 - n1_y;
+        dot_t_u = fma(n2_y, neg_n1_y, dot_t_u);
+        dot_t_u = fma(n2_z, n1_z_plus_one, dot_t_u);
+        temp6 = fma(n1_x, dot_t_u, neg_n2);
 
-            n_inv_sqrt = inversesqrt(temp4);
-            r = fma(temp6, n_inv_sqrt, neg_n1);
+        n_inv_sqrt = inversesqrt(temp4);
+        r = fma(temp6, n_inv_sqrt, neg_n1);
 
-            nom_work = fma(r, ratio, nom_work);
-        }
+        nom_work = fma(r, ratio, nom_work);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn op_add_normal<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -516,27 +480,25 @@ pub fn op_add_normal<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation,
 
 static OP_OVERLAY2: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            ratio2 = b * b;
-            ratio3 = ratio * ratio2;
-            ratio4 = ratio * ratio3;
-            ratio = clamp(ratio4, 0.0, 1.0);
+        ratio2 = b * b;
+        ratio3 = ratio * ratio2;
+        ratio4 = ratio * ratio3;
+        ratio = clamp(ratio4, 0.0, 1.0);
 
-            result4 = fma(a, -2.0, 2.0);
-            neg_result4 = 0.0 - result4;
-            result3 = fma(b, neg_result4, result4);
-            neg_result3 = 0.0 - result3;
-            result1 = fma(ratio, neg_result3, ratio);
+        result4 = fma(a, -2.0, 2.0);
+        neg_result4 = 0.0 - result4;
+        result3 = fma(b, neg_result4, result4);
+        neg_result3 = 0.0 - result3;
+        result1 = fma(ratio, neg_result3, ratio);
 
-            a_2 = a * 2.0;
-            a_2_b = a_2 * b;
-            neg_a_2_b = 0.0 - a_2_b;
-            result2 = fma(ratio, neg_a_2_b, a_2_b);
+        a_2 = a * 2.0;
+        a_2_b = a_2 * b;
+        neg_a_2_b = 0.0 - a_2_b;
+        result2 = fma(ratio, neg_a_2_b, a_2_b);
 
-            result = result1 + result2;
-        }
+        result = result1 + result2;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn op_overlay2<'a>(graph: &'a Graph, nom_work: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -547,12 +509,8 @@ pub fn op_overlay2<'a>(graph: &'a Graph, nom_work: &'a Expr) -> Option<(Operatio
 }
 
 static NORMAL_MAP_FMA: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        void main() {
-            result = fma(result, 2.0, neg_one);
-        }
-    "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    let query = "result = fma(result, 2.0, neg_one);";
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn normal_map_fma<'a>(graph: &'a Graph, nom_work: &'a Expr) -> Option<&'a Expr> {
@@ -583,40 +541,36 @@ pub fn normal_map_fma<'a>(graph: &'a Graph, nom_work: &'a Expr) -> Option<&'a Ex
 // TODO: better channel detection?
 static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            inverse_length_tangent = inversesqrt(tangent_length);
-            normalize_tangent = tangent.x * inverse_length_tangent;
-            result = result_x * normalize_tangent;
+        inverse_length_tangent = inversesqrt(tangent_length);
+        normalize_tangent = tangent.x * inverse_length_tangent;
+        result = result_x * normalize_tangent;
 
-            inverse_length_bitangent = inversesqrt(bitangent_length);
-            normalize_bitangent = bitangent.x * inverse_length_bitangent;
-            result = fma(result_y, normalize_bitangent, result);
+        inverse_length_bitangent = inversesqrt(bitangent_length);
+        normalize_bitangent = bitangent.x * inverse_length_bitangent;
+        result = fma(result_y, normalize_bitangent, result);
 
-            inverse_length_normal = inversesqrt(normal_length);
-            normalize_normal = normal.x * inverse_length_normal;
-            result = fma(result_z, normalize_normal, result);
-        }
+        inverse_length_normal = inversesqrt(normal_length);
+        normalize_normal = normal.x * inverse_length_normal;
+        result = fma(result_z, normalize_normal, result);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            inverse_length_tangent = inversesqrt(tangent_length);
-            normalize_tangent = tangent.y * inverse_length_tangent;
-            result = result_x * normalize_tangent;
+        inverse_length_tangent = inversesqrt(tangent_length);
+        normalize_tangent = tangent.y * inverse_length_tangent;
+        result = result_x * normalize_tangent;
 
-            inverse_length_normal = inversesqrt(normal_length);
-            normalize_normal = normal.y * inverse_length_normal;
-            result = fma(result_z, normalize_normal, result);
+        inverse_length_normal = inversesqrt(normal_length);
+        normalize_normal = normal.y * inverse_length_normal;
+        result = fma(result_z, normalize_normal, result);
 
-            inverse_length_bitangent = inversesqrt(bitangent_length);
-            normalize_bitangent = bitangent.y * inverse_length_bitangent;
-            result = fma(result_y, normalize_bitangent, result);
-        }
+        inverse_length_bitangent = inversesqrt(bitangent_length);
+        normalize_bitangent = bitangent.y * inverse_length_bitangent;
+        result = fma(result_y, normalize_bitangent, result);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn calc_normal_map<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<[&'a Expr; 3]> {
@@ -632,32 +586,30 @@ pub fn calc_normal_map<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<[&'a Expr
 
 fn calc_normal_map_w_intensity_query(c: char) -> String {
     formatdoc! {"
-        void main() {{
-            intensity = intensity;
-            intensity = log2(intensity);
-            intensity = intensity * 0.7;
-            intensity = exp2(intensity);
+        intensity = intensity;
+        intensity = log2(intensity);
+        intensity = intensity * 0.7;
+        intensity = exp2(intensity);
 
-            inverse_length_tangent = inversesqrt(tangent_length);
-            tangent = tangent.{c};
-            normalize_tangent = tangent * inverse_length_tangent;
-            result_x = result_x;
-            result_x = result_x * normalize_tangent;
-            result = result_x * intensity;
+        inverse_length_tangent = inversesqrt(tangent_length);
+        tangent = tangent.{c};
+        normalize_tangent = tangent * inverse_length_tangent;
+        result_x = result_x;
+        result_x = result_x * normalize_tangent;
+        result = result_x * intensity;
 
-            inverse_length_normal = inversesqrt(normal_length);
-            normal = normal.{c};
-            normalize_normal = normal * inverse_length_normal;
-            result_z = result_z;
-            result = fma(result_z, normalize_normal, result);
+        inverse_length_normal = inversesqrt(normal_length);
+        normal = normal.{c};
+        normalize_normal = normal * inverse_length_normal;
+        result_z = result_z;
+        result = fma(result_z, normalize_normal, result);
 
-            inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent.{c};
-            normalize_bitangent = bitangent * inverse_length_bitangent;
-            result_y = result_y;
-            result_y = normalize_bitangent * result_y;
-            result = fma(intensity, result_y, result);
-        }}
+        inverse_length_bitangent = inversesqrt(bitangent_length);
+        bitangent = bitangent.{c};
+        normalize_bitangent = bitangent * inverse_length_bitangent;
+        result_y = result_y;
+        result_y = normalize_bitangent * result_y;
+        result = fma(intensity, result_y, result);
     "}
 }
 
@@ -665,14 +617,14 @@ static CALC_NORMAL_MAP_W_INTENSITY_X: LazyLock<Graph> = LazyLock::new(|| {
     // normal.x with normal.w as normal map intensity.
     // TODO: Does intensity always use pow(intensity, 0.7)?
     let query = calc_normal_map_w_intensity_query('x');
-    Graph::parse_glsl(&query).unwrap().simplify()
+    Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
 static CALC_NORMAL_MAP_W_INTENSITY_Y: LazyLock<Graph> = LazyLock::new(|| {
     // normal.y with normal.w as normal map intensity.
     // TODO: Does intensity always use pow(intensity, 0.7)?
     let query = calc_normal_map_w_intensity_query('y');
-    Graph::parse_glsl(&query).unwrap().simplify()
+    Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
 pub fn calc_normal_map_w_intensity<'a>(
@@ -700,52 +652,50 @@ fn calc_normal_map_val_inf_query(c: char) -> String {
     // intensity = clamp(1.0 - sqrt(normal.w), 0.0, 1.0)
     // TODO: should this be its own operation?
     formatdoc! {"
-        void main() {{
-            inverse_length_tangent = inversesqrt(tangent_length);
-            tangent = tangent.{c};
-            normalize_tangent = tangent * inverse_length_tangent;
-            result_x = result_x;
-            result = result_x * normalize_tangent;
+        inverse_length_tangent = inversesqrt(tangent_length);
+        tangent = tangent.{c};
+        normalize_tangent = tangent * inverse_length_tangent;
+        result_x = result_x;
+        result = result_x * normalize_tangent;
 
-            inverse_length_normal = inversesqrt(normal_length);
-            normal = normal.{c};
-            normalize_normal = normal * inverse_length_normal;
-            result_z = result_z;
-            result = fma(result_z, normalize_normal, result);
+        inverse_length_normal = inversesqrt(normal_length);
+        normal = normal.{c};
+        normalize_normal = normal * inverse_length_normal;
+        result_z = result_z;
+        result = fma(result_z, normalize_normal, result);
 
-            inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent.{c};
-            normalize_bitangent = bitangent * inverse_length_bitangent;
-            result_y = result_y;
-            result = fma(result_y, normalize_bitangent, result);
+        inverse_length_bitangent = inversesqrt(bitangent_length);
+        bitangent = bitangent.{c};
+        normalize_bitangent = bitangent * inverse_length_bitangent;
+        result_y = result_y;
+        result = fma(result_y, normalize_bitangent, result);
 
-            intensity = sqrt(intensity);
-            intensity = 0.0 - intensity;
-            intensity = intensity + 1.0;
-            intensity = clamp(intensity, 0.0, 1.0);
-            dot_val_inf_normal = dot_val_inf_normal * intensity;
-            neg_dot_val_inf_normal = 0.0 - dot_val_inf_normal;
+        intensity = sqrt(intensity);
+        intensity = 0.0 - intensity;
+        intensity = intensity + 1.0;
+        intensity = clamp(intensity, 0.0, 1.0);
+        dot_val_inf_normal = dot_val_inf_normal * intensity;
+        neg_dot_val_inf_normal = 0.0 - dot_val_inf_normal;
 
-            inverse_length_normal = inversesqrt(normal_length);
-            result = result * inverse_length_normal;
-            result = fma(normalize_val_inf, neg_dot_val_inf_normal, result);
-        }}
+        inverse_length_normal = inversesqrt(normal_length);
+        result = result * inverse_length_normal;
+        result = fma(normalize_val_inf, neg_dot_val_inf_normal, result);
     "}
 }
 
 static CALC_NORMAL_MAP_VAL_INF_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = calc_normal_map_val_inf_query('x');
-    Graph::parse_glsl(&query).unwrap().simplify()
+    Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
 static CALC_NORMAL_MAP_VAL_INF_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
     let query = calc_normal_map_val_inf_query('y');
-    Graph::parse_glsl(&query).unwrap().simplify()
+    Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
 static CALC_NORMAL_MAP_VAL_INF_XCX_Z: LazyLock<Graph> = LazyLock::new(|| {
     let query = calc_normal_map_val_inf_query('z');
-    Graph::parse_glsl(&query).unwrap().simplify()
+    Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
 pub fn calc_normal_map_val_inf<'a>(
@@ -766,41 +716,39 @@ pub fn calc_normal_map_val_inf<'a>(
 
 fn calc_normal_map_xcx_query(c: char) -> String {
     formatdoc! {"
-        void main() {{
-            inverse_length_tangent = inversesqrt(tangent_length);
-            tangent = tangent.{c};
-            normalize_tangent = tangent * inverse_length_tangent;
-            result_x = result_x;
-            result = result_x * normalize_tangent;
+        inverse_length_tangent = inversesqrt(tangent_length);
+        tangent = tangent.{c};
+        normalize_tangent = tangent * inverse_length_tangent;
+        result_x = result_x;
+        result = result_x * normalize_tangent;
 
-            inverse_length_normal = inversesqrt(normal_length);
-            normal = normal.{c};
-            normalize_normal = normal * inverse_length_normal;
-            result_z = result_z;
-            result = fma(result_z, normalize_normal, result);
+        inverse_length_normal = inversesqrt(normal_length);
+        normal = normal.{c};
+        normalize_normal = normal * inverse_length_normal;
+        result_z = result_z;
+        result = fma(result_z, normalize_normal, result);
 
-            inverse_length_bitangent = inversesqrt(bitangent_length);
-            bitangent = bitangent.{c};
-            normalize_bitangent = bitangent * inverse_length_bitangent;
-            result_y = result_y;
-            result = fma(result_y, normalize_bitangent, result);
-        }}
+        inverse_length_bitangent = inversesqrt(bitangent_length);
+        bitangent = bitangent.{c};
+        normalize_bitangent = bitangent * inverse_length_bitangent;
+        result_y = result_y;
+        result = fma(result_y, normalize_bitangent, result);
     "}
 }
 
 static CALC_NORMAL_MAP_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = calc_normal_map_xcx_query('x');
-    Graph::parse_glsl(&query).unwrap().simplify()
+    Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
 static CALC_NORMAL_MAP_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
     let query = calc_normal_map_xcx_query('y');
-    Graph::parse_glsl(&query).unwrap().simplify()
+    Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
 static CALC_NORMAL_MAP_XCX_Z: LazyLock<Graph> = LazyLock::new(|| {
     let query = calc_normal_map_xcx_query('z');
-    Graph::parse_glsl(&query).unwrap().simplify()
+    Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
 pub fn op_calc_normal_map<'a>(
@@ -830,17 +778,15 @@ static GEOMETRIC_SPECULAR_AA: LazyLock<Graph> = LazyLock::new(|| {
     // calcGeometricSpecularAA in pcmdo shaders.
     // glossiness = 1.0 - sqrt(clamp((1.0 - glossiness)^2 + kernelRoughness2, 0.0, 1.0))
     let query = indoc! {"
-        void main() {
-            result = 0.0 - glossiness;
-            result = 1.0 + result;
-            result = fma(result, result, temp);
-            result = clamp(result, 0.0, 1.0);
-            result = sqrt(result);
-            result = 0.0 - result;
-            result = result + 1.0;
-        }
+        result = 0.0 - glossiness;
+        result = 1.0 + result;
+        result = fma(result, result, temp);
+        result = clamp(result, 0.0, 1.0);
+        result = sqrt(result);
+        result = 0.0 - result;
+        result = result + 1.0;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn geometric_specular_aa<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -850,180 +796,168 @@ pub fn geometric_specular_aa<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a
 
 static SKIN_ATTRIBUTE_XYZ_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_0 = nWgtIdx.x;
-            temp_1 = floatBitsToInt(temp_0) & 65535;
-            temp_2 = temp_1 * 48;
-            temp_3 = result_x;
-            temp_4 = floatBitsToUint(temp_0) >> 16;
-            temp_5 = int(temp_4) * 48;
-            temp_6 = temp_5 << 16;
-            temp_7 = temp_6 + temp_2;
-            temp_14 = result_y;
-            temp_17 = result_z;
-            temp_30 = uint(temp_7) >> 2;
-            temp_31 = uintBitsToFloat(U_Bone.data[int(temp_30)]);
-            temp_32 = temp_7 + 4;
-            temp_33 = uint(temp_32) >> 2;
-            temp_34 = uintBitsToFloat(U_Bone.data[int(temp_33)]);
-            temp_35 = temp_7 + 8;
-            temp_36 = uint(temp_35) >> 2;
-            temp_37 = uintBitsToFloat(U_Bone.data[int(temp_36)]);
-            temp_59 = temp_31 * temp_3;
-            temp_69 = fma(temp_34, temp_14, temp_59);
-            temp_73 = fma(temp_37, temp_17, temp_69);
-        }
+        temp_0 = nWgtIdx.x;
+        temp_1 = floatBitsToInt(temp_0) & 65535;
+        temp_2 = temp_1 * 48;
+        temp_3 = result_x;
+        temp_4 = floatBitsToUint(temp_0) >> 16;
+        temp_5 = int(temp_4) * 48;
+        temp_6 = temp_5 << 16;
+        temp_7 = temp_6 + temp_2;
+        temp_14 = result_y;
+        temp_17 = result_z;
+        temp_30 = uint(temp_7) >> 2;
+        temp_31 = uintBitsToFloat(U_Bone.data[int(temp_30)]);
+        temp_32 = temp_7 + 4;
+        temp_33 = uint(temp_32) >> 2;
+        temp_34 = uintBitsToFloat(U_Bone.data[int(temp_33)]);
+        temp_35 = temp_7 + 8;
+        temp_36 = uint(temp_35) >> 2;
+        temp_37 = uintBitsToFloat(U_Bone.data[int(temp_36)]);
+        temp_59 = temp_31 * temp_3;
+        temp_69 = fma(temp_34, temp_14, temp_59);
+        temp_73 = fma(temp_37, temp_17, temp_69);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static SKIN_ATTRIBUTE_XYZ_Y: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_0 = nWgtIdx.x;
-            temp_1 = floatBitsToInt(temp_0) & 65535;
-            temp_2 = temp_1 * 48;
-            temp_3 = result_x;
-            temp_4 = floatBitsToUint(temp_0) >> 16;
-            temp_5 = int(temp_4) * 48;
-            temp_6 = temp_5 << 16;
-            temp_7 = temp_6 + temp_2;
-            temp_13 = temp_7 + 16;
-            temp_14 = result_y;
-            temp_17 = result_z;
-            temp_41 = uint(temp_13) >> 2;
-            temp_42 = uintBitsToFloat(U_Bone.data[int(temp_41)]);
-            temp_43 = temp_13 + 4;
-            temp_44 = uint(temp_43) >> 2;
-            temp_45 = uintBitsToFloat(U_Bone.data[int(temp_44)]);
-            temp_46 = temp_13 + 8;
-            temp_47 = uint(temp_46) >> 2;
-            temp_48 = uintBitsToFloat(U_Bone.data[int(temp_47)]);
-            temp_64 = temp_42 * temp_3;
-            temp_80 = fma(temp_45, temp_14, temp_64);
-            temp_88 = fma(temp_48, temp_17, temp_80);
-        }
+        temp_0 = nWgtIdx.x;
+        temp_1 = floatBitsToInt(temp_0) & 65535;
+        temp_2 = temp_1 * 48;
+        temp_3 = result_x;
+        temp_4 = floatBitsToUint(temp_0) >> 16;
+        temp_5 = int(temp_4) * 48;
+        temp_6 = temp_5 << 16;
+        temp_7 = temp_6 + temp_2;
+        temp_13 = temp_7 + 16;
+        temp_14 = result_y;
+        temp_17 = result_z;
+        temp_41 = uint(temp_13) >> 2;
+        temp_42 = uintBitsToFloat(U_Bone.data[int(temp_41)]);
+        temp_43 = temp_13 + 4;
+        temp_44 = uint(temp_43) >> 2;
+        temp_45 = uintBitsToFloat(U_Bone.data[int(temp_44)]);
+        temp_46 = temp_13 + 8;
+        temp_47 = uint(temp_46) >> 2;
+        temp_48 = uintBitsToFloat(U_Bone.data[int(temp_47)]);
+        temp_64 = temp_42 * temp_3;
+        temp_80 = fma(temp_45, temp_14, temp_64);
+        temp_88 = fma(temp_48, temp_17, temp_80);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static SKIN_ATTRIBUTE_XYZ_Z: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_0 = nWgtIdx.x;
-            temp_1 = floatBitsToInt(temp_0) & 65535;
-            temp_2 = temp_1 * 48;
-            temp_3 = result_x;
-            temp_4 = floatBitsToUint(temp_0) >> 16;
-            temp_5 = int(temp_4) * 48;
-            temp_6 = temp_5 << 16;
-            temp_7 = temp_6 + temp_2;
-            temp_10 = temp_7 + 32;
-            temp_14 = result_y;
-            temp_17 = result_z;
-            temp_18 = uint(temp_10) >> 2;
-            temp_19 = uintBitsToFloat(U_Bone.data[int(temp_18)]);
-            temp_20 = temp_10 + 4;
-            temp_21 = uint(temp_20) >> 2;
-            temp_22 = uintBitsToFloat(U_Bone.data[int(temp_21)]);
-            temp_23 = temp_10 + 8;
-            temp_24 = uint(temp_23) >> 2;
-            temp_25 = uintBitsToFloat(U_Bone.data[int(temp_24)]);
-            temp_62 = temp_19 * temp_3;
-            temp_68 = fma(temp_22, temp_14, temp_62);
-            temp_83 = fma(temp_25, temp_17, temp_68);
-        }
+        temp_0 = nWgtIdx.x;
+        temp_1 = floatBitsToInt(temp_0) & 65535;
+        temp_2 = temp_1 * 48;
+        temp_3 = result_x;
+        temp_4 = floatBitsToUint(temp_0) >> 16;
+        temp_5 = int(temp_4) * 48;
+        temp_6 = temp_5 << 16;
+        temp_7 = temp_6 + temp_2;
+        temp_10 = temp_7 + 32;
+        temp_14 = result_y;
+        temp_17 = result_z;
+        temp_18 = uint(temp_10) >> 2;
+        temp_19 = uintBitsToFloat(U_Bone.data[int(temp_18)]);
+        temp_20 = temp_10 + 4;
+        temp_21 = uint(temp_20) >> 2;
+        temp_22 = uintBitsToFloat(U_Bone.data[int(temp_21)]);
+        temp_23 = temp_10 + 8;
+        temp_24 = uint(temp_23) >> 2;
+        temp_25 = uintBitsToFloat(U_Bone.data[int(temp_24)]);
+        temp_62 = temp_19 * temp_3;
+        temp_68 = fma(temp_22, temp_14, temp_62);
+        temp_83 = fma(temp_25, temp_17, temp_68);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static SKIN_ATTRIBUTE_XYZ_X2: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_0 = nWgtIdx.x;
-            temp_3 = result_x;
-            temp_6 = floatBitsToInt(temp_0) & 65535;
-            temp_7 = temp_6 * 48;
-            temp_8 = result_y;
-            temp_9 = floatBitsToUint(temp_0) >> 16;
-            temp_10 = int(temp_9) * 48;
-            temp_11 = temp_10 << 16;
-            temp_12 = temp_11 + temp_7;
-            temp_14 = result_z;
-            temp_58 = uint(temp_12) >> 2;
-            temp_59 = uintBitsToFloat(U_OdB.data[int(temp_58)]);
-            temp_60 = temp_12 + 4;
-            temp_61 = uint(temp_60) >> 2;
-            temp_62 = uintBitsToFloat(U_OdB.data[int(temp_61)]);
-            temp_63 = temp_12 + 8;
-            temp_64 = uint(temp_63) >> 2;
-            temp_65 = uintBitsToFloat(U_OdB.data[int(temp_64)]);
-            temp_98 = temp_59 * temp_3;
-            temp_103 = fma(temp_62, temp_8, temp_98);
-            temp_120 = fma(temp_65, temp_14, temp_103);
-        }
+        temp_0 = nWgtIdx.x;
+        temp_3 = result_x;
+        temp_6 = floatBitsToInt(temp_0) & 65535;
+        temp_7 = temp_6 * 48;
+        temp_8 = result_y;
+        temp_9 = floatBitsToUint(temp_0) >> 16;
+        temp_10 = int(temp_9) * 48;
+        temp_11 = temp_10 << 16;
+        temp_12 = temp_11 + temp_7;
+        temp_14 = result_z;
+        temp_58 = uint(temp_12) >> 2;
+        temp_59 = uintBitsToFloat(U_OdB.data[int(temp_58)]);
+        temp_60 = temp_12 + 4;
+        temp_61 = uint(temp_60) >> 2;
+        temp_62 = uintBitsToFloat(U_OdB.data[int(temp_61)]);
+        temp_63 = temp_12 + 8;
+        temp_64 = uint(temp_63) >> 2;
+        temp_65 = uintBitsToFloat(U_OdB.data[int(temp_64)]);
+        temp_98 = temp_59 * temp_3;
+        temp_103 = fma(temp_62, temp_8, temp_98);
+        temp_120 = fma(temp_65, temp_14, temp_103);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static SKIN_ATTRIBUTE_XYZ_Y2: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_0 = nWgtIdx.x;
-            temp_3 = result_x;
-            temp_6 = floatBitsToInt(temp_0) & 65535;
-            temp_7 = temp_6 * 48;
-            temp_8 = result_y;
-            temp_9 = floatBitsToUint(temp_0) >> 16;
-            temp_10 = int(temp_9) * 48;
-            temp_11 = temp_10 << 16;
-            temp_12 = temp_11 + temp_7;
-            temp_14 = result_z;
-            temp_15 = temp_12 + 16;
-            temp_34 = uint(temp_15) >> 2;
-            temp_35 = uintBitsToFloat(U_OdB.data[int(temp_34)]);
-            temp_36 = temp_15 + 4;
-            temp_37 = uint(temp_36) >> 2;
-            temp_38 = uintBitsToFloat(U_OdB.data[int(temp_37)]);
-            temp_39 = temp_15 + 8;
-            temp_40 = uint(temp_39) >> 2;
-            temp_41 = uintBitsToFloat(U_OdB.data[int(temp_40)]);
-            temp_95 = temp_35 * temp_3;
-            temp_110 = fma(temp_38, temp_8, temp_95);
-            temp_115 = fma(temp_41, temp_14, temp_110);
-        }
+        temp_0 = nWgtIdx.x;
+        temp_3 = result_x;
+        temp_6 = floatBitsToInt(temp_0) & 65535;
+        temp_7 = temp_6 * 48;
+        temp_8 = result_y;
+        temp_9 = floatBitsToUint(temp_0) >> 16;
+        temp_10 = int(temp_9) * 48;
+        temp_11 = temp_10 << 16;
+        temp_12 = temp_11 + temp_7;
+        temp_14 = result_z;
+        temp_15 = temp_12 + 16;
+        temp_34 = uint(temp_15) >> 2;
+        temp_35 = uintBitsToFloat(U_OdB.data[int(temp_34)]);
+        temp_36 = temp_15 + 4;
+        temp_37 = uint(temp_36) >> 2;
+        temp_38 = uintBitsToFloat(U_OdB.data[int(temp_37)]);
+        temp_39 = temp_15 + 8;
+        temp_40 = uint(temp_39) >> 2;
+        temp_41 = uintBitsToFloat(U_OdB.data[int(temp_40)]);
+        temp_95 = temp_35 * temp_3;
+        temp_110 = fma(temp_38, temp_8, temp_95);
+        temp_115 = fma(temp_41, temp_14, temp_110);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static SKIN_ATTRIBUTE_XYZ_Z2: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_0 = nWgtIdx.x;
-            temp_3 = result_x;
-            temp_6 = floatBitsToInt(temp_0) & 65535;
-            temp_7 = temp_6 * 48;
-            temp_8 = result_y;
-            temp_9 = floatBitsToUint(temp_0) >> 16;
-            temp_10 = int(temp_9) * 48;
-            temp_11 = temp_10 << 16;
-            temp_12 = temp_11 + temp_7;
-            temp_14 = result_z;
-            temp_19 = temp_12 + 32;
-            temp_46 = uint(temp_19) >> 2;
-            temp_47 = uintBitsToFloat(U_OdB.data[int(temp_46)]);
-            temp_48 = temp_19 + 4;
-            temp_49 = uint(temp_48) >> 2;
-            temp_50 = uintBitsToFloat(U_OdB.data[int(temp_49)]);
-            temp_51 = temp_19 + 8;
-            temp_52 = uint(temp_51) >> 2;
-            temp_53 = uintBitsToFloat(U_OdB.data[int(temp_52)]);
-            temp_104 = temp_47 * temp_3;
-            temp_113 = fma(temp_50, temp_8, temp_104);
-            temp_118 = fma(temp_53, temp_14, temp_113);
-        }
+        temp_0 = nWgtIdx.x;
+        temp_3 = result_x;
+        temp_6 = floatBitsToInt(temp_0) & 65535;
+        temp_7 = temp_6 * 48;
+        temp_8 = result_y;
+        temp_9 = floatBitsToUint(temp_0) >> 16;
+        temp_10 = int(temp_9) * 48;
+        temp_11 = temp_10 << 16;
+        temp_12 = temp_11 + temp_7;
+        temp_14 = result_z;
+        temp_19 = temp_12 + 32;
+        temp_46 = uint(temp_19) >> 2;
+        temp_47 = uintBitsToFloat(U_OdB.data[int(temp_46)]);
+        temp_48 = temp_19 + 4;
+        temp_49 = uint(temp_48) >> 2;
+        temp_50 = uintBitsToFloat(U_OdB.data[int(temp_49)]);
+        temp_51 = temp_19 + 8;
+        temp_52 = uint(temp_51) >> 2;
+        temp_53 = uintBitsToFloat(U_OdB.data[int(temp_52)]);
+        temp_104 = temp_47 * temp_3;
+        temp_113 = fma(temp_50, temp_8, temp_104);
+        temp_118 = fma(temp_53, temp_14, temp_113);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn skin_attribute_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -1045,71 +979,67 @@ pub fn skin_attribute_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Ex
 // TODO: combine these queries and only check the integer values?
 static SKIN_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_0 = nWgtIdx.x;
-            temp_1 = floatBitsToInt(temp_0) & 65535;
-            temp_2 = temp_1 * 48;
-            temp_4 = floatBitsToUint(temp_0) >> 16;
-            temp_5 = int(temp_4) * 48;
-            temp_6 = temp_5 << 16;
-            temp_7 = temp_6 + temp_2;
-            temp_9 = result_x;
-            temp_16 = result_y;
-            temp_30 = uint(temp_7) >> 2;
-            temp_31 = uintBitsToFloat(U_Bone.data[int(temp_30)]);
-            temp_32 = temp_7 + 4;
-            temp_33 = uint(temp_32) >> 2;
-            temp_34 = uintBitsToFloat(U_Bone.data[int(temp_33)]);
-            temp_35 = temp_7 + 8;
-            temp_36 = uint(temp_35) >> 2;
-            temp_37 = uintBitsToFloat(U_Bone.data[int(temp_36)]);
-            temp_38 = temp_7 + 12;
-            temp_39 = uint(temp_38) >> 2;
-            temp_40 = uintBitsToFloat(U_Bone.data[int(temp_39)]);
-            temp_52 = result_z;
-            temp_53 = result_w;
-            temp_61 = temp_31 * temp_9;
-            temp_70 = fma(temp_34, temp_16, temp_61);
-            temp_75 = fma(temp_37, temp_52, temp_70);
-            temp_79 = fma(temp_40, temp_53, temp_75);
-        }
+        temp_0 = nWgtIdx.x;
+        temp_1 = floatBitsToInt(temp_0) & 65535;
+        temp_2 = temp_1 * 48;
+        temp_4 = floatBitsToUint(temp_0) >> 16;
+        temp_5 = int(temp_4) * 48;
+        temp_6 = temp_5 << 16;
+        temp_7 = temp_6 + temp_2;
+        temp_9 = result_x;
+        temp_16 = result_y;
+        temp_30 = uint(temp_7) >> 2;
+        temp_31 = uintBitsToFloat(U_Bone.data[int(temp_30)]);
+        temp_32 = temp_7 + 4;
+        temp_33 = uint(temp_32) >> 2;
+        temp_34 = uintBitsToFloat(U_Bone.data[int(temp_33)]);
+        temp_35 = temp_7 + 8;
+        temp_36 = uint(temp_35) >> 2;
+        temp_37 = uintBitsToFloat(U_Bone.data[int(temp_36)]);
+        temp_38 = temp_7 + 12;
+        temp_39 = uint(temp_38) >> 2;
+        temp_40 = uintBitsToFloat(U_Bone.data[int(temp_39)]);
+        temp_52 = result_z;
+        temp_53 = result_w;
+        temp_61 = temp_31 * temp_9;
+        temp_70 = fma(temp_34, temp_16, temp_61);
+        temp_75 = fma(temp_37, temp_52, temp_70);
+        temp_79 = fma(temp_40, temp_53, temp_75);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static SKIN_ATTRIBUTE_XYZW_YZ: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_0 = nWgtIdx.x;
-            temp_1 = floatBitsToInt(temp_0) & 65535;
-            temp_2 = temp_1 * 48;
-            temp_4 = floatBitsToUint(temp_0) >> 16;
-            temp_5 = int(temp_4) * 48;
-            temp_6 = temp_5 << 16;
-            temp_7 = temp_6 + temp_2;
-            temp_9 = result_x;
-            temp_13 = temp_7 + offset;
-            temp_16 = result_y;
-            temp_41 = uint(temp_13) >> 2;
-            temp_42 = uintBitsToFloat(U_Bone.data[int(temp_41)]);
-            temp_43 = temp_13 + 4;
-            temp_44 = uint(temp_43) >> 2;
-            temp_45 = uintBitsToFloat(U_Bone.data[int(temp_44)]);
-            temp_46 = temp_13 + 8;
-            temp_47 = uint(temp_46) >> 2;
-            temp_48 = uintBitsToFloat(U_Bone.data[int(temp_47)]);
-            temp_49 = temp_13 + 12;
-            temp_50 = uint(temp_49) >> 2;
-            temp_51 = uintBitsToFloat(U_Bone.data[int(temp_50)]);
-            temp_52 = result_z;
-            temp_53 = result_w;
-            temp_63 = temp_42 * temp_9;
-            temp_72 = fma(temp_45, temp_16, temp_63);
-            temp_78 = fma(temp_48, temp_52, temp_72);
-            temp_84 = fma(temp_51, temp_53, temp_78);
-        }
+        temp_0 = nWgtIdx.x;
+        temp_1 = floatBitsToInt(temp_0) & 65535;
+        temp_2 = temp_1 * 48;
+        temp_4 = floatBitsToUint(temp_0) >> 16;
+        temp_5 = int(temp_4) * 48;
+        temp_6 = temp_5 << 16;
+        temp_7 = temp_6 + temp_2;
+        temp_9 = result_x;
+        temp_13 = temp_7 + offset;
+        temp_16 = result_y;
+        temp_41 = uint(temp_13) >> 2;
+        temp_42 = uintBitsToFloat(U_Bone.data[int(temp_41)]);
+        temp_43 = temp_13 + 4;
+        temp_44 = uint(temp_43) >> 2;
+        temp_45 = uintBitsToFloat(U_Bone.data[int(temp_44)]);
+        temp_46 = temp_13 + 8;
+        temp_47 = uint(temp_46) >> 2;
+        temp_48 = uintBitsToFloat(U_Bone.data[int(temp_47)]);
+        temp_49 = temp_13 + 12;
+        temp_50 = uint(temp_49) >> 2;
+        temp_51 = uintBitsToFloat(U_Bone.data[int(temp_50)]);
+        temp_52 = result_z;
+        temp_53 = result_w;
+        temp_63 = temp_42 * temp_9;
+        temp_72 = fma(temp_45, temp_16, temp_63);
+        temp_78 = fma(temp_48, temp_52, temp_72);
+        temp_84 = fma(temp_51, temp_53, temp_78);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn skin_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -1131,86 +1061,82 @@ pub fn skin_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a E
 static SKIN_ATTRIBUTE_CLIP_XYZW: LazyLock<Graph> = LazyLock::new(|| {
     // TODO: Detect this as matrix multiplication and regular skinning?
     let query = indoc! {"
-        void main() {
-            temp_3 = result_x;
-            temp_8 = result_y;
-            temp_9 = result_z;
-            temp_11 = result_w;
-            temp_15 = uintBitsToFloat(U_Bone.data[int(temp_14)]);
-            temp_18 = uintBitsToFloat(U_Bone.data[int(temp_17)]);
-            temp_21 = uintBitsToFloat(U_Bone.data[int(temp_20)]);
-            temp_24 = uintBitsToFloat(U_Bone.data[int(temp_23)]);
-            temp_30 = uintBitsToFloat(U_Bone.data[int(temp_29)]);
-            temp_33 = uintBitsToFloat(U_Bone.data[int(temp_32)]);
-            temp_36 = uintBitsToFloat(U_Bone.data[int(temp_35)]);
-            temp_39 = uintBitsToFloat(U_Bone.data[int(temp_38)]);
-            temp_41 = uintBitsToFloat(U_Bone.data[int(temp_40)]);
-            temp_44 = uintBitsToFloat(U_Bone.data[int(temp_43)]);
-            temp_47 = uintBitsToFloat(U_Bone.data[int(temp_46)]);
-            temp_50 = uintBitsToFloat(U_Bone.data[int(temp_49)]);
-            temp_58 = temp_15 * temp_3;
-            temp_59 = fma(temp_18, temp_8, temp_58);
-            temp_61 = fma(temp_21, temp_9, temp_59);
-            temp_62 = fma(temp_24, temp_11, temp_61);
-            temp_63 = temp_30 * temp_3;
-            temp_64 = temp_41 * temp_3;
-            temp_65 = fma(temp_33, temp_8, temp_63);
-            temp_66 = fma(temp_36, temp_9, temp_65);
-            temp_67 = fma(temp_44, temp_8, temp_64);
-            temp_68 = fma(temp_39, temp_11, temp_66);
-            temp_70 = fma(temp_47, temp_9, temp_67);
-            temp_72 = fma(temp_50, temp_11, temp_70);
-            temp_139 = temp_62 * U_Static.gmProj[i].x;
-            temp_155 = fma(temp_68, U_Static.gmProj[i].y, temp_139);
-            temp_160 = fma(temp_72, U_Static.gmProj[i].z, temp_155);
-            temp_168 = temp_160 + U_Static.gmProj[i].w;
-        }
+        temp_3 = result_x;
+        temp_8 = result_y;
+        temp_9 = result_z;
+        temp_11 = result_w;
+        temp_15 = uintBitsToFloat(U_Bone.data[int(temp_14)]);
+        temp_18 = uintBitsToFloat(U_Bone.data[int(temp_17)]);
+        temp_21 = uintBitsToFloat(U_Bone.data[int(temp_20)]);
+        temp_24 = uintBitsToFloat(U_Bone.data[int(temp_23)]);
+        temp_30 = uintBitsToFloat(U_Bone.data[int(temp_29)]);
+        temp_33 = uintBitsToFloat(U_Bone.data[int(temp_32)]);
+        temp_36 = uintBitsToFloat(U_Bone.data[int(temp_35)]);
+        temp_39 = uintBitsToFloat(U_Bone.data[int(temp_38)]);
+        temp_41 = uintBitsToFloat(U_Bone.data[int(temp_40)]);
+        temp_44 = uintBitsToFloat(U_Bone.data[int(temp_43)]);
+        temp_47 = uintBitsToFloat(U_Bone.data[int(temp_46)]);
+        temp_50 = uintBitsToFloat(U_Bone.data[int(temp_49)]);
+        temp_58 = temp_15 * temp_3;
+        temp_59 = fma(temp_18, temp_8, temp_58);
+        temp_61 = fma(temp_21, temp_9, temp_59);
+        temp_62 = fma(temp_24, temp_11, temp_61);
+        temp_63 = temp_30 * temp_3;
+        temp_64 = temp_41 * temp_3;
+        temp_65 = fma(temp_33, temp_8, temp_63);
+        temp_66 = fma(temp_36, temp_9, temp_65);
+        temp_67 = fma(temp_44, temp_8, temp_64);
+        temp_68 = fma(temp_39, temp_11, temp_66);
+        temp_70 = fma(temp_47, temp_9, temp_67);
+        temp_72 = fma(temp_50, temp_11, temp_70);
+        temp_139 = temp_62 * U_Static.gmProj[i].x;
+        temp_155 = fma(temp_68, U_Static.gmProj[i].y, temp_139);
+        temp_160 = fma(temp_72, U_Static.gmProj[i].z, temp_155);
+        temp_168 = temp_160 + U_Static.gmProj[i].w;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static SKIN_ATTRIBUTE_CLIP_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
     // TODO: Detect this as matrix multiplication and regular skinning?
     let query = indoc! {"
-        void main() {
-            temp_1 = result_x;
-            temp_2 = result_y;
-            temp_3 = result_z;
-            temp_4 = result_w;
-            temp_17 = uintBitsToFloat(U_Bone.data[int(temp_16)]);
-            temp_20 = uintBitsToFloat(U_Bone.data[int(temp_19)]);
-            temp_23 = uintBitsToFloat(U_Bone.data[int(temp_22)]);
-            temp_26 = uintBitsToFloat(U_Bone.data[int(temp_25)]);
-            temp_28 = uintBitsToFloat(U_Bone.data[int(temp_27)]);
-            temp_31 = uintBitsToFloat(U_Bone.data[int(temp_30)]);
-            temp_34 = uintBitsToFloat(U_Bone.data[int(temp_33)]);
-            temp_37 = uintBitsToFloat(U_Bone.data[int(temp_36)]);
-            temp_39 = uintBitsToFloat(U_Bone.data[int(temp_38)]);
-            temp_42 = uintBitsToFloat(U_Bone.data[int(temp_41)]);
-            temp_45 = uintBitsToFloat(U_Bone.data[int(temp_44)]);
-            temp_48 = uintBitsToFloat(U_Bone.data[int(temp_47)]);
-            temp_49 = temp_17 * temp_1;
-            temp_51 = temp_28 * temp_1;
-            temp_52 = fma(temp_20, temp_2, temp_49);
-            temp_53 = temp_39 * temp_1;
-            temp_56 = fma(temp_31, temp_2, temp_51);
-            temp_57 = fma(temp_23, temp_3, temp_52);
-            temp_58 = fma(temp_42, temp_2, temp_53);
-            temp_59 = fma(temp_34, temp_3, temp_56);
-            temp_60 = fma(temp_26, temp_4, temp_57);
-            temp_61 = fma(temp_45, temp_3, temp_58);
-            temp_63 = fma(temp_37, temp_4, temp_59);
-            temp_65 = fma(temp_48, temp_4, temp_61);
-            temp_128 = temp_60 * U_Static.gmProj[i].x;
-            temp_143 = fma(temp_63, U_Static.gmProj[i].y, temp_128);
-            temp_152 = fma(temp_65, U_Static.gmProj[i].z, temp_143);
-            temp_160 = temp_152 + U_Static.gmProj[i].w;
-            temp_165 = 0.0 - U_Static.gCDep.y;
-            temp_166 = temp_160 + temp_165;
-            temp_177 = temp_166 * U_Static.gCDep.z;
-        }
+        temp_1 = result_x;
+        temp_2 = result_y;
+        temp_3 = result_z;
+        temp_4 = result_w;
+        temp_17 = uintBitsToFloat(U_Bone.data[int(temp_16)]);
+        temp_20 = uintBitsToFloat(U_Bone.data[int(temp_19)]);
+        temp_23 = uintBitsToFloat(U_Bone.data[int(temp_22)]);
+        temp_26 = uintBitsToFloat(U_Bone.data[int(temp_25)]);
+        temp_28 = uintBitsToFloat(U_Bone.data[int(temp_27)]);
+        temp_31 = uintBitsToFloat(U_Bone.data[int(temp_30)]);
+        temp_34 = uintBitsToFloat(U_Bone.data[int(temp_33)]);
+        temp_37 = uintBitsToFloat(U_Bone.data[int(temp_36)]);
+        temp_39 = uintBitsToFloat(U_Bone.data[int(temp_38)]);
+        temp_42 = uintBitsToFloat(U_Bone.data[int(temp_41)]);
+        temp_45 = uintBitsToFloat(U_Bone.data[int(temp_44)]);
+        temp_48 = uintBitsToFloat(U_Bone.data[int(temp_47)]);
+        temp_49 = temp_17 * temp_1;
+        temp_51 = temp_28 * temp_1;
+        temp_52 = fma(temp_20, temp_2, temp_49);
+        temp_53 = temp_39 * temp_1;
+        temp_56 = fma(temp_31, temp_2, temp_51);
+        temp_57 = fma(temp_23, temp_3, temp_52);
+        temp_58 = fma(temp_42, temp_2, temp_53);
+        temp_59 = fma(temp_34, temp_3, temp_56);
+        temp_60 = fma(temp_26, temp_4, temp_57);
+        temp_61 = fma(temp_45, temp_3, temp_58);
+        temp_63 = fma(temp_37, temp_4, temp_59);
+        temp_65 = fma(temp_48, temp_4, temp_61);
+        temp_128 = temp_60 * U_Static.gmProj[i].x;
+        temp_143 = fma(temp_63, U_Static.gmProj[i].y, temp_128);
+        temp_152 = fma(temp_65, U_Static.gmProj[i].z, temp_143);
+        temp_160 = temp_152 + U_Static.gmProj[i].w;
+        temp_165 = 0.0 - U_Static.gCDep.y;
+        temp_166 = temp_160 + temp_165;
+        temp_177 = temp_166 * U_Static.gCDep.z;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn skin_attribute_clip_space_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -1230,168 +1156,162 @@ pub fn skin_attribute_clip_space_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> O
 static SKIN_ATTRIBUTE_BITANGENT_XC3_X: LazyLock<Graph> = LazyLock::new(|| {
     // TODO: This can be U_OdB (XC3) or U_Bone (XC1)
     let query = indoc! {"
-        void main() {
-            temp_0 = nWgtIdx.x;
-            temp_2 = vNormal.x;
-            temp_3 = vTan.x;
-            temp_5 = vNormal.y;
-            temp_6 = floatBitsToInt(temp_0) & 65535;
-            temp_7 = temp_6 * 48;
-            temp_8 = vTan.y;
-            temp_9 = floatBitsToUint(temp_0) >> 16;
-            temp_10 = int(temp_9) * 48;
-            temp_11 = temp_10 << 16;
-            temp_12 = temp_11 + temp_7;
-            temp_13 = vNormal.z;
-            temp_14 = vTan.z;
-            temp_15 = temp_12 + 16;
-            temp_18 = vTan.w;
-            temp_19 = temp_12 + 32;
-            temp_34 = uint(temp_15) >> 2;
-            temp_35 = uintBitsToFloat(U_OdB.data[int(temp_34)]);
-            temp_36 = temp_15 + 4;
-            temp_37 = uint(temp_36) >> 2;
-            temp_38 = uintBitsToFloat(U_OdB.data[int(temp_37)]);
-            temp_39 = temp_15 + 8;
-            temp_40 = uint(temp_39) >> 2;
-            temp_41 = uintBitsToFloat(U_OdB.data[int(temp_40)]);
-            temp_46 = uint(temp_19) >> 2;
-            temp_47 = uintBitsToFloat(U_OdB.data[int(temp_46)]);
-            temp_48 = temp_19 + 4;
-            temp_49 = uint(temp_48) >> 2;
-            temp_50 = uintBitsToFloat(U_OdB.data[int(temp_49)]);
-            temp_51 = temp_19 + 8;
-            temp_52 = uint(temp_51) >> 2;
-            temp_53 = uintBitsToFloat(U_OdB.data[int(temp_52)]);
-            temp_94 = temp_35 * temp_2;
-            temp_95 = temp_35 * temp_3;
-            temp_100 = temp_47 * temp_2;
-            temp_104 = temp_47 * temp_3;
-            temp_107 = fma(temp_38, temp_5, temp_94);
-            temp_109 = fma(temp_50, temp_5, temp_100);
-            temp_110 = fma(temp_38, temp_8, temp_95);
-            temp_113 = fma(temp_50, temp_8, temp_104);
-            temp_114 = fma(temp_53, temp_13, temp_109);
-            temp_115 = fma(temp_41, temp_14, temp_110);
-            temp_117 = fma(temp_41, temp_13, temp_107);
-            temp_118 = fma(temp_53, temp_14, temp_113);
-            temp_119 = temp_114 * temp_115;
-            temp_126 = 0.0 - temp_119;
-            temp_127 = fma(temp_118, temp_117, temp_126);
-            temp_177 = temp_127 * temp_18;
-        }
+        temp_0 = nWgtIdx.x;
+        temp_2 = vNormal.x;
+        temp_3 = vTan.x;
+        temp_5 = vNormal.y;
+        temp_6 = floatBitsToInt(temp_0) & 65535;
+        temp_7 = temp_6 * 48;
+        temp_8 = vTan.y;
+        temp_9 = floatBitsToUint(temp_0) >> 16;
+        temp_10 = int(temp_9) * 48;
+        temp_11 = temp_10 << 16;
+        temp_12 = temp_11 + temp_7;
+        temp_13 = vNormal.z;
+        temp_14 = vTan.z;
+        temp_15 = temp_12 + 16;
+        temp_18 = vTan.w;
+        temp_19 = temp_12 + 32;
+        temp_34 = uint(temp_15) >> 2;
+        temp_35 = uintBitsToFloat(U_OdB.data[int(temp_34)]);
+        temp_36 = temp_15 + 4;
+        temp_37 = uint(temp_36) >> 2;
+        temp_38 = uintBitsToFloat(U_OdB.data[int(temp_37)]);
+        temp_39 = temp_15 + 8;
+        temp_40 = uint(temp_39) >> 2;
+        temp_41 = uintBitsToFloat(U_OdB.data[int(temp_40)]);
+        temp_46 = uint(temp_19) >> 2;
+        temp_47 = uintBitsToFloat(U_OdB.data[int(temp_46)]);
+        temp_48 = temp_19 + 4;
+        temp_49 = uint(temp_48) >> 2;
+        temp_50 = uintBitsToFloat(U_OdB.data[int(temp_49)]);
+        temp_51 = temp_19 + 8;
+        temp_52 = uint(temp_51) >> 2;
+        temp_53 = uintBitsToFloat(U_OdB.data[int(temp_52)]);
+        temp_94 = temp_35 * temp_2;
+        temp_95 = temp_35 * temp_3;
+        temp_100 = temp_47 * temp_2;
+        temp_104 = temp_47 * temp_3;
+        temp_107 = fma(temp_38, temp_5, temp_94);
+        temp_109 = fma(temp_50, temp_5, temp_100);
+        temp_110 = fma(temp_38, temp_8, temp_95);
+        temp_113 = fma(temp_50, temp_8, temp_104);
+        temp_114 = fma(temp_53, temp_13, temp_109);
+        temp_115 = fma(temp_41, temp_14, temp_110);
+        temp_117 = fma(temp_41, temp_13, temp_107);
+        temp_118 = fma(temp_53, temp_14, temp_113);
+        temp_119 = temp_114 * temp_115;
+        temp_126 = 0.0 - temp_119;
+        temp_127 = fma(temp_118, temp_117, temp_126);
+        temp_177 = temp_127 * temp_18;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static SKIN_ATTRIBUTE_BITANGENT_XC3_Y: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_0 = nWgtIdx.x;
-            temp_2 = vNormal.x;
-            temp_3 = vTan.x;
-            temp_5 = vNormal.y;
-            temp_6 = floatBitsToInt(temp_0) & 65535;
-            temp_7 = temp_6 * 48;
-            temp_8 = vTan.y;
-            temp_9 = floatBitsToUint(temp_0) >> 16;
-            temp_10 = int(temp_9) * 48;
-            temp_11 = temp_10 << 16;
-            temp_12 = temp_11 + temp_7;
-            temp_13 = vNormal.z;
-            temp_14 = vTan.z;
-            temp_18 = vTan.w;
-            temp_19 = temp_12 + 32;
-            temp_46 = uint(temp_19) >> 2;
-            temp_47 = uintBitsToFloat(U_OdB.data[int(temp_46)]);
-            temp_48 = temp_19 + 4;
-            temp_49 = uint(temp_48) >> 2;
-            temp_50 = uintBitsToFloat(U_OdB.data[int(temp_49)]);
-            temp_51 = temp_19 + 8;
-            temp_52 = uint(temp_51) >> 2;
-            temp_53 = uintBitsToFloat(U_OdB.data[int(temp_52)]);
-            temp_58 = uint(temp_12) >> 2;
-            temp_59 = uintBitsToFloat(U_OdB.data[int(temp_58)]);
-            temp_60 = temp_12 + 4;
-            temp_61 = uint(temp_60) >> 2;
-            temp_62 = uintBitsToFloat(U_OdB.data[int(temp_61)]);
-            temp_63 = temp_12 + 8;
-            temp_64 = uint(temp_63) >> 2;
-            temp_65 = uintBitsToFloat(U_OdB.data[int(temp_64)]);
-            temp_96 = temp_59 * temp_2;
-            temp_98 = temp_59 * temp_3;
-            temp_99 = fma(temp_62, temp_5, temp_96);
-            temp_100 = temp_47 * temp_2;
-            temp_103 = fma(temp_62, temp_8, temp_98);
-            temp_104 = temp_47 * temp_3;
-            temp_109 = fma(temp_50, temp_5, temp_100);
-            temp_113 = fma(temp_50, temp_8, temp_104);
-            temp_114 = fma(temp_53, temp_13, temp_109);
-            temp_118 = fma(temp_53, temp_14, temp_113);
-            temp_120 = fma(temp_65, temp_14, temp_103);
-            temp_123 = fma(temp_65, temp_13, temp_99);
-            temp_132 = temp_118 * temp_123;
-            temp_139 = 0.0 - temp_132;
-            temp_140 = fma(temp_114, temp_120, temp_139);
-            temp_152 = temp_140 * temp_18;
-        }
+        temp_0 = nWgtIdx.x;
+        temp_2 = vNormal.x;
+        temp_3 = vTan.x;
+        temp_5 = vNormal.y;
+        temp_6 = floatBitsToInt(temp_0) & 65535;
+        temp_7 = temp_6 * 48;
+        temp_8 = vTan.y;
+        temp_9 = floatBitsToUint(temp_0) >> 16;
+        temp_10 = int(temp_9) * 48;
+        temp_11 = temp_10 << 16;
+        temp_12 = temp_11 + temp_7;
+        temp_13 = vNormal.z;
+        temp_14 = vTan.z;
+        temp_18 = vTan.w;
+        temp_19 = temp_12 + 32;
+        temp_46 = uint(temp_19) >> 2;
+        temp_47 = uintBitsToFloat(U_OdB.data[int(temp_46)]);
+        temp_48 = temp_19 + 4;
+        temp_49 = uint(temp_48) >> 2;
+        temp_50 = uintBitsToFloat(U_OdB.data[int(temp_49)]);
+        temp_51 = temp_19 + 8;
+        temp_52 = uint(temp_51) >> 2;
+        temp_53 = uintBitsToFloat(U_OdB.data[int(temp_52)]);
+        temp_58 = uint(temp_12) >> 2;
+        temp_59 = uintBitsToFloat(U_OdB.data[int(temp_58)]);
+        temp_60 = temp_12 + 4;
+        temp_61 = uint(temp_60) >> 2;
+        temp_62 = uintBitsToFloat(U_OdB.data[int(temp_61)]);
+        temp_63 = temp_12 + 8;
+        temp_64 = uint(temp_63) >> 2;
+        temp_65 = uintBitsToFloat(U_OdB.data[int(temp_64)]);
+        temp_96 = temp_59 * temp_2;
+        temp_98 = temp_59 * temp_3;
+        temp_99 = fma(temp_62, temp_5, temp_96);
+        temp_100 = temp_47 * temp_2;
+        temp_103 = fma(temp_62, temp_8, temp_98);
+        temp_104 = temp_47 * temp_3;
+        temp_109 = fma(temp_50, temp_5, temp_100);
+        temp_113 = fma(temp_50, temp_8, temp_104);
+        temp_114 = fma(temp_53, temp_13, temp_109);
+        temp_118 = fma(temp_53, temp_14, temp_113);
+        temp_120 = fma(temp_65, temp_14, temp_103);
+        temp_123 = fma(temp_65, temp_13, temp_99);
+        temp_132 = temp_118 * temp_123;
+        temp_139 = 0.0 - temp_132;
+        temp_140 = fma(temp_114, temp_120, temp_139);
+        temp_152 = temp_140 * temp_18;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static SKIN_ATTRIBUTE_BITANGENT_XC3_Z: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_0 = nWgtIdx.x;
-            temp_2 = vNormal.x;
-            temp_3 = vTan.x;
-            temp_5 = vNormal.y;
-            temp_6 = floatBitsToInt(temp_0) & 65535;
-            temp_7 = temp_6 * 48;
-            temp_8 = vTan.y;
-            temp_9 = floatBitsToUint(temp_0) >> 16;
-            temp_10 = int(temp_9) * 48;
-            temp_11 = temp_10 << 16;
-            temp_12 = temp_11 + temp_7;
-            temp_13 = vNormal.z;
-            temp_14 = vTan.z;
-            temp_15 = temp_12 + 16;
-            temp_18 = vTan.w;
-            temp_34 = uint(temp_15) >> 2;
-            temp_35 = uintBitsToFloat(U_OdB.data[int(temp_34)]);
-            temp_36 = temp_15 + 4;
-            temp_37 = uint(temp_36) >> 2;
-            temp_38 = uintBitsToFloat(U_OdB.data[int(temp_37)]);
-            temp_39 = temp_15 + 8;
-            temp_40 = uint(temp_39) >> 2;
-            temp_41 = uintBitsToFloat(U_OdB.data[int(temp_40)]);
-            temp_58 = uint(temp_12) >> 2;
-            temp_59 = uintBitsToFloat(U_OdB.data[int(temp_58)]);
-            temp_60 = temp_12 + 4;
-            temp_61 = uint(temp_60) >> 2;
-            temp_62 = uintBitsToFloat(U_OdB.data[int(temp_61)]);
-            temp_63 = temp_12 + 8;
-            temp_64 = uint(temp_63) >> 2;
-            temp_65 = uintBitsToFloat(U_OdB.data[int(temp_64)]);
-            temp_94 = temp_35 * temp_2;
-            temp_95 = temp_35 * temp_3;
-            temp_96 = temp_59 * temp_2;
-            temp_98 = temp_59 * temp_3;
-            temp_99 = fma(temp_62, temp_5, temp_96);
-            temp_103 = fma(temp_62, temp_8, temp_98);
-            temp_107 = fma(temp_38, temp_5, temp_94);
-            temp_110 = fma(temp_38, temp_8, temp_95);
-            temp_115 = fma(temp_41, temp_14, temp_110);
-            temp_117 = fma(temp_41, temp_13, temp_107);
-            temp_120 = fma(temp_65, temp_14, temp_103);
-            temp_123 = fma(temp_65, temp_13, temp_99);
-            temp_128 = temp_117 * temp_120;
-            temp_133 = 0.0 - temp_128;
-            temp_134 = fma(temp_115, temp_123, temp_133);
-            temp_156 = temp_134 * temp_18;
-        }
+        temp_0 = nWgtIdx.x;
+        temp_2 = vNormal.x;
+        temp_3 = vTan.x;
+        temp_5 = vNormal.y;
+        temp_6 = floatBitsToInt(temp_0) & 65535;
+        temp_7 = temp_6 * 48;
+        temp_8 = vTan.y;
+        temp_9 = floatBitsToUint(temp_0) >> 16;
+        temp_10 = int(temp_9) * 48;
+        temp_11 = temp_10 << 16;
+        temp_12 = temp_11 + temp_7;
+        temp_13 = vNormal.z;
+        temp_14 = vTan.z;
+        temp_15 = temp_12 + 16;
+        temp_18 = vTan.w;
+        temp_34 = uint(temp_15) >> 2;
+        temp_35 = uintBitsToFloat(U_OdB.data[int(temp_34)]);
+        temp_36 = temp_15 + 4;
+        temp_37 = uint(temp_36) >> 2;
+        temp_38 = uintBitsToFloat(U_OdB.data[int(temp_37)]);
+        temp_39 = temp_15 + 8;
+        temp_40 = uint(temp_39) >> 2;
+        temp_41 = uintBitsToFloat(U_OdB.data[int(temp_40)]);
+        temp_58 = uint(temp_12) >> 2;
+        temp_59 = uintBitsToFloat(U_OdB.data[int(temp_58)]);
+        temp_60 = temp_12 + 4;
+        temp_61 = uint(temp_60) >> 2;
+        temp_62 = uintBitsToFloat(U_OdB.data[int(temp_61)]);
+        temp_63 = temp_12 + 8;
+        temp_64 = uint(temp_63) >> 2;
+        temp_65 = uintBitsToFloat(U_OdB.data[int(temp_64)]);
+        temp_94 = temp_35 * temp_2;
+        temp_95 = temp_35 * temp_3;
+        temp_96 = temp_59 * temp_2;
+        temp_98 = temp_59 * temp_3;
+        temp_99 = fma(temp_62, temp_5, temp_96);
+        temp_103 = fma(temp_62, temp_8, temp_98);
+        temp_107 = fma(temp_38, temp_5, temp_94);
+        temp_110 = fma(temp_38, temp_8, temp_95);
+        temp_115 = fma(temp_41, temp_14, temp_110);
+        temp_117 = fma(temp_41, temp_13, temp_107);
+        temp_120 = fma(temp_65, temp_14, temp_103);
+        temp_123 = fma(temp_65, temp_13, temp_99);
+        temp_128 = temp_117 * temp_120;
+        temp_133 = 0.0 - temp_128;
+        temp_134 = fma(temp_115, temp_123, temp_133);
+        temp_156 = temp_134 * temp_18;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn skin_attribute_bitangent(graph: &Graph, expr: &Expr) -> Option<Expr> {
@@ -1472,39 +1392,37 @@ pub fn attribute_gm_cal_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a 
 static BITANGENT_GM_CAL_XYZ: LazyLock<Graph> = LazyLock::new(|| {
     // The channels differ only in their gmCal names.
     let query = indoc! {"
-        void main() {
-            temp_5 = vGmCal_A.x;
-            temp_6 = vGmCal_B.x;
-            temp_7 = vNormal.x;
-            temp_8 = vTan.x;
-            temp_9 = vGmCal_B.y;
-            temp_10 = vNormal.y;
-            temp_14 = vGmCal_A.y;
-            temp_15 = vTan.y;
-            temp_17 = vGmCal_A.z;
-            temp_18 = vTan.z;
-            temp_22 = vGmCal_B.z;
-            temp_24 = vNormal.z;
-            temp_29 = vTan.w;
-            temp_35 = temp_6 * temp_8;
-            temp_36 = temp_6 * temp_7;
-            temp_37 = temp_5 * temp_7;
-            temp_39 = temp_5 * temp_8;
-            temp_41 = fma(temp_9, temp_10, temp_36);
-            temp_44 = fma(temp_14, temp_10, temp_37);
-            temp_46 = fma(temp_9, temp_15, temp_35);
-            temp_47 = fma(temp_14, temp_15, temp_39);
-            temp_50 = fma(temp_22, temp_24, temp_41);
-            temp_52 = fma(temp_17, temp_18, temp_47);
-            temp_53 = fma(temp_22, temp_18, temp_46);
-            temp_55 = fma(temp_17, temp_24, temp_44);
-            temp_58 = temp_50 * temp_52;
-            temp_62 = 0.0 - temp_58;
-            temp_63 = fma(temp_55, temp_53, temp_62);
-            temp_70 = temp_63 * temp_29;
-        }
+        temp_5 = vGmCal_A.x;
+        temp_6 = vGmCal_B.x;
+        temp_7 = vNormal.x;
+        temp_8 = vTan.x;
+        temp_9 = vGmCal_B.y;
+        temp_10 = vNormal.y;
+        temp_14 = vGmCal_A.y;
+        temp_15 = vTan.y;
+        temp_17 = vGmCal_A.z;
+        temp_18 = vTan.z;
+        temp_22 = vGmCal_B.z;
+        temp_24 = vNormal.z;
+        temp_29 = vTan.w;
+        temp_35 = temp_6 * temp_8;
+        temp_36 = temp_6 * temp_7;
+        temp_37 = temp_5 * temp_7;
+        temp_39 = temp_5 * temp_8;
+        temp_41 = fma(temp_9, temp_10, temp_36);
+        temp_44 = fma(temp_14, temp_10, temp_37);
+        temp_46 = fma(temp_9, temp_15, temp_35);
+        temp_47 = fma(temp_14, temp_15, temp_39);
+        temp_50 = fma(temp_22, temp_24, temp_41);
+        temp_52 = fma(temp_17, temp_18, temp_47);
+        temp_53 = fma(temp_22, temp_18, temp_46);
+        temp_55 = fma(temp_17, temp_24, temp_44);
+        temp_58 = temp_50 * temp_52;
+        temp_62 = 0.0 - temp_58;
+        temp_63 = fma(temp_55, temp_53, temp_62);
+        temp_70 = temp_63 * temp_29;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn bitangent_gm_cal_xyz(graph: &Graph, expr: &Expr) -> Option<Expr> {
@@ -1533,165 +1451,157 @@ pub fn bitangent_gm_cal_xyz(graph: &Graph, expr: &Expr) -> Option<Expr> {
 
 static GM_CAL_CLIP_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_3 = vGmCal1.x;
-            temp_4 = result_x;
-            temp_5 = vGmCal2.x;
-            temp_6 = vGmCal3.x;
-            temp_9 = vGmCal3.y;
-            temp_12 = vGmCal1.y;
-            temp_13 = result_y;
-            temp_14 = vGmCal2.y;
-            temp_16 = result_z;
-            temp_17 = vGmCal2.z;
-            temp_20 = vGmCal1.z;
-            temp_22 = vGmCal3.z;
-            temp_23 = temp_3 * temp_4;
-            temp_25 = vGmCal1.w;
-            temp_26 = result_w;
-            temp_27 = vGmCal2.w;
-            temp_28 = vGmCal3.w;
-            temp_33 = temp_4 * temp_6;
-            temp_34 = temp_4 * temp_5;
-            temp_42 = fma(temp_12, temp_13, temp_23);
-            temp_43 = fma(temp_13, temp_9, temp_33);
-            temp_45 = fma(temp_13, temp_14, temp_34);
-            temp_51 = fma(temp_16, temp_17, temp_45);
-            temp_57 = fma(temp_20, temp_16, temp_42);
-            temp_61 = fma(temp_25, temp_26, temp_57);
-            temp_68 = fma(temp_16, temp_22, temp_43);
-            temp_69 = fma(temp_26, temp_27, temp_51);
-            temp_74 = fma(temp_26, temp_28, temp_68);
-            temp_82 = temp_61 * U_Static.gmProj[0].x;
-            temp_89 = fma(temp_69, U_Static.gmProj[0].y, temp_82);
-            temp_95 = fma(temp_74, U_Static.gmProj[0].z, temp_89);
-            temp_105 = temp_95 + U_Static.gmProj[0].w;
-        }
+        temp_3 = vGmCal1.x;
+        temp_4 = result_x;
+        temp_5 = vGmCal2.x;
+        temp_6 = vGmCal3.x;
+        temp_9 = vGmCal3.y;
+        temp_12 = vGmCal1.y;
+        temp_13 = result_y;
+        temp_14 = vGmCal2.y;
+        temp_16 = result_z;
+        temp_17 = vGmCal2.z;
+        temp_20 = vGmCal1.z;
+        temp_22 = vGmCal3.z;
+        temp_23 = temp_3 * temp_4;
+        temp_25 = vGmCal1.w;
+        temp_26 = result_w;
+        temp_27 = vGmCal2.w;
+        temp_28 = vGmCal3.w;
+        temp_33 = temp_4 * temp_6;
+        temp_34 = temp_4 * temp_5;
+        temp_42 = fma(temp_12, temp_13, temp_23);
+        temp_43 = fma(temp_13, temp_9, temp_33);
+        temp_45 = fma(temp_13, temp_14, temp_34);
+        temp_51 = fma(temp_16, temp_17, temp_45);
+        temp_57 = fma(temp_20, temp_16, temp_42);
+        temp_61 = fma(temp_25, temp_26, temp_57);
+        temp_68 = fma(temp_16, temp_22, temp_43);
+        temp_69 = fma(temp_26, temp_27, temp_51);
+        temp_74 = fma(temp_26, temp_28, temp_68);
+        temp_82 = temp_61 * U_Static.gmProj[0].x;
+        temp_89 = fma(temp_69, U_Static.gmProj[0].y, temp_82);
+        temp_95 = fma(temp_74, U_Static.gmProj[0].z, temp_89);
+        temp_105 = temp_95 + U_Static.gmProj[0].w;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static GM_CAL_CLIP_ATTRIBUTE_XYZW_Y: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_3 = vGmCal1.x;
-            temp_4 = result_x;
-            temp_5 = vGmCal2.x;
-            temp_6 = vGmCal3.x;
-            temp_9 = vGmCal3.y;
-            temp_12 = vGmCal1.y;
-            temp_13 = result_y;
-            temp_14 = vGmCal2.y;
-            temp_16 = result_z;
-            temp_17 = vGmCal2.z;
-            temp_20 = vGmCal1.z;
-            temp_22 = vGmCal3.z;
-            temp_23 = temp_3 * temp_4;
-            temp_25 = vGmCal1.w;
-            temp_26 = result_w;
-            temp_27 = vGmCal2.w;
-            temp_28 = vGmCal3.w;
-            temp_33 = temp_4 * temp_6;
-            temp_34 = temp_4 * temp_5;
-            temp_42 = fma(temp_12, temp_13, temp_23);
-            temp_43 = fma(temp_13, temp_9, temp_33);
-            temp_45 = fma(temp_13, temp_14, temp_34);
-            temp_51 = fma(temp_16, temp_17, temp_45);
-            temp_57 = fma(temp_20, temp_16, temp_42);
-            temp_61 = fma(temp_25, temp_26, temp_57);
-            temp_68 = fma(temp_16, temp_22, temp_43);
-            temp_69 = fma(temp_26, temp_27, temp_51);
-            temp_73 = temp_61 * U_Static.gmProj[1].x;
-            temp_74 = fma(temp_26, temp_28, temp_68);
-            temp_75 = fma(temp_69, U_Static.gmProj[1].y, temp_73);
-            temp_77 = fma(temp_74, U_Static.gmProj[1].z, temp_75);
-            temp_106 = temp_77 + U_Static.gmProj[1].w;
-        }
+        temp_3 = vGmCal1.x;
+        temp_4 = result_x;
+        temp_5 = vGmCal2.x;
+        temp_6 = vGmCal3.x;
+        temp_9 = vGmCal3.y;
+        temp_12 = vGmCal1.y;
+        temp_13 = result_y;
+        temp_14 = vGmCal2.y;
+        temp_16 = result_z;
+        temp_17 = vGmCal2.z;
+        temp_20 = vGmCal1.z;
+        temp_22 = vGmCal3.z;
+        temp_23 = temp_3 * temp_4;
+        temp_25 = vGmCal1.w;
+        temp_26 = result_w;
+        temp_27 = vGmCal2.w;
+        temp_28 = vGmCal3.w;
+        temp_33 = temp_4 * temp_6;
+        temp_34 = temp_4 * temp_5;
+        temp_42 = fma(temp_12, temp_13, temp_23);
+        temp_43 = fma(temp_13, temp_9, temp_33);
+        temp_45 = fma(temp_13, temp_14, temp_34);
+        temp_51 = fma(temp_16, temp_17, temp_45);
+        temp_57 = fma(temp_20, temp_16, temp_42);
+        temp_61 = fma(temp_25, temp_26, temp_57);
+        temp_68 = fma(temp_16, temp_22, temp_43);
+        temp_69 = fma(temp_26, temp_27, temp_51);
+        temp_73 = temp_61 * U_Static.gmProj[1].x;
+        temp_74 = fma(temp_26, temp_28, temp_68);
+        temp_75 = fma(temp_69, U_Static.gmProj[1].y, temp_73);
+        temp_77 = fma(temp_74, U_Static.gmProj[1].z, temp_75);
+        temp_106 = temp_77 + U_Static.gmProj[1].w;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static GM_CAL_CLIP_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_3 = vGmCal1.x;
-            temp_4 = result_x;
-            temp_5 = vGmCal2.x;
-            temp_6 = vGmCal3.x;
-            temp_9 = vGmCal3.y;
-            temp_12 = vGmCal1.y;
-            temp_13 = result_y;
-            temp_14 = vGmCal2.y;
-            temp_16 = result_z;
-            temp_17 = vGmCal2.z;
-            temp_20 = vGmCal1.z;
-            temp_22 = vGmCal3.z;
-            temp_23 = temp_3 * temp_4;
-            temp_25 = vGmCal1.w;
-            temp_26 = result_w;
-            temp_27 = vGmCal2.w;
-            temp_28 = vGmCal3.w;
-            temp_33 = temp_4 * temp_6;
-            temp_34 = temp_4 * temp_5;
-            temp_42 = fma(temp_12, temp_13, temp_23);
-            temp_43 = fma(temp_13, temp_9, temp_33);
-            temp_45 = fma(temp_13, temp_14, temp_34);
-            temp_51 = fma(temp_16, temp_17, temp_45);
-            temp_57 = fma(temp_20, temp_16, temp_42);
-            temp_61 = fma(temp_25, temp_26, temp_57);
-            temp_68 = fma(temp_16, temp_22, temp_43);
-            temp_69 = fma(temp_26, temp_27, temp_51);
-            temp_74 = fma(temp_26, temp_28, temp_68);
-            temp_78 = temp_61 * U_Static.gmProj[2].x;
-            temp_81 = fma(temp_69, U_Static.gmProj[2].y, temp_78);
-            temp_87 = fma(temp_74, U_Static.gmProj[2].z, temp_81);
-            temp_93 = temp_87 + U_Static.gmProj[2].w;
-            temp_100 = 0.0 - U_Static.gCDep.y;
-            temp_101 = temp_93 + temp_100;
-            temp_111 = temp_101 * U_Static.gCDep.z;
-        }
+        temp_3 = vGmCal1.x;
+        temp_4 = result_x;
+        temp_5 = vGmCal2.x;
+        temp_6 = vGmCal3.x;
+        temp_9 = vGmCal3.y;
+        temp_12 = vGmCal1.y;
+        temp_13 = result_y;
+        temp_14 = vGmCal2.y;
+        temp_16 = result_z;
+        temp_17 = vGmCal2.z;
+        temp_20 = vGmCal1.z;
+        temp_22 = vGmCal3.z;
+        temp_23 = temp_3 * temp_4;
+        temp_25 = vGmCal1.w;
+        temp_26 = result_w;
+        temp_27 = vGmCal2.w;
+        temp_28 = vGmCal3.w;
+        temp_33 = temp_4 * temp_6;
+        temp_34 = temp_4 * temp_5;
+        temp_42 = fma(temp_12, temp_13, temp_23);
+        temp_43 = fma(temp_13, temp_9, temp_33);
+        temp_45 = fma(temp_13, temp_14, temp_34);
+        temp_51 = fma(temp_16, temp_17, temp_45);
+        temp_57 = fma(temp_20, temp_16, temp_42);
+        temp_61 = fma(temp_25, temp_26, temp_57);
+        temp_68 = fma(temp_16, temp_22, temp_43);
+        temp_69 = fma(temp_26, temp_27, temp_51);
+        temp_74 = fma(temp_26, temp_28, temp_68);
+        temp_78 = temp_61 * U_Static.gmProj[2].x;
+        temp_81 = fma(temp_69, U_Static.gmProj[2].y, temp_78);
+        temp_87 = fma(temp_74, U_Static.gmProj[2].z, temp_81);
+        temp_93 = temp_87 + U_Static.gmProj[2].w;
+        temp_100 = 0.0 - U_Static.gCDep.y;
+        temp_101 = temp_93 + temp_100;
+        temp_111 = temp_101 * U_Static.gCDep.z;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static GM_CAL_CLIP_ATTRIBUTE_XYZW_W: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_3 = vGmCal1.x;
-            temp_4 = result_x;
-            temp_5 = vGmCal2.x;
-            temp_6 = vGmCal3.x;
-            temp_9 = vGmCal3.y;
-            temp_12 = vGmCal1.y;
-            temp_13 = result_y;
-            temp_14 = vGmCal2.y;
-            temp_16 = result_z;
-            temp_17 = vGmCal2.z;
-            temp_20 = vGmCal1.z;
-            temp_22 = vGmCal3.z;
-            temp_23 = temp_3 * temp_4;
-            temp_25 = vGmCal1.w;
-            temp_26 = result_w;
-            temp_27 = vGmCal2.w;
-            temp_28 = vGmCal3.w;
-            temp_33 = temp_4 * temp_6;
-            temp_34 = temp_4 * temp_5;
-            temp_42 = fma(temp_12, temp_13, temp_23);
-            temp_43 = fma(temp_13, temp_9, temp_33);
-            temp_45 = fma(temp_13, temp_14, temp_34);
-            temp_51 = fma(temp_16, temp_17, temp_45);
-            temp_57 = fma(temp_20, temp_16, temp_42);
-            temp_61 = fma(temp_25, temp_26, temp_57);
-            temp_68 = fma(temp_16, temp_22, temp_43);
-            temp_69 = fma(temp_26, temp_27, temp_51);
-            temp_74 = fma(temp_26, temp_28, temp_68);
-            temp_76 = temp_61 * U_Static.gmProj[3].x;
-            temp_79 = fma(temp_69, U_Static.gmProj[3].y, temp_76);
-            temp_88 = fma(temp_74, U_Static.gmProj[3].z, temp_79);
-            temp_94 = temp_88 + U_Static.gmProj[3].w;
-        }
+        temp_3 = vGmCal1.x;
+        temp_4 = result_x;
+        temp_5 = vGmCal2.x;
+        temp_6 = vGmCal3.x;
+        temp_9 = vGmCal3.y;
+        temp_12 = vGmCal1.y;
+        temp_13 = result_y;
+        temp_14 = vGmCal2.y;
+        temp_16 = result_z;
+        temp_17 = vGmCal2.z;
+        temp_20 = vGmCal1.z;
+        temp_22 = vGmCal3.z;
+        temp_23 = temp_3 * temp_4;
+        temp_25 = vGmCal1.w;
+        temp_26 = result_w;
+        temp_27 = vGmCal2.w;
+        temp_28 = vGmCal3.w;
+        temp_33 = temp_4 * temp_6;
+        temp_34 = temp_4 * temp_5;
+        temp_42 = fma(temp_12, temp_13, temp_23);
+        temp_43 = fma(temp_13, temp_9, temp_33);
+        temp_45 = fma(temp_13, temp_14, temp_34);
+        temp_51 = fma(temp_16, temp_17, temp_45);
+        temp_57 = fma(temp_20, temp_16, temp_42);
+        temp_61 = fma(temp_25, temp_26, temp_57);
+        temp_68 = fma(temp_16, temp_22, temp_43);
+        temp_69 = fma(temp_26, temp_27, temp_51);
+        temp_74 = fma(temp_26, temp_28, temp_68);
+        temp_76 = temp_61 * U_Static.gmProj[3].x;
+        temp_79 = fma(temp_69, U_Static.gmProj[3].y, temp_76);
+        temp_88 = fma(temp_74, U_Static.gmProj[3].z, temp_79);
+        temp_94 = temp_88 + U_Static.gmProj[3].w;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn gm_cal_clip_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -1713,18 +1623,16 @@ pub fn gm_cal_clip_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Optio
 
 static U_MDL_ATTRIBUTE_XYZW: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_0 = result_x;
-            temp_1 = result_y;
-            temp_2 = result_z;
-            temp_3 = result_w;
-            temp_24 = temp_0 * U_Mdl.gmWorldView[index].x;
-            temp_28 = fma(temp_1, U_Mdl.gmWorldView[index].y, temp_24);
-            temp_34 = fma(temp_2, U_Mdl.gmWorldView[index].z, temp_28);
-            temp_40 = fma(temp_3, U_Mdl.gmWorldView[index].w, temp_34);
-        }
+        temp_0 = result_x;
+        temp_1 = result_y;
+        temp_2 = result_z;
+        temp_3 = result_w;
+        temp_24 = temp_0 * U_Mdl.gmWorldView[index].x;
+        temp_28 = fma(temp_1, U_Mdl.gmWorldView[index].y, temp_24);
+        temp_34 = fma(temp_2, U_Mdl.gmWorldView[index].z, temp_28);
+        temp_40 = fma(temp_3, U_Mdl.gmWorldView[index].w, temp_34);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn u_mdl_view_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -1740,95 +1648,89 @@ pub fn u_mdl_view_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option
 
 static U_MDL_VIEW_BITANGENT_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_10 = vNormal.x;
-            temp_12 = vNormal.y;
-            temp_14 = vNormal.z;
-            temp_18 = vTan.x;
-            temp_19 = vTan.y;
-            temp_21 = vTan.z;
-            temp_23 = vTan.w;
-            temp_49 = temp_10 * U_Mdl.gmWorldView[2].x;
-            temp_55 = temp_10 * U_Mdl.gmWorldView[1].x;
-            temp_56 = temp_18 * U_Mdl.gmWorldView[2].x;
-            temp_57 = temp_18 * U_Mdl.gmWorldView[1].x;
-            temp_58 = fma(temp_12, U_Mdl.gmWorldView[2].y, temp_49);
-            temp_61 = fma(temp_19, U_Mdl.gmWorldView[2].y, temp_56);
-            temp_62 = fma(temp_19, U_Mdl.gmWorldView[1].y, temp_57);
-            temp_64 = fma(temp_12, U_Mdl.gmWorldView[1].y, temp_55);
-            temp_66 = fma(temp_14, U_Mdl.gmWorldView[2].z, temp_58);
-            temp_67 = fma(temp_21, U_Mdl.gmWorldView[2].z, temp_61);
-            temp_68 = fma(temp_21, U_Mdl.gmWorldView[1].z, temp_62);
-            temp_70 = fma(temp_14, U_Mdl.gmWorldView[1].z, temp_64);
-            temp_74 = temp_66 * temp_68;
-            temp_77 = 0.0 - temp_74;
-            temp_78 = fma(temp_67, temp_70, temp_77);
-            temp_84 = temp_78 * temp_23;
-        }
+        temp_10 = vNormal.x;
+        temp_12 = vNormal.y;
+        temp_14 = vNormal.z;
+        temp_18 = vTan.x;
+        temp_19 = vTan.y;
+        temp_21 = vTan.z;
+        temp_23 = vTan.w;
+        temp_49 = temp_10 * U_Mdl.gmWorldView[2].x;
+        temp_55 = temp_10 * U_Mdl.gmWorldView[1].x;
+        temp_56 = temp_18 * U_Mdl.gmWorldView[2].x;
+        temp_57 = temp_18 * U_Mdl.gmWorldView[1].x;
+        temp_58 = fma(temp_12, U_Mdl.gmWorldView[2].y, temp_49);
+        temp_61 = fma(temp_19, U_Mdl.gmWorldView[2].y, temp_56);
+        temp_62 = fma(temp_19, U_Mdl.gmWorldView[1].y, temp_57);
+        temp_64 = fma(temp_12, U_Mdl.gmWorldView[1].y, temp_55);
+        temp_66 = fma(temp_14, U_Mdl.gmWorldView[2].z, temp_58);
+        temp_67 = fma(temp_21, U_Mdl.gmWorldView[2].z, temp_61);
+        temp_68 = fma(temp_21, U_Mdl.gmWorldView[1].z, temp_62);
+        temp_70 = fma(temp_14, U_Mdl.gmWorldView[1].z, temp_64);
+        temp_74 = temp_66 * temp_68;
+        temp_77 = 0.0 - temp_74;
+        temp_78 = fma(temp_67, temp_70, temp_77);
+        temp_84 = temp_78 * temp_23;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static U_MDL_VIEW_BITANGENT_Y: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_10 = vNormal.x;
-            temp_12 = vNormal.y;
-            temp_14 = vNormal.z;
-            temp_18 = vTan.x;
-            temp_19 = vTan.y;
-            temp_21 = vTan.z;
-            temp_23 = vTan.w;
-            temp_49 = temp_10 * U_Mdl.gmWorldView[2].x;
-            temp_56 = temp_18 * U_Mdl.gmWorldView[2].x;
-            temp_58 = fma(temp_12, U_Mdl.gmWorldView[2].y, temp_49);
-            temp_59 = temp_10 * U_Mdl.gmWorldView[0].x;
-            temp_60 = temp_18 * U_Mdl.gmWorldView[0].x;
-            temp_61 = fma(temp_19, U_Mdl.gmWorldView[2].y, temp_56);
-            temp_63 = fma(temp_12, U_Mdl.gmWorldView[0].y, temp_59);
-            temp_65 = fma(temp_19, U_Mdl.gmWorldView[0].y, temp_60);
-            temp_66 = fma(temp_14, U_Mdl.gmWorldView[2].z, temp_58);
-            temp_67 = fma(temp_21, U_Mdl.gmWorldView[2].z, temp_61);
-            temp_69 = fma(temp_14, U_Mdl.gmWorldView[0].z, temp_63);
-            temp_71 = fma(temp_21, U_Mdl.gmWorldView[0].z, temp_65);
-            temp_75 = temp_67 * temp_69;
-            temp_79 = 0.0 - temp_75;
-            temp_80 = fma(temp_66, temp_71, temp_79);
-            temp_85 = temp_80 * temp_23;
-        }
+        temp_10 = vNormal.x;
+        temp_12 = vNormal.y;
+        temp_14 = vNormal.z;
+        temp_18 = vTan.x;
+        temp_19 = vTan.y;
+        temp_21 = vTan.z;
+        temp_23 = vTan.w;
+        temp_49 = temp_10 * U_Mdl.gmWorldView[2].x;
+        temp_56 = temp_18 * U_Mdl.gmWorldView[2].x;
+        temp_58 = fma(temp_12, U_Mdl.gmWorldView[2].y, temp_49);
+        temp_59 = temp_10 * U_Mdl.gmWorldView[0].x;
+        temp_60 = temp_18 * U_Mdl.gmWorldView[0].x;
+        temp_61 = fma(temp_19, U_Mdl.gmWorldView[2].y, temp_56);
+        temp_63 = fma(temp_12, U_Mdl.gmWorldView[0].y, temp_59);
+        temp_65 = fma(temp_19, U_Mdl.gmWorldView[0].y, temp_60);
+        temp_66 = fma(temp_14, U_Mdl.gmWorldView[2].z, temp_58);
+        temp_67 = fma(temp_21, U_Mdl.gmWorldView[2].z, temp_61);
+        temp_69 = fma(temp_14, U_Mdl.gmWorldView[0].z, temp_63);
+        temp_71 = fma(temp_21, U_Mdl.gmWorldView[0].z, temp_65);
+        temp_75 = temp_67 * temp_69;
+        temp_79 = 0.0 - temp_75;
+        temp_80 = fma(temp_66, temp_71, temp_79);
+        temp_85 = temp_80 * temp_23;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static U_MDL_VIEW_BITANGENT_Z: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_10 = vNormal.x;
-            temp_12 = vNormal.y;
-            temp_14 = vNormal.z;
-            temp_18 = vTan.x;
-            temp_19 = vTan.y;
-            temp_21 = vTan.z;
-            temp_23 = vTan.w;
-            temp_55 = temp_10 * U_Mdl.gmWorldView[1].x;
-            temp_57 = temp_18 * U_Mdl.gmWorldView[1].x;
-            temp_59 = temp_10 * U_Mdl.gmWorldView[0].x;
-            temp_60 = temp_18 * U_Mdl.gmWorldView[0].x;
-            temp_62 = fma(temp_19, U_Mdl.gmWorldView[1].y, temp_57);
-            temp_63 = fma(temp_12, U_Mdl.gmWorldView[0].y, temp_59);
-            temp_64 = fma(temp_12, U_Mdl.gmWorldView[1].y, temp_55);
-            temp_65 = fma(temp_19, U_Mdl.gmWorldView[0].y, temp_60);
-            temp_68 = fma(temp_21, U_Mdl.gmWorldView[1].z, temp_62);
-            temp_69 = fma(temp_14, U_Mdl.gmWorldView[0].z, temp_63);
-            temp_70 = fma(temp_14, U_Mdl.gmWorldView[1].z, temp_64);
-            temp_71 = fma(temp_21, U_Mdl.gmWorldView[0].z, temp_65);
-            temp_76 = temp_70 * temp_71;
-            temp_81 = 0.0 - temp_76;
-            temp_82 = fma(temp_69, temp_68, temp_81);
-            temp_86 = temp_82 * temp_23;
-        }
+        temp_10 = vNormal.x;
+        temp_12 = vNormal.y;
+        temp_14 = vNormal.z;
+        temp_18 = vTan.x;
+        temp_19 = vTan.y;
+        temp_21 = vTan.z;
+        temp_23 = vTan.w;
+        temp_55 = temp_10 * U_Mdl.gmWorldView[1].x;
+        temp_57 = temp_18 * U_Mdl.gmWorldView[1].x;
+        temp_59 = temp_10 * U_Mdl.gmWorldView[0].x;
+        temp_60 = temp_18 * U_Mdl.gmWorldView[0].x;
+        temp_62 = fma(temp_19, U_Mdl.gmWorldView[1].y, temp_57);
+        temp_63 = fma(temp_12, U_Mdl.gmWorldView[0].y, temp_59);
+        temp_64 = fma(temp_12, U_Mdl.gmWorldView[1].y, temp_55);
+        temp_65 = fma(temp_19, U_Mdl.gmWorldView[0].y, temp_60);
+        temp_68 = fma(temp_21, U_Mdl.gmWorldView[1].z, temp_62);
+        temp_69 = fma(temp_14, U_Mdl.gmWorldView[0].z, temp_63);
+        temp_70 = fma(temp_14, U_Mdl.gmWorldView[1].z, temp_64);
+        temp_71 = fma(temp_21, U_Mdl.gmWorldView[0].z, temp_65);
+        temp_76 = temp_70 * temp_71;
+        temp_81 = 0.0 - temp_76;
+        temp_82 = fma(temp_69, temp_68, temp_81);
+        temp_86 = temp_82 * temp_23;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn u_mdl_view_bitangent_xyz(graph: &Graph, expr: &Expr) -> Option<Expr> {
@@ -1844,53 +1746,47 @@ pub fn u_mdl_view_bitangent_xyz(graph: &Graph, expr: &Expr) -> Option<Expr> {
 
 static U_MDL_CLIP_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_0 = result_x;
-            temp_1 = result_y;
-            temp_2 = result_z;
-            temp_3 = result_w;
-            temp_8 = temp_0 * U_Mdl.gmWVP[0].x;
-            temp_16 = fma(temp_1, U_Mdl.gmWVP[0].y, temp_8);
-            temp_29 = fma(temp_2, U_Mdl.gmWVP[0].z, temp_16);
-            temp_36 = fma(temp_3, U_Mdl.gmWVP[0].w, temp_29);
-        }
+        temp_0 = result_x;
+        temp_1 = result_y;
+        temp_2 = result_z;
+        temp_3 = result_w;
+        temp_8 = temp_0 * U_Mdl.gmWVP[0].x;
+        temp_16 = fma(temp_1, U_Mdl.gmWVP[0].y, temp_8);
+        temp_29 = fma(temp_2, U_Mdl.gmWVP[0].z, temp_16);
+        temp_36 = fma(temp_3, U_Mdl.gmWVP[0].w, temp_29);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static U_MDL_CLIP_ATTRIBUTE_XYZW_Y: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_0 = result_x;
-            temp_1 = result_y;
-            temp_2 = result_z;
-            temp_3 = result_w;
-            temp_12 = temp_0 * U_Mdl.gmWVP[1].x;
-            temp_21 = fma(temp_1, U_Mdl.gmWVP[1].y, temp_12);
-            temp_32 = fma(temp_2, U_Mdl.gmWVP[1].z, temp_21);
-            temp_38 = fma(temp_3, U_Mdl.gmWVP[1].w, temp_32);
-        }
+        temp_0 = result_x;
+        temp_1 = result_y;
+        temp_2 = result_z;
+        temp_3 = result_w;
+        temp_12 = temp_0 * U_Mdl.gmWVP[1].x;
+        temp_21 = fma(temp_1, U_Mdl.gmWVP[1].y, temp_12);
+        temp_32 = fma(temp_2, U_Mdl.gmWVP[1].z, temp_21);
+        temp_38 = fma(temp_3, U_Mdl.gmWVP[1].w, temp_32);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static U_MDL_CLIP_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_0 = result_x;
-            temp_1 = result_y;
-            temp_2 = result_z;
-            temp_3 = result_w;
-            temp_20 = temp_0 * U_Mdl.gmWVP[2].x;
-            temp_25 = fma(temp_1, U_Mdl.gmWVP[2].y, temp_20);
-            temp_30 = fma(temp_2, U_Mdl.gmWVP[2].z, temp_25);
-            temp_35 = fma(temp_3, U_Mdl.gmWVP[2].w, temp_30);
-            temp_42 = 0.0 - U_Static.gCDep.y;
-            temp_43 = temp_35 + temp_42;
-            temp_49 = temp_43 * U_Static.gCDep.z;
-        }
+        temp_0 = result_x;
+        temp_1 = result_y;
+        temp_2 = result_z;
+        temp_3 = result_w;
+        temp_20 = temp_0 * U_Mdl.gmWVP[2].x;
+        temp_25 = fma(temp_1, U_Mdl.gmWVP[2].y, temp_20);
+        temp_30 = fma(temp_2, U_Mdl.gmWVP[2].z, temp_25);
+        temp_35 = fma(temp_3, U_Mdl.gmWVP[2].w, temp_30);
+        temp_42 = 0.0 - U_Static.gCDep.y;
+        temp_43 = temp_35 + temp_42;
+        temp_49 = temp_43 * U_Static.gCDep.z;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn u_mdl_clip_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -1908,16 +1804,14 @@ pub fn u_mdl_clip_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option
 
 static U_MDL_ATTRIBUTE_XYZ: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_0 = result_x;
-            temp_1 = result_y;
-            temp_2 = result_z;
-            temp_24 = temp_0 * U_Mdl.gmWorldView[index].x;
-            temp_28 = fma(temp_1, U_Mdl.gmWorldView[index].y, temp_24);
-            temp_34 = fma(temp_2, U_Mdl.gmWorldView[index].z, temp_28);
-        }
+        temp_0 = result_x;
+        temp_1 = result_y;
+        temp_2 = result_z;
+        temp_24 = temp_0 * U_Mdl.gmWorldView[index].x;
+        temp_28 = fma(temp_1, U_Mdl.gmWorldView[index].y, temp_24);
+        temp_34 = fma(temp_2, U_Mdl.gmWorldView[index].z, temp_28);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn u_mdl_attribute_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
@@ -1933,14 +1827,12 @@ pub fn u_mdl_attribute_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a E
 
 static TEX_MATRIX: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            result = u * param_x;
-            result = fma(v, param_y, result);
-            result = fma(0.0, param_z, result);
-            result = result + param_w;
-        }
+        result = u * param_x;
+        result = fma(v, param_y, result);
+        result = fma(0.0, param_z, result);
+        result = result + param_w;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn tex_matrix<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -1960,28 +1852,24 @@ pub fn tex_matrix<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Ve
 static TEX_PARALLAX: LazyLock<Graph> = LazyLock::new(|| {
     // uv = ratio * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
     let query = indoc! {"
-        void main() {
-            nrm_result = fma(temp1, 0.7, temp2);
-            result = fma(nrm_result, ratio, coord);
-        }
+        nrm_result = fma(temp1, 0.7, temp2);
+        result = fma(nrm_result, ratio, coord);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static TEX_PARALLAX2: LazyLock<Graph> = LazyLock::new(|| {
     // uv = ratio * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
     let query = indoc! {"
-        void main() {
-            coord = coord;
-            mask = mask;
-            nrm_result = fma(temp1, 0.7, temp2);
-            result = fma(ratio, nrm_result, coord);
-            // Generated for some shaders.
-            result = abs(result);
-            result = result + -0.0;
-        }
+        coord = coord;
+        mask = mask;
+        nrm_result = fma(temp1, 0.7, temp2);
+        result = fma(ratio, nrm_result, coord);
+        // Generated for some shaders.
+        result = abs(result);
+        result = result + -0.0;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn tex_parallax<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -2001,81 +1889,77 @@ pub fn tex_parallax<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, 
 static TEX_PARALLAX3_X: LazyLock<Graph> = LazyLock::new(|| {
     // u = ratio * (2 * normal.y * bitangent.x - 2 * normal.x * tangent.x) + vTex0.x
     let query = indoc! {"
-        void main() {
-            temp_30 = vNormal.x;
-            temp_31 = vBitan.x;
-            temp_32 = vTan.x;
-            temp_33 = vNormal.y;
-            temp_34 = vBitan.y;
-            temp_35 = vTan.y;
-            temp_36 = vNormal.z;
-            temp_37 = vBitan.z;
-            temp_38 = vTan.z;
-            temp_39 = temp_30 * temp_30;
-            temp_40 = temp_31 * temp_31;
-            temp_41 = temp_32 * temp_32;
-            temp_42 = fma(temp_33, temp_33, temp_39);
-            temp_43 = fma(temp_34, temp_34, temp_40);
-            temp_44 = fma(temp_35, temp_35, temp_41);
-            temp_45 = fma(temp_36, temp_36, temp_42);
-            temp_46 = fma(temp_37, temp_37, temp_43);
-            temp_47 = inversesqrt(temp_45);
-            temp_48 = fma(temp_38, temp_38, temp_44);
-            temp_49 = inversesqrt(temp_46);
-            temp_50 = inversesqrt(temp_48);
-            temp_51 = temp_30 * temp_47;
-            temp_52 = temp_33 * temp_47;
-            temp_53 = temp_31 * temp_49;
-            temp_55 = temp_32 * temp_50;
-            temp_71 = temp_51 * 2.0;
-            temp_77 = temp_52 * -2.0;
-            temp_79 = temp_55 * temp_71;
-            temp_84 = fma(temp_53, temp_77, temp_79);
-            temp_89 = temp_84 * ratio;
-            temp_92 = fma(temp_89, 2.0, coord);
-        }
+        temp_30 = vNormal.x;
+        temp_31 = vBitan.x;
+        temp_32 = vTan.x;
+        temp_33 = vNormal.y;
+        temp_34 = vBitan.y;
+        temp_35 = vTan.y;
+        temp_36 = vNormal.z;
+        temp_37 = vBitan.z;
+        temp_38 = vTan.z;
+        temp_39 = temp_30 * temp_30;
+        temp_40 = temp_31 * temp_31;
+        temp_41 = temp_32 * temp_32;
+        temp_42 = fma(temp_33, temp_33, temp_39);
+        temp_43 = fma(temp_34, temp_34, temp_40);
+        temp_44 = fma(temp_35, temp_35, temp_41);
+        temp_45 = fma(temp_36, temp_36, temp_42);
+        temp_46 = fma(temp_37, temp_37, temp_43);
+        temp_47 = inversesqrt(temp_45);
+        temp_48 = fma(temp_38, temp_38, temp_44);
+        temp_49 = inversesqrt(temp_46);
+        temp_50 = inversesqrt(temp_48);
+        temp_51 = temp_30 * temp_47;
+        temp_52 = temp_33 * temp_47;
+        temp_53 = temp_31 * temp_49;
+        temp_55 = temp_32 * temp_50;
+        temp_71 = temp_51 * 2.0;
+        temp_77 = temp_52 * -2.0;
+        temp_79 = temp_55 * temp_71;
+        temp_84 = fma(temp_53, temp_77, temp_79);
+        temp_89 = temp_84 * ratio;
+        temp_92 = fma(temp_89, 2.0, coord);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static TEX_PARALLAX3_Y: LazyLock<Graph> = LazyLock::new(|| {
     // v = ratio * (2 * normal.y * bitangent.y - 2 * normal.x * tangent.y) + vTex0.x
     let query = indoc! {"
-        void main() {
-            temp_30 = vNormal.x;
-            temp_31 = vBitan.x;
-            temp_32 = vTan.x;
-            temp_33 = vNormal.y;
-            temp_34 = vBitan.y;
-            temp_35 = vTan.y;
-            temp_36 = vNormal.z;
-            temp_37 = vBitan.z;
-            temp_38 = vTan.z;
-            temp_39 = temp_30 * temp_30;
-            temp_40 = temp_31 * temp_31;
-            temp_41 = temp_32 * temp_32;
-            temp_42 = fma(temp_33, temp_33, temp_39);
-            temp_43 = fma(temp_34, temp_34, temp_40);
-            temp_44 = fma(temp_35, temp_35, temp_41);
-            temp_45 = fma(temp_36, temp_36, temp_42);
-            temp_46 = fma(temp_37, temp_37, temp_43);
-            temp_47 = inversesqrt(temp_45);
-            temp_48 = fma(temp_38, temp_38, temp_44);
-            temp_49 = inversesqrt(temp_46);
-            temp_50 = inversesqrt(temp_48);
-            temp_51 = temp_30 * temp_47;
-            temp_52 = temp_33 * temp_47;
-            temp_65 = temp_34 * temp_49;
-            temp_66 = temp_35 * temp_50;
-            temp_71 = temp_51 * 2.0;
-            temp_77 = temp_52 * -2.0;
-            temp_82 = temp_66 * temp_71;
-            temp_87 = fma(temp_65, temp_77, temp_82);
-            temp_91 = temp_87 * ratio;
-            temp_100 = fma(temp_91, 2.0, coord);
-        }
+        temp_30 = vNormal.x;
+        temp_31 = vBitan.x;
+        temp_32 = vTan.x;
+        temp_33 = vNormal.y;
+        temp_34 = vBitan.y;
+        temp_35 = vTan.y;
+        temp_36 = vNormal.z;
+        temp_37 = vBitan.z;
+        temp_38 = vTan.z;
+        temp_39 = temp_30 * temp_30;
+        temp_40 = temp_31 * temp_31;
+        temp_41 = temp_32 * temp_32;
+        temp_42 = fma(temp_33, temp_33, temp_39);
+        temp_43 = fma(temp_34, temp_34, temp_40);
+        temp_44 = fma(temp_35, temp_35, temp_41);
+        temp_45 = fma(temp_36, temp_36, temp_42);
+        temp_46 = fma(temp_37, temp_37, temp_43);
+        temp_47 = inversesqrt(temp_45);
+        temp_48 = fma(temp_38, temp_38, temp_44);
+        temp_49 = inversesqrt(temp_46);
+        temp_50 = inversesqrt(temp_48);
+        temp_51 = temp_30 * temp_47;
+        temp_52 = temp_33 * temp_47;
+        temp_65 = temp_34 * temp_49;
+        temp_66 = temp_35 * temp_50;
+        temp_71 = temp_51 * 2.0;
+        temp_77 = temp_52 * -2.0;
+        temp_82 = temp_66 * temp_71;
+        temp_87 = fma(temp_65, temp_77, temp_82);
+        temp_91 = temp_87 * ratio;
+        temp_100 = fma(temp_91, 2.0, coord);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn tex_parallax2<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -2093,43 +1977,37 @@ pub fn tex_parallax2<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation,
 static REFLECT_X: LazyLock<Graph> = LazyLock::new(|| {
     // reflect(I, N) = I - 2.0 * dot(N, I) * N
     let query = indoc! {"
-        void main() {
-            dot_n_i = n_x * i_x;
-            dot_n_i = fma(n_y, i_y, dot_n_i);
-            dot_n_i = fma(n_z, i_z, dot_n_i);
-            temp_127 = n_x * dot_n_i;
-            temp_129 = fma(temp_127, -2.0, i_x);
-        }
+        dot_n_i = n_x * i_x;
+        dot_n_i = fma(n_y, i_y, dot_n_i);
+        dot_n_i = fma(n_z, i_z, dot_n_i);
+        temp_127 = n_x * dot_n_i;
+        temp_129 = fma(temp_127, -2.0, i_x);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static REFLECT_Y: LazyLock<Graph> = LazyLock::new(|| {
     // reflect(I, N) = I - 2.0 * dot(N, I) * N
     let query = indoc! {"
-        void main() {
-            dot_n_i = n_x * i_x;
-            dot_n_i = fma(n_y, i_y, dot_n_i);
-            dot_n_i = fma(n_z, i_z, dot_n_i);
-            temp_127 = n_y * dot_n_i;
-            temp_129 = fma(temp_127, -2.0, i_y);
-        }
+        dot_n_i = n_x * i_x;
+        dot_n_i = fma(n_y, i_y, dot_n_i);
+        dot_n_i = fma(n_z, i_z, dot_n_i);
+        temp_127 = n_y * dot_n_i;
+        temp_129 = fma(temp_127, -2.0, i_y);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 static REFLECT_Z: LazyLock<Graph> = LazyLock::new(|| {
     // reflect(I, N) = I - 2.0 * dot(N, I) * N
     let query = indoc! {"
-        void main() {
-            dot_n_i = n_x * i_x;
-            dot_n_i = fma(n_y, i_y, dot_n_i);
-            dot_n_i = fma(n_z, i_z, dot_n_i);
-            temp_127 = n_z * dot_n_i;
-            temp_129 = fma(temp_127, -2.0, i_z);
-        }
+        dot_n_i = n_x * i_x;
+        dot_n_i = fma(n_y, i_y, dot_n_i);
+        dot_n_i = fma(n_z, i_z, dot_n_i);
+        temp_127 = n_z * dot_n_i;
+        temp_129 = fma(temp_127, -2.0, i_z);
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn op_reflect<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -2151,17 +2029,15 @@ pub fn op_reflect<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Ve
 
 static FUR_INSTANCE_ALPHA: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        void main() {
-            temp_3 = intBitsToFloat(gl_InstanceID);
-            temp_14 = float(floatBitsToInt(temp_3));
-            temp_135 = temp_14 * param;
-            temp_136 = clamp(temp_135, 0.0, 1.0);
-            temp_140 = 0.0 - temp_136;
-            temp_141 = temp_140 + 1.0;
-            result = temp_141;
-        }
+        temp_3 = intBitsToFloat(gl_InstanceID);
+        temp_14 = float(floatBitsToInt(temp_3));
+        temp_135 = temp_14 * param;
+        temp_136 = clamp(temp_135, 0.0, 1.0);
+        temp_140 = 0.0 - temp_136;
+        temp_141 = temp_140 + 1.0;
+        result = temp_141;
     "};
-    Graph::parse_glsl(query).unwrap().simplify()
+    Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn op_fur_instance_alpha<'a>(
@@ -2177,35 +2053,33 @@ fn latte_texture_cube_query(c: char) -> String {
     // cube.xyzw = cube(R.zzxy, R.yxzz)
     // texture(s0, cube.yx / abs(cube.z) + 1.5))
     formatdoc! {"
-        void main() {{
-            cube_z = 1.0 / abs(cube_z);
-            cube_x = cube(R_z, R_y); 
-            cube_y = cube(R_z, R_x); 
-            result_s = fma(cube_y, cube_z, 1.5);
-            result_t = fma(cube_x, cube_z, 1.5);
-            result = texture(tex, vec2(result_s, result_t)).{c};
-        }}
+        cube_z = 1.0 / abs(cube_z);
+        cube_x = cube(R_z, R_y); 
+        cube_y = cube(R_z, R_x); 
+        result_s = fma(cube_y, cube_z, 1.5);
+        result_t = fma(cube_x, cube_z, 1.5);
+        result = texture(tex, vec2(result_s, result_t)).{c};
     "}
 }
 
 static LATTE_TEXTURE_CUBE_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = latte_texture_cube_query('x');
-    Graph::parse_glsl(&query).unwrap().simplify()
+    Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
 static LATTE_TEXTURE_CUBE_Y: LazyLock<Graph> = LazyLock::new(|| {
     let query = latte_texture_cube_query('y');
-    Graph::parse_glsl(&query).unwrap().simplify()
+    Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
 static LATTE_TEXTURE_CUBE_Z: LazyLock<Graph> = LazyLock::new(|| {
     let query = latte_texture_cube_query('z');
-    Graph::parse_glsl(&query).unwrap().simplify()
+    Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
 static LATTE_TEXTURE_CUBE_W: LazyLock<Graph> = LazyLock::new(|| {
     let query = latte_texture_cube_query('w');
-    Graph::parse_glsl(&query).unwrap().simplify()
+    Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
 pub fn latte_texture_cube_coords(graph: &Graph, expr: &Expr) -> Option<Expr> {
