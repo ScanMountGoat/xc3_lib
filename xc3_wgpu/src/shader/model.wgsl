@@ -80,10 +80,10 @@ struct UMate {
     g_mdl_param: array<vec4<f32>, 1>,
     g_pj_mat: array<vec4<f32>, 1>,
     g_proj_tex_mat: array<vec4<f32>, 6>,
-    g_tex_mat: array<vec4<f32>, 6>,
+    g_tex_mat: array<vec4<f32>, 8>,
     g_toon_head_mat: array<vec4<f32>, 3>,
-    g_wrk_col: array<vec4<f32>, 4>,
-    g_wrk_fl4: array<vec4<f32>, 4>,
+    g_wrk_col: array<vec4<f32>, 5>,
+    g_wrk_fl4: array<vec4<f32>, 5>,
 }
 
 @group(2) @binding(5)
@@ -466,6 +466,7 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
     _unused = textureSample(textures_d3[0], samplers[0], vec3(0.0));
     _unused = textureSample(textures_cube[0], samplers[0], vec3(0.0));
     _unused = textureSample(textures[0], alpha_test_sampler, vec2(0.0));
+    _unused = camera.projection[0];
     let REMOVE_END = 0.0;
 
     // The layout of G-Buffer textures is mostly fixed but assignments are not.

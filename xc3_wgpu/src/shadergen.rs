@@ -283,22 +283,22 @@ fn generate_assignments_wgsl(
     // Write variables shared by all outputs.
     // Assume that values appear after values they depend on.
     for (i, value) in assignments.assignments.iter().enumerate() {
-        write!(wgsl, "let {VAR_PREFIX}{i} = ",).unwrap();
+        write!(wgsl, "let {VAR_PREFIX}{i} = ").unwrap();
         if write_assignment(&mut wgsl, value, name_to_index).is_none() {
             write!(&mut wgsl, "0.0").unwrap();
         }
-        writeln!(wgsl, ";",).unwrap();
+        writeln!(wgsl, ";").unwrap();
     }
 
     // TODO: Share xyz assignments with all channels?
     for (i, assignment) in xyz_assignments.iter().enumerate() {
         if let Some(assignment) = assignment {
             for (j, value) in assignment.assignments.iter().enumerate() {
-                write!(wgsl, "let {VAR_PREFIX_XYZ}_{i}_{j} = ",).unwrap();
+                write!(wgsl, "let {VAR_PREFIX_XYZ}_{i}_{j} = ").unwrap();
                 if write_assignment_xyz(&mut wgsl, value, i, name_to_index).is_none() {
                     write!(&mut wgsl, "vec3(0.0)").unwrap();
                 }
-                writeln!(wgsl, ";",).unwrap();
+                writeln!(wgsl, ";").unwrap();
             }
         }
     }
@@ -367,11 +367,11 @@ fn write_assignment_value(
             if i < TEXTURE_SAMPLER_COUNT as usize {
                 // TODO: Support cube maps.
                 if t.texcoords.len() == 3 {
-                    write!(wgsl, "textureSample(textures_d3[{i}], samplers[{i}], ",).unwrap();
+                    write!(wgsl, "textureSample(textures_d3[{i}], samplers[{i}], ").unwrap();
                 } else {
-                    write!(wgsl, "textureSample(textures[{i}], samplers[{i}], ",).unwrap();
+                    write!(wgsl, "textureSample(textures[{i}], samplers[{i}], ").unwrap();
                 }
-                write_texture_coordinates(wgsl, &t.texcoords)?;
+                write_texture_coordinates(wgsl, &t.texcoords);
                 write!(wgsl, ")").unwrap();
                 write_channel(wgsl, t.channel);
             } else {
@@ -414,19 +414,28 @@ fn write_assignment_value(
             channel,
         } => {
             // TODO: support other uniform buffers for all games
-            if name != "U_Mate" {
-                error!(
-                    "Unsupported parameter {name}.{field}{}{}",
-                    index.map(|i| format!("[{i}]")).unwrap_or_default(),
-                    channel.map(|c| format!(".{c}")).unwrap_or_default()
-                );
-                return None;
+            // TODO: share code with xyz since only the channel is different?
+            match name.as_str() {
+                "U_Mate" => {
+                    write_parameter(wgsl, "per_material.u_mate", field, index, channel);
+                }
+                "U_Static" => match field.as_str() {
+                    "gmView" => write_parameter(wgsl, "camera", "view_inv", index, channel),
+                    "gmProj" => write_parameter(wgsl, "camera", "projection", index, channel),
+                    "gmViewProj" => {
+                        write_parameter(wgsl, "camera", "view_projection", index, channel)
+                    }
+                    "gmInvView" => write_parameter(wgsl, "camera", "view_inv", index, channel),
+                    _ => {
+                        log_unsupported_attribute(name, field, index, channel);
+                        return None;
+                    }
+                },
+                _ => {
+                    log_unsupported_attribute(name, field, index, channel);
+                    return None;
+                }
             }
-            // TODO: share code with xyz?
-            write!(wgsl, "per_material.u_mate.{}", field.to_snake()).unwrap();
-            // All fields are declared as arrays, so convert "b.f.x" to "b.f[0].x".
-            write_index(wgsl, Some(index.unwrap_or_default()));
-            write_channel(wgsl, *channel);
         }
         AssignmentValue::Float(f) => {
             if f.is_finite() {
@@ -447,12 +456,38 @@ fn write_assignment_value(
     Some(())
 }
 
+fn log_unsupported_attribute(
+    name: &SmolStr,
+    field: &SmolStr,
+    index: &Option<usize>,
+    channel: &Option<char>,
+) {
+    error!(
+        "Unsupported parameter {name}.{field}{}{}",
+        index.map(|i| format!("[{i}]")).unwrap_or_default(),
+        channel.map(|c| format!(".{c}")).unwrap_or_default()
+    );
+}
+
+fn write_parameter(
+    wgsl: &mut String,
+    buffer: &str,
+    field: &str,
+    index: &Option<usize>,
+    channel: &Option<char>,
+) {
+    write!(wgsl, "{buffer}.{}", field.to_snake()).unwrap();
+    // All fields are declared as arrays, so convert "b.f.x" to "b.f[0].x".
+    write_index(wgsl, Some(index.unwrap_or_default()));
+    write_channel(wgsl, *channel);
+}
+
 fn write_attribute(wgsl: &mut String, name: &str, channel: &Option<char>) {
     write!(wgsl, "{name}").unwrap();
     write_channel(wgsl, *channel);
 }
 
-fn write_texture_coordinates(wgsl: &mut String, coords: &[usize]) -> Option<()> {
+fn write_texture_coordinates(wgsl: &mut String, coords: &[usize]) {
     match coords {
         [u, v] => write!(wgsl, "vec2({VAR_PREFIX}{u}, {VAR_PREFIX}{v})").unwrap(),
         [u, v, w] => write!(
@@ -461,11 +496,10 @@ fn write_texture_coordinates(wgsl: &mut String, coords: &[usize]) -> Option<()> 
         )
         .unwrap(),
         _ => {
+            write!(wgsl, "vec2(0.0)").unwrap();
             error!("Unexpected texture coordinates {coords:?}");
-            return None;
         }
     }
-    Some(())
 }
 
 fn write_index(wgsl: &mut String, i: Option<usize>) {
@@ -631,11 +665,11 @@ fn write_assignment_value_xyz(
                 let channels = channel_xyz_wgsl(t.channel);
                 // TODO: Support cube maps.
                 if t.texcoords.len() == 3 {
-                    write!(wgsl, "textureSample(textures_d3[{i}], samplers[{i}], ",).unwrap();
+                    write!(wgsl, "textureSample(textures_d3[{i}], samplers[{i}], ").unwrap();
                 } else {
-                    write!(wgsl, "textureSample(textures[{i}], samplers[{i}], ",).unwrap();
+                    write!(wgsl, "textureSample(textures[{i}], samplers[{i}], ").unwrap();
                 }
-                write_texture_coordinates(wgsl, &t.texcoords)?;
+                write_texture_coordinates(wgsl, &t.texcoords);
                 write!(wgsl, "){channels}").unwrap();
                 Some(())
             } else {
@@ -675,21 +709,24 @@ fn write_assignment_value_xyz(
             index,
             channel,
         } => {
-            if name == "U_Mate" {
-                // TODO: support other uniform buffers for all games
-                write!(wgsl, "per_material.u_mate.{}", field.to_snake()).unwrap();
-                // All fields are declared as arrays, so convert "b.f.x" to "b.f[0].x".
-                write_index(wgsl, Some(index.unwrap_or_default()));
-                let channels = channel_xyz_wgsl(*channel);
-                write!(wgsl, "{channels}").unwrap();
-                Some(())
-            } else {
-                error!(
-                    "Unsupported parameter {name}.{field}{}{}",
-                    index.map(|i| format!("[{i}]")).unwrap_or_default(),
-                    channel.map(|c| format!(".{c}")).unwrap_or_default()
-                );
-                None
+            match name.as_str() {
+                "U_Mate" => {
+                    // TODO: support other uniform buffers for all games
+                    write!(wgsl, "per_material.u_mate.{}", field.to_snake()).unwrap();
+                    // All fields are declared as arrays, so convert "b.f.x" to "b.f[0].x".
+                    write_index(wgsl, Some(index.unwrap_or_default()));
+                    let channels = channel_xyz_wgsl(*channel);
+                    write!(wgsl, "{channels}").unwrap();
+                    Some(())
+                }
+                _ => {
+                    error!(
+                        "Unsupported parameter {name}.{field}{}{}",
+                        index.map(|i| format!("[{i}]")).unwrap_or_default(),
+                        channel.map(|c| format!(".{c}")).unwrap_or_default()
+                    );
+                    None
+                }
             }
         }
         AssignmentValueXyz::Float(f) => {
