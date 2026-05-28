@@ -1,6 +1,7 @@
 use std::{fmt::Write, sync::LazyLock};
 
 use aho_corasick::AhoCorasick;
+use case::CaseExt;
 use indexmap::IndexMap;
 use indoc::formatdoc;
 use log::{error, warn};
@@ -406,6 +407,27 @@ fn write_assignment_value(
                 }
             }
         }
+        AssignmentValue::Parameter {
+            name,
+            field,
+            index,
+            channel,
+        } => {
+            // TODO: support other uniform buffers for all games
+            if name != "U_Mate" {
+                error!(
+                    "Unsupported parameter {name}.{field}{}{}",
+                    index.map(|i| format!("[{i}]")).unwrap_or_default(),
+                    channel.map(|c| format!(".{c}")).unwrap_or_default()
+                );
+                return None;
+            }
+            // TODO: share code with xyz?
+            write!(wgsl, "per_material.u_mate.{}", field.to_snake()).unwrap();
+            // All fields are declared as arrays, so convert "b.f.x" to "b.f[0].x".
+            write_index(wgsl, Some(index.unwrap_or_default()));
+            write_channel(wgsl, *channel);
+        }
         AssignmentValue::Float(f) => {
             if f.is_finite() {
                 write!(wgsl, "{f:?}").unwrap()
@@ -444,6 +466,12 @@ fn write_texture_coordinates(wgsl: &mut String, coords: &[usize]) -> Option<()> 
         }
     }
     Some(())
+}
+
+fn write_index(wgsl: &mut String, i: Option<usize>) {
+    if let Some(i) = i {
+        write!(wgsl, "[{i}]").unwrap();
+    }
 }
 
 fn write_channel(wgsl: &mut String, c: Option<char>) {
@@ -640,6 +668,29 @@ fn write_assignment_value_xyz(
                 }
             }
             Some(())
+        }
+        AssignmentValueXyz::Parameter {
+            name,
+            field,
+            index,
+            channel,
+        } => {
+            if name == "U_Mate" {
+                // TODO: support other uniform buffers for all games
+                write!(wgsl, "per_material.u_mate.{}", field.to_snake()).unwrap();
+                // All fields are declared as arrays, so convert "b.f.x" to "b.f[0].x".
+                write_index(wgsl, Some(index.unwrap_or_default()));
+                let channels = channel_xyz_wgsl(*channel);
+                write!(wgsl, "{channels}").unwrap();
+                Some(())
+            } else {
+                error!(
+                    "Unsupported parameter {name}.{field}{}{}",
+                    index.map(|i| format!("[{i}]")).unwrap_or_default(),
+                    channel.map(|c| format!(".{c}")).unwrap_or_default()
+                );
+                None
+            }
         }
         AssignmentValueXyz::Float(f) => {
             if f.iter().all(|f| f.is_finite()) {

@@ -498,6 +498,7 @@ fn assignment_image_index(
                 texcoord_scale: None,
             }))
         }
+        AssignmentValue::Parameter { .. } => None,
         AssignmentValue::Attribute { .. } => None,
         AssignmentValue::Float(v) => Some(ImageIndex::Value(*v)),
         AssignmentValue::Int(_) => None,

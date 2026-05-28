@@ -111,6 +111,7 @@ pub struct MaterialParameters {
 }
 
 impl MaterialParameters {
+    // TODO: this is still helpful for blender?
     pub fn get_dependency(&self, p: &BufferDependency) -> Option<f32> {
         // TODO: camera parameters like U_Mdl.gmWorldView and U_Mdl.gmWVP?
 
@@ -119,23 +120,23 @@ impl MaterialParameters {
         let index = p.index.unwrap_or_default();
         let value = match (p.name.as_str(), p.field.as_str()) {
             // U_Mate uniform buffer from material parameters.
-            ("U_Mate", "gMatCol") => self.material_color.get(c),
-            ("U_Mate", "gWrkFl4") => self.work_float4.as_ref()?.get(index)?.get(c),
-            ("U_Mate", "gWrkCol") => self.work_color.as_ref()?.get(index)?.get(c),
-            ("U_Mate", "gTexMat") => self.tex_matrix.as_ref()?.get(index)?.get(c),
-            ("U_Mate", "gAlInf") => self
-                .alpha_info
-                .as_ref()?
-                .get(index)
-                .unwrap_or(&[1.0, 0.999, 1.0, 1.0])
-                .get(c),
-            ("U_Mate", "gDpRat") => self
-                .dp_rat
-                .as_ref()?
-                .get(index)
-                .unwrap_or(&[1.0, 1.0, 1.0, 0.0])
-                .get(c),
-            ("U_Mate", "gProjTexMat") => self.projection_tex_matrix.as_ref()?.get(index)?.get(c),
+            // ("U_Mate", "gMatCol") => self.material_color.get(c),
+            // ("U_Mate", "gWrkFl4") => self.work_float4.as_ref()?.get(index)?.get(c),
+            // ("U_Mate", "gWrkCol") => self.work_color.as_ref()?.get(index)?.get(c),
+            // ("U_Mate", "gTexMat") => self.tex_matrix.as_ref()?.get(index)?.get(c),
+            // ("U_Mate", "gAlInf") => self
+            //     .alpha_info
+            //     .as_ref()?
+            //     .get(index)
+            //     .unwrap_or(&[1.0, 0.999, 1.0, 1.0])
+            //     .get(c),
+            // ("U_Mate", "gDpRat") => self
+            //     .dp_rat
+            //     .as_ref()?
+            //     .get(index)
+            //     .unwrap_or(&[1.0, 1.0, 1.0, 0.0])
+            //     .get(c),
+            // ("U_Mate", "gProjTexMat") => self.projection_tex_matrix.as_ref()?.get(index)?.get(c),
             // U_Static uniform buffer values taken from XC3 in RenderDoc.
             // These appear to be constant across models.
             // TODO: Compare with other games.
@@ -156,20 +157,20 @@ impl MaterialParameters {
             // Xenoblade X DE
             // TODO: Some materials have no work values but still have values set?
             // TODO: these default values aren't always the same?
-            ("U_Mate", "gMatAmb") => self
-                .material_ambient
-                .as_ref()?
-                .get(index)
-                .unwrap_or(&[1.0; 4])
-                .get(c),
-            ("U_Mate", "gMatSpec") => self
-                .material_specular
-                .as_ref()?
-                .get(index)
-                .unwrap_or(&[0.0, 0.0, 0.0, 0.1])
-                .get(c),
-            ("U_Mate", "gDTWrk") => self.dt_work.as_ref()?.get(index)?.get(c),
-            ("U_Mate", "gMdlParm") => self.mdl_param.as_ref()?.get(index)?.get(c),
+            // ("U_Mate", "gMatAmb") => self
+            //     .material_ambient
+            //     .as_ref()?
+            //     .get(index)
+            //     .unwrap_or(&[1.0; 4])
+            //     .get(c),
+            // ("U_Mate", "gMatSpec") => self
+            //     .material_specular
+            //     .as_ref()?
+            //     .get(index)
+            //     .unwrap_or(&[0.0, 0.0, 0.0, 0.1])
+            //     .get(c),
+            // ("U_Mate", "gDTWrk") => self.dt_work.as_ref()?.get(index)?.get(c),
+            // ("U_Mate", "gMdlParm") => self.mdl_param.as_ref()?.get(index)?.get(c),
             ("U_CHR", "gAvaSkin") => self.ava_skin.as_ref()?.get(c),
             // TODO: initialized somewhere else?
             ("U_CHR", "gAvaHair") => [
@@ -186,9 +187,9 @@ impl MaterialParameters {
             ("U_Static", "gLgtPreSpe") => [[1.0; 4]; 2].get(index)?.get(c),
             _ => None,
         };
-        if value.is_none() {
-            warn!("Unable to assign parameter {p}");
-        }
+        // if value.is_none() {
+        //     warn!("Unable to assign parameter {p}");
+        // }
 
         value.copied()
     }

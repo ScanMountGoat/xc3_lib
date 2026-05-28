@@ -145,6 +145,8 @@ pub fn create_material(
     let outline_width =
         value_channel_assignment(material_assignments.outline_width.as_ref()).unwrap_or(0.005);
 
+    let u_mate = material_u_mate(material);
+
     // Use a storage buffer since wgpu doesn't allow binding arrays and uniform buffers in a bind group.
     let per_material = device.create_storage_buffer(
         // TODO: include model name?
@@ -156,6 +158,7 @@ pub fn create_material(
             assignments,
             outline_width,
             fur_params,
+            u_mate,
             alpha_test_ref: material.alpha_test_ref,
         }],
     );
@@ -430,4 +433,41 @@ fn material_sampler<'a>(
         .textures
         .get(index)
         .and_then(|texture| samplers.get(texture.sampler_index))
+}
+
+fn material_u_mate(material: &xc3_model::material::Material) -> crate::shader::model::UMate {
+    // TODO: should this use reasonable defaults?
+    // TODO: log warnings if these can't be assigned?
+    // TODO: Some xcxde materials have no work values but still have values set?
+    // TODO: these default values aren't always the same?
+    crate::shader::model::UMate {
+        g_al_inf: array_parameter(&material.parameters.alpha_info),
+        g_dp_rat: array_parameter(&material.parameters.dp_rat),
+        g_dt_work: array_parameter(&material.parameters.dt_work),
+        g_mat_amb: array_parameter(&material.parameters.material_ambient),
+        g_mat_col: [material.color.into()],
+        g_mat_spec: array_parameter(&material.parameters.material_specular),
+        g_mdl_param: array_parameter(&material.parameters.mdl_param),
+        g_pj_mat: [Vec4::ZERO],
+        g_proj_tex_mat: array_parameter(&material.parameters.projection_tex_matrix),
+        g_tex_mat: array_parameter(&material.parameters.tex_matrix),
+        g_toon_head_mat: [Vec4::ZERO; 3],
+        g_wrk_col: array_parameter(&material.parameters.work_color),
+        g_wrk_fl4: array_parameter(&material.parameters.work_float4),
+    }
+}
+
+fn array_parameter<const N: usize>(parameter: &Option<Vec<[f32; 4]>>) -> [Vec4; N] {
+    parameter
+        .as_ref()
+        .map(|m| {
+            // The WGSL shader defines the max required length for all shaders.
+            // Fill in as many values as possible since not all will be used.
+            let mut array = [Vec4::ZERO; N];
+            for (v, m_v) in array.iter_mut().zip(m) {
+                *v = (*m_v).into();
+            }
+            array
+        })
+        .unwrap_or([Vec4::ZERO; N])
 }

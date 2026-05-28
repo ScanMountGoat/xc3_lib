@@ -23,6 +23,7 @@ smol_str.workspace = true
 indoc.workspace = true
 aho-corasick = "1.1.4"
 futures.workspace = true
+case = "1.0"
 
 [build-dependencies]
 wgsl_to_wgpu = "0.18.0"

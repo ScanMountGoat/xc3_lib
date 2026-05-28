@@ -46,24 +46,44 @@ var alpha_test_sampler: sampler;
 
 struct OutputAssignment {
     has_channels: vec4<u32>,
-    default_value: vec4<f32>
+    default_value: vec4<f32>,
 }
 
 struct PerMaterial {
     // Shader database information.
     assignments: array<OutputAssignment, 6>,
     fur_params: FurShellParams,
+    u_mate: UMate,
 
     // Assume outline width is always set via a parameter or constant.
     outline_width: f32,
-    alpha_test_ref: f32
+    alpha_test_ref: f32,
 }
 
 struct FurShellParams {
     xyz_offset: vec3<f32>,
     instance_count: f32,
     shell_width: f32,
-    alpha: f32
+    alpha: f32,
+}
+
+// All "U_Mate" uniform parameters from shaders from all Switch games.
+struct UMate {
+    // Convert names to snake case to match Rust like "gMatCol" to "g_mat_col".
+    // TODO: figure out the max array size needed
+    g_al_inf: array<vec4<f32>, 1>,
+    g_dp_rat: array<vec4<f32>, 1>,
+    g_dt_work: array<vec4<f32>, 4>,
+    g_mat_amb: array<vec4<f32>, 1>,
+    g_mat_col: array<vec4<f32>, 1>,
+    g_mat_spec: array<vec4<f32>, 1>,
+    g_mdl_param: array<vec4<f32>, 1>,
+    g_pj_mat: array<vec4<f32>, 1>,
+    g_proj_tex_mat: array<vec4<f32>, 6>,
+    g_tex_mat: array<vec4<f32>, 6>,
+    g_toon_head_mat: array<vec4<f32>, 3>,
+    g_wrk_col: array<vec4<f32>, 4>,
+    g_wrk_fl4: array<vec4<f32>, 4>,
 }
 
 @group(2) @binding(5)
@@ -72,7 +92,7 @@ var<storage, read> per_material: PerMaterial;
 // PerMesh values.
 struct PerMesh {
     // start_index, 0, 0, 0
-    weight_group_indices: vec4<u32>
+    weight_group_indices: vec4<u32>,
 }
 
 @group(3) @binding(2)
@@ -485,7 +505,6 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
         let ASSIGN_VAL_INF_INTENSITY_GENERATED = 0.0;
         val_inf_intensity = clamp(1.0 - sqrt(val_inf_intensity), 0.0, 1.0);
         normal = normal - val_inf_intensity * dot(normal, in.val_inf.xyz) * in.val_inf.xyz;
-
     }
     let ao = g_normal.z;
 

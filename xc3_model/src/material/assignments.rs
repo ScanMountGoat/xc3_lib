@@ -75,6 +75,12 @@ pub enum AssignmentValue {
         name: SmolStr,
         channel: Option<char>,
     },
+    Parameter {
+        name: SmolStr,
+        field: SmolStr,
+        index: Option<usize>,
+        channel: Option<char>,
+    },
     Float(OrderedFloat<f32>),
     Int(i32),
 }
@@ -118,6 +124,12 @@ pub enum AssignmentValueXyz {
         name: SmolStr,
         channel: Option<ChannelXyz>,
     },
+    Parameter {
+        name: SmolStr,
+        field: SmolStr,
+        index: Option<usize>,
+        channel: Option<ChannelXyz>,
+    },
     Float([OrderedFloat<f32>; 3]),
 }
 
@@ -140,6 +152,18 @@ pub enum ChannelXyz {
     W,
 }
 
+impl std::fmt::Display for ChannelXyz {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ChannelXyz::Xyz => write!(f, "xyz"),
+            ChannelXyz::X => write!(f, "xxx"),
+            ChannelXyz::Y => write!(f, "yyy"),
+            ChannelXyz::Z => write!(f, "zzz"),
+            ChannelXyz::W => write!(f, "www"),
+        }
+    }
+}
+
 impl Default for Assignment {
     fn default() -> Self {
         Self::Value(None)
@@ -151,7 +175,17 @@ impl AssignmentValue {
         match d {
             Dependency::Int(i) => Some(Self::Int(*i)),
             Dependency::Float(f) => Some(Self::Float(f.0.into())),
-            Dependency::Buffer(b) => parameters.get_dependency(b).map(|f| Self::Float(f.into())),
+            Dependency::Buffer(b) => Some(
+                parameters
+                    .get_dependency(b)
+                    .map(|f| Self::Float(f.into()))
+                    .unwrap_or_else(|| Self::Parameter {
+                        name: b.name.clone(),
+                        field: b.field.clone(),
+                        index: b.index,
+                        channel: b.channel,
+                    }),
+            ),
             Dependency::Texture(texture) => Some(Self::Texture(texture_assignment(texture))),
             Dependency::Attribute(a) => Some(Self::Attribute {
                 name: a.name.clone(),
@@ -270,6 +304,31 @@ fn merge_xyz_assignments(
                             channel: channel_xyz(*c_x, *c_y, *c_z)?,
                         }))),
                         (
+                            Some(AssignmentValue::Parameter {
+                                name: n_x,
+                                field: f_x,
+                                index: i_x,
+                                channel: c_x,
+                            }),
+                            Some(AssignmentValue::Parameter {
+                                name: n_y,
+                                field: f_y,
+                                index: i_y,
+                                channel: c_y,
+                            }),
+                            Some(AssignmentValue::Parameter {
+                                name: n_z,
+                                field: f_z,
+                                index: i_z,
+                                channel: c_z,
+                            }),
+                        ) => Some(AssignmentXyz::Value(Some(AssignmentValueXyz::Parameter {
+                            name: name_xyz(n_x, n_y, n_z)?,
+                            field: name_xyz(f_x, f_y, f_z)?,
+                            index: index_xyz(*i_x, *i_y, *i_z)?,
+                            channel: channel_xyz(*c_x, *c_y, *c_z)?,
+                        }))),
+                        (
                             Some(AssignmentValue::Float(fx)),
                             Some(AssignmentValue::Float(fy)),
                             Some(AssignmentValue::Float(fz)),
@@ -321,6 +380,10 @@ fn name_xyz(x: &SmolStr, y: &SmolStr, z: &SmolStr) -> Option<SmolStr> {
     } else {
         None
     }
+}
+
+fn index_xyz(x: Option<usize>, y: Option<usize>, z: Option<usize>) -> Option<Option<usize>> {
+    if x == y && y == z { Some(x) } else { None }
 }
 
 fn channel_xyz(x: Option<char>, y: Option<char>, z: Option<char>) -> Option<Option<ChannelXyz>> {
