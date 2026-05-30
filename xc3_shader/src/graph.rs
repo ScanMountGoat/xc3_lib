@@ -410,10 +410,20 @@ impl Graph {
                         (Expr::Unary(UnaryOp::Negate, a), b) => {
                             Expr::Binary(BinaryOp::Sub, exprs.insert_full(b).0, a)
                         }
+                        (Expr::Float(OrderedFloat(f)), b) if f < 0.0 => Expr::Binary(
+                            BinaryOp::Sub,
+                            exprs.insert_full(b).0,
+                            exprs.insert_full(Expr::Float(f.abs().into())).0,
+                        ),
                         // a + -b == a - b
                         (a, Expr::Unary(UnaryOp::Negate, b)) => {
                             Expr::Binary(BinaryOp::Sub, exprs.insert_full(a).0, b)
                         }
+                        (a, Expr::Float(OrderedFloat(f))) if f < 0.0 => Expr::Binary(
+                            BinaryOp::Sub,
+                            exprs.insert_full(a).0,
+                            exprs.insert_full(Expr::Float(f.abs().into())).0,
+                        ),
                         (a, b) => Expr::Binary(
                             BinaryOp::Add,
                             exprs.insert_full(a).0,
@@ -688,7 +698,9 @@ mod tests {
                 c1 = 0.0 - x;
                 c2 = 1.0 + c1;
                 d1 = -x;
-                d2 = 3.0 + d1; 
+                d2 = 3.0 + d1;
+                d3 = x + -1.0;
+                d4 = -5.0 + x;
             }
         "};
         let graph = Graph::parse_glsl(glsl).unwrap();
@@ -699,6 +711,8 @@ mod tests {
                 b = x;
                 c2 = 1.0 - x;
                 d2 = 3.0 - x;
+                d3 = x - 1.0;
+                d4 = x - 5.0;
             "},
             graph.simplify().to_glsl()
         );
