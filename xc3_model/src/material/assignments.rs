@@ -1,6 +1,7 @@
 use indexmap::{IndexMap, IndexSet};
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
+use strum::{Display, FromRepr};
 use xc3_lib::mxmd::TextureUsage;
 
 use crate::{
@@ -66,15 +67,111 @@ pub struct OutputAssignmentXyz {
     pub exprs: Vec<AssignmentXyz>,
 }
 
+// TODO: OutputExprXyz
+// TODO: index into scalar or vector exprs for arguments
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AssignmentXyz {
     Value(Option<AssignmentValueXyz>),
     Func {
-        op: Operation,
+        op: OperationXyz,
         /// Index into XYZ [exprs](struct.OutputAssignmentXyz.html#structfield.exprs)
         /// for the function argument list `[arg0, arg1, ...]`.
         args: Vec<usize>,
     },
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Display, FromRepr, Default)]
+pub enum OperationXyz {
+    /// An unsupported operation or function call.
+    #[default]
+    Unk,
+    /// `mix(arg0, arg1, arg2)`
+    Mix,
+    /// `arg0 * arg1`
+    Mul,
+    /// `arg0 / arg1`
+    Div,
+    /// `arg0 + arg1`
+    Add,
+    /// `arg0 - arg1`
+    Sub,
+    /// `fma(arg0, arg1, arg2)` or `arg0 * arg1 + arg2`
+    Fma,
+    /// `mix(arg0, arg0 * arg1, arg2)`
+    MulRatio,
+    /// `overlay(arg0, arg1)`.
+    Overlay,
+    /// `overlay2(arg0, arg1)`.
+    Overlay2,
+    /// `mix(arg0, overlay(arg0, arg1), arg2)`.
+    OverlayRatio,
+    /// `pow(arg0, arg1)`
+    Power,
+    /// `min(arg0, arg1)`
+    Min,
+    /// `max(arg0, arg1)`
+    Max,
+    /// `clamp(arg0, arg1, arg2)`
+    Clamp,
+    /// `abs(arg0)`
+    Abs,
+    /// `pow(1.0 - n_dot_v, arg0 * 5.0)`
+    Fresnel,
+    /// `sqrt(arg0)`
+    Sqrt,
+    /// `reflect(arg0, arg1)`
+    Reflect,
+    /// `floor(arg0)`
+    Floor,
+    /// `if arg0 { arg1 } else { arg2 }` or `mix(arg2, arg1, arg0)`
+    Select,
+    /// `arg0 == arg1`
+    Equal,
+    /// `arg0 != arg1`
+    NotEqual,
+    /// `arg0 < arg1`
+    Less,
+    /// `arg0 > arg1`
+    Greater,
+    /// `arg0 <= arg1`
+    LessEqual,
+    /// `arg0 >= arg1`
+    GreaterEqual,
+    /// `monochrome(arg0, arg1)`
+    Monochrome,
+    /// `-arg0`
+    Negate,
+    /// `float(arg0)`
+    Float,
+    /// `int(arg0)`
+    Int,
+    /// `uint(arg0)`
+    Uint,
+    /// `trunc(arg0)`
+    Truncate,
+    /// `floatBitsToInt(arg0)`
+    FloatBitsToInt,
+    /// `intBitsToFloat(arg0)`
+    IntBitsToFloat,
+    /// `uintBitsToFloat(arg0)`
+    UintBitsToFloat,
+    /// `inversesqrt(arg0)`
+    InverseSqrt,
+    /// `!arg0`
+    Not,
+    /// `arg0 << arg1`
+    LeftShift,
+    /// `arg0 >> arg1`
+    RightShift,
+    /// `exp2(arg0)`
+    Exp2,
+    /// `log2(arg0)`
+    Log2,
+    /// `sin(arg0)`
+    Sin,
+    /// `cos(arg0)`
+    Cos,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -190,6 +287,8 @@ fn merge_xyz_assignments(
                 ) => {
                     let op = op_xyz(*op_x, *op_y, *op_z)?;
                     if args_x.len() == args_y.len() && args_y.len() == args_z.len() {
+                        // TODO: Convert args into vector args instead of keeping scalar args?
+                        // TODO: This should more intelligently merge args based on the operation.
                         let mut args = Vec::new();
                         for ((x, y), z) in args_x.iter().zip(args_y.iter()).zip(args_z.iter()) {
                             let arg = merge_xyz_assignments(
@@ -284,28 +383,91 @@ fn merge_xyz_assignments(
     }
 }
 
-fn op_xyz(x: Operation, y: Operation, z: Operation) -> Option<Operation> {
-    // Skip any operations that involve vector arguments.
-    // TODO: Should all operations be supported?
-    // TODO: Combine xyz and scalar operations?
-    if x == y
-        && y == z
-        && !matches!(
-            x,
-            Operation::AddNormalX
-                | Operation::AddNormalY
-                | Operation::ReflectX
-                | Operation::ReflectY
-                | Operation::ReflectZ
-                | Operation::Dot4
-                | Operation::NormalMapX
-                | Operation::NormalMapY
-                | Operation::NormalMapZ,
+fn op_xyz(x: Operation, y: Operation, z: Operation) -> Option<OperationXyz> {
+    // Channel merging requires all operations to be the same.
+    // Single channel vector operations like ReflectY need to output xyz to merge.
+    // This simplifies support in applications without convenient channel swizzling like shader node editors.
+    let (op_x, c_x) = operation_xyz_channel(x)?;
+    let (op_y, c_y) = operation_xyz_channel(y)?;
+    let (op_z, c_z) = operation_xyz_channel(z)?;
+
+    // TODO: is it worth supporting cases like reflect(a.xyz, b.xyz).zzz?
+    if op_x == op_y
+        && op_y == op_z
+        && matches!(
+            [c_x, c_y, c_z],
+            [Some('x'), Some('y'), Some('z')] | [None, None, None]
         )
     {
-        Some(x)
+        Some(op_x)
     } else {
         None
+    }
+}
+
+fn operation_xyz_channel(op: Operation) -> Option<(OperationXyz, Option<char>)> {
+    // TODO: Support more operations as vector operations?
+    match op {
+        Operation::Unk => Some((OperationXyz::Unk, None)),
+        Operation::Mix => Some((OperationXyz::Mix, None)),
+        Operation::Mul => Some((OperationXyz::Mul, None)),
+        Operation::Div => Some((OperationXyz::Div, None)),
+        Operation::Add => Some((OperationXyz::Add, None)),
+        Operation::Sub => Some((OperationXyz::Sub, None)),
+        Operation::Fma => Some((OperationXyz::Fma, None)),
+        Operation::MulRatio => Some((OperationXyz::MulRatio, None)),
+        Operation::AddNormalX => None,
+        Operation::AddNormalY => None,
+        Operation::Overlay => Some((OperationXyz::Overlay, None)),
+        Operation::Overlay2 => Some((OperationXyz::Overlay2, None)),
+        Operation::OverlayRatio => Some((OperationXyz::OverlayRatio, None)),
+        Operation::Power => Some((OperationXyz::Power, None)),
+        Operation::Min => Some((OperationXyz::Min, None)),
+        Operation::Max => Some((OperationXyz::Max, None)),
+        Operation::Clamp => Some((OperationXyz::Clamp, None)),
+        Operation::Abs => Some((OperationXyz::Abs, None)),
+        Operation::Fresnel => Some((OperationXyz::Fresnel, None)),
+        Operation::Sqrt => Some((OperationXyz::Sqrt, None)),
+        Operation::TexMatrix => None,
+        Operation::TexParallaxX => None,
+        Operation::TexParallaxY => None,
+        Operation::ReflectX => Some((OperationXyz::Reflect, Some('x'))),
+        Operation::ReflectY => Some((OperationXyz::Reflect, Some('x'))),
+        Operation::ReflectZ => Some((OperationXyz::Reflect, Some('x'))),
+        Operation::Floor => Some((OperationXyz::Floor, None)),
+        Operation::Select => Some((OperationXyz::Select, None)),
+        Operation::Equal => Some((OperationXyz::Equal, None)),
+        Operation::NotEqual => Some((OperationXyz::NotEqual, None)),
+        Operation::Less => Some((OperationXyz::Less, None)),
+        Operation::Greater => Some((OperationXyz::Greater, None)),
+        Operation::LessEqual => Some((OperationXyz::LessEqual, None)),
+        Operation::GreaterEqual => Some((OperationXyz::GreaterEqual, None)),
+        Operation::Dot4 => None,
+        Operation::NormalMapX => None,
+        Operation::NormalMapY => None,
+        Operation::NormalMapZ => None,
+        Operation::MonochromeX => Some((OperationXyz::Monochrome, Some('x'))),
+        Operation::MonochromeY => Some((OperationXyz::Monochrome, Some('y'))),
+        Operation::MonochromeZ => Some((OperationXyz::Monochrome, Some('z'))),
+        Operation::Negate => Some((OperationXyz::Negate, None)),
+        Operation::FurInstanceAlpha => None,
+        Operation::Float => Some((OperationXyz::Float, None)),
+        Operation::Int => Some((OperationXyz::Int, None)),
+        Operation::Uint => Some((OperationXyz::Uint, None)),
+        Operation::Truncate => Some((OperationXyz::Truncate, None)),
+        Operation::FloatBitsToInt => Some((OperationXyz::FloatBitsToInt, None)),
+        Operation::IntBitsToFloat => Some((OperationXyz::IntBitsToFloat, None)),
+        Operation::UintBitsToFloat => Some((OperationXyz::UintBitsToFloat, None)),
+        Operation::InverseSqrt => Some((OperationXyz::InverseSqrt, None)),
+        Operation::Not => Some((OperationXyz::Not, None)),
+        Operation::LeftShift => Some((OperationXyz::LeftShift, None)),
+        Operation::RightShift => Some((OperationXyz::RightShift, None)),
+        Operation::PartialDerivativeX => None,
+        Operation::PartialDerivativeY => None,
+        Operation::Exp2 => Some((OperationXyz::Exp2, None)),
+        Operation::Log2 => Some((OperationXyz::Log2, None)),
+        Operation::Sin => Some((OperationXyz::Sin, None)),
+        Operation::Cos => Some((OperationXyz::Cos, None)),
     }
 }
 
@@ -625,7 +787,7 @@ mod tests {
                         channel: Some(ChannelXyz::Xyz)
                     })),
                     AssignmentXyz::Func {
-                        op: Operation::Fma,
+                        op: OperationXyz::Fma,
                         args: vec![0, 1, 2]
                     }
                 ]

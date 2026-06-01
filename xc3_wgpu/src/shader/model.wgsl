@@ -83,7 +83,7 @@ struct UMate {
     g_tex_mat: array<vec4<f32>, 8>,
     g_toon_head_mat: array<vec4<f32>, 3>,
     g_wrk_col: array<vec4<f32>, 5>,
-    g_wrk_fl4: array<vec4<f32>, 5>,
+    g_wrk_fl4: array<vec4<f32>, 6>,
 }
 
 @group(2) @binding(5)
@@ -432,16 +432,9 @@ fn monochrome(x: f32, y: f32, z: f32, ratio: f32) -> vec3<f32> {
     return mix(color, vec3(dot(color, vec3(0.01))), ratio);
 }
 
-fn monochrome_xyz_x(x: vec3<f32>, y: vec3<f32>, z: vec3<f32>, ratio: vec3<f32>) -> vec3<f32> {
-    return vec3(monochrome(x.x, y.x, z.x, ratio.x).x, monochrome(x.y, y.y, z.y, ratio.y).x, monochrome(x.z, y.z, z.z, ratio.z).x);
-}
-
-fn monochrome_xyz_y(x: vec3<f32>, y: vec3<f32>, z: vec3<f32>, ratio: vec3<f32>) -> vec3<f32> {
-    return vec3(monochrome(x.x, y.x, z.x, ratio.x).y, monochrome(x.y, y.y, z.y, ratio.y).y, monochrome(x.z, y.z, z.z, ratio.z).y);
-}
-
-fn monochrome_xyz_z(x: vec3<f32>, y: vec3<f32>, z: vec3<f32>, ratio: vec3<f32>) -> vec3<f32> {
-    return vec3(monochrome(x.x, y.x, z.x, ratio.x).z, monochrome(x.y, y.y, z.y, ratio.y).z, monochrome(x.z, y.z, z.z, ratio.z).z);
+// TODO: This should only take a single xyz argument.
+fn monochrome_xyz(x: vec3<f32>, y: vec3<f32>, z: vec3<f32>, ratio: vec3<f32>) -> vec3<f32> {
+    return monochrome(x.x, y.x, z.x, ratio.x);
 }
 
 fn fragment_output(in: VertexOutput) -> FragmentOutput {
