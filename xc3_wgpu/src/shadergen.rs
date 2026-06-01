@@ -11,11 +11,11 @@ use xc3_model::{
     material::{
         Texture,
         assignments::{
-            Assignment, AssignmentValue, AssignmentValueXyz, AssignmentXyz, ChannelXyz,
-            OutputAssignment, OutputAssignmentXyz, OutputAssignments,
+            AssignmentValueXyz, AssignmentXyz, ChannelXyz, OutputAssignment, OutputAssignmentXyz,
+            OutputAssignments,
         },
     },
-    shader_database::Operation,
+    shader_database::{AttributeDependency, BufferDependency, Dependency, Operation, OutputExpr},
 };
 
 use crate::{material::ALPHA_TEST_TEXTURE, shader::model::TEXTURE_SAMPLER_COUNT};
@@ -58,7 +58,7 @@ impl ShaderWgsl {
         let xyz_assignments: Vec<_> = output_assignments
             .output_assignments
             .iter()
-            .map(|a| a.merge_xyz(&output_assignments.assignments))
+            .map(|a| a.merge_xyz(&output_assignments.exprs))
             .collect();
 
         let assignments =
@@ -122,14 +122,12 @@ impl ShaderWgsl {
 
 fn write_assignment(
     wgsl: &mut String,
-    value: &Assignment,
+    value: &OutputExpr,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> Option<()> {
     match value {
-        Assignment::Func { op, args } => write_func(wgsl, op, args),
-        Assignment::Value(v) => v
-            .as_ref()
-            .and_then(|v| write_assignment_value(wgsl, v, name_to_index)),
+        OutputExpr::Func { op, args } => write_func(wgsl, op, args),
+        OutputExpr::Value(v) => write_assignment_value(wgsl, v, name_to_index),
     }
 }
 
@@ -282,7 +280,7 @@ fn generate_assignments_wgsl(
 
     // Write variables shared by all outputs.
     // Assume that values appear after values they depend on.
-    for (i, value) in assignments.assignments.iter().enumerate() {
+    for (i, value) in assignments.exprs.iter().enumerate() {
         write!(wgsl, "let {VAR_PREFIX}{i} = ").unwrap();
         if write_assignment(&mut wgsl, value, name_to_index).is_none() {
             write!(&mut wgsl, "0.0").unwrap();
@@ -293,7 +291,7 @@ fn generate_assignments_wgsl(
     // TODO: Share xyz assignments with all channels?
     for (i, assignment) in xyz_assignments.iter().enumerate() {
         if let Some(assignment) = assignment {
-            for (j, value) in assignment.assignments.iter().enumerate() {
+            for (j, value) in assignment.exprs.iter().enumerate() {
                 write!(wgsl, "let {VAR_PREFIX_XYZ}_{i}_{j} = ").unwrap();
                 if write_assignment_xyz(&mut wgsl, value, i, name_to_index).is_none() {
                     write!(&mut wgsl, "vec3(0.0)").unwrap();
@@ -326,7 +324,7 @@ fn generate_outputs_wgsl(
                     writeln!(
                         &mut wgsl,
                         "{OUT_VAR}.{c} = {VAR_PREFIX_XYZ}_{i}_{}.{c};",
-                        xyz.assignment
+                        xyz.expr
                     )
                     .unwrap();
                 }
@@ -357,11 +355,11 @@ fn generate_normal_intensity_wgsl(intensity: usize) -> String {
 
 fn write_assignment_value(
     wgsl: &mut String,
-    value: &AssignmentValue,
+    value: &Dependency,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> Option<()> {
     match value {
-        AssignmentValue::Texture(t) => {
+        Dependency::Texture(t) => {
             let i = name_to_index.entry_index(t.name.clone());
 
             if i < TEXTURE_SAMPLER_COUNT as usize {
@@ -379,7 +377,7 @@ fn write_assignment_value(
                 return None;
             }
         }
-        AssignmentValue::Attribute { name, channel } => {
+        Dependency::Attribute(AttributeDependency { name, channel }) => {
             // TODO: Support more attributes.
             match name.as_str() {
                 "vColor" => write_attribute(wgsl, "in.vertex_color", channel),
@@ -407,12 +405,12 @@ fn write_assignment_value(
                 }
             }
         }
-        AssignmentValue::Parameter {
+        Dependency::Buffer(BufferDependency {
             name,
             field,
             index,
             channel,
-        } => {
+        }) => {
             // TODO: support other uniform buffers for all games
             // TODO: share code with xyz since only the channel is different?
             match name.as_str() {
@@ -437,7 +435,7 @@ fn write_assignment_value(
                 }
             }
         }
-        AssignmentValue::Float(f) => {
+        Dependency::Float(f) => {
             if f.is_finite() {
                 write!(wgsl, "{f:?}").unwrap()
             } else {
@@ -445,7 +443,7 @@ fn write_assignment_value(
                 return None;
             }
         }
-        AssignmentValue::Int(i) => {
+        Dependency::Int(i) => {
             if *i >= 0 {
                 write!(wgsl, "{i}u").unwrap()
             } else {

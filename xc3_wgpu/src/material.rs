@@ -4,8 +4,8 @@ use glam::{Vec3, Vec4, uvec4, vec3, vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use xc3_model::{
-    ImageTexture, IndexMapExt,
-    material::assignments::{Assignment, AssignmentValue, OutputAssignments},
+    ImageTexture, IndexMapExt, material::assignments::OutputAssignments,
+    shader_database::Dependency,
 };
 
 use crate::{
@@ -327,29 +327,18 @@ fn output_assignments(
 
         crate::shader::model::OutputAssignment {
             has_channels: uvec4(
-                has_value(&assignments.assignments, assignment.x) as u32,
-                has_value(&assignments.assignments, assignment.y) as u32,
-                has_value(&assignments.assignments, assignment.z) as u32,
-                has_value(&assignments.assignments, assignment.w) as u32,
+                assignment.x.is_some() as u32,
+                assignment.y.is_some() as u32,
+                assignment.z.is_some() as u32,
+                assignment.w.is_some() as u32,
             ),
             default_value: output_default(i),
         }
     })
 }
 
-fn has_value(assignments: &[Assignment], i: Option<usize>) -> bool {
-    if let Some(i) = i {
-        match &assignments[i] {
-            Assignment::Value(c) => c.is_some(),
-            Assignment::Func { args, .. } => args.iter().any(|a| has_value(assignments, Some(*a))),
-        }
-    } else {
-        false
-    }
-}
-
-fn value_channel_assignment(assignment: Option<&AssignmentValue>) -> Option<f32> {
-    if let Some(AssignmentValue::Float(f)) = assignment {
+fn value_channel_assignment(assignment: Option<&Dependency>) -> Option<f32> {
+    if let Some(Dependency::Float(f)) = assignment {
         Some(f.0)
     } else {
         None
