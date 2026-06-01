@@ -11,8 +11,7 @@ pub use xc3_lib::mxmd::{
 use crate::{
     ImageTexture, Sampler,
     shader_database::{
-        BufferDependency, Dependency, Operation, OutputExpr, ProgramHash, ShaderDatabase,
-        ShaderProgram,
+        Operation, OutputExpr, Parameter, ProgramHash, ShaderDatabase, ShaderProgram, Value,
     },
 };
 
@@ -112,7 +111,7 @@ pub struct MaterialParameters {
 
 impl MaterialParameters {
     // TODO: this is still helpful for blender?
-    pub fn get_dependency(&self, p: &BufferDependency) -> Option<f32> {
+    pub fn get_parameter(&self, p: &Parameter) -> Option<f32> {
         // TODO: camera parameters like U_Mdl.gmWorldView and U_Mdl.gmWVP?
 
         // TODO: How to handle the case where the input has no channels?
@@ -507,7 +506,7 @@ fn get_shader_legacy<S: GetProgramHash>(
                     // Undo the multiply by 0.5 used for XCX and XCX DE.
                     // This avoids needing to modify the actual database file.
                     let const_index = exprs.len();
-                    exprs.push(OutputExpr::Value(Dependency::Float(2.0.into())));
+                    exprs.push(OutputExpr::Value(Value::Float(2.0.into())));
                     let index = exprs.len();
                     exprs.push(OutputExpr::Func {
                         op: Operation::Mul,

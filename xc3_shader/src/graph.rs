@@ -489,9 +489,9 @@ impl Graph {
                         // TODO: reuse the logic for multiplication and addition simplification?
                         if exprs[args[2]] == Expr::Float(0.0.into()) {
                             Expr::Binary(BinaryOp::Mul, args[0], args[1])
-                        } else if exprs[args[0]] == Expr::Float(1.0.into()).into() {
+                        } else if exprs[args[0]] == Expr::Float(1.0.into()) {
                             Expr::Binary(BinaryOp::Add, args[1], args[2])
-                        } else if exprs[args[1]] == Expr::Float(1.0.into()).into() {
+                        } else if exprs[args[1]] == Expr::Float(1.0.into()) {
                             Expr::Binary(BinaryOp::Add, args[0], args[2])
                         } else {
                             Expr::Func {

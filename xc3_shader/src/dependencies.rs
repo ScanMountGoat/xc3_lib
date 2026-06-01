@@ -1,23 +1,18 @@
 use crate::{
-    expr::{Operation, OutputExpr, Parameter, Texture, Value, output_expr},
+    expr::{Operation, OutputExpr, output_expr},
     graph::{Expr, Graph},
-};
-
-#[cfg(feature = "xc3")]
-use xc3_model::shader_database::{
-    AttributeDependency, BufferDependency, Dependency, TextureDependency,
 };
 
 // Faster than the default hash implementation.
 type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
 type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
 
-pub fn texture_dependency<Op>(
+pub fn texture<Op>(
     e: &Expr,
     graph: &Graph,
     exprs: &mut IndexSet<OutputExpr<Op>>,
     expr_to_index: &mut IndexMap<Expr, usize>,
-) -> Option<Value>
+) -> Option<crate::expr::Value>
 where
     Op: Operation + std::hash::Hash + Eq + Default,
 {
@@ -31,7 +26,7 @@ where
             if let Some(Expr::Global { name, .. }) = args.first().map(|a| &graph.exprs[*a]) {
                 let texcoords = texcoord_args(args, graph, exprs, expr_to_index);
 
-                Some(Value::Texture(Texture {
+                Some(crate::expr::Value::Texture(crate::expr::Texture {
                     name: name.clone(),
                     channel: *channel,
                     texcoords,
@@ -73,7 +68,7 @@ where
     }
 }
 
-pub fn buffer_dependency(graph: &Graph, e: &Expr) -> Option<Parameter> {
+pub fn parameter(graph: &Graph, e: &Expr) -> Option<crate::expr::Parameter> {
     if let Expr::Parameter {
         name,
         field,
@@ -82,14 +77,14 @@ pub fn buffer_dependency(graph: &Graph, e: &Expr) -> Option<Parameter> {
     } = e
     {
         if let Some(Expr::Int(index)) = index.map(|i| &graph.exprs[i]) {
-            Some(Parameter {
+            Some(crate::expr::Parameter {
                 name: name.clone(),
                 field: field.clone().unwrap_or_default(),
                 index: Some((*index).try_into().unwrap()),
                 channel: *channel,
             })
         } else {
-            Some(Parameter {
+            Some(crate::expr::Parameter {
                 name: name.clone(),
                 field: field.clone().unwrap_or_default(),
                 index: None,
@@ -102,26 +97,32 @@ pub fn buffer_dependency(graph: &Graph, e: &Expr) -> Option<Parameter> {
 }
 
 #[cfg(feature = "xc3")]
-impl From<Value> for Dependency {
-    fn from(value: Value) -> Self {
+impl From<crate::expr::Value> for xc3_model::shader_database::Value {
+    fn from(value: crate::expr::Value) -> Self {
         match value {
-            Value::Int(i) => Self::Int(i),
-            Value::Float(f) => Self::Float(f),
-            Value::Parameter(parameter) => Self::Buffer(BufferDependency {
-                name: parameter.name,
-                field: parameter.field,
-                index: parameter.index,
-                channel: parameter.channel,
-            }),
-            Value::Texture(texture) => Self::Texture(TextureDependency {
-                name: texture.name,
-                channel: texture.channel,
-                texcoords: texture.texcoords,
-            }),
-            Value::Attribute(attribute) => Self::Attribute(AttributeDependency {
-                name: attribute.name,
-                channel: attribute.channel,
-            }),
+            crate::expr::Value::Int(i) => Self::Int(i),
+            crate::expr::Value::Float(f) => Self::Float(f),
+            crate::expr::Value::Parameter(parameter) => {
+                Self::Parameter(xc3_model::shader_database::Parameter {
+                    name: parameter.name,
+                    field: parameter.field,
+                    index: parameter.index,
+                    channel: parameter.channel,
+                })
+            }
+            crate::expr::Value::Texture(texture) => {
+                Self::Texture(xc3_model::shader_database::Texture {
+                    name: texture.name,
+                    channel: texture.channel,
+                    texcoords: texture.texcoords,
+                })
+            }
+            crate::expr::Value::Attribute(attribute) => {
+                Self::Attribute(xc3_model::shader_database::Attribute {
+                    name: attribute.name,
+                    channel: attribute.channel,
+                })
+            }
         }
     }
 }

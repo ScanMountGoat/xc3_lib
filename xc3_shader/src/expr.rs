@@ -4,7 +4,7 @@ use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
 
 use crate::{
-    dependencies::{buffer_dependency, texture_dependency},
+    dependencies::{parameter, texture},
     graph::{Expr, Graph, UnaryOp},
 };
 
@@ -154,10 +154,10 @@ where
     Op: Operation + std::hash::Hash + Eq + Default,
 {
     let expr = Op::preprocess_expr(graph, expr);
-    dependency_expr(&expr, graph, exprs, expr_to_index)
+    value_expr(&expr, graph, exprs, expr_to_index)
 }
 
-fn dependency_expr<Op>(
+fn value_expr<Op>(
     e: &Expr,
     graph: &Graph,
     exprs: &mut IndexSet<OutputExpr<Op>>,
@@ -166,8 +166,8 @@ fn dependency_expr<Op>(
 where
     Op: Operation + std::hash::Hash + Eq + Default,
 {
-    texture_dependency(e, graph, exprs, expr_to_index).or_else(|| {
-        buffer_dependency(graph, e)
+    texture(e, graph, exprs, expr_to_index).or_else(|| {
+        parameter(graph, e)
             .map(crate::expr::Value::Parameter)
             .or_else(|| match e {
                 Expr::Unary(UnaryOp::Negate, e) => match &graph.exprs[*e] {

@@ -1,7 +1,8 @@
 use crate::{
     ImageTexture, IndexMapExt,
-    material::assignments::{Assignment, AssignmentValue, OutputAssignments, TextureAssignment},
+    material::assignments::OutputAssignments,
     monolib::ShaderTextures,
+    shader_database::{OutputExpr, Texture, Value},
 };
 use image_dds::image::{RgbaImage, codecs::png::PngEncoder};
 use indexmap::IndexMap;
@@ -454,21 +455,16 @@ fn image_index(
     assignments: &OutputAssignments,
     value: Option<usize>,
 ) -> Option<ImageIndex> {
-    match &assignments.assignments[value?] {
-        Assignment::Value(assignment) => assignment_image_index(material, assignment),
+    match &assignments.exprs[value?] {
+        OutputExpr::Value(assignment) => assignment_image_index(material, assignment),
         // TODO: Find a better heuristic for determining the base value.
-        Assignment::Func { args, .. } => image_index(material, assignments, args.first().copied()),
+        OutputExpr::Func { args, .. } => image_index(material, assignments, args.first().copied()),
     }
 }
 
-fn assignment_image_index(
-    material: &crate::Material,
-    assignment: &Option<AssignmentValue>,
-) -> Option<ImageIndex> {
-    match assignment.as_ref()? {
-        AssignmentValue::Texture(texture) => {
-            let TextureAssignment { name, channel, .. } = texture;
-
+fn assignment_image_index(material: &crate::Material, assignment: &Value) -> Option<ImageIndex> {
+    match assignment {
+        Value::Texture(Texture { name, channel, .. }) => {
             let channel_index = "xyzw".find(channel.unwrap()).unwrap();
 
             // TODO: proper mat2x4 support?
@@ -477,7 +473,7 @@ fn assignment_image_index(
 
             // Find the sampler from the material.
             // Find the texture referenced by this sampler.
-            let material_image = material_texture_index(name).and_then(|sampler_index| {
+            let material_image = material_texture_index(&name).and_then(|sampler_index| {
                 material
                     .textures
                     .get(sampler_index)
@@ -498,10 +494,10 @@ fn assignment_image_index(
                 texcoord_scale: None,
             }))
         }
-        AssignmentValue::Parameter { .. } => None,
-        AssignmentValue::Attribute { .. } => None,
-        AssignmentValue::Float(v) => Some(ImageIndex::Value(*v)),
-        AssignmentValue::Int(_) => None,
+        Value::Parameter(_) => None,
+        Value::Attribute(_) => None,
+        Value::Float(v) => Some(ImageIndex::Value(*v)),
+        Value::Int(_) => None,
     }
 }
 

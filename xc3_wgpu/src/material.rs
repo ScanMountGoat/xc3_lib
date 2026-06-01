@@ -4,8 +4,7 @@ use glam::{Vec3, Vec4, uvec4, vec3, vec4};
 use indexmap::IndexMap;
 use log::{error, warn};
 use xc3_model::{
-    ImageTexture, IndexMapExt, material::assignments::OutputAssignments,
-    shader_database::Dependency,
+    ImageTexture, IndexMapExt, material::assignments::OutputAssignments, shader_database::Value,
 };
 
 use crate::{
@@ -337,8 +336,8 @@ fn output_assignments(
     })
 }
 
-fn value_channel_assignment(assignment: Option<&Dependency>) -> Option<f32> {
-    if let Some(Dependency::Float(f)) = assignment {
+fn value_channel_assignment(assignment: Option<&Value>) -> Option<f32> {
+    if let Some(Value::Float(f)) = assignment {
         Some(f.0)
     } else {
         None

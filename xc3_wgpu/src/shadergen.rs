@@ -15,7 +15,7 @@ use xc3_model::{
             OutputAssignments,
         },
     },
-    shader_database::{AttributeDependency, BufferDependency, Dependency, Operation, OutputExpr},
+    shader_database::{Attribute, Operation, OutputExpr, Parameter, Value},
 };
 
 use crate::{material::ALPHA_TEST_TEXTURE, shader::model::TEXTURE_SAMPLER_COUNT};
@@ -355,11 +355,11 @@ fn generate_normal_intensity_wgsl(intensity: usize) -> String {
 
 fn write_assignment_value(
     wgsl: &mut String,
-    value: &Dependency,
+    value: &Value,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> Option<()> {
     match value {
-        Dependency::Texture(t) => {
+        Value::Texture(t) => {
             let i = name_to_index.entry_index(t.name.clone());
 
             if i < TEXTURE_SAMPLER_COUNT as usize {
@@ -377,7 +377,7 @@ fn write_assignment_value(
                 return None;
             }
         }
-        Dependency::Attribute(AttributeDependency { name, channel }) => {
+        Value::Attribute(Attribute { name, channel }) => {
             // TODO: Support more attributes.
             match name.as_str() {
                 "vColor" => write_attribute(wgsl, "in.vertex_color", channel),
@@ -405,7 +405,7 @@ fn write_assignment_value(
                 }
             }
         }
-        Dependency::Buffer(BufferDependency {
+        Value::Parameter(Parameter {
             name,
             field,
             index,
@@ -435,7 +435,7 @@ fn write_assignment_value(
                 }
             }
         }
-        Dependency::Float(f) => {
+        Value::Float(f) => {
             if f.is_finite() {
                 write!(wgsl, "{f:?}").unwrap()
             } else {
@@ -443,7 +443,7 @@ fn write_assignment_value(
                 return None;
             }
         }
-        Dependency::Int(i) => {
+        Value::Int(i) => {
             if *i >= 0 {
                 write!(wgsl, "{i}u").unwrap()
             } else {

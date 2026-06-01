@@ -20,7 +20,7 @@ use super::*;
 
 #[derive(Debug, Default)]
 struct AssignmentVisitor {
-    assignments: Vec<AssignmentDependency>,
+    assignments: Vec<AssignmentValue>,
 
     exprs: IndexSet<Expr>,
 
@@ -29,7 +29,7 @@ struct AssignmentVisitor {
 }
 
 #[derive(Debug, Clone)]
-struct AssignmentDependency {
+struct AssignmentValue {
     output: Output,
     input: usize,
 }
@@ -54,7 +54,7 @@ impl AssignmentVisitor {
 
         // Convert vector swizzles to scalar operations to simplify analysis code.
         for input in inputs {
-            let assignment = AssignmentDependency {
+            let assignment = AssignmentValue {
                 output: Output {
                     name: output_name.clone(),
                     channel: channels.next(),

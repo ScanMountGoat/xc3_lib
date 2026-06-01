@@ -6,8 +6,7 @@ use smol_str::{SmolStr, ToSmolStr};
 use varint_rs::{VarintReader, VarintWriter};
 
 use super::{
-    AttributeDependency, BufferDependency, Dependency, Operation, OutputExpr, ProgramHash,
-    ShaderProgram, TextureDependency,
+    Attribute, Operation, OutputExpr, Parameter, ProgramHash, ShaderProgram, Texture, Value,
 };
 
 // Faster than the default hash implementation.
@@ -36,11 +35,11 @@ pub struct ShaderDatabaseIndexed {
 
     #[br(parse_with = parse_set)]
     #[bw(write_with = write_set)]
-    dependencies: IndexSet<DependencyIndexed>,
+    values: IndexSet<ValueIndexed>,
 
     #[br(parse_with = parse_set)]
     #[bw(write_with = write_set)]
-    buffer_dependencies: IndexSet<BufferDependencyIndexed>,
+    parameter_values: IndexSet<ParameterIndexed>,
 
     #[br(parse_with = parse_set)]
     #[bw(write_with = write_set)]
@@ -140,7 +139,7 @@ impl From<Option<char>> for Channel {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, BinRead, BinWrite)]
-enum DependencyIndexed {
+enum ValueIndexed {
     #[brw(magic(0u8))]
     Float(
         #[br(map(|f: f32| f.into()))]
@@ -149,20 +148,20 @@ enum DependencyIndexed {
     ),
 
     #[brw(magic(1u8))]
-    Buffer(VarInt),
+    Parameter(VarInt),
 
     #[brw(magic(2u8))]
-    Texture(TextureDependencyIndexed),
+    Texture(TextureIndexed),
 
     #[brw(magic(3u8))]
-    Attribute(AttributeDependencyIndexed),
+    Attribute(AttributeIndexed),
 
     #[brw(magic(4u8))]
     Int(i32),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, BinRead, BinWrite)]
-struct BufferDependencyIndexed {
+struct ParameterIndexed {
     name: VarInt,
     field: VarInt,
     index: OptVarInt,
@@ -171,7 +170,7 @@ struct BufferDependencyIndexed {
 
 #[binrw]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-struct TextureDependencyIndexed {
+struct TextureIndexed {
     name: VarInt,
     channel: Channel,
 
@@ -181,7 +180,7 @@ struct TextureDependencyIndexed {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, BinRead, BinWrite)]
-struct AttributeDependencyIndexed {
+struct AttributeIndexed {
     name: VarInt,
     channel: Channel,
 }
@@ -250,7 +249,7 @@ impl ShaderDatabaseIndexed {
                 .collect(),
             outline_width: OptVarInt(
                 p.outline_width
-                    .map(|d| self.add_dependency(d, &p.exprs, &mut expr_indices).0),
+                    .map(|v| self.add_value(v, &p.exprs, &mut expr_indices).0),
             ),
             normal_intensity: OptVarInt(p.normal_intensity.map(|i| expr_indices[i].0)),
             val_inf_intensity: OptVarInt(p.val_inf_intensity.map(|i| expr_indices[i].0)),
@@ -269,11 +268,9 @@ impl ShaderDatabaseIndexed {
             None => {
                 // Insert values that this value depends on first.
                 let v = match &exprs[value] {
-                    OutputExpr::Value(d) => OutputExprIndexed::Value(self.add_dependency(
-                        d.clone(),
-                        exprs,
-                        expr_indices,
-                    )),
+                    OutputExpr::Value(d) => {
+                        OutputExprIndexed::Value(self.add_value(d.clone(), exprs, expr_indices))
+                    }
                     OutputExpr::Func { op, args } => OutputExprIndexed::Func {
                         op: *op,
                         args: args
@@ -291,21 +288,21 @@ impl ShaderDatabaseIndexed {
         }
     }
 
-    fn add_dependency(
+    fn add_value(
         &mut self,
-        d: Dependency,
+        d: Value,
         exprs: &[OutputExpr],
         expr_indices: &mut IndexMap<usize, VarInt>,
     ) -> VarInt {
-        let dependency = self.dependency_indexed(d, exprs, expr_indices);
-        let (index, _) = self.dependencies.insert_full(dependency);
+        let value = self.value_indexed(d, exprs, expr_indices);
+        let (index, _) = self.values.insert_full(value);
 
         VarInt(index)
     }
 
-    fn add_buffer_dependency(&mut self, b: BufferDependency) -> VarInt {
-        let dependency = self.buffer_dependency_indexed(b);
-        let (index, _) = self.buffer_dependencies.insert_full(dependency);
+    fn add_parameter(&mut self, b: Parameter) -> VarInt {
+        let value = self.parameter_indexed(b);
+        let (index, _) = self.parameter_values.insert_full(value);
 
         VarInt(index)
     }
@@ -326,9 +323,10 @@ impl ShaderDatabaseIndexed {
                     )
                 })
                 .collect(),
-            outline_width: p.outline_width.0.map(|i| {
-                self.dependency_from_indexed(&self.dependencies[i], &mut exprs, &mut expr_to_index)
-            }),
+            outline_width: p
+                .outline_width
+                .0
+                .map(|i| self.value_from_indexed(&self.values[i], &mut exprs, &mut expr_to_index)),
             normal_intensity: p
                 .normal_intensity
                 .0
@@ -351,8 +349,8 @@ impl ShaderDatabaseIndexed {
             Some(i) => *i,
             None => {
                 let expr = match &self.output_exprs[value] {
-                    OutputExprIndexed::Value(d) => OutputExpr::Value(self.dependency_from_indexed(
-                        &self.dependencies[d.0],
+                    OutputExprIndexed::Value(d) => OutputExpr::Value(self.value_from_indexed(
+                        &self.values[d.0],
                         exprs,
                         expr_to_index,
                     )),
@@ -371,19 +369,19 @@ impl ShaderDatabaseIndexed {
         }
     }
 
-    fn dependency_from_indexed(
+    fn value_from_indexed(
         &self,
-        d: &DependencyIndexed,
+        d: &ValueIndexed,
         exprs: &mut IndexSet<OutputExpr>,
         expr_to_index: &mut IndexMap<usize, usize>,
-    ) -> Dependency {
+    ) -> Value {
         match d {
-            DependencyIndexed::Int(i) => Dependency::Int(*i),
-            DependencyIndexed::Float(f) => Dependency::Float(*f),
-            DependencyIndexed::Buffer(b) => Dependency::Buffer(
-                self.buffer_dependency_from_indexed(&self.buffer_dependencies[b.0]),
-            ),
-            DependencyIndexed::Texture(t) => Dependency::Texture(TextureDependency {
+            ValueIndexed::Int(i) => Value::Int(*i),
+            ValueIndexed::Float(f) => Value::Float(*f),
+            ValueIndexed::Parameter(b) => {
+                Value::Parameter(self.parameter_from_indexed(&self.parameter_values[b.0]))
+            }
+            ValueIndexed::Texture(t) => Value::Texture(Texture {
                 name: self.texture_names[t.name.0].clone(),
                 channel: t.channel.into(),
                 texcoords: t
@@ -392,24 +390,24 @@ impl ShaderDatabaseIndexed {
                     .map(|coord| self.output_expr_from_indexed(coord.0, exprs, expr_to_index))
                     .collect(),
             }),
-            DependencyIndexed::Attribute(a) => Dependency::Attribute(AttributeDependency {
+            ValueIndexed::Attribute(a) => Value::Attribute(Attribute {
                 name: self.attribute_names[a.name.0].clone(),
                 channel: a.channel.into(),
             }),
         }
     }
 
-    fn dependency_indexed(
+    fn value_indexed(
         &mut self,
-        d: Dependency,
+        d: Value,
         exprs: &[OutputExpr],
         expr_indices: &mut IndexMap<usize, VarInt>,
-    ) -> DependencyIndexed {
+    ) -> ValueIndexed {
         match d {
-            Dependency::Int(i) => DependencyIndexed::Int(i),
-            Dependency::Float(c) => DependencyIndexed::Float(c),
-            Dependency::Buffer(b) => DependencyIndexed::Buffer(self.add_buffer_dependency(b)),
-            Dependency::Texture(t) => DependencyIndexed::Texture(TextureDependencyIndexed {
+            Value::Int(i) => ValueIndexed::Int(i),
+            Value::Float(c) => ValueIndexed::Float(c),
+            Value::Parameter(p) => ValueIndexed::Parameter(self.add_parameter(p)),
+            Value::Texture(t) => ValueIndexed::Texture(TextureIndexed {
                 name: add_string(&mut self.texture_names, t.name),
                 channel: t.channel.into(),
                 texcoords: t
@@ -418,28 +416,28 @@ impl ShaderDatabaseIndexed {
                     .map(|t| self.add_output_expr(*t, exprs, expr_indices))
                     .collect(),
             }),
-            Dependency::Attribute(a) => DependencyIndexed::Attribute(AttributeDependencyIndexed {
+            Value::Attribute(a) => ValueIndexed::Attribute(AttributeIndexed {
                 name: add_string(&mut self.attribute_names, a.name),
                 channel: a.channel.into(),
             }),
         }
     }
 
-    fn buffer_dependency_from_indexed(&self, b: &BufferDependencyIndexed) -> BufferDependency {
-        BufferDependency {
-            name: self.buffer_names[b.name.0].clone(),
-            field: self.buffer_field_names[b.field.0].clone(),
-            index: b.index.0,
-            channel: b.channel.into(),
+    fn parameter_from_indexed(&self, p: &ParameterIndexed) -> Parameter {
+        Parameter {
+            name: self.buffer_names[p.name.0].clone(),
+            field: self.buffer_field_names[p.field.0].clone(),
+            index: p.index.0,
+            channel: p.channel.into(),
         }
     }
 
-    fn buffer_dependency_indexed(&mut self, b: BufferDependency) -> BufferDependencyIndexed {
-        BufferDependencyIndexed {
-            name: add_string(&mut self.buffer_names, b.name),
-            field: add_string(&mut self.buffer_field_names, b.field),
-            index: OptVarInt(b.index),
-            channel: b.channel.into(),
+    fn parameter_indexed(&mut self, p: Parameter) -> ParameterIndexed {
+        ParameterIndexed {
+            name: add_string(&mut self.buffer_names, p.name),
+            field: add_string(&mut self.buffer_field_names, p.field),
+            index: OptVarInt(p.index),
+            channel: p.channel.into(),
         }
     }
 }

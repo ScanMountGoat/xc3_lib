@@ -108,7 +108,7 @@ pub struct ShaderProgram {
 
     // TODO: Index into exprs as well
     /// The parameter multiplied by vertex alpha to determine outline width.
-    pub outline_width: Option<Dependency>,
+    pub outline_width: Option<Value>,
 
     /// Index into [exprs](#structfield.exprs) for the normal map intensity.
     pub normal_intensity: Option<usize>,
@@ -123,17 +123,17 @@ pub struct ShaderProgram {
 /// A single access to a constant or global resource like a texture.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum Dependency {
+pub enum Value {
     Int(i32),
     Float(OrderedFloat<f32>),
-    Buffer(BufferDependency),
-    Texture(TextureDependency),
-    Attribute(AttributeDependency),
+    Parameter(Parameter),
+    Texture(Texture),
+    Attribute(Attribute),
 }
 
 /// A single buffer access like `UniformBuffer.field[0].y` or `UniformBuffer.field.y` in GLSL.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
-pub struct BufferDependency {
+pub struct Parameter {
     pub name: SmolStr,
     pub field: SmolStr,
     pub index: Option<usize>,
@@ -142,7 +142,7 @@ pub struct BufferDependency {
 
 /// A single texture access like `texture(s0, tex0.xy).rgb` in GLSL.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct TextureDependency {
+pub struct Texture {
     pub name: SmolStr,
     pub channel: Option<char>,
     /// Indices into [exprs](struct.ShaderProgram.html#structfield.exprs)
@@ -152,7 +152,7 @@ pub struct TextureDependency {
 
 /// A single input attribute like `in_attr0.x` in GLSL.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct AttributeDependency {
+pub struct Attribute {
     pub name: SmolStr,
     pub channel: Option<char>,
 }
@@ -284,12 +284,12 @@ pub enum Operation {
     Cos,
 }
 
-/// A tree of computations with [Dependency] for the leaf values.
+/// A tree of computations with [Value] for the leaf values.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum OutputExpr {
     /// A single value.
-    Value(Dependency),
+    Value(Value),
     /// An operation applied to one or more [OutputExpr].
     Func {
         /// The operation this function performs.
@@ -320,13 +320,13 @@ impl std::fmt::Display for OutputExpr {
     }
 }
 
-impl std::fmt::Display for AttributeDependency {
+impl std::fmt::Display for Attribute {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", &self.name, channels(self.channel))
     }
 }
 
-impl std::fmt::Display for BufferDependency {
+impl std::fmt::Display for Parameter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -343,7 +343,7 @@ impl std::fmt::Display for BufferDependency {
     }
 }
 
-impl std::fmt::Display for TextureDependency {
+impl std::fmt::Display for Texture {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let args: Vec<_> = self.texcoords.iter().map(|t| format!("var{t}")).collect();
         write!(
@@ -356,14 +356,14 @@ impl std::fmt::Display for TextureDependency {
     }
 }
 
-impl std::fmt::Display for Dependency {
+impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Dependency::Int(i) => write!(f, "{i:?}"),
-            Dependency::Float(c) => write!(f, "{c:?}"),
-            Dependency::Buffer(b) => write!(f, "{b}"),
-            Dependency::Texture(t) => write!(f, "{t}"),
-            Dependency::Attribute(a) => write!(f, "{a}"),
+            Value::Int(i) => write!(f, "{i:?}"),
+            Value::Float(c) => write!(f, "{c:?}"),
+            Value::Parameter(b) => write!(f, "{b}"),
+            Value::Texture(t) => write!(f, "{t}"),
+            Value::Attribute(a) => write!(f, "{a}"),
         }
     }
 }
@@ -373,7 +373,7 @@ fn channels(c: Option<char>) -> String {
 }
 
 #[cfg(feature = "arbitrary")]
-impl<'a> arbitrary::Arbitrary<'a> for AttributeDependency {
+impl<'a> arbitrary::Arbitrary<'a> for Attribute {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
         Ok(Self {
             name: crate::arbitrary_smolstr(u)?,
@@ -383,7 +383,7 @@ impl<'a> arbitrary::Arbitrary<'a> for AttributeDependency {
 }
 
 #[cfg(feature = "arbitrary")]
-impl<'a> arbitrary::Arbitrary<'a> for BufferDependency {
+impl<'a> arbitrary::Arbitrary<'a> for Parameter {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
         Ok(Self {
             name: crate::arbitrary_smolstr(u)?,
@@ -395,7 +395,7 @@ impl<'a> arbitrary::Arbitrary<'a> for BufferDependency {
 }
 
 #[cfg(feature = "arbitrary")]
-impl<'a> arbitrary::Arbitrary<'a> for TextureDependency {
+impl<'a> arbitrary::Arbitrary<'a> for Texture {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
         Ok(Self {
             name: crate::arbitrary_smolstr(u)?,

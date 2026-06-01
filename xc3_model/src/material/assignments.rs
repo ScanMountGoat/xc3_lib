@@ -5,13 +5,10 @@ use xc3_lib::mxmd::TextureUsage;
 
 use crate::{
     ImageTexture,
-    shader_database::{
-        AttributeDependency, BufferDependency, Dependency, Operation, OutputExpr, ShaderProgram,
-        TextureDependency,
-    },
+    shader_database::{Attribute, Operation, OutputExpr, Parameter, ShaderProgram, Texture, Value},
 };
 
-use super::{MaterialParameters, Texture};
+use super::MaterialParameters;
 
 /// Assignment information for the channels of each output.
 /// This includes channels from textures, material parameters, or shader constants.
@@ -21,7 +18,7 @@ pub struct OutputAssignments {
 
     // TODO: make this the same type as normal intensity.
     /// The parameter multiplied by vertex alpha to determine outline width.
-    pub outline_width: Option<Dependency>,
+    pub outline_width: Option<Value>,
 
     /// Index into [assignments](#structfield.assignments) for the intensity map for normal mapping.
     pub normal_intensity: Option<usize>,
@@ -36,9 +33,7 @@ pub struct OutputAssignments {
 impl OutputAssignments {
     /// Calculate the material ID from a hardcoded shader constant if present.
     pub fn mat_id(&self) -> Option<u32> {
-        if let OutputExpr::Value(Dependency::Float(v)) =
-            self.exprs.get(self.output_assignments[1].w?)?
-        {
+        if let OutputExpr::Value(Value::Float(v)) = self.exprs.get(self.output_assignments[1].w?)? {
             // TODO: Why is this sometimes 7?
             Some((v.0 * 255.0 + 0.1) as u32 & 0x7)
         } else {
@@ -129,16 +124,16 @@ impl std::fmt::Display for ChannelXyz {
     }
 }
 
-fn assignment_dependency(d: &Dependency, parameters: &MaterialParameters) -> Dependency {
+fn assignment_value(d: &Value, parameters: &MaterialParameters) -> Value {
     match d {
-        Dependency::Int(i) => Dependency::Int(*i),
-        Dependency::Float(f) => Dependency::Float(f.0.into()),
-        Dependency::Buffer(b) => parameters
-            .get_dependency(b)
-            .map(|f| Dependency::Float(f.into()))
-            .unwrap_or_else(|| Dependency::Buffer(b.clone())),
-        Dependency::Texture(t) => Dependency::Texture(t.clone()),
-        Dependency::Attribute(a) => Dependency::Attribute(a.clone()),
+        Value::Int(i) => Value::Int(*i),
+        Value::Float(f) => Value::Float(f.0.into()),
+        Value::Parameter(b) => parameters
+            .get_parameter(b)
+            .map(|f| Value::Float(f.into()))
+            .unwrap_or_else(|| Value::Parameter(b.clone())),
+        Value::Texture(t) => Value::Texture(t.clone()),
+        Value::Attribute(a) => Value::Attribute(a.clone()),
     }
 }
 
@@ -215,11 +210,7 @@ fn merge_xyz_assignments(
                 (OutputExpr::Value(vx), OutputExpr::Value(vy), OutputExpr::Value(vz)) => {
                     // TODO: Check that channels are one of the supported channels.
                     match (vx, vy, vz) {
-                        (
-                            Dependency::Texture(tx),
-                            Dependency::Texture(ty),
-                            Dependency::Texture(tz),
-                        ) => {
+                        (Value::Texture(tx), Value::Texture(ty), Value::Texture(tz)) => {
                             if tx.texcoords == ty.texcoords && ty.texcoords == tz.texcoords {
                                 let t_xyz = TextureAssignmentXyz {
                                     name: name_xyz(&tx.name, &ty.name, &tz.name)?,
@@ -234,15 +225,15 @@ fn merge_xyz_assignments(
                             }
                         }
                         (
-                            Dependency::Attribute(AttributeDependency {
+                            Value::Attribute(Attribute {
                                 name: n_x,
                                 channel: c_x,
                             }),
-                            Dependency::Attribute(AttributeDependency {
+                            Value::Attribute(Attribute {
                                 name: n_y,
                                 channel: c_y,
                             }),
-                            Dependency::Attribute(AttributeDependency {
+                            Value::Attribute(Attribute {
                                 name: n_z,
                                 channel: c_z,
                             }),
@@ -251,19 +242,19 @@ fn merge_xyz_assignments(
                             channel: channel_xyz(*c_x, *c_y, *c_z)?,
                         }))),
                         (
-                            Dependency::Buffer(BufferDependency {
+                            Value::Parameter(Parameter {
                                 name: n_x,
                                 field: f_x,
                                 index: i_x,
                                 channel: c_x,
                             }),
-                            Dependency::Buffer(BufferDependency {
+                            Value::Parameter(Parameter {
                                 name: n_y,
                                 field: f_y,
                                 index: i_y,
                                 channel: c_y,
                             }),
-                            Dependency::Buffer(BufferDependency {
+                            Value::Parameter(Parameter {
                                 name: n_z,
                                 field: f_z,
                                 index: i_z,
@@ -275,7 +266,7 @@ fn merge_xyz_assignments(
                             index: index_xyz(*i_x, *i_y, *i_z)?,
                             channel: channel_xyz(*c_x, *c_y, *c_z)?,
                         }))),
-                        (Dependency::Float(fx), Dependency::Float(fy), Dependency::Float(fz)) => {
+                        (Value::Float(fx), Value::Float(fy), Value::Float(fz)) => {
                             Some(AssignmentXyz::Value(Some(AssignmentValueXyz::Float([
                                 *fx, *fy, *fz,
                             ]))))
@@ -350,7 +341,7 @@ pub(crate) fn output_assignments(
     let assignments = shader
         .exprs
         .iter()
-        .map(|e| assignment_value(parameters, e))
+        .map(|e| expr_with_parameter_values(parameters, e))
         .collect();
 
     OutputAssignments {
@@ -358,7 +349,7 @@ pub(crate) fn output_assignments(
         outline_width: shader
             .outline_width
             .as_ref()
-            .map(|d| assignment_dependency(d, parameters)),
+            .map(|d| assignment_value(d, parameters)),
         normal_intensity: shader.normal_intensity,
         val_inf_intensity: shader.val_inf_intensity,
         exprs: assignments,
@@ -386,9 +377,9 @@ fn output_channel_assignment(
         .copied()
 }
 
-fn assignment_value(parameters: &MaterialParameters, value: &OutputExpr) -> OutputExpr {
-    match value {
-        OutputExpr::Value(d) => OutputExpr::Value(assignment_dependency(d, parameters)),
+fn expr_with_parameter_values(parameters: &MaterialParameters, expr: &OutputExpr) -> OutputExpr {
+    match expr {
+        OutputExpr::Value(d) => OutputExpr::Value(assignment_value(d, parameters)),
         OutputExpr::Func { op, args } => OutputExpr::Func {
             op: *op,
             args: args.clone(),
@@ -397,7 +388,7 @@ fn assignment_value(parameters: &MaterialParameters, value: &OutputExpr) -> Outp
 }
 
 pub(crate) fn infer_assignment_from_textures(
-    textures: &[Texture],
+    textures: &[super::Texture],
     image_textures: &[ImageTexture],
 ) -> OutputAssignments {
     // No assignment data is available.
@@ -406,24 +397,20 @@ pub(crate) fn infer_assignment_from_textures(
 
     let mut assignment = |i: Option<usize>, c: usize| {
         let u = assignments
-            .insert_full(OutputExpr::Value(Dependency::Attribute(
-                AttributeDependency {
-                    name: "vTex0".into(),
-                    channel: Some('x'),
-                },
-            )))
+            .insert_full(OutputExpr::Value(Value::Attribute(Attribute {
+                name: "vTex0".into(),
+                channel: Some('x'),
+            })))
             .0;
         let v = assignments
-            .insert_full(OutputExpr::Value(Dependency::Attribute(
-                AttributeDependency {
-                    name: "vTex0".into(),
-                    channel: Some('y'),
-                },
-            )))
+            .insert_full(OutputExpr::Value(Value::Attribute(Attribute {
+                name: "vTex0".into(),
+                channel: Some('y'),
+            })))
             .0;
         Some(
             assignments
-                .insert_full(OutputExpr::Value(Dependency::Texture(TextureDependency {
+                .insert_full(OutputExpr::Value(Value::Texture(Texture {
                     name: format!("s{}", i?).into(),
                     channel: Some(['x', 'y', 'z', 'w'][c]),
                     texcoords: vec![u, v],
@@ -491,7 +478,7 @@ pub(crate) fn infer_assignment_from_textures(
 
 #[cfg(test)]
 mod tests {
-    use crate::shader_database::TextureDependency;
+    use crate::shader_database::Texture;
 
     use super::*;
 
@@ -512,18 +499,18 @@ mod tests {
     #[test]
     fn merge_xyz_invalid_channels() {
         let assignments = [
-            OutputExpr::Value(Dependency::Float(0.0.into())),
-            OutputExpr::Value(Dependency::Texture(TextureDependency {
+            OutputExpr::Value(Value::Float(0.0.into())),
+            OutputExpr::Value(Value::Texture(Texture {
                 name: "s0".into(),
                 channel: Some('z'),
                 texcoords: vec![0, 0],
             })),
-            OutputExpr::Value(Dependency::Texture(TextureDependency {
+            OutputExpr::Value(Value::Texture(Texture {
                 name: "s0".into(),
                 channel: Some('y'),
                 texcoords: vec![0, 0],
             })),
-            OutputExpr::Value(Dependency::Texture(TextureDependency {
+            OutputExpr::Value(Value::Texture(Texture {
                 name: "s0".into(),
                 channel: Some('x'),
                 texcoords: vec![0, 0],
@@ -544,8 +531,8 @@ mod tests {
     #[test]
     fn merge_xyz_single_channel() {
         let assignments = [
-            OutputExpr::Value(Dependency::Float(0.0.into())),
-            OutputExpr::Value(Dependency::Texture(TextureDependency {
+            OutputExpr::Value(Value::Float(0.0.into())),
+            OutputExpr::Value(Value::Texture(Texture {
                 name: "s0".into(),
                 channel: Some('w'),
                 texcoords: vec![0, 0],
@@ -575,34 +562,34 @@ mod tests {
     #[test]
     fn merge_xyz_multiple_channels() {
         let assignments = [
-            OutputExpr::Value(Dependency::Float(0.0.into())),
-            OutputExpr::Value(Dependency::Texture(TextureDependency {
+            OutputExpr::Value(Value::Float(0.0.into())),
+            OutputExpr::Value(Value::Texture(Texture {
                 name: "s0".into(),
                 channel: Some('x'),
                 texcoords: vec![0, 0],
             })),
-            OutputExpr::Value(Dependency::Float(1.0.into())),
-            OutputExpr::Value(Dependency::Attribute(AttributeDependency {
+            OutputExpr::Value(Value::Float(1.0.into())),
+            OutputExpr::Value(Value::Attribute(Attribute {
                 name: "vColor".into(),
                 channel: Some('x'),
             })),
-            OutputExpr::Value(Dependency::Texture(TextureDependency {
+            OutputExpr::Value(Value::Texture(Texture {
                 name: "s0".into(),
                 channel: Some('y'),
                 texcoords: vec![0, 0],
             })),
-            OutputExpr::Value(Dependency::Float(2.0.into())),
-            OutputExpr::Value(Dependency::Attribute(AttributeDependency {
+            OutputExpr::Value(Value::Float(2.0.into())),
+            OutputExpr::Value(Value::Attribute(Attribute {
                 name: "vColor".into(),
                 channel: Some('y'),
             })),
-            OutputExpr::Value(Dependency::Texture(TextureDependency {
+            OutputExpr::Value(Value::Texture(Texture {
                 name: "s0".into(),
                 channel: Some('z'),
                 texcoords: vec![0, 0],
             })),
-            OutputExpr::Value(Dependency::Float(3.0.into())),
-            OutputExpr::Value(Dependency::Attribute(AttributeDependency {
+            OutputExpr::Value(Value::Float(3.0.into())),
+            OutputExpr::Value(Value::Attribute(Attribute {
                 name: "vColor".into(),
                 channel: Some('z'),
             })),

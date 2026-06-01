@@ -6,16 +6,14 @@ use indoc::indoc;
 use log::error;
 use rayon::prelude::*;
 use xc3_lib::{mths::Mths, spch::Spch};
-use xc3_model::shader_database::{
-    Dependency, Operation, ProgramHash, ShaderDatabase, ShaderProgram,
-};
+use xc3_model::shader_database::{Operation, ProgramHash, ShaderDatabase, ShaderProgram, Value};
 
-use crate::expr::{OutputExpr, Value, output_expr};
+use crate::expr::{OutputExpr, output_expr};
 use crate::graph::UnaryOp;
 use crate::graph::glsl::{GlslGraph, merge_vertex_fragment};
 use crate::graph::query::fma_normalize;
 use crate::{
-    dependencies::buffer_dependency,
+    dependencies::parameter,
     extract::nvsd_glsl_name,
     graph::{
         BinaryOp, Expr, Graph,
@@ -151,7 +149,7 @@ static OUTLINE_WIDTH_PARAMETER: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn outline_width_parameter(vert: &Graph) -> Option<Value> {
+fn outline_width_parameter(vert: &Graph) -> Option<crate::expr::Value> {
     vert.nodes.iter().find_map(|n| {
         // TODO: Add a way to match identifiers like "vColor" exactly.
         let result = query_nodes(&vert.exprs[n.input], vert, &OUTLINE_WIDTH_PARAMETER)?;
@@ -159,8 +157,8 @@ fn outline_width_parameter(vert: &Graph) -> Option<Value> {
         let vcolor = result.get("vColor")?;
 
         if matches!(vcolor, Expr::Global { name, channel } if name == "vColor" && *channel == Some('w')) {
-            // TODO: Handle other dependency types?
-            buffer_dependency(vert, param).map(Value::Parameter)
+            // TODO: Handle other value types?
+            parameter(vert, param).map(crate::expr::Value::Parameter)
         } else {
             None
         }
@@ -548,7 +546,7 @@ fn expr_str(s: &ShaderProgram, v: usize) -> String {
 
 fn write_expr(output: &mut String, s: &ShaderProgram, v: usize) {
     match &s.exprs[v] {
-        xc3_model::shader_database::OutputExpr::Value(Dependency::Texture(t)) => {
+        xc3_model::shader_database::OutputExpr::Value(Value::Texture(t)) => {
             write!(output, "Texture({}, ", t.name,).unwrap();
             // Don't write a trailing comma.
             if let Some((last, args)) = t.texcoords.split_last() {
@@ -587,7 +585,7 @@ pub fn shader_graphviz(shader: &ShaderProgram) -> String {
     for (i, expr) in shader.exprs.iter().enumerate() {
         let label = match expr {
             xc3_model::shader_database::OutputExpr::Func { op, .. } => op.to_string(),
-            xc3_model::shader_database::OutputExpr::Value(Dependency::Texture(t)) => {
+            xc3_model::shader_database::OutputExpr::Value(Value::Texture(t)) => {
                 format!(
                     "{}{}",
                     &t.name,
@@ -605,7 +603,7 @@ pub fn shader_graphviz(shader: &ShaderProgram) -> String {
                     writeln!(&mut text, "    {arg} -> {i}").unwrap();
                 }
             }
-            xc3_model::shader_database::OutputExpr::Value(Dependency::Texture(t)) => {
+            xc3_model::shader_database::OutputExpr::Value(Value::Texture(t)) => {
                 for arg in &t.texcoords {
                     writeln!(&mut text, "    {arg} -> {i}").unwrap();
                 }
