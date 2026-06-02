@@ -225,10 +225,16 @@ fn assignment_value(d: &Value, parameters: &MaterialParameters) -> Value {
     match d {
         Value::Int(i) => Value::Int(*i),
         Value::Float(f) => Value::Float(f.0.into()),
-        Value::Parameter(b) => parameters
-            .get_parameter(b)
-            .map(|f| Value::Float(f.into()))
-            .unwrap_or_else(|| Value::Parameter(b.clone())),
+        Value::Parameter(b) => {
+            if b.name != "U_Mate" {
+                parameters
+                    .get_parameter(b)
+                    .map(|f| Value::Float(f.into()))
+                    .unwrap_or_else(|| Value::Parameter(b.clone()))
+            } else {
+                Value::Parameter(b.clone())
+            }
+        }
         Value::Texture(t) => Value::Texture(t.clone()),
         Value::Attribute(a) => Value::Attribute(a.clone()),
     }
