@@ -86,91 +86,91 @@ pub enum OperationXyz {
     /// An unsupported operation or function call.
     #[default]
     Unk,
-    /// `mix(arg0, arg1, arg2)`
+    /// `mix(arg0.xyz, arg1.xyz, arg2.xyz)`
     Mix,
-    /// `arg0 * arg1`
+    /// `arg0.xyz * arg1.xyz`
     Mul,
-    /// `arg0 / arg1`
+    /// `arg0.xyz / arg1.xyz`
     Div,
-    /// `arg0 + arg1`
+    /// `arg0.xyz + arg1.xyz`
     Add,
-    /// `arg0 - arg1`
+    /// `arg0.xyz - arg1.xyz`
     Sub,
-    /// `fma(arg0, arg1, arg2)` or `arg0 * arg1 + arg2`
+    /// `fma(arg0.xyz, arg1.xyz, arg2.xyz)` or `arg0.xyz * arg1.xyz + arg2.xyz`
     Fma,
-    /// `mix(arg0, arg0 * arg1, arg2)`
+    /// `mix(arg0.xyz, arg0.xyz * arg1.xyz, arg2.xyz)`
     MulRatio,
-    /// `overlay(arg0, arg1)`.
+    /// `overlay(arg0.xyz, arg1.xyz)`.
     Overlay,
-    /// `overlay2(arg0, arg1)`.
+    /// `overlay2(arg0.xyz, arg1.xyz)`.
     Overlay2,
-    /// `mix(arg0, overlay(arg0, arg1), arg2)`.
+    /// `mix(arg0.xyz, overlay(arg0.xyz, arg1.xyz), arg2.xyz)`.
     OverlayRatio,
-    /// `pow(arg0, arg1)`
+    /// `pow(arg0.xyz, arg1.xyz)`
     Power,
-    /// `min(arg0, arg1)`
+    /// `min(arg0.xyz, arg1.xyz)`
     Min,
-    /// `max(arg0, arg1)`
+    /// `max(arg0.xyz, arg1.xyz)`
     Max,
-    /// `clamp(arg0, arg1, arg2)`
+    /// `clamp(arg0.xyz, arg1.xyz, arg2.xyz)`
     Clamp,
-    /// `abs(arg0)`
+    /// `abs(arg0.xyz)`
     Abs,
-    /// `pow(1.0 - n_dot_v, arg0 * 5.0)`
+    /// `pow(vec3(1.0 - n_dot_v), arg0.xyz * 5.0)`
     Fresnel,
-    /// `sqrt(arg0)`
+    /// `sqrt(arg0.xyz)`
     Sqrt,
-    /// `reflect(arg0, arg1)`
+    /// `reflect(arg0.xyz, arg1.xyz)`
     Reflect,
-    /// `floor(arg0)`
+    /// `floor(arg0.xyz)`
     Floor,
-    /// `if arg0 { arg1 } else { arg2 }` or `mix(arg2, arg1, arg0)`
+    /// `if arg0.xyz { arg1.xyz } else { arg2.xyz }` or `mix(arg2.xyz, arg1.xyz, arg0.xyz)`
     Select,
-    /// `arg0 == arg1`
+    /// `arg0.xyz == arg1.xyz`
     Equal,
-    /// `arg0 != arg1`
+    /// `arg0.xyz != arg1.xyz`
     NotEqual,
-    /// `arg0 < arg1`
+    /// `arg0.xyz < arg1.xyz`
     Less,
-    /// `arg0 > arg1`
+    /// `arg0.xyz > arg1.xyz`
     Greater,
-    /// `arg0 <= arg1`
+    /// `arg0.xyz <= arg1.xyz`
     LessEqual,
-    /// `arg0 >= arg1`
+    /// `arg0.xyz >= arg1.xyz`
     GreaterEqual,
-    /// `monochrome(arg0, arg1)`
+    /// `monochrome(arg0.xyz, arg1.xyz)`
     Monochrome,
-    /// `-arg0`
+    /// `-arg0.xyz`
     Negate,
-    /// `float(arg0)`
+    /// `float(arg0.xyz)`
     Float,
-    /// `int(arg0)`
+    /// `int(arg0.xyz)`
     Int,
-    /// `uint(arg0)`
+    /// `uint(arg0.xyz)`
     Uint,
-    /// `trunc(arg0)`
+    /// `trunc(arg0.xyz)`
     Truncate,
-    /// `floatBitsToInt(arg0)`
+    /// `floatBitsToInt(arg0.xyz)`
     FloatBitsToInt,
-    /// `intBitsToFloat(arg0)`
+    /// `intBitsToFloat(arg0.xyz)`
     IntBitsToFloat,
-    /// `uintBitsToFloat(arg0)`
+    /// `uintBitsToFloat(arg0.xyz)`
     UintBitsToFloat,
-    /// `inversesqrt(arg0)`
+    /// `inversesqrt(arg0.xyz)`
     InverseSqrt,
-    /// `!arg0`
+    /// `!arg0.xyz`
     Not,
-    /// `arg0 << arg1`
+    /// `arg0.xyz << arg1.xyz`
     LeftShift,
-    /// `arg0 >> arg1`
+    /// `arg0.xyz >> arg1.xyz`
     RightShift,
-    /// `exp2(arg0)`
+    /// `exp2(arg0.xyz)`
     Exp2,
-    /// `log2(arg0)`
+    /// `log2(arg0.xyz)`
     Log2,
-    /// `sin(arg0)`
+    /// `sin(arg0.xyz)`
     Sin,
-    /// `cos(arg0)`
+    /// `cos(arg0.xyz)`
     Cos,
 }
 

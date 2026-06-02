@@ -536,8 +536,6 @@ fn write_func_xyz(
     let arg1 = args.get(1);
     let arg2 = args.get(2);
     let arg3 = args.get(3);
-    let arg4 = args.get(4);
-    let arg5 = args.get(5);
 
     // TODO: Will these operations all work with xyz inputs?
     let a = format_args!("{VAR_PREFIX_XYZ}_{output_index}_");
