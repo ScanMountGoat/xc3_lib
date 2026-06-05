@@ -432,11 +432,6 @@ fn monochrome(x: f32, y: f32, z: f32, ratio: f32) -> vec3<f32> {
     return mix(color, vec3(dot(color, vec3(0.01))), ratio);
 }
 
-// TODO: This should only take a single xyz argument.
-fn monochrome_xyz(x: vec3<f32>, y: vec3<f32>, z: vec3<f32>, ratio: vec3<f32>) -> vec3<f32> {
-    return monochrome(x.x, y.x, z.x, ratio.x);
-}
-
 fn fragment_output(in: VertexOutput) -> FragmentOutput {
     let tangent = normalize(in.tangent.xyz);
     let vertex_normal = normalize(in.normal.xyz);

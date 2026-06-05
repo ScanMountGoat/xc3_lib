@@ -138,7 +138,7 @@ pub enum OperationXyz {
     LessEqual,
     /// `arg0.xyz >= arg1.xyz`
     GreaterEqual,
-    /// `monochrome(arg0.xyz, arg1.xyz)`
+    /// `monochrome(arg0.x, arg0.y, arg0.z, arg1.x)`
     Monochrome,
     /// `-arg0.xyz`
     Negate,
@@ -293,20 +293,15 @@ fn merge_xyz_assignments(
                 ) => {
                     let op = op_xyz(*op_x, *op_y, *op_z)?;
                     if args_x.len() == args_y.len() && args_y.len() == args_z.len() {
-                        // TODO: Convert args into vector args instead of keeping scalar args?
-                        // TODO: This should more intelligently merge args based on the operation.
-                        let mut args = Vec::new();
-                        for ((x, y), z) in args_x.iter().zip(args_y.iter()).zip(args_z.iter()) {
-                            let arg = merge_xyz_assignments(
-                                *x,
-                                *y,
-                                *z,
-                                assignments,
-                                assignments_xyz_index,
-                                assignments_xyz,
-                            )?;
-                            args.push(arg);
-                        }
+                        let args = merge_args(
+                            op,
+                            args_x,
+                            args_y,
+                            args_z,
+                            assignments,
+                            assignments_xyz_index,
+                            assignments_xyz,
+                        )?;
                         Some(AssignmentXyz::Func { op, args })
                     } else {
                         None
@@ -475,6 +470,61 @@ fn operation_xyz_channel(op: Operation) -> Option<(OperationXyz, Option<char>)> 
         Operation::Sin => Some((OperationXyz::Sin, None)),
         Operation::Cos => Some((OperationXyz::Cos, None)),
     }
+}
+
+// TODO: make this reusable using some sort of trait?
+fn merge_args(
+    op: OperationXyz,
+    args_x: &[usize],
+    args_y: &[usize],
+    args_z: &[usize],
+    assignments: &[OutputExpr],
+    assignments_xyz_index: &mut IndexMap<(usize, usize, usize), usize>,
+    assignments_xyz: &mut IndexSet<AssignmentXyz>,
+) -> Option<Vec<usize>> {
+    let mut args = Vec::new();
+
+    // TODO: Merge incompatible scalar args into vector args instead of returning None.
+    match op {
+        OperationXyz::Monochrome => {
+            // TODO: Check that all args are the same?
+            let rgb = merge_xyz_assignments(
+                *args_x.get(0)?,
+                *args_y.get(1)?,
+                *args_z.get(2)?,
+                assignments,
+                assignments_xyz_index,
+                assignments_xyz,
+            )?;
+            args.push(rgb);
+
+            // TODO: This should be the same scalar for all channels?
+            let ratio = merge_xyz_assignments(
+                *args_x.get(3)?,
+                *args_y.get(3)?,
+                *args_z.get(3)?,
+                assignments,
+                assignments_xyz_index,
+                assignments_xyz,
+            )?;
+            args.push(ratio);
+        }
+        _ => {
+            for ((x, y), z) in args_x.iter().zip(args_y.iter()).zip(args_z.iter()) {
+                let arg = merge_xyz_assignments(
+                    *x,
+                    *y,
+                    *z,
+                    assignments,
+                    assignments_xyz_index,
+                    assignments_xyz,
+                )?;
+                args.push(arg);
+            }
+        }
+    }
+
+    Some(args)
 }
 
 fn name_xyz(x: &SmolStr, y: &SmolStr, z: &SmolStr) -> Option<SmolStr> {
