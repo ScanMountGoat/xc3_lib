@@ -70,20 +70,20 @@ struct FurShellParams {
 // All "U_Mate" uniform parameters from shaders from all Switch games.
 struct UMate {
     // Convert names to snake case to match Rust like "gMatCol" to "g_mat_col".
-    // TODO: figure out the max array size needed
+    // Use the highest array index accessed by in game shaders to determine the length.
     g_al_inf: array<vec4<f32>, 1>,
     g_dp_rat: array<vec4<f32>, 1>,
-    g_dt_work: array<vec4<f32>, 4>,
+    g_d_t_wrk: array<vec4<f32>, 2>,
     g_mat_amb: array<vec4<f32>, 1>,
     g_mat_col: array<vec4<f32>, 1>,
     g_mat_spec: array<vec4<f32>, 1>,
     g_mdl_param: array<vec4<f32>, 1>,
-    g_pj_mat: array<vec4<f32>, 1>,
-    g_proj_tex_mat: array<vec4<f32>, 6>,
-    g_tex_mat: array<vec4<f32>, 8>,
+    g_pj_mat: array<vec4<f32>, 3>,
+    g_proj_tex_mat: array<vec4<f32>, 8>,
+    g_tex_mat: array<vec4<f32>, 54>,
     g_toon_head_mat: array<vec4<f32>, 3>,
-    g_wrk_col: array<vec4<f32>, 5>,
-    g_wrk_fl4: array<vec4<f32>, 6>,
+    g_wrk_col: array<vec4<f32>, 34>,
+    g_wrk_fl4: array<vec4<f32>, 17>,
 }
 
 @group(2) @binding(5)
