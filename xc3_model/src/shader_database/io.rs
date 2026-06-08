@@ -43,10 +43,6 @@ pub struct ShaderDatabaseIndexed {
 
     #[br(parse_with = parse_set)]
     #[bw(write_with = write_set)]
-    parameter_values: IndexSet<ParameterIndexed>,
-
-    #[br(parse_with = parse_set)]
-    #[bw(write_with = write_set)]
     output_exprs: IndexSet<OutputExprIndexed>,
 
     #[br(parse_with = parse_set)]
@@ -163,9 +159,8 @@ enum ValueIndexed {
         OrderedFloat<f32>,
     ),
 
-    // TODO: Does using an index here even matter if values are stored globally?
     #[brw(magic(1u8))]
-    Parameter(VarInt),
+    Parameter(ParameterIndexed),
 
     #[brw(magic(2u8))]
     Texture(TextureIndexed),
@@ -435,13 +430,6 @@ impl ShaderDatabaseIndexed {
         VarInt(index)
     }
 
-    fn add_parameter(&mut self, b: Parameter) -> VarInt {
-        let value = self.parameter_indexed(b);
-        let (index, _) = self.parameter_values.insert_full(value);
-
-        VarInt(index)
-    }
-
     fn add_output_expr_xyz(
         &mut self,
         value: usize,
@@ -630,9 +618,7 @@ impl ShaderDatabaseIndexed {
         match d {
             ValueIndexed::Int(i) => Value::Int(*i),
             ValueIndexed::Float(f) => Value::Float(*f),
-            ValueIndexed::Parameter(b) => {
-                Value::Parameter(self.parameter_from_indexed(&self.parameter_values[b.0]))
-            }
+            ValueIndexed::Parameter(b) => Value::Parameter(self.parameter_from_indexed(b)),
             ValueIndexed::Texture(t) => Value::Texture(Texture {
                 name: self.texture_names[t.name.0].clone(),
                 channel: t.channel.into(),
@@ -658,7 +644,7 @@ impl ShaderDatabaseIndexed {
         match v {
             Value::Int(i) => ValueIndexed::Int(i),
             Value::Float(c) => ValueIndexed::Float(c),
-            Value::Parameter(p) => ValueIndexed::Parameter(self.add_parameter(p)),
+            Value::Parameter(p) => ValueIndexed::Parameter(self.parameter_indexed(p)),
             Value::Texture(t) => ValueIndexed::Texture(TextureIndexed {
                 name: add_string(&mut self.texture_names, t.name),
                 channel: t.channel.into(),
