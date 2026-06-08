@@ -417,10 +417,8 @@ impl State {
                         NamedKey::ArrowUp => self.translation.y -= 0.1,
                         NamedKey::ArrowDown => self.translation.y += 0.1,
                         // Animation playback.
-                        NamedKey::Space => {
-                            if event.state == ElementState::Released {
-                                self.current_time_seconds = 0.0;
-                            }
+                        NamedKey::Space if event.state == ElementState::Released => {
+                            self.current_time_seconds = 0.0;
                         }
                         _ => (),
                     },
@@ -481,12 +479,10 @@ impl State {
                                     self.set_window_title();
                                 }
                             }
-                            "," => {
-                                if event.state == ElementState::Released {
-                                    self.current_time_seconds = 0.0;
-                                    self.animation_index = self.animation_index.saturating_sub(1);
-                                    self.set_window_title();
-                                }
+                            "," if event.state == ElementState::Released => {
+                                self.current_time_seconds = 0.0;
+                                self.animation_index = self.animation_index.saturating_sub(1);
+                                self.set_window_title();
                             }
                             _ => (),
                         }

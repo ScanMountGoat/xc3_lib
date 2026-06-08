@@ -235,7 +235,7 @@ fn merge_args(
         OperationXyz::Monochrome => {
             // TODO: Check that all args are the same?
             let rgb = merge_xyz_assignments(
-                *args_x.get(0)?,
+                *args_x.first()?,
                 *args_y.get(1)?,
                 *args_z.get(2)?,
                 assignments,

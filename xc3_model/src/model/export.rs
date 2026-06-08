@@ -245,7 +245,7 @@ impl ModelRoot {
                         {
                             transforms[index].to_matrix().inverse().to_cols_array_2d()
                         } else {
-                            warn!("Setting identity inverse bind transform for skinning bone {:?} not in skeleton.", &bone.name);
+                            warn!("Setting identity inverse bind transform for skinning bone {:?} not in skeleton.", bone.name);
                             Mat4::IDENTITY.to_cols_array_2d()
                         }
                     })

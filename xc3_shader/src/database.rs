@@ -137,22 +137,20 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
     let mut assignments_xyz_index = IndexMap::default();
     let mut assignments_xyz = IndexSet::default();
 
-    for i in frag_attributes.output_locations.right_values().copied() {
+    for i in frag_attributes.output_locations.right_values() {
         if let (Some(x), Some(y), Some(z)) = (
             output_dependencies.get(&SmolStr::from(&format!("o{i}.x"))),
             output_dependencies.get(&SmolStr::from(&format!("o{i}.y"))),
             output_dependencies.get(&SmolStr::from(&format!("o{i}.z"))),
+        ) && let Some(xyz) = merge_xyz_assignments(
+            *x,
+            *y,
+            *z,
+            &exprs,
+            &mut assignments_xyz_index,
+            &mut assignments_xyz,
         ) {
-            if let Some(xyz) = merge_xyz_assignments(
-                *x,
-                *y,
-                *z,
-                &exprs,
-                &mut assignments_xyz_index,
-                &mut assignments_xyz,
-            ) {
-                output_dependencies_xyz.insert(format!("o{i}.xyz").into(), xyz);
-            }
+            output_dependencies_xyz.insert(format!("o{i}.xyz").into(), xyz);
         }
     }
 
@@ -664,7 +662,7 @@ pub fn shader_graphviz(shader: &ShaderProgram) -> String {
             xc3_model::shader_database::OutputExpr::Value(Value::Texture(t)) => {
                 format!(
                     "{}{}",
-                    &t.name,
+                    t.name,
                     t.channel.map(|c| format!(".{c}")).unwrap_or_default()
                 )
             }

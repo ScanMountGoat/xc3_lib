@@ -206,12 +206,12 @@ fn write_uniform_blocks(annotated: &mut String, blocks: &[xc3_lib::mths::Uniform
         writeln!(
             annotated,
             "layout(binding = {}, std140) uniform _{} {{",
-            block.offset, &block.name
+            block.offset, block.name
         )
         .unwrap();
         // TODO: Add uniform variables.
         writeln!(annotated, "    vec4 values[{}];", block.size / 16).unwrap();
-        writeln!(annotated, "}} {};", &block.name).unwrap();
+        writeln!(annotated, "}} {};", block.name).unwrap();
     }
 }
 

@@ -330,7 +330,7 @@ impl std::fmt::Display for OutputExpr {
 
 impl std::fmt::Display for Attribute {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", &self.name, channels(self.channel))
+        write!(f, "{}{}", self.name, channels(self.channel))
     }
 }
 
@@ -339,11 +339,11 @@ impl std::fmt::Display for Parameter {
         write!(
             f,
             "{}{}{}{}",
-            &self.name,
+            self.name,
             if self.field.is_empty() {
                 String::new()
             } else {
-                format!(".{}", &self.field)
+                format!(".{}", self.field)
             },
             self.index.map(|i| format!("[{i}]")).unwrap_or_default(),
             channels(self.channel)
@@ -357,7 +357,7 @@ impl std::fmt::Display for Texture {
         write!(
             f,
             "Texture({}, {}){}",
-            &self.name,
+            self.name,
             args.join(", "),
             channels(self.channel)
         )
@@ -534,7 +534,7 @@ impl std::fmt::Display for TextureAssignmentXyz {
         write!(
             f,
             "Texture({}, {}){}",
-            &self.name,
+            self.name,
             args.join(", "),
             channels_xyz(self.channel)
         )
@@ -565,11 +565,11 @@ impl std::fmt::Display for AssignmentValueXyz {
             } => write!(
                 f,
                 "{}{}{}{}",
-                &name,
+                name,
                 if field.is_empty() {
                     String::new()
                 } else {
-                    format!(".{}", &field)
+                    format!(".{}", field)
                 },
                 index.map(|i| format!("[{i}]")).unwrap_or_default(),
                 channels_xyz(*channel)

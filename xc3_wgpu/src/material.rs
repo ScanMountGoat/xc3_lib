@@ -119,7 +119,7 @@ pub fn create_material(
                 *material_texture = Some(texture);
             }
         } else {
-            error!("Unable to assign {name} for {:?}", &material.name);
+            error!("Unable to assign {name} for {:?}", material.name);
         }
     }
 
@@ -151,7 +151,7 @@ pub fn create_material(
         // TODO: include model name?
         &format!(
             "PerMaterial {:?} shd{:04}",
-            &material.name, material.technique_index
+            material.name, material.technique_index
         ),
         &[crate::shader::model::PerMaterial {
             assignments,

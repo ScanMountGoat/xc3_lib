@@ -473,7 +473,7 @@ fn assignment_image_index(material: &crate::Material, assignment: &Value) -> Opt
 
             // Find the sampler from the material.
             // Find the texture referenced by this sampler.
-            let material_image = material_texture_index(&name).and_then(|sampler_index| {
+            let material_image = material_texture_index(name).and_then(|sampler_index| {
                 material
                     .textures
                     .get(sampler_index)

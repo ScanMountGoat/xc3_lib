@@ -1516,7 +1516,7 @@ fn check_shader_dependencies(root: &ModelRoot, path: &Path) {
                 if has_unsupported_values(&shader.exprs, *v) {
                     println!(
                         "Unsupported operations for {:?}, {k:?}, technique {}, {path:?}",
-                        &m.name, m.technique_index
+                        m.name, m.technique_index
                     );
                 }
             }

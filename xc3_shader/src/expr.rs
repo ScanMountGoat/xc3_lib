@@ -239,7 +239,7 @@ impl std::fmt::Display for Texture {
         write!(
             f,
             "Texture({}, {}){}",
-            &self.name,
+            self.name,
             args.join(", "),
             channels(self.channel)
         )
