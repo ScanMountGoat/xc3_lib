@@ -21,3 +21,4 @@ source: xc3_shader/src/database.rs
 outline_width: U_Mate.gWrkFl4[0].z
 normal_intensity: None
 val_inf_intensity: None
+"o0.xyz": "Monochrome(Mul(vColor.xyz, U_Mate.gMatCol.xyz), U_Mate.gWrkFl4[1].zzz)"

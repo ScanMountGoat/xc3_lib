@@ -21,3 +21,4 @@ source: xc3_shader/src/database.rs
 outline_width: None
 normal_intensity: None
 val_inf_intensity: None
+"o0.xyz": "Mul(vColor.xyz, Texture(s0, vTex0.x, vTex0.y).xyz)"

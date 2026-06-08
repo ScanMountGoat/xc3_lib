@@ -7,7 +7,9 @@ use log::error;
 use rayon::prelude::*;
 use smol_str::SmolStr;
 use xc3_lib::{mths::Mths, spch::Spch};
-use xc3_model::shader_database::{Operation, ProgramHash, ShaderDatabase, ShaderProgram, Value};
+use xc3_model::shader_database::{
+    AssignmentValueXyz, Operation, ProgramHash, ShaderDatabase, ShaderProgram, Value,
+};
 
 use crate::database::xyz::merge_xyz_assignments;
 use crate::expr::{OutputExpr, output_expr};
@@ -539,7 +541,10 @@ pub fn shader_str(s: &ShaderProgram) -> String {
     // Use a condensed representation similar to GLSL for nicer diffs.
     let mut output = String::new();
     for (k, v) in &s.output_dependencies {
-        writeln!(&mut output, "{k:?}: {:?}", expr_str(s, *v)).unwrap();
+        write!(&mut output, "{k:?}: \"").unwrap();
+        write_expr(&mut output, s, *v);
+        output.push('\"');
+        output.push('\n');
     }
     writeln!(
         &mut output,
@@ -552,28 +557,34 @@ pub fn shader_str(s: &ShaderProgram) -> String {
     .unwrap();
     match s.normal_intensity {
         Some(i) => {
-            writeln!(&mut output, "normal_intensity: {:?}", expr_str(s, i)).unwrap();
+            write!(&mut output, "normal_intensity: \"").unwrap();
+            write_expr(&mut output, s, i);
+            output.push('\"');
+            output.push('\n');
         }
         None => writeln!(&mut output, "normal_intensity: None").unwrap(),
     }
     match s.val_inf_intensity {
         Some(i) => {
-            writeln!(&mut output, "val_inf_intensity: {:?}", expr_str(s, i)).unwrap();
+            write!(&mut output, "val_inf_intensity: \"").unwrap();
+            write_expr(&mut output, s, i);
+            output.push('\"');
+            output.push('\n');
         }
         None => writeln!(&mut output, "val_inf_intensity: None").unwrap(),
+    }
+    for (k, v) in &s.output_dependencies_xyz {
+        write!(&mut output, "{k:?}: \"").unwrap();
+        write_expr_xyz(&mut output, s, *v);
+        output.push('\"');
+        output.push('\n');
     }
 
     output
 }
 
-fn expr_str(s: &ShaderProgram, v: usize) -> String {
-    // Substitute all args to produce a single line of condensed output.
-    let mut output = String::new();
-    write_expr(&mut output, s, v);
-    output
-}
-
 fn write_expr(output: &mut String, s: &ShaderProgram, v: usize) {
+    // Substitute all args to produce a single line of condensed output.
     match &s.exprs[v] {
         xc3_model::shader_database::OutputExpr::Value(Value::Texture(t)) => {
             write!(output, "Texture({}, ", t.name,).unwrap();
@@ -605,6 +616,42 @@ fn write_expr(output: &mut String, s: &ShaderProgram, v: usize) {
             write!(output, ")").unwrap();
         }
         xc3_model::shader_database::OutputExpr::Value(v) => write!(output, "{v}").unwrap(),
+    }
+}
+
+fn write_expr_xyz(output: &mut String, s: &ShaderProgram, v: usize) {
+    // Substitute all args to produce a single line of condensed output.
+    match &s.exprs_xyz[v] {
+        xc3_model::shader_database::OutputExprXyz::Value(AssignmentValueXyz::Texture(t)) => {
+            write!(output, "Texture({}, ", t.name,).unwrap();
+            // Don't write a trailing comma.
+            if let Some((last, args)) = t.texcoords.split_last() {
+                for a in args {
+                    write_expr(output, s, *a);
+                    write!(output, ", ").unwrap();
+                }
+                write_expr(output, s, *last);
+            }
+            write!(
+                output,
+                "){}",
+                t.channel.map(|c| format!(".{c}")).unwrap_or_default()
+            )
+            .unwrap();
+        }
+        xc3_model::shader_database::OutputExprXyz::Value(v) => write!(output, "{v}").unwrap(),
+        xc3_model::shader_database::OutputExprXyz::Func { op, args } => {
+            write!(output, "{op}(").unwrap();
+            // Don't write a trailing comma.
+            if let Some((last, args)) = args.split_last() {
+                for a in args {
+                    write_expr_xyz(output, s, *a);
+                    write!(output, ", ").unwrap();
+                }
+                write_expr_xyz(output, s, *last);
+            }
+            write!(output, ")").unwrap();
+        }
     }
 }
 

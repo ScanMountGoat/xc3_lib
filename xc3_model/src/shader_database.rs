@@ -380,6 +380,10 @@ fn channels(c: Option<char>) -> String {
     c.map(|c| format!(".{c}")).unwrap_or_default()
 }
 
+fn channels_xyz(c: Option<ChannelXyz>) -> String {
+    c.map(|c| format!(".{c}")).unwrap_or_default()
+}
+
 /// Assignment information for the channels of each output.
 /// This includes channels from textures, material parameters, or shader constants.
 // TODO: index into scalar or vector exprs for arguments
@@ -522,6 +526,57 @@ pub enum ChannelXyz {
     Y,
     Z,
     W,
+}
+
+impl std::fmt::Display for TextureAssignmentXyz {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let args: Vec<_> = self.texcoords.iter().map(|t| format!("var{t}")).collect();
+        write!(
+            f,
+            "Texture({}, {}){}",
+            &self.name,
+            args.join(", "),
+            channels_xyz(self.channel)
+        )
+    }
+}
+
+impl std::fmt::Display for AssignmentValueXyz {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AssignmentValueXyz::Texture(t) => {
+                let args: Vec<_> = t.texcoords.iter().map(|t| format!("var{t}")).collect();
+                write!(
+                    f,
+                    "Texture({}, {}){}",
+                    t.name,
+                    args.join(", "),
+                    channels_xyz(t.channel)
+                )
+            }
+            AssignmentValueXyz::Attribute { name, channel } => {
+                write!(f, "{}{}", name, channels_xyz(*channel))
+            }
+            AssignmentValueXyz::Parameter {
+                name,
+                field,
+                index,
+                channel,
+            } => write!(
+                f,
+                "{}{}{}{}",
+                &name,
+                if field.is_empty() {
+                    String::new()
+                } else {
+                    format!(".{}", &field)
+                },
+                index.map(|i| format!("[{i}]")).unwrap_or_default(),
+                channels_xyz(*channel)
+            ),
+            AssignmentValueXyz::Float(c) => write!(f, "{c:?}"),
+        }
+    }
 }
 
 impl std::fmt::Display for ChannelXyz {
