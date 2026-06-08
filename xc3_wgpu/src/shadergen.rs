@@ -10,12 +10,12 @@ use xc3_model::{
     IndexMapExt,
     material::{
         Texture,
-        assignments::{
-            AssignmentValueXyz, AssignmentXyz, ChannelXyz, OperationXyz, OutputAssignment,
-            OutputAssignmentXyz, OutputAssignments,
-        },
+        assignments::{OutputAssignment, OutputAssignments},
     },
-    shader_database::{Attribute, Operation, OutputExpr, Parameter, Value},
+    shader_database::{
+        AssignmentValueXyz, Attribute, ChannelXyz, Operation, OperationXyz, OutputExpr,
+        OutputExprXyz, Parameter, Value,
+    },
 };
 
 use crate::{material::ALPHA_TEST_TEXTURE, shader::model::TEXTURE_SAMPLER_COUNT};
@@ -55,17 +55,9 @@ impl ShaderWgsl {
         alpha_test_channel_index: usize,
         name_to_index: &mut IndexMap<SmolStr, usize>,
     ) -> Self {
-        let xyz_assignments: Vec<_> = output_assignments
-            .output_assignments
-            .iter()
-            .map(|a| a.merge_xyz(&output_assignments.exprs))
-            .collect();
+        let assignments = generate_assignments_wgsl(output_assignments, name_to_index);
 
-        let assignments =
-            generate_assignments_wgsl(output_assignments, &xyz_assignments, name_to_index);
-
-        let outputs =
-            generate_outputs_wgsl(&output_assignments.output_assignments, &xyz_assignments);
+        let outputs = generate_outputs_wgsl(&output_assignments.output_assignments);
 
         // Generate empty code if alpha testing is disabled.
         let alpha_test = alpha_test
@@ -273,7 +265,6 @@ fn generate_alpha_test_wgsl(
 
 fn generate_assignments_wgsl(
     assignments: &OutputAssignments,
-    xyz_assignments: &[Option<OutputAssignmentXyz>],
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> String {
     let mut wgsl = String::new();
@@ -289,44 +280,31 @@ fn generate_assignments_wgsl(
     }
 
     // TODO: Share xyz assignments with all channels?
-    for (i, assignment) in xyz_assignments.iter().enumerate() {
-        if let Some(assignment) = assignment {
-            for (j, value) in assignment.exprs.iter().enumerate() {
-                write!(wgsl, "let {VAR_PREFIX_XYZ}_{i}_{j} = ").unwrap();
-                if write_assignment_xyz(&mut wgsl, value, i, name_to_index).is_none() {
-                    write!(&mut wgsl, "vec3(0.0)").unwrap();
-                }
-                writeln!(wgsl, ";").unwrap();
-            }
+    for (i, value) in assignments.exprs_xyz.iter().enumerate() {
+        write!(wgsl, "let {VAR_PREFIX_XYZ}{i} = ").unwrap();
+        if write_assignment_xyz(&mut wgsl, value, name_to_index).is_none() {
+            write!(&mut wgsl, "vec3(0.0)").unwrap();
         }
+        writeln!(wgsl, ";").unwrap();
     }
 
     wgsl
 }
 
-fn generate_outputs_wgsl(
-    assignments: &[OutputAssignment],
-    xyz_assignments: &[Option<OutputAssignmentXyz>],
-) -> Vec<String> {
+fn generate_outputs_wgsl(assignments: &[OutputAssignment]) -> Vec<String> {
     // Don't generate code for velocity or depth.
     assignments
         .iter()
-        .zip(xyz_assignments)
         .enumerate()
         .filter(|(i, _)| *i != 3 && *i != 4)
-        .map(|(i, (assignment, xyz_assignment))| {
+        .map(|(_, assignment)| {
             let mut wgsl = String::new();
 
             // Write any final assignments.
-            if let Some(xyz) = xyz_assignment {
+            if let Some(xyz) = assignment.xyz {
                 for c in "xyz".chars() {
                     // TODO: Share xyz assignments with all channels?
-                    writeln!(
-                        &mut wgsl,
-                        "{OUT_VAR}.{c} = {VAR_PREFIX_XYZ}_{i}_{}.{c};",
-                        xyz.expr
-                    )
-                    .unwrap();
+                    writeln!(&mut wgsl, "{OUT_VAR}.{c} = {VAR_PREFIX_XYZ}{xyz}.{c};").unwrap();
                 }
             } else {
                 if let Some(x) = assignment.x {
@@ -514,30 +492,22 @@ fn write_channel(wgsl: &mut String, c: Option<char>) {
 
 fn write_assignment_xyz(
     wgsl: &mut String,
-    value: &AssignmentXyz,
-    output_index: usize,
+    value: &OutputExprXyz,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> Option<()> {
     match value {
-        AssignmentXyz::Func { op, args } => write_func_xyz(wgsl, op, args, output_index),
-        AssignmentXyz::Value(v) => v
-            .as_ref()
-            .and_then(|v| write_assignment_value_xyz(wgsl, v, name_to_index)),
+        OutputExprXyz::Func { op, args } => write_func_xyz(wgsl, op, args),
+        OutputExprXyz::Value(v) => write_assignment_value_xyz(wgsl, v, name_to_index),
     }
 }
 
-fn write_func_xyz(
-    wgsl: &mut String,
-    op: &OperationXyz,
-    args: &[usize],
-    output_index: usize,
-) -> Option<()> {
+fn write_func_xyz(wgsl: &mut String, op: &OperationXyz, args: &[usize]) -> Option<()> {
     let arg0 = args.first();
     let arg1 = args.get(1);
     let arg2 = args.get(2);
 
     // TODO: Will these operations all work with xyz inputs?
-    let a = format_args!("{VAR_PREFIX_XYZ}_{output_index}_");
+    let a = VAR_PREFIX_XYZ;
     match op {
         OperationXyz::Unk => return None,
         OperationXyz::Mix => write!(wgsl, "mix({a}{}, {a}{}, {a}{})", arg0?, arg1?, arg2?).unwrap(),

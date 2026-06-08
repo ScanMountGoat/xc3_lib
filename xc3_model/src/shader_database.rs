@@ -118,6 +118,14 @@ pub struct ShaderProgram {
 
     /// Unique exprs used for this program.
     pub exprs: Vec<OutputExpr>,
+
+    /// Indices into [exprs_xyz](#structfield.exprs_xyz) for values assigned to the XYZ channels of a fragment output.
+    ///
+    /// This only contains values if the XYZ channels can be successfully merged.
+    pub output_dependencies_xyz: IndexMap<SmolStr, usize>,
+
+    /// Unique merged XYZ exprs used for this program.
+    pub exprs_xyz: Vec<OutputExprXyz>,
 }
 
 /// A single access to a constant or global resource like a texture.
@@ -370,6 +378,162 @@ impl std::fmt::Display for Value {
 
 fn channels(c: Option<char>) -> String {
     c.map(|c| format!(".{c}")).unwrap_or_default()
+}
+
+/// Assignment information for the channels of each output.
+/// This includes channels from textures, material parameters, or shader constants.
+// TODO: index into scalar or vector exprs for arguments
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum OutputExprXyz {
+    Value(AssignmentValueXyz),
+    Func {
+        op: OperationXyz,
+        /// Index into XYZ [exprs](struct.OutputAssignmentXyz.html#structfield.exprs)
+        /// for the function argument list `[arg0, arg1, ...]`.
+        args: Vec<usize>,
+    },
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Display, FromRepr, Default)]
+pub enum OperationXyz {
+    /// An unsupported operation or function call.
+    #[default]
+    Unk,
+    /// `mix(arg0.xyz, arg1.xyz, arg2.xyz)`
+    Mix,
+    /// `arg0.xyz * arg1.xyz`
+    Mul,
+    /// `arg0.xyz / arg1.xyz`
+    Div,
+    /// `arg0.xyz + arg1.xyz`
+    Add,
+    /// `arg0.xyz - arg1.xyz`
+    Sub,
+    /// `fma(arg0.xyz, arg1.xyz, arg2.xyz)` or `arg0.xyz * arg1.xyz + arg2.xyz`
+    Fma,
+    /// `mix(arg0.xyz, arg0.xyz * arg1.xyz, arg2.xyz)`
+    MulRatio,
+    /// `overlay(arg0.xyz, arg1.xyz)`.
+    Overlay,
+    /// `overlay2(arg0.xyz, arg1.xyz)`.
+    Overlay2,
+    /// `mix(arg0.xyz, overlay(arg0.xyz, arg1.xyz), arg2.xyz)`.
+    OverlayRatio,
+    /// `pow(arg0.xyz, arg1.xyz)`
+    Power,
+    /// `min(arg0.xyz, arg1.xyz)`
+    Min,
+    /// `max(arg0.xyz, arg1.xyz)`
+    Max,
+    /// `clamp(arg0.xyz, arg1.xyz, arg2.xyz)`
+    Clamp,
+    /// `abs(arg0.xyz)`
+    Abs,
+    /// `pow(vec3(1.0 - n_dot_v), arg0.xyz * 5.0)`
+    Fresnel,
+    /// `sqrt(arg0.xyz)`
+    Sqrt,
+    /// `reflect(arg0.xyz, arg1.xyz)`
+    Reflect,
+    /// `floor(arg0.xyz)`
+    Floor,
+    /// `if arg0.xyz { arg1.xyz } else { arg2.xyz }` or `mix(arg2.xyz, arg1.xyz, arg0.xyz)`
+    Select,
+    /// `arg0.xyz == arg1.xyz`
+    Equal,
+    /// `arg0.xyz != arg1.xyz`
+    NotEqual,
+    /// `arg0.xyz < arg1.xyz`
+    Less,
+    /// `arg0.xyz > arg1.xyz`
+    Greater,
+    /// `arg0.xyz <= arg1.xyz`
+    LessEqual,
+    /// `arg0.xyz >= arg1.xyz`
+    GreaterEqual,
+    /// `monochrome(arg0.x, arg0.y, arg0.z, arg1.x)`
+    Monochrome,
+    /// `-arg0.xyz`
+    Negate,
+    /// `float(arg0.xyz)`
+    Float,
+    /// `int(arg0.xyz)`
+    Int,
+    /// `uint(arg0.xyz)`
+    Uint,
+    /// `trunc(arg0.xyz)`
+    Truncate,
+    /// `floatBitsToInt(arg0.xyz)`
+    FloatBitsToInt,
+    /// `intBitsToFloat(arg0.xyz)`
+    IntBitsToFloat,
+    /// `uintBitsToFloat(arg0.xyz)`
+    UintBitsToFloat,
+    /// `inversesqrt(arg0.xyz)`
+    InverseSqrt,
+    /// `!arg0.xyz`
+    Not,
+    /// `arg0.xyz << arg1.xyz`
+    LeftShift,
+    /// `arg0.xyz >> arg1.xyz`
+    RightShift,
+    /// `exp2(arg0.xyz)`
+    Exp2,
+    /// `log2(arg0.xyz)`
+    Log2,
+    /// `sin(arg0.xyz)`
+    Sin,
+    /// `cos(arg0.xyz)`
+    Cos,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum AssignmentValueXyz {
+    Texture(TextureAssignmentXyz),
+    Attribute {
+        name: SmolStr,
+        channel: Option<ChannelXyz>,
+    },
+    Parameter {
+        name: SmolStr,
+        field: SmolStr,
+        index: Option<usize>,
+        channel: Option<ChannelXyz>,
+    },
+    Float([OrderedFloat<f32>; 3]),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TextureAssignmentXyz {
+    /// The name of the texture like `s0` or `gTResidentTex09`.
+    pub name: SmolStr,
+    pub channel: Option<ChannelXyz>,
+    /// Indices into scalar [assigmments](struct.OutputAssignments.html#structfield.assignments)
+    /// for the texture coordinates.
+    pub texcoords: Vec<usize>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ChannelXyz {
+    Xyz,
+    X,
+    Y,
+    Z,
+    W,
+}
+
+impl std::fmt::Display for ChannelXyz {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ChannelXyz::Xyz => write!(f, "xyz"),
+            ChannelXyz::X => write!(f, "xxx"),
+            ChannelXyz::Y => write!(f, "yyy"),
+            ChannelXyz::Z => write!(f, "zzz"),
+            ChannelXyz::W => write!(f, "www"),
+        }
+    }
 }
 
 #[cfg(feature = "arbitrary")]

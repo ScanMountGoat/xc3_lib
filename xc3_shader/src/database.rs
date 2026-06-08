@@ -5,9 +5,11 @@ use std::{collections::BTreeMap, sync::LazyLock};
 use indoc::indoc;
 use log::error;
 use rayon::prelude::*;
+use smol_str::SmolStr;
 use xc3_lib::{mths::Mths, spch::Spch};
 use xc3_model::shader_database::{Operation, ProgramHash, ShaderDatabase, ShaderProgram, Value};
 
+use crate::database::xyz::merge_xyz_assignments;
 use crate::expr::{OutputExpr, output_expr};
 use crate::graph::UnaryOp;
 use crate::graph::glsl::{GlslGraph, merge_vertex_fragment};
@@ -23,6 +25,7 @@ use crate::{
 };
 
 mod query;
+mod xyz;
 use query::*;
 
 // Faster than the default hash implementation.
@@ -117,22 +120,48 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
         }
     }
 
+    let exprs: Vec<_> = exprs
+        .into_iter()
+        .map(|e| match e {
+            OutputExpr::Value(value) => xc3_model::shader_database::OutputExpr::Value(value.into()),
+            OutputExpr::Func { op, args } => {
+                xc3_model::shader_database::OutputExpr::Func { op, args }
+            }
+        })
+        .collect();
+
+    // Merge XYZ channels during database creation to simplify consuming code.
+    let mut output_dependencies_xyz = IndexMap::default();
+    let mut assignments_xyz_index = IndexMap::default();
+    let mut assignments_xyz = IndexSet::default();
+
+    for i in frag_attributes.output_locations.right_values().copied() {
+        if let (Some(x), Some(y), Some(z)) = (
+            output_dependencies.get(&SmolStr::from(&format!("o{i}.x"))),
+            output_dependencies.get(&SmolStr::from(&format!("o{i}.y"))),
+            output_dependencies.get(&SmolStr::from(&format!("o{i}.z"))),
+        ) {
+            if let Some(xyz) = merge_xyz_assignments(
+                *x,
+                *y,
+                *z,
+                &exprs,
+                &mut assignments_xyz_index,
+                &mut assignments_xyz,
+            ) {
+                output_dependencies_xyz.insert(format!("o{i}.xyz").into(), xyz);
+            }
+        }
+    }
+
     ShaderProgram {
         output_dependencies,
         outline_width: outline_width.map(Into::into),
         normal_intensity,
         val_inf_intensity,
-        exprs: exprs
-            .into_iter()
-            .map(|e| match e {
-                OutputExpr::Value(value) => {
-                    xc3_model::shader_database::OutputExpr::Value(value.into())
-                }
-                OutputExpr::Func { op, args } => {
-                    xc3_model::shader_database::OutputExpr::Func { op, args }
-                }
-            })
-            .collect(),
+        exprs,
+        output_dependencies_xyz,
+        exprs_xyz: assignments_xyz.into_iter().collect(),
     }
 }
 
