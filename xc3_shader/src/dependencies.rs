@@ -95,34 +95,3 @@ pub fn parameter(graph: &Graph, e: &Expr) -> Option<crate::expr::Parameter> {
         None
     }
 }
-
-#[cfg(feature = "xc3")]
-impl From<crate::expr::Value> for xc3_model::shader_database::Value {
-    fn from(value: crate::expr::Value) -> Self {
-        match value {
-            crate::expr::Value::Int(i) => Self::Int(i),
-            crate::expr::Value::Float(f) => Self::Float(f),
-            crate::expr::Value::Parameter(parameter) => {
-                Self::Parameter(xc3_model::shader_database::Parameter {
-                    name: parameter.name,
-                    field: parameter.field,
-                    index: parameter.index,
-                    channel: parameter.channel,
-                })
-            }
-            crate::expr::Value::Texture(texture) => {
-                Self::Texture(xc3_model::shader_database::Texture {
-                    name: texture.name,
-                    channel: texture.channel,
-                    texcoords: texture.texcoords,
-                })
-            }
-            crate::expr::Value::Attribute(attribute) => {
-                Self::Attribute(xc3_model::shader_database::Attribute {
-                    name: attribute.name,
-                    channel: attribute.channel,
-                })
-            }
-        }
-    }
-}

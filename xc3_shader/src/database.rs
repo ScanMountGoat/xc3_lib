@@ -148,7 +148,9 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
     let exprs: Vec<_> = exprs
         .into_iter()
         .map(|e| match e {
-            OutputExpr::Value(value) => xc3_model::shader_database::OutputExpr::Value(value.into()),
+            OutputExpr::Value(value) => {
+                xc3_model::shader_database::OutputExpr::Value(xc3_value(value))
+            }
             OutputExpr::Func { op, args } => {
                 xc3_model::shader_database::OutputExpr::Func { op, args }
             }
@@ -159,7 +161,7 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
         .into_iter()
         .map(|e| match e {
             crate::expr::xyz::OutputExprXyz::Value(value) => {
-                xc3_model::shader_database::OutputExprXyz::Value(value.into())
+                xc3_model::shader_database::OutputExprXyz::Value(xc3_value_xyz(value))
             }
             crate::expr::xyz::OutputExprXyz::Func { op, args } => {
                 xc3_model::shader_database::OutputExprXyz::Func { op, args }
@@ -169,7 +171,7 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
 
     ShaderProgram {
         output_dependencies,
-        outline_width: outline_width.map(Into::into),
+        outline_width: outline_width.map(xc3_value),
         normal_intensity,
         val_inf_intensity,
         exprs,
@@ -703,6 +705,78 @@ pub fn shader_graphviz(shader: &ShaderProgram) -> String {
     }
     writeln!(&mut text, "}}").unwrap();
     text
+}
+
+fn xc3_value(value: crate::expr::Value) -> xc3_model::shader_database::Value {
+    match value {
+        crate::expr::Value::Int(i) => xc3_model::shader_database::Value::Int(i),
+        crate::expr::Value::Float(f) => xc3_model::shader_database::Value::Float(f),
+        crate::expr::Value::Parameter(parameter) => {
+            xc3_model::shader_database::Value::Parameter(xc3_model::shader_database::Parameter {
+                name: parameter.name,
+                field: parameter.field,
+                index: parameter.index,
+                channel: parameter.channel,
+            })
+        }
+        crate::expr::Value::Texture(texture) => {
+            xc3_model::shader_database::Value::Texture(xc3_model::shader_database::Texture {
+                name: texture.name,
+                channel: texture.channel,
+                texcoords: texture.texcoords,
+            })
+        }
+        crate::expr::Value::Attribute(attribute) => {
+            xc3_model::shader_database::Value::Attribute(xc3_model::shader_database::Attribute {
+                name: attribute.name,
+                channel: attribute.channel,
+            })
+        }
+    }
+}
+
+fn xc3_value_xyz(value: crate::expr::xyz::ValueXyz) -> xc3_model::shader_database::ValueXyz {
+    match value {
+        crate::expr::xyz::ValueXyz::Texture {
+            name,
+            channel,
+            texcoords,
+        } => {
+            xc3_model::shader_database::ValueXyz::Texture(xc3_model::shader_database::TextureXyz {
+                name,
+                channel: channel.map(xc3_channel_xyz),
+                texcoords,
+            })
+        }
+        crate::expr::xyz::ValueXyz::Attribute { name, channel } => {
+            xc3_model::shader_database::ValueXyz::Attribute {
+                name,
+                channel: channel.map(xc3_channel_xyz),
+            }
+        }
+        crate::expr::xyz::ValueXyz::Parameter {
+            name,
+            field,
+            index,
+            channel,
+        } => xc3_model::shader_database::ValueXyz::Parameter {
+            name,
+            field,
+            index,
+            channel: channel.map(xc3_channel_xyz),
+        },
+        crate::expr::xyz::ValueXyz::Float(f) => xc3_model::shader_database::ValueXyz::Float(f),
+    }
+}
+
+fn xc3_channel_xyz(value: crate::expr::xyz::ChannelXyz) -> xc3_model::shader_database::ChannelXyz {
+    match value {
+        crate::expr::xyz::ChannelXyz::Xyz => xc3_model::shader_database::ChannelXyz::Xyz,
+        crate::expr::xyz::ChannelXyz::X => xc3_model::shader_database::ChannelXyz::X,
+        crate::expr::xyz::ChannelXyz::Y => xc3_model::shader_database::ChannelXyz::Y,
+        crate::expr::xyz::ChannelXyz::Z => xc3_model::shader_database::ChannelXyz::Z,
+        crate::expr::xyz::ChannelXyz::W => xc3_model::shader_database::ChannelXyz::W,
+    }
 }
 
 #[cfg(test)]
