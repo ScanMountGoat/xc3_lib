@@ -390,10 +390,10 @@ fn channels_xyz(c: Option<ChannelXyz>) -> String {
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum OutputExprXyz {
-    Value(AssignmentValueXyz),
+    Value(ValueXyz),
     Func {
         op: OperationXyz,
-        /// Index into XYZ [exprs](struct.OutputAssignmentXyz.html#structfield.exprs)
+        /// Index into XYZ [exprs_xyz](struct.ShaderProgram.html#structfield.exprs_xyz)
         /// for the function argument list `[arg0, arg1, ...]`.
         args: Vec<usize>,
     },
@@ -494,8 +494,8 @@ pub enum OperationXyz {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum AssignmentValueXyz {
-    Texture(TextureAssignmentXyz),
+pub enum ValueXyz {
+    Texture(TextureXyz),
     Attribute {
         name: SmolStr,
         channel: Option<ChannelXyz>,
@@ -510,7 +510,7 @@ pub enum AssignmentValueXyz {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TextureAssignmentXyz {
+pub struct TextureXyz {
     /// The name of the texture like `s0` or `gTResidentTex09`.
     pub name: SmolStr,
     pub channel: Option<ChannelXyz>,
@@ -528,7 +528,7 @@ pub enum ChannelXyz {
     W,
 }
 
-impl std::fmt::Display for TextureAssignmentXyz {
+impl std::fmt::Display for TextureXyz {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let args: Vec<_> = self.texcoords.iter().map(|t| format!("var{t}")).collect();
         write!(
@@ -541,10 +541,10 @@ impl std::fmt::Display for TextureAssignmentXyz {
     }
 }
 
-impl std::fmt::Display for AssignmentValueXyz {
+impl std::fmt::Display for ValueXyz {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AssignmentValueXyz::Texture(t) => {
+            ValueXyz::Texture(t) => {
                 let args: Vec<_> = t.texcoords.iter().map(|t| format!("var{t}")).collect();
                 write!(
                     f,
@@ -554,10 +554,10 @@ impl std::fmt::Display for AssignmentValueXyz {
                     channels_xyz(t.channel)
                 )
             }
-            AssignmentValueXyz::Attribute { name, channel } => {
+            ValueXyz::Attribute { name, channel } => {
                 write!(f, "{}{}", name, channels_xyz(*channel))
             }
-            AssignmentValueXyz::Parameter {
+            ValueXyz::Parameter {
                 name,
                 field,
                 index,
@@ -574,7 +574,7 @@ impl std::fmt::Display for AssignmentValueXyz {
                 index.map(|i| format!("[{i}]")).unwrap_or_default(),
                 channels_xyz(*channel)
             ),
-            AssignmentValueXyz::Float(c) => write!(f, "{c:?}"),
+            ValueXyz::Float(c) => write!(f, "{c:?}"),
         }
     }
 }

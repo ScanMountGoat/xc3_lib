@@ -360,7 +360,7 @@ pub struct MorphTargetFlags {
 }
 
 /// Information used for precomputing skinning matrices
-/// based on a mesh's level of detail (LOD) and [RenderPassType](crate::mxmd::RenderPassType).
+/// based on a mesh's level of detail (LOD) and [MeshRenderPass](crate::mxmd::MeshRenderPass).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
@@ -420,7 +420,7 @@ pub struct WeightGroup {
 // TODO: The material's pass index indexes into this?
 // TODO: Figure out by finding files with no more groups than pass ids?
 // TODO: Is this actually the pass from mesh.flags2?
-/// References to [WeightGroup] for each of the [RenderPassType](crate::mxmd::RenderPassType).
+/// References to [WeightGroup] for each of the [MeshRenderPass](crate::mxmd::MeshRenderPass).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone, BinRead, Xc3Write, Xc3WriteOffsets)]
 pub struct WeightLod {
@@ -428,7 +428,7 @@ pub struct WeightLod {
     /// Unused entries use the value `0`.
     ///
     /// Each [MeshV112](crate::mxmd::MeshV112) indexes into this list using a hardcoded remapping
-    /// for the [RenderPassType](crate::mxmd::RenderPassType) of the assigned material.
+    /// for the [MeshRenderPass](crate::mxmd::MeshRenderPass) of the assigned material.
     // TODO: Document each entry.
     pub group_indices_plus_one: [u16; 9],
 }

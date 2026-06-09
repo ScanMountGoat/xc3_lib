@@ -13,8 +13,8 @@ use xc3_model::{
         assignments::{OutputAssignment, OutputAssignments},
     },
     shader_database::{
-        AssignmentValueXyz, Attribute, ChannelXyz, Operation, OperationXyz, OutputExpr,
-        OutputExprXyz, Parameter, Value,
+        Attribute, ChannelXyz, Operation, OperationXyz, OutputExpr, OutputExprXyz, Parameter,
+        Value, ValueXyz,
     },
 };
 
@@ -112,14 +112,14 @@ impl ShaderWgsl {
     }
 }
 
-fn write_assignment(
+fn write_expr(
     wgsl: &mut String,
     value: &OutputExpr,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> Option<()> {
     match value {
         OutputExpr::Func { op, args } => write_func(wgsl, op, args),
-        OutputExpr::Value(v) => write_assignment_value(wgsl, v, name_to_index),
+        OutputExpr::Value(v) => write_value(wgsl, v, name_to_index),
     }
 }
 
@@ -273,7 +273,7 @@ fn generate_assignments_wgsl(
     // Assume that values appear after values they depend on.
     for (i, value) in assignments.exprs.iter().enumerate() {
         write!(wgsl, "let {VAR_PREFIX}{i} = ").unwrap();
-        if write_assignment(&mut wgsl, value, name_to_index).is_none() {
+        if write_expr(&mut wgsl, value, name_to_index).is_none() {
             write!(&mut wgsl, "0.0").unwrap();
         }
         writeln!(wgsl, ";").unwrap();
@@ -282,7 +282,7 @@ fn generate_assignments_wgsl(
     // TODO: Share xyz assignments with all channels?
     for (i, value) in assignments.exprs_xyz.iter().enumerate() {
         write!(wgsl, "let {VAR_PREFIX_XYZ}{i} = ").unwrap();
-        if write_assignment_xyz(&mut wgsl, value, name_to_index).is_none() {
+        if write_expr_xyz(&mut wgsl, value, name_to_index).is_none() {
             write!(&mut wgsl, "vec3(0.0)").unwrap();
         }
         writeln!(wgsl, ";").unwrap();
@@ -331,7 +331,7 @@ fn generate_normal_intensity_wgsl(intensity: usize) -> String {
     format!("{OUT_VAR} = {VAR_PREFIX}{intensity};")
 }
 
-fn write_assignment_value(
+fn write_value(
     wgsl: &mut String,
     value: &Value,
     name_to_index: &mut IndexMap<SmolStr, usize>,
@@ -490,14 +490,14 @@ fn write_channel(wgsl: &mut String, c: Option<char>) {
     }
 }
 
-fn write_assignment_xyz(
+fn write_expr_xyz(
     wgsl: &mut String,
     value: &OutputExprXyz,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> Option<()> {
     match value {
         OutputExprXyz::Func { op, args } => write_func_xyz(wgsl, op, args),
-        OutputExprXyz::Value(v) => write_assignment_value_xyz(wgsl, v, name_to_index),
+        OutputExprXyz::Value(v) => write_value_xyz(wgsl, v, name_to_index),
     }
 }
 
@@ -583,13 +583,13 @@ fn write_func_xyz(wgsl: &mut String, op: &OperationXyz, args: &[usize]) -> Optio
     Some(())
 }
 
-fn write_assignment_value_xyz(
+fn write_value_xyz(
     wgsl: &mut String,
-    value: &AssignmentValueXyz,
+    value: &ValueXyz,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> Option<()> {
     match value {
-        AssignmentValueXyz::Texture(t) => {
+        ValueXyz::Texture(t) => {
             let i = name_to_index.entry_index(t.name.clone());
 
             if i < TEXTURE_SAMPLER_COUNT as usize {
@@ -608,7 +608,7 @@ fn write_assignment_value_xyz(
                 None
             }
         }
-        AssignmentValueXyz::Attribute { name, channel } => {
+        ValueXyz::Attribute { name, channel } => {
             // TODO: Support more attributes.
             let c = channel_xyz_wgsl(*channel);
             match name.as_str() {
@@ -634,7 +634,7 @@ fn write_assignment_value_xyz(
             }
             Some(())
         }
-        AssignmentValueXyz::Parameter {
+        ValueXyz::Parameter {
             name,
             field,
             index,
@@ -660,7 +660,7 @@ fn write_assignment_value_xyz(
                 }
             }
         }
-        AssignmentValueXyz::Float(f) => {
+        ValueXyz::Float(f) => {
             if f.iter().all(|f| f.is_finite()) {
                 write!(wgsl, "vec3({:?}, {:?}, {:?})", f[0], f[1], f[2]).unwrap();
                 Some(())

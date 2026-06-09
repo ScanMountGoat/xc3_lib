@@ -1,12 +1,14 @@
+use crate::expr::{Attribute, Parameter, Value};
 use smol_str::SmolStr;
 use xc3_model::shader_database::{
-    AssignmentValueXyz, Attribute, ChannelXyz, Operation, OperationXyz, OutputExpr, OutputExprXyz,
-    Parameter, TextureAssignmentXyz, Value,
+    ChannelXyz, Operation, OperationXyz, OutputExprXyz, TextureXyz, ValueXyz,
 };
 
 // Faster than the default hash implementation.
 type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
 type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
+
+type OutputExpr = crate::expr::OutputExpr<Operation>;
 
 pub fn merge_xyz_assignments(
     x: usize,
@@ -60,12 +62,12 @@ pub fn merge_xyz_assignments(
                     match (vx, vy, vz) {
                         (Value::Texture(tx), Value::Texture(ty), Value::Texture(tz)) => {
                             if tx.texcoords == ty.texcoords && ty.texcoords == tz.texcoords {
-                                let t_xyz = TextureAssignmentXyz {
+                                let t_xyz = TextureXyz {
                                     name: name_xyz(&tx.name, &ty.name, &tz.name)?,
                                     channel: channel_xyz(tx.channel, ty.channel, tz.channel)?,
                                     texcoords: tx.texcoords.clone(), // TODO: These should refer to the scalar assignments?
                                 };
-                                Some(OutputExprXyz::Value(AssignmentValueXyz::Texture(t_xyz)))
+                                Some(OutputExprXyz::Value(ValueXyz::Texture(t_xyz)))
                             } else {
                                 None
                             }
@@ -83,7 +85,7 @@ pub fn merge_xyz_assignments(
                                 name: n_z,
                                 channel: c_z,
                             }),
-                        ) => Some(OutputExprXyz::Value(AssignmentValueXyz::Attribute {
+                        ) => Some(OutputExprXyz::Value(ValueXyz::Attribute {
                             name: name_xyz(n_x, n_y, n_z)?,
                             channel: channel_xyz(*c_x, *c_y, *c_z)?,
                         })),
@@ -106,16 +108,14 @@ pub fn merge_xyz_assignments(
                                 index: i_z,
                                 channel: c_z,
                             }),
-                        ) => Some(OutputExprXyz::Value(AssignmentValueXyz::Parameter {
+                        ) => Some(OutputExprXyz::Value(ValueXyz::Parameter {
                             name: name_xyz(n_x, n_y, n_z)?,
                             field: name_xyz(f_x, f_y, f_z)?,
                             index: index_xyz(*i_x, *i_y, *i_z)?,
                             channel: channel_xyz(*c_x, *c_y, *c_z)?,
                         })),
                         (Value::Float(fx), Value::Float(fy), Value::Float(fz)) => {
-                            Some(OutputExprXyz::Value(AssignmentValueXyz::Float([
-                                *fx, *fy, *fz,
-                            ])))
+                            Some(OutputExprXyz::Value(ValueXyz::Float([*fx, *fy, *fz])))
                         }
                         _ => None,
                     }
@@ -301,7 +301,7 @@ fn channel_xyz(x: Option<char>, y: Option<char>, z: Option<char>) -> Option<Opti
 mod tests {
     use super::*;
 
-    use xc3_model::shader_database::Texture;
+    use crate::expr::Texture;
 
     fn merge_xyz(
         x: usize,
@@ -363,13 +363,11 @@ mod tests {
         assert_eq!(
             Some((
                 0,
-                vec![OutputExprXyz::Value(AssignmentValueXyz::Texture(
-                    TextureAssignmentXyz {
-                        name: "s0".into(),
-                        channel: Some(ChannelXyz::W),
-                        texcoords: vec![0, 0]
-                    }
-                ))]
+                vec![OutputExprXyz::Value(ValueXyz::Texture(TextureXyz {
+                    name: "s0".into(),
+                    channel: Some(ChannelXyz::W),
+                    texcoords: vec![0, 0]
+                }))]
             )),
             merge_xyz(1, 1, 1, &assignments)
         );
@@ -426,17 +424,13 @@ mod tests {
             Some((
                 3,
                 vec![
-                    OutputExprXyz::Value(AssignmentValueXyz::Texture(TextureAssignmentXyz {
+                    OutputExprXyz::Value(ValueXyz::Texture(TextureXyz {
                         name: "s0".into(),
                         channel: Some(ChannelXyz::Xyz),
                         texcoords: vec![0, 0]
                     })),
-                    OutputExprXyz::Value(AssignmentValueXyz::Float([
-                        1.0.into(),
-                        2.0.into(),
-                        3.0.into()
-                    ])),
-                    OutputExprXyz::Value(AssignmentValueXyz::Attribute {
+                    OutputExprXyz::Value(ValueXyz::Float([1.0.into(), 2.0.into(), 3.0.into()])),
+                    OutputExprXyz::Value(ValueXyz::Attribute {
                         name: "vColor".into(),
                         channel: Some(ChannelXyz::Xyz)
                     }),

@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use smol_str::SmolStr;
 use xc3_lib::{mths::Mths, spch::Spch};
 use xc3_model::shader_database::{
-    AssignmentValueXyz, Operation, ProgramHash, ShaderDatabase, ShaderProgram, Value,
+    Operation, ProgramHash, ShaderDatabase, ShaderProgram, Value, ValueXyz,
 };
 
 use crate::database::xyz::merge_xyz_assignments;
@@ -122,15 +122,7 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
         }
     }
 
-    let exprs: Vec<_> = exprs
-        .into_iter()
-        .map(|e| match e {
-            OutputExpr::Value(value) => xc3_model::shader_database::OutputExpr::Value(value.into()),
-            OutputExpr::Func { op, args } => {
-                xc3_model::shader_database::OutputExpr::Func { op, args }
-            }
-        })
-        .collect();
+    let exprs: Vec<_> = exprs.into_iter().collect();
 
     // Merge XYZ channels during database creation to simplify consuming code.
     let mut output_dependencies_xyz = IndexMap::default();
@@ -153,6 +145,16 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
             output_dependencies_xyz.insert(format!("o{i}.xyz").into(), xyz);
         }
     }
+
+    let exprs: Vec<_> = exprs
+        .into_iter()
+        .map(|e| match e {
+            OutputExpr::Value(value) => xc3_model::shader_database::OutputExpr::Value(value.into()),
+            OutputExpr::Func { op, args } => {
+                xc3_model::shader_database::OutputExpr::Func { op, args }
+            }
+        })
+        .collect();
 
     ShaderProgram {
         output_dependencies,
@@ -620,7 +622,7 @@ fn write_expr(output: &mut String, s: &ShaderProgram, v: usize) {
 fn write_expr_xyz(output: &mut String, s: &ShaderProgram, v: usize) {
     // Substitute all args to produce a single line of condensed output.
     match &s.exprs_xyz[v] {
-        xc3_model::shader_database::OutputExprXyz::Value(AssignmentValueXyz::Texture(t)) => {
+        xc3_model::shader_database::OutputExprXyz::Value(ValueXyz::Texture(t)) => {
             write!(output, "Texture({}, ", t.name,).unwrap();
             // Don't write a trailing comma.
             if let Some((last, args)) = t.texcoords.split_last() {
