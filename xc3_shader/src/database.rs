@@ -11,8 +11,7 @@ use xc3_model::shader_database::{
     Operation, ProgramHash, ShaderDatabase, ShaderProgram, Value, ValueXyz,
 };
 
-use crate::database::xyz::merge_xyz_assignments;
-use crate::expr::{OutputExpr, output_expr};
+use crate::expr::{OutputExpr, output_expr, xyz::merge_xyz_assignments};
 use crate::graph::UnaryOp;
 use crate::graph::glsl::{GlslGraph, merge_vertex_fragment};
 use crate::graph::query::fma_normalize;
@@ -156,6 +155,18 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
         })
         .collect();
 
+    let exprs_xyz: Vec<_> = assignments_xyz
+        .into_iter()
+        .map(|e| match e {
+            crate::expr::xyz::OutputExprXyz::Value(value) => {
+                xc3_model::shader_database::OutputExprXyz::Value(value.into())
+            }
+            crate::expr::xyz::OutputExprXyz::Func { op, args } => {
+                xc3_model::shader_database::OutputExprXyz::Func { op, args }
+            }
+        })
+        .collect();
+
     ShaderProgram {
         output_dependencies,
         outline_width: outline_width.map(Into::into),
@@ -163,7 +174,7 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
         val_inf_intensity,
         exprs,
         output_dependencies_xyz,
-        exprs_xyz: assignments_xyz.into_iter().collect(),
+        exprs_xyz,
     }
 }
 

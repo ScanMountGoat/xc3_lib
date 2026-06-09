@@ -8,15 +8,11 @@ use crate::{
     graph::{Expr, Graph, UnaryOp},
 };
 
+pub mod xyz;
+
 // Faster than the default hash implementation.
 type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
 type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
-
-// TODO: Use this for all outputs?
-pub struct ProgramOutputs<Op> {
-    pub outputs: Vec<usize>,
-    pub exprs: Vec<OutputExpr<Op>>,
-}
 
 /// An expression tree with [Value] for the leaf nodes.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -28,7 +24,7 @@ pub enum OutputExpr<Op> {
     Func {
         /// The operation this function performs.
         op: Op,
-        /// Indices into [exprs](struct.ProgramOutputs.html#structfield.exprs) for the function argument list `[arg0, arg1, ...]`.
+        /// Indices for the [OutputExpr] for the function argument list `[arg0, arg1, ...]`.
         args: Vec<usize>,
     },
 }
