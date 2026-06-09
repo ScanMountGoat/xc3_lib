@@ -239,3 +239,76 @@ fn channel_xyz(x: Option<char>, y: Option<char>, z: Option<char>) -> Option<Opti
         _ => None,
     }
 }
+
+impl<Op> std::fmt::Display for OutputExprXyz<Op>
+where
+    Op: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OutputExprXyz::Value(d) => write!(f, "{d}"),
+            OutputExprXyz::Func { op, args } => {
+                let args: Vec<_> = args.iter().map(|a| format!("var{a}")).collect();
+                write!(f, "{op}({})", args.join(", "))
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for ValueXyz {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ValueXyz::Texture {
+                name,
+                channel,
+                texcoords,
+            } => {
+                let args: Vec<_> = texcoords.iter().map(|t| format!("var{t}")).collect();
+                write!(
+                    f,
+                    "Texture({}, {}){}",
+                    name,
+                    args.join(", "),
+                    channels_xyz(*channel)
+                )
+            }
+            ValueXyz::Attribute { name, channel } => {
+                write!(f, "{}{}", name, channels_xyz(*channel))
+            }
+            ValueXyz::Parameter {
+                name,
+                field,
+                index,
+                channel,
+            } => write!(
+                f,
+                "{}{}{}{}",
+                name,
+                if field.is_empty() {
+                    String::new()
+                } else {
+                    format!(".{}", field)
+                },
+                index.map(|i| format!("[{i}]")).unwrap_or_default(),
+                channels_xyz(*channel)
+            ),
+            ValueXyz::Float(c) => write!(f, "{c:?}"),
+        }
+    }
+}
+
+impl std::fmt::Display for ChannelXyz {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ChannelXyz::Xyz => write!(f, "xyz"),
+            ChannelXyz::X => write!(f, "xxx"),
+            ChannelXyz::Y => write!(f, "yyy"),
+            ChannelXyz::Z => write!(f, "zzz"),
+            ChannelXyz::W => write!(f, "www"),
+        }
+    }
+}
+
+fn channels_xyz(c: Option<ChannelXyz>) -> String {
+    c.map(|c| format!(".{c}")).unwrap_or_default()
+}
