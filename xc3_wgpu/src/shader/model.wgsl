@@ -86,6 +86,8 @@ struct UMate {
     g_wrk_fl4: array<vec4<f32>, 17>,
 }
 
+// This needs to be storage instead of uniform to work with the texture binding arrays.
+// Add the [[single]] attribute to the format in RenderDoc to display like a uniform buffer.
 @group(2) @binding(5)
 var<storage, read> per_material: PerMaterial;
 
