@@ -1,12 +1,8 @@
 use crate::expr::{
     OutputExpr,
-    xyz::{MergeXyzArgs, OperationXyzChannel, OutputExprXyz, merge_xyz_assignments},
+    xyz::{ExprCacheXyz, MergeXyzArgs, OperationXyzChannel, merge_xyz_exprs},
 };
 use xc3_model::shader_database::{Operation, OperationXyz};
-
-// Faster than the default hash implementation.
-type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
-type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
 
 impl OperationXyzChannel for Operation {
     type OperationXyz = OperationXyz;
@@ -84,9 +80,8 @@ impl MergeXyzArgs<Operation> for OperationXyz {
         args_x: &[usize],
         args_y: &[usize],
         args_z: &[usize],
-        assignments: &[OutputExpr<Operation>],
-        assignments_xyz_index: &mut IndexMap<(usize, usize, usize), usize>,
-        assignments_xyz: &mut IndexSet<OutputExprXyz<Self>>,
+        exprs: &[OutputExpr<Operation>],
+        exprs_xyz: &mut ExprCacheXyz<Self>,
     ) -> Option<Vec<usize>> {
         let mut args = Vec::new();
 
@@ -94,37 +89,28 @@ impl MergeXyzArgs<Operation> for OperationXyz {
         match *self {
             OperationXyz::Monochrome => {
                 // TODO: Check that all args are the same?
-                let rgb = merge_xyz_assignments(
+                let rgb = merge_xyz_exprs(
                     *args_x.first()?,
                     *args_y.get(1)?,
                     *args_z.get(2)?,
-                    assignments,
-                    assignments_xyz_index,
-                    assignments_xyz,
+                    exprs,
+                    exprs_xyz,
                 )?;
                 args.push(rgb);
 
                 // TODO: This should be the same scalar for all channels?
-                let ratio = merge_xyz_assignments(
+                let ratio = merge_xyz_exprs(
                     *args_x.get(3)?,
                     *args_y.get(3)?,
                     *args_z.get(3)?,
-                    assignments,
-                    assignments_xyz_index,
-                    assignments_xyz,
+                    exprs,
+                    exprs_xyz,
                 )?;
                 args.push(ratio);
             }
             _ => {
                 for ((x, y), z) in args_x.iter().zip(args_y.iter()).zip(args_z.iter()) {
-                    let arg = merge_xyz_assignments(
-                        *x,
-                        *y,
-                        *z,
-                        assignments,
-                        assignments_xyz_index,
-                        assignments_xyz,
-                    )?;
+                    let arg = merge_xyz_exprs(*x, *y, *z, exprs, exprs_xyz)?;
                     args.push(arg);
                 }
             }
@@ -140,26 +126,18 @@ mod tests {
 
     use crate::expr::{
         Attribute, Texture, Value,
-        xyz::{ChannelXyz, ValueXyz},
+        xyz::{ChannelXyz, OutputExprXyz, ValueXyz},
     };
 
     fn merge_xyz(
         x: usize,
         y: usize,
         z: usize,
-        assignments: &[OutputExpr<Operation>],
+        exprs: &[OutputExpr<Operation>],
     ) -> Option<(usize, Vec<OutputExprXyz<OperationXyz>>)> {
-        let mut assignments_xyz_index = IndexMap::default();
-        let mut assignments_xyz = IndexSet::default();
-        let index = merge_xyz_assignments(
-            x,
-            y,
-            z,
-            assignments,
-            &mut assignments_xyz_index,
-            &mut assignments_xyz,
-        )?;
-        Some((index, assignments_xyz.into_iter().collect()))
+        let mut exprs_xyz = ExprCacheXyz::default();
+        let index = merge_xyz_exprs(x, y, z, exprs, &mut exprs_xyz)?;
+        Some((index, exprs_xyz.into_exprs()))
     }
 
     #[test]

@@ -81,43 +81,47 @@ pub trait Operation: Sized {
     fn preprocess_value_expr<'a>(graph: &'a Graph, expr: &'a Expr) -> Cow<'a, Expr>;
 }
 
+// Cache graph expr -> output expr index to visit nodes only once.
+#[derive(Debug, Default)]
+pub struct ExprCache<Op> {
+    exprs: IndexSet<OutputExpr<Op>>,
+    expr_to_index: IndexMap<Expr, usize>,
+}
+
+impl<Op> ExprCache<Op> {
+    /// Get the collection of unique [OutputExpr].
+    pub fn into_exprs(self) -> Vec<OutputExpr<Op>> {
+        self.exprs.into_iter().collect()
+    }
+}
+
 /// Convert `graph` to an expression tree using the [Operation] implementation for `Op`.
-pub fn output_expr<Op>(
-    expr: &Expr,
-    graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr<Op>>,
-    expr_to_index: &mut IndexMap<Expr, usize>,
-) -> usize
+pub fn output_expr<Op>(expr: &Expr, graph: &Graph, exprs: &mut ExprCache<Op>) -> usize
 where
     Op: Operation + std::hash::Hash + Eq + Default,
 {
     // Cache graph input expressions to avoid processing nodes more than once while recursing.
-    match expr_to_index.get(expr) {
+    match exprs.expr_to_index.get(expr) {
         Some(i) => *i,
         None => {
             let original_expr = expr.clone();
 
             let expr = Op::preprocess_expr(graph, expr);
-            let output = output_expr_inner(&expr, graph, exprs, expr_to_index);
+            let output = output_expr_inner(&expr, graph, exprs);
 
-            let index = exprs.insert_full(output).0;
-            expr_to_index.insert(original_expr, index);
+            let index = exprs.exprs.insert_full(output).0;
+            exprs.expr_to_index.insert(original_expr, index);
 
             index
         }
     }
 }
 
-fn output_expr_inner<Op>(
-    expr: &Expr,
-    graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr<Op>>,
-    expr_to_index: &mut IndexMap<Expr, usize>,
-) -> OutputExpr<Op>
+fn output_expr_inner<Op>(expr: &Expr, graph: &Graph, exprs: &mut ExprCache<Op>) -> OutputExpr<Op>
 where
     Op: Operation + std::hash::Hash + Eq + Default,
 {
-    if let Some(value) = extract_value(expr, graph, exprs, expr_to_index) {
+    if let Some(value) = extract_value(expr, graph, exprs) {
         // The base case is a single value.
         OutputExpr::Value(value)
     } else {
@@ -127,7 +131,7 @@ where
             // Insert values that this operation depends on first.
             let args: Vec<_> = args
                 .into_iter()
-                .map(|arg| output_expr(arg, graph, exprs, expr_to_index))
+                .map(|arg| output_expr(arg, graph, exprs))
                 .collect();
             OutputExpr::Func { op, args }
         } else {
@@ -143,26 +147,20 @@ where
 fn extract_value<Op>(
     expr: &Expr,
     graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr<Op>>,
-    expr_to_index: &mut IndexMap<Expr, usize>,
+    exprs: &mut ExprCache<Op>,
 ) -> Option<crate::expr::Value>
 where
     Op: Operation + std::hash::Hash + Eq + Default,
 {
     let expr = Op::preprocess_expr(graph, expr);
-    value_expr(&expr, graph, exprs, expr_to_index)
+    value_expr(&expr, graph, exprs)
 }
 
-fn value_expr<Op>(
-    e: &Expr,
-    graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr<Op>>,
-    expr_to_index: &mut IndexMap<Expr, usize>,
-) -> Option<crate::expr::Value>
+fn value_expr<Op>(e: &Expr, graph: &Graph, exprs: &mut ExprCache<Op>) -> Option<crate::expr::Value>
 where
     Op: Operation + std::hash::Hash + Eq + Default,
 {
-    texture(e, graph, exprs, expr_to_index).or_else(|| {
+    texture(e, graph, exprs).or_else(|| {
         parameter(graph, e)
             .map(crate::expr::Value::Parameter)
             .or_else(|| match e {

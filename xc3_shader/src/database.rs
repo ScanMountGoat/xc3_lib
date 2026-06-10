@@ -11,7 +11,9 @@ use xc3_model::shader_database::{
     Operation, ProgramHash, ShaderDatabase, ShaderProgram, Value, ValueXyz,
 };
 
-use crate::expr::{OutputExpr, output_expr, xyz::merge_xyz_assignments};
+use crate::expr::ExprCache;
+use crate::expr::xyz::ExprCacheXyz;
+use crate::expr::{OutputExpr, output_expr, xyz::merge_xyz_exprs};
 use crate::graph::UnaryOp;
 use crate::graph::glsl::{GlslGraph, merge_vertex_fragment};
 use crate::graph::query::fma_normalize;
@@ -30,7 +32,6 @@ mod xyz;
 use query::*;
 
 // Faster than the default hash implementation.
-type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
 type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
 
 pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> ShaderProgram {
@@ -64,9 +65,7 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
     let mut normal_intensity = None;
     let mut val_inf_intensity = None;
 
-    // Cache graph expr -> output expr index to visit nodes only once.
-    let mut exprs = IndexSet::default();
-    let mut expr_to_index = IndexMap::default();
+    let mut exprs = ExprCache::default();
 
     // Some shaders have up to 8 outputs.
     for i in frag_attributes.output_locations.right_values().copied() {
@@ -88,7 +87,7 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
             if i == 2 && (c == 'x' || c == 'y') {
                 // The normals use XY for output index 2 for all games.
                 if let Some((new_value, intensity, inf_intensity)) =
-                    normal_output_expr(&graph, &dependent_lines, &mut exprs, &mut expr_to_index)
+                    normal_output_expr(&graph, &dependent_lines, &mut exprs)
                 {
                     value = Some(new_value);
                     normal_intensity = intensity;
@@ -105,12 +104,7 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
                 // Xenoblade X DE uses different outputs than other games.
                 // Detect color or params to handle different outputs and channels.
                 // TODO: Detect if o2.x before remapping is used here?
-                value = color_or_param_output_expr(
-                    &graph,
-                    &dependent_lines,
-                    &mut exprs,
-                    &mut expr_to_index,
-                );
+                value = color_or_param_output_expr(&graph, &dependent_lines, &mut exprs);
             };
 
             if let Some(value) = value {
@@ -121,26 +115,20 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
         }
     }
 
-    let exprs: Vec<_> = exprs.into_iter().collect();
+    let exprs = exprs.into_exprs();
 
     // Merge XYZ channels during database creation to simplify consuming code.
     let mut output_dependencies_xyz = IndexMap::default();
-    let mut assignments_xyz_index = IndexMap::default();
-    let mut assignments_xyz = IndexSet::default();
+
+    let mut exprs_xyz = ExprCacheXyz::default();
 
     for i in frag_attributes.output_locations.right_values() {
         if let (Some(x), Some(y), Some(z)) = (
             output_dependencies.get(&SmolStr::from(&format!("o{i}.x"))),
             output_dependencies.get(&SmolStr::from(&format!("o{i}.y"))),
             output_dependencies.get(&SmolStr::from(&format!("o{i}.z"))),
-        ) && let Some(xyz) = merge_xyz_assignments(
-            *x,
-            *y,
-            *z,
-            &exprs,
-            &mut assignments_xyz_index,
-            &mut assignments_xyz,
-        ) {
+        ) && let Some(xyz) = merge_xyz_exprs(*x, *y, *z, &exprs, &mut exprs_xyz)
+        {
             output_dependencies_xyz.insert(format!("o{i}.xyz").into(), xyz);
         }
     }
@@ -157,7 +145,8 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
         })
         .collect();
 
-    let exprs_xyz: Vec<_> = assignments_xyz
+    let exprs_xyz: Vec<_> = exprs_xyz
+        .into_exprs()
         .into_iter()
         .map(|e| match e {
             crate::expr::xyz::OutputExprXyz::Value(value) => {
@@ -212,8 +201,7 @@ fn outline_width_parameter(vert: &Graph) -> Option<crate::expr::Value> {
 fn color_or_param_output_expr(
     frag: &Graph,
     dependent_lines: &[usize],
-    exprs: &mut IndexSet<OutputExpr<Operation>>,
-    expr_to_index: &mut IndexMap<Expr, usize>,
+    exprs: &mut ExprCache<Operation>,
 ) -> Option<usize> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
@@ -238,14 +226,13 @@ fn color_or_param_output_expr(
         current = new_current;
     }
 
-    Some(output_expr(current, frag, exprs, expr_to_index))
+    Some(output_expr(current, frag, exprs))
 }
 
 fn normal_output_expr(
     frag: &Graph,
     dependent_lines: &[usize],
-    exprs: &mut IndexSet<OutputExpr<Operation>>,
-    expr_to_index: &mut IndexMap<Expr, usize>,
+    exprs: &mut ExprCache<Operation>,
 ) -> Option<(usize, Option<usize>, Option<usize>)> {
     let last_node_index = *dependent_lines.last()?;
     let last_node = frag.nodes.get(last_node_index)?;
@@ -277,10 +264,10 @@ fn normal_output_expr(
         _ => nom_work[0],
     };
 
-    let value = output_expr(nom_work, frag, exprs, expr_to_index);
+    let value = output_expr(nom_work, frag, exprs);
 
-    let intensity = intensity.map(|i| output_expr(i, frag, exprs, expr_to_index));
-    let val_inf_intensity = val_inf_intensity.map(|i| output_expr(i, frag, exprs, expr_to_index));
+    let intensity = intensity.map(|i| output_expr(i, frag, exprs));
+    let val_inf_intensity = val_inf_intensity.map(|i| output_expr(i, frag, exprs));
 
     Some((value, intensity, val_inf_intensity))
 }

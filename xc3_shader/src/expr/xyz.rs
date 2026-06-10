@@ -20,9 +20,8 @@ pub trait MergeXyzArgs<Op>: Sized {
         args_x: &[usize],
         args_y: &[usize],
         args_z: &[usize],
-        assignments: &[OutputExpr<Op>],
-        assignments_xyz_index: &mut IndexMap<(usize, usize, usize), usize>,
-        assignments_xyz: &mut IndexSet<OutputExprXyz<Self>>,
+        exprs: &[OutputExpr<Op>],
+        exprs_xyz: &mut ExprCacheXyz<Self>,
     ) -> Option<Vec<usize>>;
 }
 
@@ -43,8 +42,7 @@ pub enum ValueXyz {
         /// The name of the texture like `s0` or `gTResidentTex09`.
         name: SmolStr,
         channel: Option<ChannelXyz>,
-        /// Indices into scalar [assigmments](struct.OutputAssignments.html#structfield.assignments)
-        /// for the texture coordinates.
+        /// Indices into scalar [OutputExpr] for the texture coordinates.
         texcoords: Vec<usize>,
     },
     Attribute {
@@ -69,25 +67,38 @@ pub enum ChannelXyz {
     W,
 }
 
-pub fn merge_xyz_assignments<Op>(
+// Cache graph expr -> output expr index to visit nodes only once.
+#[derive(Debug, Default)]
+pub struct ExprCacheXyz<Op> {
+    exprs: IndexSet<OutputExprXyz<Op>>,
+    expr_xyz_index: IndexMap<(usize, usize, usize), usize>,
+}
+
+impl<Op> ExprCacheXyz<Op> {
+    /// Get the collection of unique [OutputExprXyz].
+    pub fn into_exprs(self) -> Vec<OutputExprXyz<Op>> {
+        self.exprs.into_iter().collect()
+    }
+}
+
+pub fn merge_xyz_exprs<Op>(
     x: usize,
     y: usize,
     z: usize,
-    assignments: &[OutputExpr<Op>],
-    assignments_xyz_index: &mut IndexMap<(usize, usize, usize), usize>,
-    assignments_xyz: &mut IndexSet<OutputExprXyz<Op::OperationXyz>>,
+    exprs: &[OutputExpr<Op>],
+    exprs_xyz: &mut ExprCacheXyz<Op::OperationXyz>,
 ) -> Option<usize>
 where
     Op: OperationXyzChannel + Copy,
     <Op as OperationXyzChannel>::OperationXyz: MergeXyzArgs<Op> + PartialEq + Eq + Hash,
 {
     // Avoid processing the same set of assignments more than once.
-    match assignments_xyz_index.get(&(x, y, z)) {
+    match exprs_xyz.expr_xyz_index.get(&(x, y, z)) {
         Some(index) => Some(*index),
         None => {
-            let x_assignment = assignments.get(x)?;
-            let y_assignment = assignments.get(y)?;
-            let z_assignment = assignments.get(z)?;
+            let x_assignment = exprs.get(x)?;
+            let y_assignment = exprs.get(y)?;
+            let z_assignment = exprs.get(z)?;
 
             let assignment_xyz = match (x_assignment, y_assignment, z_assignment) {
                 (
@@ -106,14 +117,7 @@ where
                 ) => {
                     let op = op_xyz(*op_x, *op_y, *op_z)?;
                     if args_x.len() == args_y.len() && args_y.len() == args_z.len() {
-                        let args = op.merge_xyz_args(
-                            args_x,
-                            args_y,
-                            args_z,
-                            assignments,
-                            assignments_xyz_index,
-                            assignments_xyz,
-                        )?;
+                        let args = op.merge_xyz_args(args_x, args_y, args_z, exprs, exprs_xyz)?;
                         Some(OutputExprXyz::Func { op, args })
                     } else {
                         None
@@ -184,8 +188,8 @@ where
                 _ => None,
             }?;
 
-            let index = assignments_xyz.insert_full(assignment_xyz).0;
-            assignments_xyz_index.insert((x, y, z), index);
+            let index = exprs_xyz.exprs.insert_full(assignment_xyz).0;
+            exprs_xyz.expr_xyz_index.insert((x, y, z), index);
             Some(index)
         }
     }

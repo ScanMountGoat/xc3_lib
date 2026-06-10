@@ -1,18 +1,9 @@
 use crate::{
-    expr::{Operation, OutputExpr, output_expr},
+    expr::{ExprCache, Operation, output_expr},
     graph::{Expr, Graph},
 };
 
-// Faster than the default hash implementation.
-type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
-type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
-
-pub fn texture<Op>(
-    e: &Expr,
-    graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr<Op>>,
-    expr_to_index: &mut IndexMap<Expr, usize>,
-) -> Option<crate::expr::Value>
+pub fn texture<Op>(e: &Expr, graph: &Graph, exprs: &mut ExprCache<Op>) -> Option<crate::expr::Value>
 where
     Op: Operation + std::hash::Hash + Eq + Default,
 {
@@ -24,7 +15,7 @@ where
     {
         if name.starts_with("texture") {
             if let Some(Expr::Global { name, .. }) = args.first().map(|a| &graph.exprs[*a]) {
-                let texcoords = texcoord_args(args, graph, exprs, expr_to_index);
+                let texcoords = texcoord_args(args, graph, exprs);
 
                 Some(crate::expr::Value::Texture(crate::expr::Texture {
                     name: name.clone(),
@@ -42,12 +33,7 @@ where
     }
 }
 
-fn texcoord_args<Op>(
-    args: &[usize],
-    graph: &Graph,
-    exprs: &mut IndexSet<OutputExpr<Op>>,
-    expr_to_index: &mut IndexMap<Expr, usize>,
-) -> Vec<usize>
+fn texcoord_args<Op>(args: &[usize], graph: &Graph, exprs: &mut ExprCache<Op>) -> Vec<usize>
 where
     Op: Operation + std::hash::Hash + Eq + Default,
 {
@@ -57,13 +43,13 @@ where
         && args.len() == 2
     {
         args.iter()
-            .map(|e| output_expr(&graph.exprs[*e], graph, exprs, expr_to_index))
+            .map(|e| output_expr(&graph.exprs[*e], graph, exprs))
             .collect::<Vec<_>>()
     } else {
         // textureCube(arg0, arg1, arg2, arg3)
         args.iter()
             .skip(1)
-            .map(|e| output_expr(&graph.exprs[*e], graph, exprs, expr_to_index))
+            .map(|e| output_expr(&graph.exprs[*e], graph, exprs))
             .collect::<Vec<_>>()
     }
 }
