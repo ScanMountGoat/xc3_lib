@@ -1,5 +1,5 @@
 use indexmap::IndexSet;
-use smol_str::SmolStr;
+use smol_str::format_smolstr;
 use xc3_lib::mxmd::TextureUsage;
 
 use crate::{
@@ -120,10 +120,9 @@ fn output_channel_assignment(
     output_index: usize,
     channel: char,
 ) -> Option<usize> {
-    let output = format!("o{output_index}.{channel}");
     shader
         .output_dependencies
-        .get(&SmolStr::from(output))
+        .get(&format_smolstr!("o{output_index}.{channel}"))
         .copied()
 }
 
@@ -161,7 +160,7 @@ pub(crate) fn infer_assignment_from_textures(
         Some(
             assignments
                 .insert_full(OutputExpr::Value(Value::Texture(Texture {
-                    name: format!("s{}", i?).into(),
+                    name: format_smolstr!("s{}", i?),
                     channel: Some(['x', 'y', 'z', 'w'][c]),
                     texcoords: vec![u, v],
                 })))

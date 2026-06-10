@@ -5,7 +5,7 @@ use std::{collections::BTreeMap, sync::LazyLock};
 use indoc::indoc;
 use log::error;
 use rayon::prelude::*;
-use smol_str::SmolStr;
+use smol_str::format_smolstr;
 use xc3_lib::{mths::Mths, spch::Spch};
 use xc3_model::shader_database::{
     Operation, ProgramHash, ShaderDatabase, ShaderProgram, Value, ValueXyz,
@@ -109,8 +109,7 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
 
             if let Some(value) = value {
                 // Simplify the output name to save space.
-                let output_name = format!("o{i}.{c}");
-                output_dependencies.insert(output_name.into(), value);
+                output_dependencies.insert(format_smolstr!("o{i}.{c}"), value);
             }
         }
     }
@@ -124,12 +123,12 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
 
     for i in frag_attributes.output_locations.right_values() {
         if let (Some(x), Some(y), Some(z)) = (
-            output_dependencies.get(&SmolStr::from(&format!("o{i}.x"))),
-            output_dependencies.get(&SmolStr::from(&format!("o{i}.y"))),
-            output_dependencies.get(&SmolStr::from(&format!("o{i}.z"))),
+            output_dependencies.get(&format_smolstr!("o{i}.x")),
+            output_dependencies.get(&format_smolstr!("o{i}.y")),
+            output_dependencies.get(&format_smolstr!("o{i}.z")),
         ) && let Some(xyz) = merge_xyz_exprs(*x, *y, *z, &exprs, &mut exprs_xyz)
         {
-            output_dependencies_xyz.insert(format!("o{i}.xyz").into(), xyz);
+            output_dependencies_xyz.insert(format_smolstr!("o{i}.xyz"), xyz);
         }
     }
 
