@@ -200,18 +200,21 @@ where
     <Op as OperationXyzChannel>::OperationXyz: PartialEq,
 {
     // Channel merging requires all operations to be the same.
-    // Single channel vector operations like ReflectY need to output xyz to merge.
+    // Single channel vector operations like ReflectY need to output xyz or a scalar like xxx to merge.
     // This simplifies support in applications without convenient channel swizzling like shader node editors.
     let (op_x, c_x) = x.operation_xyz_channel()?;
     let (op_y, c_y) = y.operation_xyz_channel()?;
     let (op_z, c_z) = z.operation_xyz_channel()?;
 
-    // TODO: is it worth supporting cases like reflect(a.xyz, b.xyz).zzz?
     if op_x == op_y
         && op_y == op_z
         && matches!(
             [c_x, c_y, c_z],
-            [Some('x'), Some('y'), Some('z')] | [None, None, None]
+            [Some('x'), Some('y'), Some('z')]
+                | [Some('x'), Some('x'), Some('x')]
+                | [Some('y'), Some('y'), Some('y')]
+                | [Some('z'), Some('z'), Some('z')]
+                | [None, None, None]
         )
     {
         Some(op_x)
