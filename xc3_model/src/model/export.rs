@@ -346,7 +346,7 @@ impl ModelRoot {
                     .map(|c| c.work_callbacks.len() as u16)
                     .unwrap_or_default(),
                 callback_count: m.work_callbacks.len() as u16,
-                alt_textures_offset: 0, // TODO: Preserve this?
+                alt_textures: None, // TODO: Preserve alternate textures?
                 m_unks2: m.m_unks2,
                 alpha_test_texture_index,
                 m_unk3: 0,

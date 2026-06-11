@@ -2,9 +2,13 @@
 use std::io::SeekFrom;
 
 use crate::{
-    StringOffset32, msrd::StreamingDataLegacyInner, mxmd::WorkCallback, parse_count32_offset32,
-    parse_offset32_count32, parse_opt_ptr32, parse_ptr32, parse_string_ptr32,
-    vertex::VertexAttribute, xc3_write_binwrite_impl,
+    StringOffset32,
+    msrd::StreamingDataLegacyInner,
+    mxmd::{MeshRenderFlags2, WorkCallback},
+    parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
+    parse_string_ptr32,
+    vertex::VertexAttribute,
+    xc3_write_binwrite_impl,
 };
 use bilge::prelude::*;
 use binrw::{BinRead, BinWrite, args, binread};
@@ -276,7 +280,7 @@ pub struct Model {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Mesh {
     pub flags1: u32,
-    pub flags2: u32, // TODO: are these actually the same as switch?
+    pub flags2: MeshRenderFlags2,
     /// Index into [vertex_buffers](struct.VertexData.html#structfield.vertex_buffers).
     pub vertex_buffer_index: u32,
     /// Index into [index_buffers](struct.VertexData.html#structfield.index_buffers).

@@ -617,8 +617,9 @@ pub struct SamplerFlags {
 
 /// A single material assignable to a [MeshV112].
 /// `ml::MdsMatInfoHeader` in the Xenoblade 2 binary.
+#[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+#[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct Material {
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
@@ -634,6 +635,9 @@ pub struct Material {
 
     // TODO: remapped from range [0.0, 1.0] to [0.01, 0.99] for uniform buffer?
     pub alpha_test_ref: f32,
+
+    #[br(temp, restore_position)]
+    textures_offset: u32,
 
     // TODO: materials with zero textures?
     /// Defines the shader's sampler bindings in order for s0, s1, s2, ...
@@ -670,8 +674,20 @@ pub struct Material {
     pub callback_start_index: u16,
     pub callback_count: u16,
 
-    // TODO: alt textures offset for non opaque rendering?
-    pub alt_textures_offset: u32,
+    // TODO: Is this always contained within the textures list?
+    // TODO: alternate textures offset for non opaque rendering?
+    // TODO: Only used if flags.alpha_mask (& 0x4) is true?
+    #[br(temp, restore_position)]
+    alt_textures_offset: u32,
+
+    // TODO: Is there a way to read both texture lists without overlaps?
+    #[br(parse_with = parse_opt_ptr32)]
+    #[br(args {
+        offset: base_offset,
+        inner: args! { count: alt_textures_count(&textures, textures_offset, alt_textures_offset) }
+    })]
+    #[xc3(offset(u32))]
+    pub alt_textures: Option<Vec<Texture>>,
 
     pub m_unks2: u16,
 
@@ -908,7 +924,7 @@ pub enum MaterialTechniqueType {
     Unk2 = 2,         // XCX DE
     Unk3 = 3,         // XCX DE
     LightPrepass = 4, // TODO: is this used?
-    Unk5 = 5,         // XCX DE
+    Unk5 = 5,         // XCX DE after deferred with second technique?
     Masked = 6,       // used for maps?
     GBufferLast = 7,  // transparent pass but writes to all outputs
     Refraction = 8,   // XCX DE
@@ -2525,6 +2541,19 @@ pub struct Unk1Unk4 {
     pub unk2: f32,
     pub unk3: f32,
     pub unk4: u32,
+}
+
+fn alt_textures_count(
+    textures: &[Texture],
+    textures_offset: u32,
+    alt_textures_offset: u32,
+) -> usize {
+    // Assume the alt textures are fully contained within the texture list.
+    if alt_textures_offset > 0 {
+        textures.len() - ((alt_textures_offset - textures_offset) as usize / 4)
+    } else {
+        0
+    }
 }
 
 xc3_write_binwrite_impl!(

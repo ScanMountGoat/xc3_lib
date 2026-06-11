@@ -223,6 +223,13 @@ pub(crate) fn create_materials(
                 .map(|t| texture_from_modern(texture_indices, t))
                 .collect();
 
+            let alt_textures = material.alt_textures.as_ref().map(|textures| {
+                textures
+                    .iter()
+                    .map(|t| texture_from_modern(texture_indices, t))
+                    .collect()
+            });
+
             let alpha_test = find_alpha_test_texture(materials, material, texture_indices);
 
             // Assume the work value start indices are in ascending order.
@@ -257,7 +264,7 @@ pub(crate) fn create_materials(
                 state_flags: material.state_flags,
                 color: material.color,
                 textures,
-                alt_textures: None,
+                alt_textures,
                 alpha_test,
                 alpha_test_ref: material.alpha_test_ref,
                 shader,

@@ -8,7 +8,7 @@ use xc3_lib::{
     error::ReadFileError,
     hkt::Hkt,
     msrd::Msrd,
-    mxmd::{AlphaTable, Materials, MeshRenderFlags2, MeshRenderPass, Mxmd, legacy::MxmdLegacy},
+    mxmd::{AlphaTable, Materials, Mxmd, legacy::MxmdLegacy},
 };
 
 use crate::{
@@ -704,10 +704,7 @@ impl Model {
             .iter()
             .map(|mesh| Mesh {
                 flags1: mesh.flags1,
-                flags2: mesh
-                    .flags2
-                    .try_into()
-                    .unwrap_or(MeshRenderFlags2::new(MeshRenderPass::Unk0, 0u8.into())), // TODO: same type?
+                flags2: mesh.flags2,
                 vertex_buffer_index: mesh.vertex_buffer_index as usize,
                 index_buffer_index: mesh.index_buffer_index as usize,
                 index_buffer_index2: mesh.index_buffer_index2.index() as usize,
