@@ -396,8 +396,8 @@ impl ShaderDatabaseIndexed {
             None => {
                 // Insert values that this value depends on first.
                 let v = match &exprs[value] {
-                    OutputExpr::Value(d) => {
-                        OutputExprIndexed::Value(self.add_value(d.clone(), exprs, expr_indices))
+                    OutputExpr::Value(v) => {
+                        OutputExprIndexed::Value(self.add_value(v.clone(), exprs, expr_indices))
                     }
                     OutputExpr::Func { op, args } => OutputExprIndexed::Func {
                         op: *op,
@@ -418,11 +418,11 @@ impl ShaderDatabaseIndexed {
 
     fn add_value(
         &mut self,
-        d: Value,
+        v: Value,
         exprs: &[OutputExpr],
         expr_indices: &mut IndexMap<usize, VarInt>,
     ) -> VarInt {
-        let value = self.value_indexed(d, exprs, expr_indices);
+        let value = self.value_indexed(v, exprs, expr_indices);
         let (index, _) = self.values.insert_full(value);
 
         VarInt(index)
@@ -587,8 +587,8 @@ impl ShaderDatabaseIndexed {
             Some(i) => *i,
             None => {
                 let expr = match &self.output_exprs[value] {
-                    OutputExprIndexed::Value(d) => OutputExpr::Value(self.value_from_indexed(
-                        &self.values[d.0],
+                    OutputExprIndexed::Value(v) => OutputExpr::Value(self.value_from_indexed(
+                        &self.values[v.0],
                         exprs,
                         expr_to_index,
                     )),
@@ -609,11 +609,11 @@ impl ShaderDatabaseIndexed {
 
     fn value_from_indexed(
         &self,
-        d: &ValueIndexed,
+        v: &ValueIndexed,
         exprs: &mut IndexSet<OutputExpr>,
         expr_to_index: &mut IndexMap<usize, usize>,
     ) -> Value {
-        match d {
+        match v {
             ValueIndexed::Int(i) => Value::Int(*i),
             ValueIndexed::Float(f) => Value::Float(*f),
             ValueIndexed::Parameter(b) => Value::Parameter(self.parameter_from_indexed(b)),
