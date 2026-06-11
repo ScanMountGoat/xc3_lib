@@ -51,8 +51,11 @@ pub struct Material {
     pub shader: Option<ShaderProgram>,
 
     // material technique
+    // TODO: Store a list of techniques instead
+    pub technique_count: usize,
     pub technique_index: usize,
     pub technique_type: MaterialTechniqueType,
+    pub technique_material_texture_count: usize,
 
     // TODO: keep these as views over the work values?
     // TODO: is there another way to preserve the work value buffer?
@@ -280,6 +283,7 @@ pub(crate) fn create_materials(
                     .and_then(|c| c.work_callbacks.get(callback_start..callback_end))
                     .unwrap_or_default()
                     .to_vec(),
+                technique_count: material.techniques.len(),
                 technique_index: material
                     .techniques
                     .last()
@@ -290,6 +294,12 @@ pub(crate) fn create_materials(
                     .last()
                     .map(|t| t.technique_type)
                     .unwrap_or(MaterialTechniqueType::Opaque),
+                technique_material_texture_count: material
+                    .techniques
+                    .first()
+                    .and_then(|t| materials.techniques.get(t.technique_index as usize))
+                    .map(|t| t.material_texture_count as usize)
+                    .unwrap_or_default(),
                 parameters,
                 m_unks1_1: material.m_unks1_1,
                 m_unks1_2: material.m_unks1_2,
@@ -397,6 +407,7 @@ where
                 alpha_test,
                 alpha_test_ref: 0.5,
                 shader: get_shader_legacy(m, shaders, shader_database),
+                technique_count: m.techniques.len(),
                 technique_index: m
                     .techniques
                     .last()
@@ -407,6 +418,12 @@ where
                     .last()
                     .map(|t| t.technique_type)
                     .unwrap_or(MaterialTechniqueType::Opaque),
+                technique_material_texture_count: m
+                    .techniques
+                    .first()
+                    .and_then(|t| materials.techniques.get(t.technique_index as usize))
+                    .map(|t| t.unk8.0 as usize)
+                    .unwrap_or_default(),
                 parameters,
                 work_values,
                 variables: materials

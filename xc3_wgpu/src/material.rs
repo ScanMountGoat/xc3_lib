@@ -392,9 +392,21 @@ fn assign_texture<'a>(
 ) -> Option<&'a wgpu::Texture> {
     match material_texture_index(name) {
         Some(texture_index) => {
-            // Search the material textures like "s0" or "s3".
             // TODO: Why is this sometimes out of range for XC2 maps?
-            let image_texture_index = material.textures.get(texture_index)?.image_texture_index;
+
+            // Materials are hardcoded to render the last technique.
+            // Calculate an index offset to use the second technique's textures.
+            let offset = if material.technique_count > 1 {
+                material.technique_material_texture_count
+            } else {
+                0
+            };
+
+            // Search the material textures like "s0" or "s3".
+            let image_texture_index = material
+                .textures
+                .get(texture_index + offset)?
+                .image_texture_index;
             textures.get(image_texture_index)
         }
         None => {

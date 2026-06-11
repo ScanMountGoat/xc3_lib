@@ -337,6 +337,7 @@ pub struct Technique {
 
     // TODO: first texture param index?
     pub unk12: u16, // counts up from 0?
+
     // TODO: first global param index?
     pub unk13: u16, // unk11 + unk12?
 
@@ -640,7 +641,8 @@ pub struct Material {
     textures_offset: u32,
 
     // TODO: materials with zero textures?
-    /// Defines the shader's sampler bindings in order for s0, s1, s2, ...
+    /// Defines the shader's material textures in order for each [MaterialTechnique]
+    /// like technique 0 "s0", technique 0 "s1", ..., technique 1 "s0", technique 1 "s1", ...
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub textures: Vec<Texture>,
@@ -925,7 +927,7 @@ pub enum MaterialTechniqueType {
     Unk3 = 3,         // XCX DE
     LightPrepass = 4, // TODO: is this used?
     Unk5 = 5,         // XCX DE after deferred with second technique?
-    Masked = 6,       // used for maps?
+    Masked = 6,       // used for maps like ma30a leaves?
     GBufferLast = 7,  // transparent pass but writes to all outputs
     Refraction = 8,   // XCX DE
     GBufferBlend = 9, // used for maps?
