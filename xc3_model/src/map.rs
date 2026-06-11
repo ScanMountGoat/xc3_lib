@@ -10,14 +10,17 @@ use xc3_lib::{
     map::{FoliageMaterials, PropInstance, PropLod, PropModelLod, PropPositions},
     mibl::Mibl,
     msmd::{ChannelType, MapParts, Msmd, MsmdV112, StreamEntry, legacy::MsmdV11},
-    mxmd::{MaterialTechniqueType, StateFlags, TextureUsage},
+    mxmd::{StateFlags, TextureUsage},
 };
 
 use crate::{
     IndexMapExt, MapRoot, Material, Model, ModelBuffers, ModelGroup, ModelRoot, Models, Texture,
     create_materials,
     error::{CreateImageTextureError, LoadMapError},
-    material::create_materials_samplers_legacy,
+    material::{
+        MaterialTechnique, MaterialTechniqueFlags, MaterialTechniqueType,
+        create_materials_samplers_legacy,
+    },
     model::import::{create_samplers, lod_data},
     shader_database::ShaderDatabase,
     skinning::create_skinning,
@@ -850,10 +853,12 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                 alpha_test: None,
                 shader,
                 alpha_test_ref: 0.5,
-                technique_count: 1,
-                technique_index: 0,
-                technique_type: MaterialTechniqueType::Opaque,
-                technique_material_texture_count: 0,
+                techniques: vec![MaterialTechnique {
+                    technique_index: 0,
+                    technique_type: MaterialTechniqueType::Opaque,
+                    flags: MaterialTechniqueFlags::new(true, 0u16.into()),
+                    material_texture_count: 0,
+                }],
                 parameters: Default::default(),
                 work_values: Vec::new(),
                 variables: Vec::new(),

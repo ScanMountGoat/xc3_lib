@@ -146,12 +146,15 @@ pub fn create_material(
 
     let u_mate = material_u_mate(material);
 
+    // TODO: Error if no techniques?
+    let technique = material.techniques.last().unwrap();
+
     // Use a storage buffer since wgpu doesn't allow binding arrays and uniform buffers in a bind group.
     let per_material = device.create_storage_buffer(
         // TODO: include model name?
         &format!(
             "PerMaterial {:?} shd{:04}",
-            material.name, material.technique_index
+            material.name, technique.technique_index
         ),
         &[crate::shader::model::PerMaterial {
             assignments,
@@ -250,7 +253,7 @@ pub fn create_material(
         // TODO: Is there a better way to store depth prepass pipelines?
         // The depth writes and compare function only happen in the prepass.
         let pipeline_key = PipelineKey {
-            technique_type: material.technique_type,
+            technique_type: technique.technique_type,
             flags: xc3_lib::mxmd::StateFlags {
                 depth_func: xc3_lib::mxmd::DepthFunc::Equal,
                 depth_write_mode: 1,
@@ -271,7 +274,7 @@ pub fn create_material(
     } else {
         (
             PipelineKey {
-                technique_type: material.technique_type,
+                technique_type: technique.technique_type,
                 flags: material.state_flags,
                 is_outline: material.name.ends_with("_outline"),
                 output5_type,
@@ -396,8 +399,12 @@ fn assign_texture<'a>(
 
             // Materials are hardcoded to render the last technique.
             // Calculate an index offset to use the second technique's textures.
-            let offset = if material.technique_count > 1 {
-                material.technique_material_texture_count
+            let offset = if material.techniques.len() > 1 {
+                material
+                    .techniques
+                    .last()
+                    .map(|t| t.material_texture_count as usize)
+                    .unwrap_or_default()
             } else {
                 0
             };

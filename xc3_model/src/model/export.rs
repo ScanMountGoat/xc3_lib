@@ -296,12 +296,16 @@ impl ModelRoot {
         // Recreate materials to avoid restrictions with referencing existing ones.
         for (i, m) in self.models.materials.iter().enumerate() {
             // TODO: Is it ok to potentially add a new buffer index here?
-            let technique = xc3_lib::mxmd::MaterialTechnique {
-                technique_index: m.technique_index as u32,
-                technique_type: m.technique_type,
-                material_buffer_index: i as u16,
-                flags: xc3_lib::mxmd::MaterialTechniqueFlags::new(true, 0u16.into()),
-            };
+            let techniques = m
+                .techniques
+                .iter()
+                .map(|t| xc3_lib::mxmd::MaterialTechnique {
+                    technique_index: t.technique_index as u32,
+                    technique_type: t.technique_type,
+                    material_buffer_index: i as u16,
+                    flags: t.flags,
+                })
+                .collect();
 
             // TODO: Are alpha texture indices ever used more than once?
             let alpha_test_texture_index = m
@@ -339,7 +343,7 @@ impl ModelRoot {
                 work_value_start_index: mxmd.materials.work_values.len() as u32,
                 variable_start_index: mxmd.materials.variables.len() as u32,
                 variable_count: m.variables.len() as u32,
-                techniques: vec![technique],
+                techniques,
                 unk5: 0,
                 callback_start_index: callbacks
                     .as_ref()
@@ -432,12 +436,16 @@ impl ModelRoot {
         // Recreate materials to avoid restrictions with referencing existing ones.
         for (i, m) in self.models.materials.iter().enumerate() {
             // TODO: Is it ok to potentially add a new buffer index here?
-            let technique = xc3_lib::mxmd::MaterialTechnique {
-                technique_index: m.technique_index as u32,
-                technique_type: m.technique_type,
-                material_buffer_index: i as u16,
-                flags: xc3_lib::mxmd::MaterialTechniqueFlags::new(true, 0u16.into()),
-            };
+            let techniques = m
+                .techniques
+                .iter()
+                .map(|t| xc3_lib::mxmd::MaterialTechnique {
+                    technique_index: t.technique_index as u32,
+                    technique_type: t.technique_type,
+                    material_buffer_index: i as u16,
+                    flags: t.flags,
+                })
+                .collect();
 
             // TODO: Are alpha texture indices ever used more than once?
             let alpha_test_texture_index = m
@@ -473,7 +481,7 @@ impl ModelRoot {
                 work_value_start_index: mxmd.materials.work_values.len() as u32,
                 variable_start_index: mxmd.materials.variables.len() as u32,
                 variable_count: m.variables.len() as u32,
-                techniques: vec![technique],
+                techniques,
                 unk4: [0; 2], // TODO: elements not always zero?
                 callback_start_index: callbacks
                     .as_ref()
@@ -551,9 +559,12 @@ impl ModelRoot {
             let techniques = self.models.models.iter().flat_map(|m| {
                 m.meshes.iter().find_map(|m| {
                     if m.vertex_buffer_index == i {
-                        let technique_index =
-                            self.models.materials[m.material_index].technique_index;
-                        Some(&mxmd.materials.techniques[technique_index])
+                        let technique_index = self.models.materials[m.material_index]
+                            .techniques
+                            .last()
+                            .map(|t| t.technique_index)
+                            .unwrap_or_default();
+                        Some(&mxmd.materials.techniques[technique_index as usize])
                     } else {
                         None
                     }
@@ -582,9 +593,12 @@ impl ModelRoot {
             let techniques = self.models.models.iter().flat_map(|m| {
                 m.meshes.iter().find_map(|m| {
                     if m.vertex_buffer_index == i {
-                        let technique_index =
-                            self.models.materials[m.material_index].technique_index;
-                        Some(&mxmd.materials.techniques[technique_index])
+                        let technique_index = self.models.materials[m.material_index]
+                            .techniques
+                            .last()
+                            .map(|t| t.technique_index)
+                            .unwrap_or_default();
+                        Some(&mxmd.materials.techniques[technique_index as usize])
                     } else {
                         None
                     }

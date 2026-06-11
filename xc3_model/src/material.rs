@@ -4,8 +4,8 @@ use log::warn;
 use xc3_lib::mxmd::WorkCallbackType;
 pub use xc3_lib::mxmd::{
     BlendMode, ColorWriteMode, CullMode, DepthFunc, FurShellParams, MaterialFlags,
-    MaterialRenderFlags, MaterialTechniqueType, MaterialVariable, StateFlags, StencilMode,
-    StencilValue, TextureUsage, WorkCallback,
+    MaterialRenderFlags, MaterialTechniqueFlags, MaterialTechniqueType, MaterialVariable,
+    StateFlags, StencilMode, StencilValue, TextureUsage, WorkCallback,
 };
 
 use crate::{
@@ -50,12 +50,7 @@ pub struct Material {
     /// or [None] if the database does not contain this model.
     pub shader: Option<ShaderProgram>,
 
-    // material technique
-    // TODO: Store a list of techniques instead
-    pub technique_count: usize,
-    pub technique_index: usize,
-    pub technique_type: MaterialTechniqueType,
-    pub technique_material_texture_count: usize,
+    pub techniques: Vec<MaterialTechnique>,
 
     // TODO: keep these as views over the work values?
     // TODO: is there another way to preserve the work value buffer?
@@ -66,6 +61,17 @@ pub struct Material {
 
     // TODO: It's redundant to make this optional and store the fur flag.
     pub fur_params: Option<FurShellParams>,
+}
+
+/// See [MaterialTechnique](xc3_lib::mxmd::MaterialTechnique) and [Technique](xc3_lib::mxmd::Technique).
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct MaterialTechnique {
+    pub technique_index: u32,
+    pub technique_type: MaterialTechniqueType,
+    pub flags: MaterialTechniqueFlags,
+    // values from Technique
+    pub material_texture_count: u32,
 }
 
 // TODO: Is this even worth caching if it's only ever accessed by names?
@@ -260,6 +266,21 @@ pub(crate) fn create_materials(
 
             let fur_params = fur_shell_params(materials.fur_shells.as_ref(), i, material.flags);
 
+            let techniques = material
+                .techniques
+                .iter()
+                .map(|t| MaterialTechnique {
+                    technique_index: t.technique_index,
+                    technique_type: t.technique_type,
+                    flags: t.flags,
+                    material_texture_count: materials
+                        .techniques
+                        .get(t.technique_index as usize)
+                        .map(|t| t.material_texture_count)
+                        .unwrap_or_default(),
+                })
+                .collect();
+
             Material {
                 name: material.name.clone(),
                 flags: material.flags,
@@ -283,23 +304,7 @@ pub(crate) fn create_materials(
                     .and_then(|c| c.work_callbacks.get(callback_start..callback_end))
                     .unwrap_or_default()
                     .to_vec(),
-                technique_count: material.techniques.len(),
-                technique_index: material
-                    .techniques
-                    .last()
-                    .map(|t| t.technique_index as usize)
-                    .unwrap_or_default(),
-                technique_type: material
-                    .techniques
-                    .last()
-                    .map(|t| t.technique_type)
-                    .unwrap_or(MaterialTechniqueType::Opaque),
-                technique_material_texture_count: material
-                    .techniques
-                    .first()
-                    .and_then(|t| materials.techniques.get(t.technique_index as usize))
-                    .map(|t| t.material_texture_count as usize)
-                    .unwrap_or_default(),
+                techniques,
                 parameters,
                 m_unks1_1: material.m_unks1_1,
                 m_unks1_2: material.m_unks1_2,
@@ -388,6 +393,21 @@ where
 
             let fur_params = fur_shell_params(materials.fur_shells.as_ref(), i, m.flags);
 
+            let techniques = m
+                .techniques
+                .iter()
+                .map(|t| MaterialTechnique {
+                    technique_index: t.technique_index,
+                    technique_type: t.technique_type,
+                    flags: t.flags,
+                    material_texture_count: materials
+                        .techniques
+                        .get(t.technique_index as usize)
+                        .map(|t| t.unk8.0 as u32)
+                        .unwrap_or_default(),
+                })
+                .collect();
+
             Material {
                 name: m.name.clone(),
                 flags: m.flags,
@@ -407,23 +427,7 @@ where
                 alpha_test,
                 alpha_test_ref: 0.5,
                 shader: get_shader_legacy(m, shaders, shader_database),
-                technique_count: m.techniques.len(),
-                technique_index: m
-                    .techniques
-                    .last()
-                    .map(|t| t.technique_index as usize)
-                    .unwrap_or_default(),
-                technique_type: m
-                    .techniques
-                    .last()
-                    .map(|t| t.technique_type)
-                    .unwrap_or(MaterialTechniqueType::Opaque),
-                technique_material_texture_count: m
-                    .techniques
-                    .first()
-                    .and_then(|t| materials.techniques.get(t.technique_index as usize))
-                    .map(|t| t.unk8.0 as usize)
-                    .unwrap_or_default(),
+                techniques,
                 parameters,
                 work_values,
                 variables: materials

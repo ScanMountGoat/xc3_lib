@@ -571,7 +571,11 @@ fn add_models(
                         w.weight_groups.weights_start_index(
                             mesh.flags2.into(),
                             mesh.lod_item_index,
-                            material.technique_type,
+                            material
+                                .techniques
+                                .last()
+                                .map(|t| t.technique_type)
+                                .unwrap_or(crate::material::MaterialTechniqueType::Opaque),
                         )
                     })
                     .unwrap_or_default();
