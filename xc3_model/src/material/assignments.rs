@@ -110,8 +110,10 @@ fn output_assignment(shader: &ShaderProgram, output_index: usize) -> OutputAssig
         y: output_channel_assignment(shader, output_index, 'y'),
         z: output_channel_assignment(shader, output_index, 'z'),
         w: output_channel_assignment(shader, output_index, 'w'),
-        // TODO: Get output_index .xyz from map
-        xyz: None,
+        xyz: shader
+            .output_dependencies_xyz
+            .get(&format_smolstr!("o{output_index}.xyz"))
+            .copied(),
     }
 }
 
