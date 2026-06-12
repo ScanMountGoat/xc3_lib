@@ -4,7 +4,10 @@ use xc3_lib::mxmd::TextureUsage;
 
 use crate::{
     ImageTexture,
-    shader_database::{Attribute, OutputExpr, OutputExprXyz, ShaderProgram, Texture, Value},
+    shader_database::{
+        Attribute, ChannelXyz, OutputExpr, OutputExprXyz, ShaderProgram, Texture, TextureXyz,
+        Value, ValueXyz,
+    },
 };
 
 use super::MaterialParameters;
@@ -144,31 +147,8 @@ pub(crate) fn infer_assignment_from_textures(
 ) -> OutputAssignments {
     // No assignment data is available.
     // Guess reasonable defaults based on the texture names or types.
-    let mut assignments = IndexSet::new();
-
-    let mut assignment = |i: Option<usize>, c: usize| {
-        let u = assignments
-            .insert_full(OutputExpr::Value(Value::Attribute(Attribute {
-                name: "vTex0".into(),
-                channel: Some('x'),
-            })))
-            .0;
-        let v = assignments
-            .insert_full(OutputExpr::Value(Value::Attribute(Attribute {
-                name: "vTex0".into(),
-                channel: Some('y'),
-            })))
-            .0;
-        Some(
-            assignments
-                .insert_full(OutputExpr::Value(Value::Texture(Texture {
-                    name: format_smolstr!("s{}", i?),
-                    channel: Some(['x', 'y', 'z', 'w'][c]),
-                    texcoords: vec![u, v],
-                })))
-                .0,
-        )
-    };
+    let mut exprs = IndexSet::new();
+    let mut exprs_xyz = IndexSet::new();
 
     let color_index = textures.iter().position(|t| {
         matches!(
@@ -200,31 +180,84 @@ pub(crate) fn infer_assignment_from_textures(
     OutputAssignments {
         output_assignments: [
             OutputAssignment {
-                x: assignment(color_index, 0),
-                y: assignment(color_index, 1),
-                z: assignment(color_index, 2),
-                w: assignment(color_index, 3),
-                xyz: None, // TODO: this can be some
+                x: texture_expr(&mut exprs, color_index, 'x'),
+                y: texture_expr(&mut exprs, color_index, 'y'),
+                z: texture_expr(&mut exprs, color_index, 'z'),
+                w: texture_expr(&mut exprs, color_index, 'w'),
+                xyz: texture_expr_xyz(&mut exprs, &mut exprs_xyz, color_index),
             },
             OutputAssignment::default(),
             OutputAssignment {
-                x: assignment(normal_index, 0),
-                y: assignment(normal_index, 1),
+                x: texture_expr(&mut exprs, normal_index, 'x'),
+                y: texture_expr(&mut exprs, normal_index, 'y'),
                 ..Default::default()
             },
             OutputAssignment::default(),
             OutputAssignment::default(),
             OutputAssignment {
-                x: assignment(spm_index, 0),
-                y: assignment(spm_index, 1),
-                z: assignment(spm_index, 2),
+                x: texture_expr(&mut exprs, spm_index, 'x'),
+                y: texture_expr(&mut exprs, spm_index, 'y'),
+                z: texture_expr(&mut exprs, spm_index, 'z'),
+                xyz: texture_expr_xyz(&mut exprs, &mut exprs_xyz, spm_index),
                 ..Default::default()
             },
         ],
         outline_width: None,
         normal_intensity: None,
         val_inf_intensity: None,
-        exprs: assignments.into_iter().collect(),
-        exprs_xyz: Vec::new(),
+        exprs: exprs.into_iter().collect(),
+        exprs_xyz: exprs_xyz.into_iter().collect(),
     }
+}
+
+fn texture_expr(exprs: &mut IndexSet<OutputExpr>, i: Option<usize>, c: char) -> Option<usize> {
+    let u = exprs
+        .insert_full(OutputExpr::Value(Value::Attribute(Attribute {
+            name: "vTex0".into(),
+            channel: Some('x'),
+        })))
+        .0;
+    let v = exprs
+        .insert_full(OutputExpr::Value(Value::Attribute(Attribute {
+            name: "vTex0".into(),
+            channel: Some('y'),
+        })))
+        .0;
+    Some(
+        exprs
+            .insert_full(OutputExpr::Value(Value::Texture(Texture {
+                name: format_smolstr!("s{}", i?),
+                channel: Some(c),
+                texcoords: vec![u, v],
+            })))
+            .0,
+    )
+}
+
+fn texture_expr_xyz(
+    exprs: &mut IndexSet<OutputExpr>,
+    exprs_xyz: &mut IndexSet<OutputExprXyz>,
+    i: Option<usize>,
+) -> Option<usize> {
+    let u = exprs
+        .insert_full(OutputExpr::Value(Value::Attribute(Attribute {
+            name: "vTex0".into(),
+            channel: Some('x'),
+        })))
+        .0;
+    let v = exprs
+        .insert_full(OutputExpr::Value(Value::Attribute(Attribute {
+            name: "vTex0".into(),
+            channel: Some('y'),
+        })))
+        .0;
+    Some(
+        exprs_xyz
+            .insert_full(OutputExprXyz::Value(ValueXyz::Texture(TextureXyz {
+                name: format_smolstr!("s{}", i?),
+                channel: Some(ChannelXyz::Xyz),
+                texcoords: vec![u, v],
+            })))
+            .0,
+    )
 }
