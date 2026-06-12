@@ -288,7 +288,7 @@ impl From<Option<crate::shader_database::ChannelXyz>> for ChannelXyz {
             Some(super::ChannelXyz::X) => Self::X,
             Some(super::ChannelXyz::Y) => Self::Y,
             Some(super::ChannelXyz::Z) => Self::Z,
-            Some(super::ChannelXyz::W) => Self::Z,
+            Some(super::ChannelXyz::W) => Self::W,
             None => Self::None,
         }
     }
