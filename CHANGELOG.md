@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## unreleased
 ### Changed
 * Reworked xc3_model and xc3_shader database and material assignment types.
+* Changed shader assignments inferred from textures to merge XYZ channels for color and specular color.
 
 ## 0.22.0 - 2026-05-26
 ### Added
