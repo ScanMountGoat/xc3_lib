@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 * Fixed an issue where map models would use the wrong alpha testing texture in some cases.
+* Fixed an issue where materials without callbacks would not correctly load parameters in xc3_model.
 
 ## 0.22.0 - 2026-05-26
 ### Added

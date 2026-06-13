@@ -668,9 +668,11 @@ fn assign_parameters(
     let callback_start = material.callback_start_index as usize;
     let callbacks = materials
         .callbacks
-        .as_ref()?
-        .work_callbacks
-        .get(callback_start..callback_start + material.callback_count as usize)
+        .as_ref()
+        .and_then(|c| {
+            c.work_callbacks
+                .get(callback_start..callback_start + material.callback_count as usize)
+        })
         .unwrap_or_default();
 
     let work_values = apply_callbacks(work_values, callbacks);
