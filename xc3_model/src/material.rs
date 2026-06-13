@@ -572,9 +572,9 @@ fn get_shader_legacy<S: GetProgramHash>(
                 // Color
                 "o1.xyz" => Some(("o0.xyz".into(), *v)),
                 // Specular
-                "o3.xyz" => Some(("o5.x".into(), *v)),
+                "o3.xyz" => Some(("o5.xyz".into(), *v)),
                 // Depth
-                "o4.xyz" => Some(("o4.x".into(), *v)),
+                "o4.xyz" => Some(("o4.xyz".into(), *v)),
                 _ => None,
             })
             .collect()
