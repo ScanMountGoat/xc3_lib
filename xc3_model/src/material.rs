@@ -261,8 +261,7 @@ pub(crate) fn create_materials(
             let callback_end = callback_start + material.callback_count as usize;
 
             // TODO: Error for invalid parameters?
-            let parameters =
-                assign_parameters(materials, material, &work_values).unwrap_or_default();
+            let parameters = assign_parameters(materials, material, &work_values);
 
             let fur_params = fur_shell_params(materials.fur_shells.as_ref(), i, material.flags);
 
@@ -664,7 +663,7 @@ fn assign_parameters(
     materials: &xc3_lib::mxmd::Materials,
     material: &xc3_lib::mxmd::Material,
     work_values: &[f32],
-) -> Option<MaterialParameters> {
+) -> MaterialParameters {
     let callback_start = material.callback_start_index as usize;
     let callbacks = materials
         .callbacks
@@ -721,7 +720,7 @@ fn assign_parameters(
         }
     }
 
-    Some(parameters)
+    parameters
 }
 
 fn apply_callbacks(work_values: &[f32], callbacks: &[WorkCallback]) -> Vec<f32> {
