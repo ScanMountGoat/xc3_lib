@@ -400,11 +400,17 @@ fn assign_texture<'a>(
             // Materials are hardcoded to render the last technique.
             // Calculate an index offset to use the second technique's textures.
             let offset = if material.techniques.len() > 1 {
-                material
+                let potential_offset = material
                     .techniques
                     .first()
                     .map(|t| t.material_texture_count as usize)
-                    .unwrap_or_default()
+                    .unwrap_or_default();
+                // TODO: Do xcxde techniques share the texture list?
+                if potential_offset >= material.textures.len() {
+                    0
+                } else {
+                    potential_offset
+                }
             } else {
                 0
             };

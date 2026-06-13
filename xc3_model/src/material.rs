@@ -564,9 +564,29 @@ fn get_shader_legacy<S: GetProgramHash>(
         program.output_dependencies.clone()
     };
 
+    let output_dependencies_xyz = if !is_single_output {
+        program
+            .output_dependencies_xyz
+            .iter()
+            .filter_map(|(k, v)| match k.as_str() {
+                // Color
+                "o1.xyz" => Some(("o0.xyz".into(), *v)),
+                // Specular
+                "o3.xyz" => Some(("o5.x".into(), *v)),
+                // Depth
+                "o4.xyz" => Some(("o4.x".into(), *v)),
+                _ => None,
+            })
+            .collect()
+    } else {
+        // Some shaders only write to color and shouldn't be remapped.
+        program.output_dependencies_xyz.clone()
+    };
+
     Some(ShaderProgram {
         output_dependencies,
         exprs,
+        output_dependencies_xyz,
         ..program
     })
 }
