@@ -402,7 +402,7 @@ fn assign_texture<'a>(
             let offset = if material.techniques.len() > 1 {
                 material
                     .techniques
-                    .last()
+                    .first()
                     .map(|t| t.material_texture_count as usize)
                     .unwrap_or_default()
             } else {

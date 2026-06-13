@@ -888,6 +888,11 @@ fn apply_material_texture_indices(
             let index = material_root_texture_indices[texture.image_texture_index];
             texture.image_texture_index = index;
         }
+
+        if let Some(texture) = &mut material.alpha_test {
+            let index = material_root_texture_indices[texture.image_texture_index];
+            texture.image_texture_index = index;
+        }
     }
 }
 
