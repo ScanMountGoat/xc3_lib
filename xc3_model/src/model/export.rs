@@ -300,7 +300,7 @@ impl ModelRoot {
                 .techniques
                 .iter()
                 .map(|t| xc3_lib::mxmd::MaterialTechnique {
-                    technique_index: t.technique_index as u32,
+                    technique_index: t.technique_index,
                     technique_type: t.technique_type,
                     material_buffer_index: i as u16,
                     flags: t.flags,
@@ -440,7 +440,7 @@ impl ModelRoot {
                 .techniques
                 .iter()
                 .map(|t| xc3_lib::mxmd::MaterialTechnique {
-                    technique_index: t.technique_index as u32,
+                    technique_index: t.technique_index,
                     technique_type: t.technique_type,
                     material_buffer_index: i as u16,
                     flags: t.flags,
@@ -656,7 +656,7 @@ impl ModelRoot {
                         // TODO: Fill in remaining fields.
                         xc3_lib::mxmd::legacy::Mesh {
                             flags1: m.flags1,
-                            flags2: m.flags2.into(),
+                            flags2: m.flags2,
                             vertex_buffer_index: m.vertex_buffer_index as u32,
                             index_buffer_index: m.index_buffer_index as u32,
                             material_index: m.material_index as u32,

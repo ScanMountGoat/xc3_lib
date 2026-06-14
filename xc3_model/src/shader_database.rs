@@ -152,10 +152,10 @@ pub struct Parameter {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Texture {
     pub name: SmolStr,
-    pub channel: Option<char>,
     /// Indices into [exprs](struct.ShaderProgram.html#structfield.exprs)
     /// for texture coordinate values used for the texture function call.
     pub texcoords: Vec<usize>,
+    pub channel: Option<char>,
 }
 
 /// A single input attribute like `in_attr0.x` in GLSL.
@@ -493,19 +493,12 @@ pub enum OperationXyz {
     Cos,
 }
 
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ValueXyz {
     Texture(TextureXyz),
-    Attribute {
-        name: SmolStr,
-        channel: Option<ChannelXyz>,
-    },
-    Parameter {
-        name: SmolStr,
-        field: SmolStr,
-        index: Option<usize>,
-        channel: Option<ChannelXyz>,
-    },
+    Attribute(AttributeXyz),
+    Parameter(ParameterXyz),
     Float([OrderedFloat<f32>; 3]),
 }
 
@@ -513,12 +506,27 @@ pub enum ValueXyz {
 pub struct TextureXyz {
     /// The name of the texture like `s0` or `gTResidentTex09`.
     pub name: SmolStr,
-    pub channel: Option<ChannelXyz>,
     /// Indices into scalar [assigmments](struct.OutputAssignments.html#structfield.assignments)
     /// for the texture coordinates.
     pub texcoords: Vec<usize>,
+    pub channel: Option<ChannelXyz>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct AttributeXyz {
+    pub name: SmolStr,
+    pub channel: Option<ChannelXyz>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ParameterXyz {
+    pub name: SmolStr,
+    pub field: SmolStr,
+    pub index: Option<usize>,
+    pub channel: Option<ChannelXyz>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChannelXyz {
     Xyz,
@@ -526,6 +534,17 @@ pub enum ChannelXyz {
     Y,
     Z,
     W,
+}
+
+impl std::fmt::Display for ValueXyz {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ValueXyz::Float(c) => write!(f, "{c:?}"),
+            ValueXyz::Parameter(p) => write!(f, "{p}"),
+            ValueXyz::Texture(t) => write!(f, "{t}"),
+            ValueXyz::Attribute(a) => write!(f, "{a}"),
+        }
+    }
 }
 
 impl std::fmt::Display for TextureXyz {
@@ -541,41 +560,26 @@ impl std::fmt::Display for TextureXyz {
     }
 }
 
-impl std::fmt::Display for ValueXyz {
+impl std::fmt::Display for AttributeXyz {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ValueXyz::Texture(t) => {
-                let args: Vec<_> = t.texcoords.iter().map(|t| format!("var{t}")).collect();
-                write!(
-                    f,
-                    "Texture({}, {}){}",
-                    t.name,
-                    args.join(", "),
-                    channels_xyz(t.channel)
-                )
-            }
-            ValueXyz::Attribute { name, channel } => {
-                write!(f, "{}{}", name, channels_xyz(*channel))
-            }
-            ValueXyz::Parameter {
-                name,
-                field,
-                index,
-                channel,
-            } => write!(
-                f,
-                "{}{}{}{}",
-                name,
-                if field.is_empty() {
-                    String::new()
-                } else {
-                    format!(".{}", field)
-                },
-                index.map(|i| format!("[{i}]")).unwrap_or_default(),
-                channels_xyz(*channel)
-            ),
-            ValueXyz::Float(c) => write!(f, "{c:?}"),
-        }
+        write!(f, "{}{}", self.name, channels_xyz(self.channel))
+    }
+}
+
+impl std::fmt::Display for ParameterXyz {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}{}{}{}",
+            self.name,
+            if self.field.is_empty() {
+                String::new()
+            } else {
+                format!(".{}", self.field)
+            },
+            self.index.map(|i| format!("[{i}]")).unwrap_or_default(),
+            channels_xyz(self.channel)
+        )
     }
 }
 
@@ -618,8 +622,41 @@ impl<'a> arbitrary::Arbitrary<'a> for Texture {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
         Ok(Self {
             name: crate::arbitrary_smolstr(u)?,
+            texcoords: u.arbitrary()?,
+            channel: u.arbitrary()?,
+        })
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for TextureXyz {
+    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
+        Ok(Self {
+            name: crate::arbitrary_smolstr(u)?,
             channel: u.arbitrary()?,
             texcoords: u.arbitrary()?,
+        })
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for AttributeXyz {
+    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
+        Ok(Self {
+            name: crate::arbitrary_smolstr(u)?,
+            channel: u.arbitrary()?,
+        })
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for ParameterXyz {
+    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
+        Ok(Self {
+            name: crate::arbitrary_smolstr(u)?,
+            field: crate::arbitrary_smolstr(u)?,
+            index: u.arbitrary()?,
+            channel: u.arbitrary()?,
         })
     }
 }
@@ -628,6 +665,7 @@ impl<'a> arbitrary::Arbitrary<'a> for Texture {
 impl<'a> arbitrary::Arbitrary<'a> for ShaderProgram {
     fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
         let output_dependencies: Vec<(String, usize)> = u.arbitrary()?;
+        let output_dependencies_xyz: Vec<(String, usize)> = u.arbitrary()?;
         Ok(Self {
             output_dependencies: output_dependencies
                 .into_iter()
@@ -636,6 +674,12 @@ impl<'a> arbitrary::Arbitrary<'a> for ShaderProgram {
             outline_width: u.arbitrary()?,
             normal_intensity: u.arbitrary()?,
             exprs: u.arbitrary()?,
+            output_dependencies_xyz: output_dependencies_xyz
+                .into_iter()
+                .map(|(k, v)| (k.into(), v))
+                .collect(),
+            exprs_xyz: u.arbitrary()?,
+            val_inf_intensity: u.arbitrary()?,
         })
     }
 }

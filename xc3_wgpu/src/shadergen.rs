@@ -608,10 +608,10 @@ fn write_value_xyz(
                 None
             }
         }
-        ValueXyz::Attribute { name, channel } => {
+        ValueXyz::Attribute(a) => {
             // TODO: Support more attributes.
-            let c = channel_xyz_wgsl(*channel);
-            match name.as_str() {
+            let c = channel_xyz_wgsl(a.channel);
+            match a.name.as_str() {
                 "vColor" => write!(wgsl, "in.vertex_color{c}").unwrap(),
                 "vPos" => write!(wgsl, "in.position{c}").unwrap(),
                 "vNormal" => write!(wgsl, "in.normal{c}").unwrap(),
@@ -628,34 +628,25 @@ fn write_value_xyz(
                 // The database uses "vBitan" to represent calculated bitangent attributes.
                 "vBitan" => write!(wgsl, "bitangent{c}").unwrap(),
                 _ => {
-                    warn!("Unsupported attribute {name}{c}");
+                    warn!("Unsupported attribute {a}");
                     return None;
                 }
             }
             Some(())
         }
-        ValueXyz::Parameter {
-            name,
-            field,
-            index,
-            channel,
-        } => {
-            match name.as_str() {
+        ValueXyz::Parameter(p) => {
+            match p.name.as_str() {
                 "U_Mate" => {
                     // TODO: support other uniform buffers for all games
-                    write!(wgsl, "per_material.u_mate.{}", field.to_snake()).unwrap();
+                    write!(wgsl, "per_material.u_mate.{}", p.field.to_snake()).unwrap();
                     // All fields are declared as arrays, so convert "b.f.x" to "b.f[0].x".
-                    write_index(wgsl, Some(index.unwrap_or_default()));
-                    let channels = channel_xyz_wgsl(*channel);
+                    write_index(wgsl, Some(p.index.unwrap_or_default()));
+                    let channels = channel_xyz_wgsl(p.channel);
                     write!(wgsl, "{channels}").unwrap();
                     Some(())
                 }
                 _ => {
-                    error!(
-                        "Unsupported parameter {name}.{field}{}{}",
-                        index.map(|i| format!("[{i}]")).unwrap_or_default(),
-                        channel.map(|c| format!(".{c}")).unwrap_or_default()
-                    );
+                    error!("Unsupported parameter {p}");
                     None
                 }
             }

@@ -5,7 +5,9 @@ use ordered_float::OrderedFloat;
 use smol_str::{SmolStr, ToSmolStr};
 use varint_rs::{VarintReader, VarintWriter};
 
-use crate::shader_database::{OperationXyz, OutputExprXyz, TextureXyz, ValueXyz};
+use crate::shader_database::{
+    AttributeXyz, OperationXyz, OutputExprXyz, ParameterXyz, TextureXyz, ValueXyz,
+};
 
 use super::{
     Attribute, Operation, OutputExpr, Parameter, ProgramHash, ShaderProgram, Texture, Value,
@@ -500,22 +502,15 @@ impl ShaderDatabaseIndexed {
                     .map(|t| self.add_output_expr(*t, exprs, expr_indices))
                     .collect(),
             }),
-            ValueXyz::Attribute { name, channel } => {
-                ValueXyzIndexed::Attribute(AttributeXyzIndexed {
-                    name: add_string(&mut self.attribute_names, name),
-                    channel: channel.into(),
-                })
-            }
-            ValueXyz::Parameter {
-                name,
-                field,
-                index,
-                channel,
-            } => ValueXyzIndexed::Parameter(ParameterXyzIndexed {
-                name: add_string(&mut self.buffer_names, name),
-                field: add_string(&mut self.buffer_field_names, field),
-                index: OptVarInt(index),
-                channel: channel.into(),
+            ValueXyz::Attribute(a) => ValueXyzIndexed::Attribute(AttributeXyzIndexed {
+                name: add_string(&mut self.attribute_names, a.name),
+                channel: a.channel.into(),
+            }),
+            ValueXyz::Parameter(p) => ValueXyzIndexed::Parameter(ParameterXyzIndexed {
+                name: add_string(&mut self.buffer_names, p.name),
+                field: add_string(&mut self.buffer_field_names, p.field),
+                index: OptVarInt(p.index),
+                channel: p.channel.into(),
             }),
             ValueXyz::Float(f) => ValueXyzIndexed::Float(f),
         }
@@ -723,12 +718,12 @@ impl ShaderDatabaseIndexed {
     ) -> ValueXyz {
         match v {
             ValueXyzIndexed::Float(f) => ValueXyz::Float(*f),
-            ValueXyzIndexed::Parameter(p) => ValueXyz::Parameter {
+            ValueXyzIndexed::Parameter(p) => ValueXyz::Parameter(ParameterXyz {
                 name: self.buffer_names[p.name.0].clone(),
                 field: self.buffer_field_names[p.field.0].clone(),
                 index: p.index.0,
                 channel: p.channel.into(),
-            },
+            }),
             ValueXyzIndexed::Texture(t) => ValueXyz::Texture(TextureXyz {
                 name: self.texture_names[t.name.0].clone(),
                 channel: t.channel.into(),
@@ -738,10 +733,10 @@ impl ShaderDatabaseIndexed {
                     .map(|coord| self.output_expr_from_indexed(coord.0, exprs, expr_to_index))
                     .collect(),
             }),
-            ValueXyzIndexed::Attribute(a) => ValueXyz::Attribute {
+            ValueXyzIndexed::Attribute(a) => ValueXyz::Attribute(AttributeXyz {
                 name: self.attribute_names[a.name.0].clone(),
                 channel: a.channel.into(),
-            },
+            }),
         }
     }
 }

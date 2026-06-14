@@ -8,7 +8,8 @@ use rayon::prelude::*;
 use smol_str::format_smolstr;
 use xc3_lib::{mths::Mths, spch::Spch};
 use xc3_model::shader_database::{
-    Operation, ProgramHash, ShaderDatabase, ShaderProgram, Value, ValueXyz,
+    AttributeXyz, Operation, ParameterXyz, ProgramHash, ShaderDatabase, ShaderProgram, Value,
+    ValueXyz,
 };
 
 use crate::expr::ExprCache;
@@ -723,34 +724,27 @@ fn xc3_value(value: crate::expr::Value) -> xc3_model::shader_database::Value {
 
 fn xc3_value_xyz(value: crate::expr::xyz::ValueXyz) -> xc3_model::shader_database::ValueXyz {
     match value {
-        crate::expr::xyz::ValueXyz::Texture {
-            name,
-            channel,
-            texcoords,
-        } => {
+        crate::expr::xyz::ValueXyz::Texture(t) => {
             xc3_model::shader_database::ValueXyz::Texture(xc3_model::shader_database::TextureXyz {
-                name,
-                channel: channel.map(xc3_channel_xyz),
-                texcoords,
+                name: t.name,
+                texcoords: t.texcoords,
+                channel: t.channel.map(xc3_channel_xyz),
             })
         }
-        crate::expr::xyz::ValueXyz::Attribute { name, channel } => {
-            xc3_model::shader_database::ValueXyz::Attribute {
-                name,
-                channel: channel.map(xc3_channel_xyz),
-            }
+        crate::expr::xyz::ValueXyz::Attribute(a) => {
+            xc3_model::shader_database::ValueXyz::Attribute(AttributeXyz {
+                name: a.name,
+                channel: a.channel.map(xc3_channel_xyz),
+            })
         }
-        crate::expr::xyz::ValueXyz::Parameter {
-            name,
-            field,
-            index,
-            channel,
-        } => xc3_model::shader_database::ValueXyz::Parameter {
-            name,
-            field,
-            index,
-            channel: channel.map(xc3_channel_xyz),
-        },
+        crate::expr::xyz::ValueXyz::Parameter(p) => {
+            xc3_model::shader_database::ValueXyz::Parameter(ParameterXyz {
+                name: p.name,
+                field: p.field,
+                index: p.index,
+                channel: p.channel.map(xc3_channel_xyz),
+            })
+        }
         crate::expr::xyz::ValueXyz::Float(f) => xc3_model::shader_database::ValueXyz::Float(f),
     }
 }

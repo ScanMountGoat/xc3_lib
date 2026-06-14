@@ -126,7 +126,7 @@ mod tests {
 
     use crate::expr::{
         Attribute, Texture, Value,
-        xyz::{ChannelXyz, OutputExprXyz, ValueXyz},
+        xyz::{AttributeXyz, ChannelXyz, OutputExprXyz, TextureXyz, ValueXyz},
     };
 
     fn merge_xyz(
@@ -181,11 +181,11 @@ mod tests {
         assert_eq!(
             Some((
                 0,
-                vec![OutputExprXyz::Value(ValueXyz::Texture {
+                vec![OutputExprXyz::Value(ValueXyz::Texture(TextureXyz {
                     name: "s0".into(),
                     channel: Some(ChannelXyz::W),
                     texcoords: vec![0, 0]
-                })]
+                }))]
             )),
             merge_xyz(1, 1, 1, &assignments)
         );
@@ -242,16 +242,16 @@ mod tests {
             Some((
                 3,
                 vec![
-                    OutputExprXyz::Value(ValueXyz::Texture {
+                    OutputExprXyz::Value(ValueXyz::Texture(TextureXyz {
                         name: "s0".into(),
                         channel: Some(ChannelXyz::Xyz),
                         texcoords: vec![0, 0]
-                    }),
+                    })),
                     OutputExprXyz::Value(ValueXyz::Float([1.0.into(), 2.0.into(), 3.0.into()])),
-                    OutputExprXyz::Value(ValueXyz::Attribute {
+                    OutputExprXyz::Value(ValueXyz::Attribute(AttributeXyz {
                         name: "vColor".into(),
                         channel: Some(ChannelXyz::Xyz)
-                    }),
+                    })),
                     OutputExprXyz::Func {
                         op: OperationXyz::Fma,
                         args: vec![0, 1, 2]

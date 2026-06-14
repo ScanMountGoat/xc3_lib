@@ -38,26 +38,39 @@ pub enum OutputExprXyz<Op> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ValueXyz {
-    Texture {
-        /// The name of the texture like `s0` or `gTResidentTex09`.
-        name: SmolStr,
-        channel: Option<ChannelXyz>,
-        /// Indices into scalar [OutputExpr] for the texture coordinates.
-        texcoords: Vec<usize>,
-    },
-    Attribute {
-        name: SmolStr,
-        channel: Option<ChannelXyz>,
-    },
-    Parameter {
-        name: SmolStr,
-        field: SmolStr,
-        index: Option<usize>,
-        channel: Option<ChannelXyz>,
-    },
+    Texture(TextureXyz),
+    Attribute(AttributeXyz),
+    Parameter(ParameterXyz),
     Float([OrderedFloat<f32>; 3]),
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct TextureXyz {
+    /// The name of the texture like `s0` or `gTResidentTex09`.
+    pub name: SmolStr,
+    /// Indices into scalar [OutputExpr] for the texture coordinates.
+    pub texcoords: Vec<usize>,
+    pub channel: Option<ChannelXyz>,
+}
+
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct AttributeXyz {
+    pub name: SmolStr,
+    pub channel: Option<ChannelXyz>,
+}
+
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct ParameterXyz {
+    pub name: SmolStr,
+    pub field: SmolStr,
+    pub index: Option<usize>,
+    pub channel: Option<ChannelXyz>,
+}
+
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChannelXyz {
     Xyz,
@@ -128,11 +141,11 @@ where
                     match (vx, vy, vz) {
                         (Value::Texture(tx), Value::Texture(ty), Value::Texture(tz)) => {
                             if tx.texcoords == ty.texcoords && ty.texcoords == tz.texcoords {
-                                Some(OutputExprXyz::Value(ValueXyz::Texture {
+                                Some(OutputExprXyz::Value(ValueXyz::Texture(TextureXyz {
                                     name: name_xyz(&tx.name, &ty.name, &tz.name)?,
                                     channel: channel_xyz(tx.channel, ty.channel, tz.channel)?,
                                     texcoords: tx.texcoords.clone(), // TODO: These should refer to the scalar assignments?
-                                }))
+                                })))
                             } else {
                                 None
                             }
@@ -150,10 +163,10 @@ where
                                 name: n_z,
                                 channel: c_z,
                             }),
-                        ) => Some(OutputExprXyz::Value(ValueXyz::Attribute {
+                        ) => Some(OutputExprXyz::Value(ValueXyz::Attribute(AttributeXyz {
                             name: name_xyz(n_x, n_y, n_z)?,
                             channel: channel_xyz(*c_x, *c_y, *c_z)?,
-                        })),
+                        }))),
                         (
                             Value::Parameter(Parameter {
                                 name: n_x,
@@ -173,12 +186,12 @@ where
                                 index: i_z,
                                 channel: c_z,
                             }),
-                        ) => Some(OutputExprXyz::Value(ValueXyz::Parameter {
+                        ) => Some(OutputExprXyz::Value(ValueXyz::Parameter(ParameterXyz {
                             name: name_xyz(n_x, n_y, n_z)?,
                             field: name_xyz(f_x, f_y, f_z)?,
                             index: index_xyz(*i_x, *i_y, *i_z)?,
                             channel: channel_xyz(*c_x, *c_y, *c_z)?,
-                        })),
+                        }))),
                         (Value::Float(fx), Value::Float(fy), Value::Float(fz)) => {
                             Some(OutputExprXyz::Value(ValueXyz::Float([*fx, *fy, *fz])))
                         }
@@ -265,42 +278,47 @@ where
 impl std::fmt::Display for ValueXyz {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ValueXyz::Texture {
-                name,
-                channel,
-                texcoords,
-            } => {
-                let args: Vec<_> = texcoords.iter().map(|t| format!("var{t}")).collect();
-                write!(
-                    f,
-                    "Texture({}, {}){}",
-                    name,
-                    args.join(", "),
-                    channels_xyz(*channel)
-                )
-            }
-            ValueXyz::Attribute { name, channel } => {
-                write!(f, "{}{}", name, channels_xyz(*channel))
-            }
-            ValueXyz::Parameter {
-                name,
-                field,
-                index,
-                channel,
-            } => write!(
-                f,
-                "{}{}{}{}",
-                name,
-                if field.is_empty() {
-                    String::new()
-                } else {
-                    format!(".{}", field)
-                },
-                index.map(|i| format!("[{i}]")).unwrap_or_default(),
-                channels_xyz(*channel)
-            ),
             ValueXyz::Float(c) => write!(f, "{c:?}"),
+            ValueXyz::Parameter(p) => write!(f, "{p}"),
+            ValueXyz::Texture(t) => write!(f, "{t}"),
+            ValueXyz::Attribute(a) => write!(f, "{a}"),
         }
+    }
+}
+
+impl std::fmt::Display for ParameterXyz {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}{}{}{}",
+            self.name,
+            if !self.field.is_empty() {
+                format!(".{}", self.field)
+            } else {
+                String::new()
+            },
+            self.index.map(|i| format!("[{i}]")).unwrap_or_default(),
+            channels_xyz(self.channel)
+        )
+    }
+}
+
+impl std::fmt::Display for TextureXyz {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let args: Vec<_> = self.texcoords.iter().map(|t| format!("var{t}")).collect();
+        write!(
+            f,
+            "Texture({}, {}){}",
+            self.name,
+            args.join(", "),
+            channels_xyz(self.channel)
+        )
+    }
+}
+
+impl std::fmt::Display for AttributeXyz {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.name, channels_xyz(self.channel))
     }
 }
 
