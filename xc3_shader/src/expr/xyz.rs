@@ -33,6 +33,7 @@ pub enum OutputExprXyz<Op> {
         op: Op,
         /// Indices for the [OutputExprXyz] for the function argument list `[arg0, arg1, ...]`.
         args: Vec<usize>,
+        channel: Option<ChannelXyz>,
     },
 }
 
@@ -128,10 +129,10 @@ where
                         args: args_z,
                     },
                 ) => {
-                    let op = op_xyz(*op_x, *op_y, *op_z)?;
+                    let (op, channel) = op_xyz(*op_x, *op_y, *op_z)?;
                     if args_x.len() == args_y.len() && args_y.len() == args_z.len() {
                         let args = op.merge_xyz_args(args_x, args_y, args_z, exprs, exprs_xyz)?;
-                        Some(OutputExprXyz::Func { op, args })
+                        Some(OutputExprXyz::Func { op, args, channel })
                     } else {
                         None
                     }
@@ -208,7 +209,11 @@ where
     }
 }
 
-fn op_xyz<Op: OperationXyzChannel>(x: Op, y: Op, z: Op) -> Option<Op::OperationXyz>
+fn op_xyz<Op: OperationXyzChannel>(
+    x: Op,
+    y: Op,
+    z: Op,
+) -> Option<(Op::OperationXyz, Option<ChannelXyz>)>
 where
     <Op as OperationXyzChannel>::OperationXyz: PartialEq,
 {
@@ -219,18 +224,16 @@ where
     let (op_y, c_y) = y.operation_xyz_channel()?;
     let (op_z, c_z) = z.operation_xyz_channel()?;
 
-    if op_x == op_y
-        && op_y == op_z
-        && matches!(
-            [c_x, c_y, c_z],
-            [Some('x'), Some('y'), Some('z')]
-                | [Some('x'), Some('x'), Some('x')]
-                | [Some('y'), Some('y'), Some('y')]
-                | [Some('z'), Some('z'), Some('z')]
-                | [None, None, None]
-        )
-    {
-        Some(op_x)
+    if op_x == op_y && op_y == op_z {
+        match [c_x, c_y, c_z] {
+            [Some('x'), Some('y'), Some('z')] => Some((op_x, Some(ChannelXyz::Xyz))),
+            [Some('x'), Some('x'), Some('x')] => Some((op_x, Some(ChannelXyz::X))),
+            [Some('y'), Some('y'), Some('y')] => Some((op_x, Some(ChannelXyz::Y))),
+            [Some('z'), Some('z'), Some('z')] => Some((op_x, Some(ChannelXyz::Z))),
+            [Some('w'), Some('w'), Some('w')] => Some((op_x, Some(ChannelXyz::W))),
+            [None, None, None] => Some((op_x, None)),
+            _ => None,
+        }
     } else {
         None
     }
@@ -267,9 +270,9 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OutputExprXyz::Value(d) => write!(f, "{d}"),
-            OutputExprXyz::Func { op, args } => {
+            OutputExprXyz::Func { op, args, channel } => {
                 let args: Vec<_> = args.iter().map(|a| format!("var{a}")).collect();
-                write!(f, "{op}({})", args.join(", "))
+                write!(f, "{op}({}){}", args.join(", "), channels_xyz(*channel))
             }
         }
     }

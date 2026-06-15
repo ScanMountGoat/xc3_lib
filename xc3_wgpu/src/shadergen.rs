@@ -230,7 +230,7 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
         Operation::UintBitsToFloat => write!(wgsl, "bitcast<f32>({a}{})", arg0?).unwrap(),
         Operation::InverseSqrt => write!(wgsl, "inverseSqrt({a}{})", arg0?).unwrap(),
         Operation::Not => write!(wgsl, "!{a}{}", arg0?).unwrap(),
-        Operation::LeftShift => write!(wgsl, "{a}{} >> {a}{}", arg0?, arg1?).unwrap(),
+        Operation::LeftShift => write!(wgsl, "{a}{} << {a}{}", arg0?, arg1?).unwrap(),
         Operation::RightShift => write!(wgsl, "{a}{} >> {a}{}", arg0?, arg1?).unwrap(),
         Operation::PartialDerivativeX => write!(wgsl, "dpdx({a}{})", arg0?).unwrap(),
         Operation::PartialDerivativeY => write!(wgsl, "dpdy({a}{})", arg0?).unwrap(),
@@ -496,12 +496,17 @@ fn write_expr_xyz(
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> Option<()> {
     match value {
-        OutputExprXyz::Func { op, args } => write_func_xyz(wgsl, op, args),
+        OutputExprXyz::Func { op, args, channel } => write_func_xyz(wgsl, op, args, *channel),
         OutputExprXyz::Value(v) => write_value_xyz(wgsl, v, name_to_index),
     }
 }
 
-fn write_func_xyz(wgsl: &mut String, op: &OperationXyz, args: &[usize]) -> Option<()> {
+fn write_func_xyz(
+    wgsl: &mut String,
+    op: &OperationXyz,
+    args: &[usize],
+    channel: Option<ChannelXyz>,
+) -> Option<()> {
     let arg0 = args.first();
     let arg1 = args.get(1);
     let arg2 = args.get(2);
@@ -511,9 +516,9 @@ fn write_func_xyz(wgsl: &mut String, op: &OperationXyz, args: &[usize]) -> Optio
     match op {
         OperationXyz::Unk => return None,
         OperationXyz::Mix => write!(wgsl, "mix({a}{}, {a}{}, {a}{})", arg0?, arg1?, arg2?).unwrap(),
-        OperationXyz::Mul => write!(wgsl, "{a}{} * {a}{}", arg0?, arg1?).unwrap(),
-        OperationXyz::Div => write!(wgsl, "{a}{} / {a}{}", arg0?, arg1?).unwrap(),
-        OperationXyz::Add => write!(wgsl, "{a}{} + {a}{}", arg0?, arg1?).unwrap(),
+        OperationXyz::Mul => write!(wgsl, "({a}{} * {a}{})", arg0?, arg1?).unwrap(),
+        OperationXyz::Div => write!(wgsl, "({a}{} / {a}{})", arg0?, arg1?).unwrap(),
+        OperationXyz::Add => write!(wgsl, "({a}{} + {a}{})", arg0?, arg1?).unwrap(),
         OperationXyz::OverlayRatio => write!(
             wgsl,
             "mix({a}{0}, overlay_blend_xyz({a}{0}, {a}{1}), {a}{2})",
@@ -532,8 +537,8 @@ fn write_func_xyz(wgsl: &mut String, op: &OperationXyz, args: &[usize]) -> Optio
         OperationXyz::Clamp => {
             write!(wgsl, "clamp({a}{}, {a}{}, {a}{})", arg0?, arg1?, arg2?).unwrap()
         }
-        OperationXyz::Sub => write!(wgsl, "{a}{} - {a}{}", arg0?, arg1?).unwrap(),
-        OperationXyz::Fma => write!(wgsl, "{a}{} * {a}{} + {a}{}", arg0?, arg1?, arg2?).unwrap(),
+        OperationXyz::Sub => write!(wgsl, "({a}{} - {a}{})", arg0?, arg1?).unwrap(),
+        OperationXyz::Fma => write!(wgsl, "({a}{} * {a}{} + {a}{})", arg0?, arg1?, arg2?).unwrap(),
         OperationXyz::Abs => write!(wgsl, "abs({a}{})", arg0?).unwrap(),
         OperationXyz::Fresnel => write!(wgsl, "fresnel_ratio_xyz({a}{}, n_dot_v)", arg0?).unwrap(),
         OperationXyz::MulRatio => write!(
@@ -551,19 +556,19 @@ fn write_func_xyz(wgsl: &mut String, op: &OperationXyz, args: &[usize]) -> Optio
             arg2?, arg1?, arg0?
         )
         .unwrap(),
-        OperationXyz::Equal => write!(wgsl, "{a}{} == {a}{}", arg0?, arg1?).unwrap(),
-        OperationXyz::NotEqual => write!(wgsl, "{a}{} != {a}{}", arg0?, arg1?).unwrap(),
-        OperationXyz::Less => write!(wgsl, "{a}{} < {a}{}", arg0?, arg1?).unwrap(),
-        OperationXyz::Greater => write!(wgsl, "{a}{} > {a}{}", arg0?, arg1?).unwrap(),
-        OperationXyz::LessEqual => write!(wgsl, "{a}{} <= {a}{}", arg0?, arg1?).unwrap(),
-        OperationXyz::GreaterEqual => write!(wgsl, "{a}{} >= {a}{}", arg0?, arg1?).unwrap(),
+        OperationXyz::Equal => write!(wgsl, "({a}{} == {a}{})", arg0?, arg1?).unwrap(),
+        OperationXyz::NotEqual => write!(wgsl, "({a}{} != {a}{})", arg0?, arg1?).unwrap(),
+        OperationXyz::Less => write!(wgsl, "({a}{} < {a}{})", arg0?, arg1?).unwrap(),
+        OperationXyz::Greater => write!(wgsl, "({a}{} > {a}{})", arg0?, arg1?).unwrap(),
+        OperationXyz::LessEqual => write!(wgsl, "({a}{} <= {a}{})", arg0?, arg1?).unwrap(),
+        OperationXyz::GreaterEqual => write!(wgsl, "({a}{} >= {a}{})", arg0?, arg1?).unwrap(),
         OperationXyz::Monochrome => write!(
             wgsl,
             "monochrome({a}{0}.x, {a}{0}.y, {a}{0}.z, {a}{1}.x)",
             arg0?, arg1?,
         )
         .unwrap(),
-        OperationXyz::Negate => write!(wgsl, "-{a}{}", arg0?).unwrap(),
+        OperationXyz::Negate => write!(wgsl, "(-{a}{})", arg0?).unwrap(),
         OperationXyz::Float => write!(wgsl, "vec3<f32>({a}{})", arg0?).unwrap(),
         OperationXyz::Int => write!(wgsl, "vec3<i32>({a}{})", arg0?).unwrap(),
         OperationXyz::Uint => write!(wgsl, "vec3<u32>({a}{})", arg0?).unwrap(),
@@ -572,14 +577,15 @@ fn write_func_xyz(wgsl: &mut String, op: &OperationXyz, args: &[usize]) -> Optio
         OperationXyz::IntBitsToFloat => write!(wgsl, "bitcast<f32>({a}{})", arg0?).unwrap(),
         OperationXyz::UintBitsToFloat => write!(wgsl, "bitcast<f32>({a}{})", arg0?).unwrap(),
         OperationXyz::InverseSqrt => write!(wgsl, "inverseSqrt({a}{})", arg0?).unwrap(),
-        OperationXyz::Not => write!(wgsl, "!{a}{}", arg0?).unwrap(),
-        OperationXyz::LeftShift => write!(wgsl, "{a}{} >> {a}{}", arg0?, arg1?).unwrap(),
-        OperationXyz::RightShift => write!(wgsl, "{a}{} >> {a}{}", arg0?, arg1?).unwrap(),
+        OperationXyz::Not => write!(wgsl, "(!{a}{})", arg0?).unwrap(),
+        OperationXyz::LeftShift => write!(wgsl, "({a}{} << {a}{})", arg0?, arg1?).unwrap(),
+        OperationXyz::RightShift => write!(wgsl, "({a}{} >> {a}{})", arg0?, arg1?).unwrap(),
         OperationXyz::Exp2 => write!(wgsl, "exp2({a}{})", arg0?).unwrap(),
         OperationXyz::Log2 => write!(wgsl, "log2({a}{})", arg0?).unwrap(),
         OperationXyz::Sin => write!(wgsl, "sin({a}{})", arg0?).unwrap(),
         OperationXyz::Cos => write!(wgsl, "cos({a}{})", arg0?).unwrap(),
     }
+    write!(wgsl, "{}", channel_xyz_wgsl(channel)).unwrap();
     Some(())
 }
 

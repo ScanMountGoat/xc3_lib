@@ -254,7 +254,8 @@ mod tests {
                     })),
                     OutputExprXyz::Func {
                         op: OperationXyz::Fma,
-                        args: vec![0, 1, 2]
+                        args: vec![0, 1, 2],
+                        channel: None
                     }
                 ]
             )),

@@ -196,6 +196,7 @@ fn check_exprs<'a>(
             },
         ) => {
             // TODO: does it make sense to match buffer and field names?
+            // TODO: store the names in vars?
             match (i1, i2) {
                 (Some(i1), Some(i2)) => c1 == c2 && check(&[*i1], &[*i2]),
                 (None, None) => c1 == c2,
@@ -446,6 +447,18 @@ mod tests {
     #[test]
     fn query_negation() {
         assert!(query_glsl("c = 1.0 * 2.0;", "d = 1.0 * 2.0;").is_some());
+    }
+
+    #[test]
+    fn query_ternary() {
+        assert!(query_glsl("result = a < 0.0 ? b : c;", "result = d < 0.0 ? e : f;").is_some());
+        assert!(
+            query_glsl(
+                "result = 1.0 < 0.0 ? 2.0 : 3.0;",
+                "result = a < 0.0 ? b : c;",
+            )
+            .is_some()
+        );
     }
 
     #[test]

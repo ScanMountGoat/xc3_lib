@@ -396,6 +396,7 @@ pub enum OutputExprXyz {
         /// Index into XYZ [exprs_xyz](struct.ShaderProgram.html#structfield.exprs_xyz)
         /// for the function argument list `[arg0, arg1, ...]`.
         args: Vec<usize>,
+        channel: Option<ChannelXyz>,
     },
 }
 

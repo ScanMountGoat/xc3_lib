@@ -212,6 +212,8 @@ enum OutputExprXyzIndexed {
         #[br(parse_with = parse_vec)]
         #[bw(write_with = write_vec)]
         args: Vec<VarInt>,
+
+        channel: ChannelXyz,
     },
 }
 
@@ -449,7 +451,7 @@ impl ShaderDatabaseIndexed {
                         exprs,
                         expr_indices,
                     )),
-                    OutputExprXyz::Func { op, args } => OutputExprXyzIndexed::Func {
+                    OutputExprXyz::Func { op, args, channel } => OutputExprXyzIndexed::Func {
                         op: *op,
                         args: args
                             .iter()
@@ -463,6 +465,7 @@ impl ShaderDatabaseIndexed {
                                 )
                             })
                             .collect(),
+                        channel: (*channel).into(),
                     },
                 };
 
@@ -687,7 +690,7 @@ impl ShaderDatabaseIndexed {
                     OutputExprXyzIndexed::Value(v) => OutputExprXyz::Value(
                         self.value_xyz_from_indexed(&self.values_xyz[v.0], exprs, expr_to_index),
                     ),
-                    OutputExprXyzIndexed::Func { op, args } => OutputExprXyz::Func {
+                    OutputExprXyzIndexed::Func { op, args, channel } => OutputExprXyz::Func {
                         op: *op,
                         args: args
                             .iter()
@@ -701,6 +704,7 @@ impl ShaderDatabaseIndexed {
                                 )
                             })
                             .collect(),
+                        channel: (*channel).into(),
                     },
                 };
                 let index = exprs_xyz.insert_full(expr).0;

@@ -152,8 +152,12 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
             crate::expr::xyz::OutputExprXyz::Value(value) => {
                 xc3_model::shader_database::OutputExprXyz::Value(xc3_value_xyz(value))
             }
-            crate::expr::xyz::OutputExprXyz::Func { op, args } => {
-                xc3_model::shader_database::OutputExprXyz::Func { op, args }
+            crate::expr::xyz::OutputExprXyz::Func { op, args, channel } => {
+                xc3_model::shader_database::OutputExprXyz::Func {
+                    op,
+                    args,
+                    channel: channel.map(xc3_channel_xyz),
+                }
             }
         })
         .collect();
@@ -640,7 +644,7 @@ fn write_expr_xyz(output: &mut String, s: &ShaderProgram, v: usize) {
             .unwrap();
         }
         xc3_model::shader_database::OutputExprXyz::Value(v) => write!(output, "{v}").unwrap(),
-        xc3_model::shader_database::OutputExprXyz::Func { op, args } => {
+        xc3_model::shader_database::OutputExprXyz::Func { op, args, channel } => {
             write!(output, "{op}(").unwrap();
             // Don't write a trailing comma.
             if let Some((last, args)) = args.split_last() {
@@ -650,7 +654,12 @@ fn write_expr_xyz(output: &mut String, s: &ShaderProgram, v: usize) {
                 }
                 write_expr_xyz(output, s, *last);
             }
-            write!(output, ")").unwrap();
+            write!(
+                output,
+                "){}",
+                channel.map(|c| format!(".{c}")).unwrap_or_default()
+            )
+            .unwrap();
         }
     }
 }
