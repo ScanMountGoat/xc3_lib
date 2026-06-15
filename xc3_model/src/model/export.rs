@@ -483,10 +483,14 @@ impl ModelRoot {
                 variable_count: m.variables.len() as u32,
                 techniques,
                 unk4: [0; 2], // TODO: elements not always zero?
-                callback_start_index: callbacks
-                    .as_ref()
-                    .map(|c| c.work_callbacks.len() as u16)
-                    .unwrap_or_default(),
+                callback_start_index: if !m.work_callbacks.is_empty() {
+                    callbacks
+                        .as_ref()
+                        .map(|c| c.work_callbacks.len() as u16)
+                        .unwrap_or_default()
+                } else {
+                    0
+                },
                 callback_count: m.work_callbacks.len() as u16,
                 unk4_1: [0; 2],
                 alt_textures: m.alt_textures.as_ref().map(|a| {
