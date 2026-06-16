@@ -13,8 +13,7 @@ use xc3_model::{
         assignments::{OutputAssignment, OutputAssignments},
     },
     shader_database::{
-        Attribute, ChannelXyz, Operation, OperationXyz, OutputExpr, OutputExprXyz, Parameter,
-        Value, ValueXyz,
+        Attribute, ChannelXyz, Operation, OperationXyz, OutputExpr, OutputExprXyz, Value, ValueXyz,
     },
 };
 
@@ -383,32 +382,27 @@ fn write_value(
                 }
             }
         }
-        Value::Parameter(Parameter {
-            name,
-            field,
-            index,
-            channel,
-        }) => {
+        Value::Parameter(p) => {
             // TODO: support other uniform buffers for all games
             // TODO: share code with xyz since only the channel is different?
-            match name.as_str() {
+            match p.name.as_str() {
                 "U_Mate" => {
-                    write_parameter(wgsl, "per_material.u_mate", field, index, channel);
+                    write_parameter(wgsl, "per_material.u_mate", &p.field, p.index, p.channel);
                 }
-                "U_Static" => match field.as_str() {
-                    "gmView" => write_parameter(wgsl, "camera", "view_inv", index, channel),
-                    "gmProj" => write_parameter(wgsl, "camera", "projection", index, channel),
+                "U_Static" => match p.field.as_str() {
+                    "gmView" => write_parameter(wgsl, "camera", "view_inv", p.index, p.channel),
+                    "gmProj" => write_parameter(wgsl, "camera", "projection", p.index, p.channel),
                     "gmViewProj" => {
-                        write_parameter(wgsl, "camera", "view_projection", index, channel)
+                        write_parameter(wgsl, "camera", "view_projection", p.index, p.channel)
                     }
-                    "gmInvView" => write_parameter(wgsl, "camera", "view_inv", index, channel),
+                    "gmInvView" => write_parameter(wgsl, "camera", "view_inv", p.index, p.channel),
                     _ => {
-                        log_unsupported_attribute(name, field, index, channel);
+                        error!("Unsupported parameter {p}");
                         return None;
                     }
                 },
                 _ => {
-                    log_unsupported_attribute(name, field, index, channel);
+                    error!("Unsupported parameter {p}");
                     return None;
                 }
             }
@@ -432,30 +426,17 @@ fn write_value(
     Some(())
 }
 
-fn log_unsupported_attribute(
-    name: &SmolStr,
-    field: &SmolStr,
-    index: &Option<usize>,
-    channel: &Option<char>,
-) {
-    error!(
-        "Unsupported parameter {name}.{field}{}{}",
-        index.map(|i| format!("[{i}]")).unwrap_or_default(),
-        channel.map(|c| format!(".{c}")).unwrap_or_default()
-    );
-}
-
 fn write_parameter(
     wgsl: &mut String,
     buffer: &str,
     field: &str,
-    index: &Option<usize>,
-    channel: &Option<char>,
+    index: Option<usize>,
+    channel: Option<char>,
 ) {
     write!(wgsl, "{buffer}.{}", field.to_snake()).unwrap();
     // All fields are declared as arrays, so convert "b.f.x" to "b.f[0].x".
     write_index(wgsl, Some(index.unwrap_or_default()));
-    write_channel(wgsl, *channel);
+    write_channel(wgsl, channel);
 }
 
 fn write_attribute(wgsl: &mut String, name: &str, channel: &Option<char>) {

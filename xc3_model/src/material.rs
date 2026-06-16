@@ -11,7 +11,8 @@ pub use xc3_lib::mxmd::{
 use crate::{
     ImageTexture, Sampler,
     shader_database::{
-        Operation, OutputExpr, Parameter, ProgramHash, ShaderDatabase, ShaderProgram, Value,
+        ChannelXyz, Operation, OutputExpr, Parameter, ParameterXyz, ProgramHash, ShaderDatabase,
+        ShaderProgram, Value,
     },
 };
 
@@ -192,10 +193,84 @@ impl MaterialParameters {
             ("U_Static", "gNewRimLgtPreDir") => [[0.0, 0.0, 1.0, 1.0]; 2].get(index)?.get(c),
             ("U_Static", "gNewRimLgtPreCol") => [[1.0; 4]; 2].get(index)?.get(c),
             ("U_Static", "gLgtPreSpe") => [[1.0; 4]; 2].get(index)?.get(c),
+            // U_Fog uniform buffer values taken from XC3 in RenderDoc.
+            // TODO: Are these values the same for all games?
+            ("U_FOG", "gFogPa") => [
+                [-0.00002, 0.99877, -0.04952, 1.00],
+                [-0.30374, 0.64656, 0.69979, 0.00],
+                [0.13321, 0.2113, 0.61207, 0.00],
+                [0.33862, 0.51811, 0.73984, 4.00],
+                [1.00, 0.89825, 0.69939, 10.00],
+                [10.00, 0.0001, 0.70, 0.80],
+                [0.10, 0.09524, 0.085, 80.00],
+            ]
+            .get(index)?
+            .get(c),
+            ("U_FOG", "gHeightFogParam") => [
+                [0.61906, 0.01, 150.00, 0.0003],
+                [0.21764, 0.32504, 0.73611, 0.40],
+            ]
+            .get(index)?
+            .get(c),
             _ => None,
         };
 
         value.copied()
+    }
+
+    pub fn get_parameter_xyz(&self, p: &ParameterXyz) -> Option<[f32; 3]> {
+        match p.channel {
+            Some(ChannelXyz::Xyz) => self.xyz_param_value(p),
+            Some(ChannelXyz::X) => self.xyz_param_channel_value(p, Some('x')),
+            Some(ChannelXyz::Y) => self.xyz_param_channel_value(p, Some('y')),
+            Some(ChannelXyz::Z) => self.xyz_param_channel_value(p, Some('z')),
+            Some(ChannelXyz::W) => self.xyz_param_channel_value(p, Some('w')),
+            None => self.xyz_param_channel_value(p, None),
+        }
+    }
+
+    fn xyz_param_value(&self, p: &ParameterXyz) -> Option<[f32; 3]> {
+        let x = Parameter {
+            name: p.name.clone(),
+            field: p.field.clone(),
+            index: p.index,
+            channel: Some('x'),
+        };
+        let y = Parameter {
+            name: p.name.clone(),
+            field: p.field.clone(),
+            index: p.index,
+            channel: Some('y'),
+        };
+        let z = Parameter {
+            name: p.name.clone(),
+            field: p.field.clone(),
+            index: p.index,
+            channel: Some('z'),
+        };
+        if let (Some(fx), Some(fy), Some(fz)) = (
+            self.get_parameter(&x),
+            self.get_parameter(&y),
+            self.get_parameter(&z),
+        ) {
+            Some([fx, fy, fz])
+        } else {
+            None
+        }
+    }
+
+    fn xyz_param_channel_value(
+        &self,
+        p: &crate::shader_database::ParameterXyz,
+        channel: Option<char>,
+    ) -> Option<[f32; 3]> {
+        self.get_parameter(&Parameter {
+            name: p.name.clone(),
+            field: p.field.clone(),
+            index: p.index,
+            channel,
+        })
+        .map(|f| [f; 3])
     }
 }
 
