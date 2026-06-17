@@ -499,7 +499,7 @@ where
                         .collect()
                 }),
                 alpha_test,
-                alpha_test_ref: 0.5,
+                alpha_test_ref: m.alpha_test_ref,
                 shader: get_shader_legacy(m, shaders, shader_database),
                 techniques,
                 parameters,

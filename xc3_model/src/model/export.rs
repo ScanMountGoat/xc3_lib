@@ -463,8 +463,9 @@ impl ModelRoot {
                 name: m.name.clone(),
                 flags: m.flags,
                 color: m.color,
-                unk2: [0.0; 6],          // TODO: not always 0
-                unk3: [0.0, 0.0, 0.999], // TODO: not always 0
+                unk2: [0.0; 6],   // TODO: not always 0
+                unk3: [0.0, 0.0], // TODO: not always 0
+                alpha_test_ref: m.alpha_test_ref,
                 textures: m
                     .textures
                     .iter()
@@ -482,7 +483,7 @@ impl ModelRoot {
                 variable_start_index: mxmd.materials.variables.len() as u32,
                 variable_count: m.variables.len() as u32,
                 techniques,
-                unk4: [0; 2], // TODO: elements not always zero?
+                unk4: [0; 2], // TODO: elements not always 0
                 callback_start_index: if !m.work_callbacks.is_empty() {
                     callbacks
                         .as_ref()
@@ -492,7 +493,7 @@ impl ModelRoot {
                     0
                 },
                 callback_count: m.work_callbacks.len() as u16,
-                unk4_1: [0; 2],
+                unk4_1: 0, // TODO: not always 0
                 alt_textures: m.alt_textures.as_ref().map(|a| {
                     a.iter()
                         .map(|t| xc3_lib::mxmd::legacy::Texture {
@@ -501,7 +502,7 @@ impl ModelRoot {
                         })
                         .collect()
                 }),
-                unk5: 0,
+                unk5: 0, // TODO: not always 0
                 alpha_test_texture_index,
                 unk7: 0,
             };

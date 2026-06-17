@@ -539,6 +539,7 @@ pub struct MaterialCallbacks {
     pub unk: [u32; 6],
 }
 
+/// A single material assignable to a [Mesh].
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -551,7 +552,10 @@ pub struct Material {
     pub flags: MaterialFlags,
     pub color: [f32; 4],
     pub unk2: [f32; 6],
-    pub unk3: [f32; 3],
+    pub unk3: [f32; 2],
+
+    /// The `U_Mate.gAlInf.y` fragment shader value used for alpha testing.
+    pub alpha_test_ref: f32,
 
     #[br(temp, restore_position)]
     textures_offset: u32,
@@ -576,13 +580,16 @@ pub struct Material {
     #[xc3(offset_count(u32, u32))]
     pub techniques: Vec<MaterialTechnique>,
 
+    // TODO: [0, 16] is used for skin materials and affects output 0?
+    // 0,1,2,3
+    // 0,1,...,99
     pub unk4: [u16; 2],
 
     /// Index into [work_callbacks](struct.MaterialCallbacks.html#structfield.work_callbacks).
     pub callback_start_index: u16,
     pub callback_count: u16,
 
-    pub unk4_1: [u16; 2],
+    pub unk4_1: u32, // TODO: some sort of flags?
 
     // TODO: Is this always contained within the textures list?
     // TODO: alternate textures offset for non opaque rendering?
@@ -599,7 +606,7 @@ pub struct Material {
     #[xc3(offset(u32))]
     pub alt_textures: Option<Vec<Texture>>,
 
-    pub unk5: u16,
+    pub unk5: u16, // 0, 1, ..., 85
 
     /// Index into [alpha_test_textures](struct.Materials.html#structfield.alpha_test_textures).
     pub alpha_test_texture_index: u16,
@@ -720,7 +727,9 @@ pub struct Technique {
     #[xc3(offset_count(u32, u32))]
     pub unk7: Vec<[u16; 4]>,
 
+    // TODO: (material_texture_count?, ???)
     pub unk8: (u16, u16),
+
     pub unk9: (u16, u16),
 
     // TODO: padding?
