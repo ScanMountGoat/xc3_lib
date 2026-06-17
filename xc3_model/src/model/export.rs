@@ -483,7 +483,7 @@ impl ModelRoot {
                 variable_start_index: mxmd.materials.variables.len() as u32,
                 variable_count: m.variables.len() as u32,
                 techniques,
-                unk4: [0; 2], // TODO: elements not always 0
+                unk4: m.unk4_legacy,
                 callback_start_index: if !m.work_callbacks.is_empty() {
                     callbacks
                         .as_ref()

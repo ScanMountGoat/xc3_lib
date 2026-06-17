@@ -57,6 +57,9 @@ pub struct Material {
     // TODO: is there another way to preserve the work value buffer?
     pub parameters: MaterialParameters,
 
+    // TODO: Is this the same as a modern field?
+    pub unk4_legacy: [u16; 2],
+
     pub m_unks2: u16,
     pub gbuffer_flags: u16,
 
@@ -386,6 +389,7 @@ pub(crate) fn create_materials(
                 m_unks1_4: material.m_unks1_4,
                 m_unks2: material.m_unks2,
                 gbuffer_flags: material.gbuffer_flags,
+                unk4_legacy: [0; 2],
                 fur_params,
             }
         })
@@ -515,11 +519,12 @@ where
                     .and_then(|c| c.work_callbacks.get(callback_start..callback_end))
                     .unwrap_or_default()
                     .to_vec(),
-                m_unks1_1: 0,
-                m_unks1_2: 0,
-                m_unks1_3: 0,
-                m_unks1_4: 0,
+                m_unks1_1: m.m_unks1_1,
+                m_unks1_2: m.m_unks1_2,
+                m_unks1_3: m.m_unks1_3,
+                m_unks1_4: m.m_unks1_4,
                 m_unks2: 0,
+                unk4_legacy: m.unk4,
                 gbuffer_flags: 0,
                 fur_params,
             }

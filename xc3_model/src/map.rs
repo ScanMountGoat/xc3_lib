@@ -868,6 +868,7 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                 m_unks1_3: 0,
                 m_unks1_4: 0,
                 m_unks2: 0,
+                unk4_legacy: [0; 2],
                 gbuffer_flags: 0,
                 fur_params: None,
             }
