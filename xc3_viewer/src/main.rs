@@ -130,6 +130,7 @@ impl State {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
+                apply_limit_buckets: false,
             })
             .await
             .unwrap();
@@ -155,6 +156,7 @@ impl State {
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
             view_formats: Vec::new(),
             desired_maximum_frame_latency: 2,
+            color_space: wgpu::SurfaceColorSpace::Auto,
         };
         surface.configure(&device, &config);
 
@@ -402,7 +404,7 @@ impl State {
         );
 
         self.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
+        self.queue.present(output);
     }
 
     // Make this a reusable library that only requires glam?
@@ -694,7 +696,7 @@ fn calculate_camera_data(
             * Mat4::from_rotation_y(rotation.y)
     };
 
-    let projection = glam::Mat4::perspective_rh(FOV_Y, aspect, Z_NEAR, Z_FAR);
+    let projection = glam::camera::rh::proj::directx::perspective(FOV_Y, aspect, Z_NEAR, Z_FAR);
 
     let view_projection = projection * view;
 

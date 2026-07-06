@@ -108,6 +108,7 @@ fn main() {
         power_preference: wgpu::PowerPreference::HighPerformance,
         compatible_surface: None,
         force_fallback_adapter: false,
+        apply_limit_buckets: false,
     }))
     .unwrap();
 
@@ -438,7 +439,7 @@ fn frame_bounds(queue: &wgpu::Queue, renderer: &mut Renderer, min_xyz: Vec3, max
 #[tracing::instrument(skip_all)]
 fn save_screenshot(output_buffer: &wgpu::Buffer, output_path: PathBuf) {
     let buffer_slice = output_buffer.slice(..);
-    let data = buffer_slice.get_mapped_range().to_owned();
+    let data = buffer_slice.get_mapped_range().unwrap().to_owned();
 
     // Save the output texture.
     rayon::spawn(move || {
@@ -457,7 +458,7 @@ fn calculate_camera_data(width: u32, height: u32, translation: Vec3, rotation: V
         * Mat4::from_rotation_x(rotation.x)
         * Mat4::from_rotation_y(rotation.y);
 
-    let projection = Mat4::perspective_rh(FOV_Y, aspect, 0.1, 100000.0);
+    let projection = glam::camera::rh::proj::directx::perspective(FOV_Y, aspect, 0.1, 100000.0);
 
     let view_projection = projection * view;
 

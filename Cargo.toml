@@ -3,8 +3,8 @@ members = ["xc3_lib", "xc3_tex", "xc3_test", "xc3_shader", "xc3_write", "xc3_wri
 resolver = "3"
 
 [workspace.dependencies]
-glam = "0.33.1"
-wgpu = "29.0.0"
+glam = "0.33.2"
+wgpu = "30.0.0"
 log = "0.4.22"
 image_dds = { version = "0.7.1", default-features = false }
 indexmap = "2.1.0"

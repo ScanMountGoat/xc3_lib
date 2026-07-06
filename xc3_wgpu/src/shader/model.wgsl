@@ -1,3 +1,5 @@
+enable wgpu_binding_array;
+
 // PerScene values.
 @group(0) @binding(0)
 var<uniform> camera: super::camera::Camera;
