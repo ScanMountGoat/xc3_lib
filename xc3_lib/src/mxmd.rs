@@ -683,6 +683,7 @@ pub struct Material {
     alt_textures_offset: u32,
 
     // TODO: Is there a way to read both texture lists without overlaps?
+    // TODO: are these textures used as a mask?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args {
         offset: base_offset,
@@ -693,6 +694,7 @@ pub struct Material {
 
     pub m_unks2: u16,
 
+    // TODO: can this also index into alt_textures?
     /// Index into [alpha_test_textures](struct.Materials.html#structfield.alpha_test_textures).
     pub alpha_test_texture_index: u16,
 
@@ -1433,7 +1435,7 @@ pub struct MeshV112 {
 #[bitsize(32)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(DebugBits, TryFromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
-#[br(try_map = |x: u32| x.try_into().map_err(|e| format!("{e:?}")))]
+#[br(try_map = |x: u32| x.try_into().map_err(|e| format!("{e:?}: {x}")))]
 #[bw(map = |&x| u32::from(x))]
 pub struct MeshRenderFlags2 {
     /// The render pass for this draw call.
@@ -1457,6 +1459,8 @@ pub enum MeshRenderPass {
     Unk4 = 4, // TODO: xc1 maps?
     /// The alpha pass immediately after [MeshRenderPass::Unk0] without depth writes.
     Unk8 = 8,
+    // TODO: xcxde maps
+    Unk12 = 12,
 }
 
 /// Flags to determine what data is present in [ModelsV112].
