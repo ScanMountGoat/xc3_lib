@@ -29,6 +29,10 @@ pub struct Material {
 
     pub color: [f32; 4],
 
+    // TODO: figure out what these xcxde fields do.
+    pub unk_param1: Option<[f32; 6]>,
+    pub unk_param2: Option<[f32; 2]>,
+
     pub textures: Vec<Texture>,
     pub alt_textures: Option<Vec<Texture>>,
     pub alpha_test: Option<Texture>,
@@ -123,6 +127,7 @@ pub struct MaterialParameters {
 }
 
 impl MaterialParameters {
+    // TODO: include default values
     pub fn get_parameter(&self, p: &Parameter) -> Option<f32> {
         // TODO: camera parameters like U_Mdl.gmWorldView and U_Mdl.gmWVP?
 
@@ -364,6 +369,8 @@ pub(crate) fn create_materials(
                 render_flags: material.render_flags,
                 state_flags: material.state_flags,
                 color: material.color,
+                unk_param1: None,
+                unk_param2: None,
                 textures,
                 alt_textures,
                 alpha_test,
@@ -492,6 +499,8 @@ where
                 render_flags: MaterialRenderFlags::from(0u32),
                 state_flags: m.state_flags,
                 color: m.color,
+                unk_param1: Some(m.unk2),
+                unk_param2: Some(m.unk3),
                 textures: m
                     .textures
                     .iter()
@@ -880,25 +889,28 @@ fn read_param<const N: usize>(
 fn read_param_legacy<const N: usize>(
     param: &xc3_lib::mxmd::legacy::MaterialParameter,
     work_values: &[f32],
-) -> Vec<[f32; N]> {
+) -> Option<Vec<[f32; N]>> {
     // Assume any parameter can be an array, so read a vec.
-    work_values
-        .get(param.work_value_index as usize..)
-        .map(|values| {
-            values
-                .chunks(N)
-                .take(param.count as usize)
-                .map(|v| {
-                    // TODO: Just keep indices to reference values instead?
-                    let mut output = [0.0; N];
-                    for (o, v) in output.iter_mut().zip(v) {
-                        *o = *v;
-                    }
-                    output
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    if param.count > 0 {
+        work_values
+            .get(param.work_value_index as usize..)
+            .map(|values| {
+                values
+                    .chunks(N)
+                    .take(param.count as usize)
+                    .map(|v| {
+                        // TODO: Just keep indices to reference values instead?
+                        let mut output = [0.0; N];
+                        for (o, v) in output.iter_mut().zip(v) {
+                            *o = *v;
+                        }
+                        output
+                    })
+                    .collect()
+            })
+    } else {
+        None
+    }
 }
 
 fn assign_parameters_legacy(
@@ -917,13 +929,14 @@ fn assign_parameters_legacy(
         for param in &technique.parameters {
             match param.param_type {
                 xc3_lib::mxmd::legacy::ParamType::MaterialAmbient => {
-                    parameters.material_ambient = Some(read_param_legacy(param, work_values));
+                    parameters.material_ambient = read_param_legacy(param, work_values);
                 }
                 xc3_lib::mxmd::legacy::ParamType::MaterialSpecular => {
-                    parameters.material_specular = Some(read_param_legacy(param, work_values));
+                    // TODO: Is this always handled separately like MaterialColor?
+                    parameters.material_specular = read_param_legacy(param, work_values);
                 }
                 xc3_lib::mxmd::legacy::ParamType::DpRat => {
-                    parameters.dp_rat = Some(read_param_legacy(param, work_values));
+                    parameters.dp_rat = read_param_legacy(param, work_values);
                 }
                 xc3_lib::mxmd::legacy::ParamType::TexMatrix => {
                     // TODO: Is there a better way of handling tex matrix counts?
@@ -931,13 +944,13 @@ fn assign_parameters_legacy(
                         count: param.count * 2,
                         ..param.clone()
                     };
-                    parameters.tex_matrix = Some(read_param_legacy(&param, work_values));
+                    parameters.tex_matrix = read_param_legacy(&param, work_values);
                 }
                 xc3_lib::mxmd::legacy::ParamType::WorkFloat4 => {
-                    parameters.work_float4 = Some(read_param_legacy(param, work_values));
+                    parameters.work_float4 = read_param_legacy(param, work_values);
                 }
                 xc3_lib::mxmd::legacy::ParamType::WorkColor => {
-                    parameters.work_color = Some(read_param_legacy(param, work_values));
+                    parameters.work_color = read_param_legacy(param, work_values);
                 }
                 xc3_lib::mxmd::legacy::ParamType::ProjectionTexMatrix => {
                     // TODO: Is there a better way of handling tex matrix counts?
@@ -945,20 +958,20 @@ fn assign_parameters_legacy(
                         count: param.count * 2,
                         ..param.clone()
                     };
-                    parameters.projection_tex_matrix = Some(read_param_legacy(&param, work_values));
+                    parameters.projection_tex_matrix = read_param_legacy(&param, work_values);
                 }
                 xc3_lib::mxmd::legacy::ParamType::AlphaInfo => {
-                    parameters.alpha_info = Some(read_param_legacy(param, work_values));
+                    parameters.alpha_info = read_param_legacy(param, work_values);
                 }
                 xc3_lib::mxmd::legacy::ParamType::MaterialColor => {}
                 xc3_lib::mxmd::legacy::ParamType::Unk16 => {}
 
                 xc3_lib::mxmd::legacy::ParamType::DtWork => {
-                    parameters.dt_work = Some(read_param_legacy(param, work_values));
+                    parameters.dt_work = read_param_legacy(param, work_values);
                 }
                 xc3_lib::mxmd::legacy::ParamType::Unk18 => {}
                 xc3_lib::mxmd::legacy::ParamType::MdlParam => {
-                    parameters.mdl_param = Some(read_param_legacy(param, work_values));
+                    parameters.mdl_param = read_param_legacy(param, work_values);
                 }
             }
         }

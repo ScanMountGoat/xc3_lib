@@ -463,8 +463,8 @@ impl ModelRoot {
                 name: m.name.clone(),
                 flags: m.flags,
                 color: m.color,
-                unk2: [0.0; 6],   // TODO: not always 0
-                unk3: [0.0, 0.0], // TODO: not always 0
+                unk2: m.unk_param1.unwrap_or_default(),
+                unk3: m.unk_param2.unwrap_or_default(),
                 alpha_test_ref: m.alpha_test_ref,
                 textures: m
                     .textures

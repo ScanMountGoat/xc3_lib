@@ -550,8 +550,13 @@ pub struct Material {
     pub name: String,
 
     pub flags: MaterialFlags,
+
+    // TODO: always gMatCol.rgba?
     pub color: [f32; 4],
+
+    // TODO: are the first 3 values always gMatAmb.rgb?
     pub unk2: [f32; 6],
+
     pub unk3: [f32; 2],
 
     /// The `U_Mate.gAlInf.y` fragment shader value used for alpha testing.
