@@ -116,6 +116,9 @@ pub struct ShaderProgram {
     /// Index into [exprs](#structfield.exprs) for the vValInf intensity.
     pub val_inf_intensity: Option<usize>,
 
+    /// Index into [exprs](#structfield.exprs) for the fragment discard condition.
+    pub discard_condition: Option<usize>,
+
     /// Unique exprs used for this program.
     pub exprs: Vec<OutputExpr>,
 

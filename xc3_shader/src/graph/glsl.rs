@@ -137,6 +137,7 @@ impl Visitor for AssignmentVisitor {
             SelectionRestStatementData::Statement(node) => {
                 // TODO: Support if statements with multiple exprs.
                 // TODO: Support nested if statements with discard.
+                // TODO: Support unconditional discard after a return.
                 if let StatementData::Compound(compound) = &node.content
                     && let Some(StatementData::Jump(jump)) =
                         &compound.statement_list.first().map(|s| &s.content)
@@ -725,6 +726,12 @@ where
             input,
         });
     }
+
+    // Assume the vertex shader has no discard statements.
+    graph.discard_condition = frag
+        .graph
+        .discard_condition
+        .map(|i| reindex_node_expr(&frag.graph, &mut exprs, i, start));
 
     graph.exprs = exprs.into_iter().collect();
 

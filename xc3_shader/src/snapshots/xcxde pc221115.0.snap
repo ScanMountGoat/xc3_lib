@@ -27,6 +27,7 @@ source: xc3_shader/src/database.rs
 outline_width: None
 normal_intensity: None
 val_inf_intensity: "vNormal.w"
+discard: None
 "o1.xyz": "Fma(Texture(s1, vTex0.x, vTex0.y).xxx, Texture(texRef, MulRatio(0.5, -2.0, 0.5), MulRatio(0.5, -2.0, 0.5)).xyz, Texture(s0, vTex0.x, vTex0.y).xyz)"
 "o3.xyz": "Texture(s3, vTex0.x, vTex0.y).xyz"
 "o6.xyz": "[1.0, 1.0, 1.0]"

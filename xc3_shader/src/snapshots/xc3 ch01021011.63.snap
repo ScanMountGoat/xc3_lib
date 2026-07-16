@@ -25,5 +25,6 @@ source: xc3_shader/src/database.rs
 outline_width: None
 normal_intensity: None
 val_inf_intensity: None
+discard: None
 "o0.xyz": "Monochrome(Texture(s0, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).xyz, U_Mate.gWrkFl4[3].xxx).xyz"
 "o5.xyz": "Mul(Power(Max([0.0, 0.0, 0.0], Monochrome(Mix(U_Mate.gWrkCol[1].xyz, Texture(s1, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).xyz, U_Mate.gWrkFl4[0].www), U_Mate.gWrkFl4[3].xxx).xyz), U_Static.gCDep.www), U_Mate.gWrkFl4[2].zzz)"

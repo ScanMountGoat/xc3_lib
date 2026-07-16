@@ -114,6 +114,10 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
         }
     }
 
+    let discard_condition = graph
+        .discard_condition
+        .map(|i| output_expr(&graph.exprs[i], &graph, &mut exprs));
+
     let exprs = exprs.into_exprs();
 
     // Merge XYZ channels during database creation to simplify consuming code.
@@ -166,6 +170,7 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
         outline_width: outline_width.map(xc3_value),
         normal_intensity,
         val_inf_intensity,
+        discard_condition,
         exprs,
         output_dependencies_xyz,
         exprs_xyz,
@@ -573,6 +578,15 @@ pub fn shader_str(s: &ShaderProgram) -> String {
             output.push('\n');
         }
         None => writeln!(&mut output, "val_inf_intensity: None").unwrap(),
+    }
+    match s.discard_condition {
+        Some(i) => {
+            write!(&mut output, "discard: \"").unwrap();
+            write_expr(&mut output, s, i);
+            output.push('\"');
+            output.push('\n');
+        }
+        None => writeln!(&mut output, "discard: None").unwrap(),
     }
     for (k, v) in &s.output_dependencies_xyz {
         write!(&mut output, "{k:?}: \"").unwrap();

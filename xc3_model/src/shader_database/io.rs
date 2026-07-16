@@ -17,15 +17,17 @@ use super::{
 type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
 type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
 
+// File version numbers should be updated with each release.
+const VERSION: u32 = 7;
+
 // Create a separate format optimized for storing on disk.
 #[binrw]
 #[derive(Debug, PartialEq, Clone, Default)]
 #[brw(magic(b"SHDB"))]
 pub struct ShaderDatabaseIndexed {
-    // File version numbers should be updated with each release.
     // This improves the error when parsing an incompatible version.
-    #[br(assert(version == 6))]
-    #[bw(calc = 6)]
+    #[br(assert(version == VERSION))]
+    #[bw(calc = VERSION)]
     version: u32,
 
     // Store unique shader programs across all models and maps.
@@ -87,6 +89,7 @@ struct ShaderProgramIndexed {
     outline_width: OptVarInt,
     normal_intensity: OptVarInt,
     val_inf_intensity: OptVarInt,
+    discard_condition: OptVarInt,
 
     #[br(parse_with = parse_vec)]
     #[bw(write_with = write_vec)]
@@ -377,6 +380,7 @@ impl ShaderDatabaseIndexed {
             ),
             normal_intensity: OptVarInt(p.normal_intensity.map(|i| expr_indices[i].0)),
             val_inf_intensity: OptVarInt(p.val_inf_intensity.map(|i| expr_indices[i].0)),
+            discard_condition: OptVarInt(p.discard_condition.map(|i| expr_indices[i].0)),
             output_dependencies_xyz: p
                 .output_dependencies_xyz
                 .into_iter()
@@ -567,6 +571,10 @@ impl ShaderDatabaseIndexed {
                 .map(|i| self.output_expr_from_indexed(i, &mut exprs, &mut expr_to_index)),
             val_inf_intensity: p
                 .val_inf_intensity
+                .0
+                .map(|i| self.output_expr_from_indexed(i, &mut exprs, &mut expr_to_index)),
+            discard_condition: p
+                .discard_condition
                 .0
                 .map(|i| self.output_expr_from_indexed(i, &mut exprs, &mut expr_to_index)),
             exprs: exprs.into_iter().collect(),

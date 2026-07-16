@@ -333,6 +333,11 @@ impl Graph {
             })
             .collect();
 
+        let mut discard_condition = self.discard_condition.map(|i| {
+            let expr = self.simplify_expr(i, &mut simplified, &mut exprs);
+            exprs.insert_full(expr).0
+        });
+
         // Reindex to remove unused exprs.
         let mut new_exprs = IndexSet::default();
         let mut old_to_new_index = BTreeMap::new();
@@ -340,10 +345,13 @@ impl Graph {
             n.input = reindex_expr(n.input, &exprs, &mut new_exprs, &mut old_to_new_index)
         }
 
+        discard_condition = discard_condition
+            .map(|i| reindex_expr(i, &exprs, &mut new_exprs, &mut old_to_new_index));
+
         Self {
             nodes,
             exprs: new_exprs.into_iter().collect(),
-            discard_condition: None,
+            discard_condition,
         }
     }
 
@@ -772,6 +780,28 @@ mod tests {
                 a = x + 2.0;
                 b = x + 3.0;
                 c = x * 2.0;
+            "},
+            graph.simplify().to_glsl()
+        );
+    }
+
+    #[test]
+    fn simplify_discard() {
+        let glsl = indoc! {"
+            void main() {     
+                a = 1.0 * x;
+                if ((a * 1.0 + 0.0) < 0.0) {
+                    discard;
+                }
+            }
+        "};
+        let graph = Graph::parse_glsl(glsl).unwrap();
+
+        assert_eq!(
+            indoc! {"
+                if (x < 0.0) {
+                    discard;
+                }
             "},
             graph.simplify().to_glsl()
         );

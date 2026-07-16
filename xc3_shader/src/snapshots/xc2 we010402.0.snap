@@ -23,4 +23,5 @@ source: xc3_shader/src/database.rs
 outline_width: None
 normal_intensity: None
 val_inf_intensity: None
+discard: "Less(Texture(volTex0, Unk()).x, Sub(Fma(Div(Min(Sqrt(Mix(Mix(Mul(Sub(Mul(vPos.x, U_Mdl.gMdlParm.y), U_VolTexCalc.gVolTexCalcWork[1].x), Sub(Mul(vPos.x, U_Mdl.gMdlParm.y), U_VolTexCalc.gVolTexCalcWork[1].x)), Mul(vPos.y, U_Mdl.gMdlParm.y), Sub(Mul(vPos.y, U_Mdl.gMdlParm.y), U_VolTexCalc.gVolTexCalcWork[1].y)), Mul(vPos.z, U_Mdl.gMdlParm.y), Sub(Mul(vPos.z, U_Mdl.gMdlParm.y), U_VolTexCalc.gVolTexCalcWork[1].z))), U_VolTexCalc.gVolTexCalcWork[4].z), U_VolTexCalc.gVolTexCalcWork[4].z), Negate(U_VolTexCalc.gVolTexCalcWork[4].w), Fma(Add(U_VolTexCalc.gVolTexCalcWork[4].w, U_VolTexCalc.gVolTexCalcWork[1].w), U_VolTexCalc.gVolTexCalcWork[0].w, U_VolTexCalc.gVolTexCalcWork[0].w)), U_VolTexCalc.gVolTexCalcWork[1].w))"
 "o0.xyz": "Texture(s0, vTex0.x, vTex0.y).xyz"
