@@ -108,6 +108,14 @@ impl MergeXyzArgs<Operation> for OperationXyz {
                 )?;
                 args.push(ratio);
             }
+            OperationXyz::Reflect => {
+                // TODO: Check that all args are the same.
+                let eye = merge_xyz_exprs(args_x[0], args_x[1], args_x[2], exprs, exprs_xyz)?;
+                args.push(eye);
+
+                let normal = merge_xyz_exprs(args_x[3], args_x[4], args_x[5], exprs, exprs_xyz)?;
+                args.push(normal);
+            }
             _ => {
                 for ((x, y), z) in args_x.iter().zip(args_y.iter()).zip(args_z.iter()) {
                     let arg = merge_xyz_exprs(*x, *y, *z, exprs, exprs_xyz)?;

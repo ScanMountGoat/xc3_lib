@@ -1974,57 +1974,42 @@ pub fn tex_parallax2<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation,
     Some((Operation::TexParallaxX, vec![coord, ratio]))
 }
 
-static REFLECT_X: LazyLock<Graph> = LazyLock::new(|| {
+static REFLECT: LazyLock<Graph> = LazyLock::new(|| {
     // reflect(I, N) = I - 2.0 * dot(N, I) * N
     let query = indoc! {"
         dot_n_i = n_x * i_x;
         dot_n_i = fma(n_y, i_y, dot_n_i);
         dot_n_i = fma(n_z, i_z, dot_n_i);
-        temp_127 = n_x * dot_n_i;
-        temp_129 = fma(temp_127, -2.0, i_x);
-    "};
-    Graph::parse_glsl_query(query).unwrap().simplify()
-});
-
-static REFLECT_Y: LazyLock<Graph> = LazyLock::new(|| {
-    // reflect(I, N) = I - 2.0 * dot(N, I) * N
-    let query = indoc! {"
-        dot_n_i = n_x * i_x;
-        dot_n_i = fma(n_y, i_y, dot_n_i);
-        dot_n_i = fma(n_z, i_z, dot_n_i);
-        temp_127 = n_y * dot_n_i;
-        temp_129 = fma(temp_127, -2.0, i_y);
-    "};
-    Graph::parse_glsl_query(query).unwrap().simplify()
-});
-
-static REFLECT_Z: LazyLock<Graph> = LazyLock::new(|| {
-    // reflect(I, N) = I - 2.0 * dot(N, I) * N
-    let query = indoc! {"
-        dot_n_i = n_x * i_x;
-        dot_n_i = fma(n_y, i_y, dot_n_i);
-        dot_n_i = fma(n_z, i_z, dot_n_i);
-        temp_127 = n_z * dot_n_i;
-        temp_129 = fma(temp_127, -2.0, i_z);
+        temp_127 = n_c * dot_n_i;
+        temp_129 = fma(temp_127, -2.0, i_c);
     "};
     Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
 pub fn op_reflect<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
-    let (op, result) = query_nodes(expr, graph, &REFLECT_X)
-        .map(|r| (Operation::ReflectX, r))
-        .or_else(|| query_nodes(expr, graph, &REFLECT_Y).map(|r| (Operation::ReflectY, r)))
-        .or_else(|| query_nodes(expr, graph, &REFLECT_Z).map(|r| (Operation::ReflectZ, r)))?;
+    let result = query_nodes(expr, graph, &REFLECT)?;
+
+    let n_c = result.get("n_c")?;
+    let _i_c = result.get("i_c")?;
 
     let n_x = result.get("n_x")?;
     let n_y = result.get("n_y")?;
     let n_z = result.get("n_z")?;
 
+    // TODO: Why does this match the position and not the view vector?
     let i_x = result.get("i_x")?;
     let i_y = result.get("i_y")?;
     let i_z = result.get("i_z")?;
 
-    Some((op, vec![i_x, i_y, i_z, n_x, n_y, n_z]))
+    let args = vec![*i_x, *i_y, *i_z, *n_x, *n_y, *n_z];
+    if n_c == n_x {
+        Some((Operation::ReflectX, args))
+    } else if n_c == n_y {
+        Some((Operation::ReflectY, args))
+    } else {
+        // TODO: Why does matching n_z not work as expected?
+        Some((Operation::ReflectZ, args))
+    }
 }
 
 static FUR_INSTANCE_ALPHA: LazyLock<Graph> = LazyLock::new(|| {
