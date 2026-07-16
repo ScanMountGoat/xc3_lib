@@ -75,11 +75,10 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
 
             // Search from the end to find fragment outputs instead of vertex outputs.
             // TODO: Label the vertex outputs differently to avoid conflicts?
-            let dependent_lines = graph
+            let node_index = graph
                 .nodes
                 .iter()
                 .rposition(|n| n.output.name == name && n.output.channel == Some(c))
-                .map(|i| vec![i])
                 .unwrap_or_default();
 
             // TODO: Skip o3.xyw (depth) and o4.xyz (velocity)
@@ -88,7 +87,7 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
             if i == 2 && (c == 'x' || c == 'y') {
                 // The normals use XY for output index 2 for all games.
                 if let Some((new_value, intensity, inf_intensity)) =
-                    normal_output_expr(&graph, &dependent_lines, &mut exprs)
+                    normal_output_expr(&graph, node_index, &mut exprs)
                 {
                     value = Some(new_value);
                     normal_intensity = intensity;
@@ -105,7 +104,7 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
                 // Xenoblade X DE uses different outputs than other games.
                 // Detect color or params to handle different outputs and channels.
                 // TODO: Detect if o2.x before remapping is used here?
-                value = color_or_param_output_expr(&graph, &dependent_lines, &mut exprs);
+                value = color_or_param_output_expr(&graph, node_index, &mut exprs);
             };
 
             if let Some(value) = value {
@@ -204,14 +203,13 @@ fn outline_width_parameter(vert: &Graph) -> Option<crate::expr::Value> {
 
 fn color_or_param_output_expr(
     frag: &Graph,
-    dependent_lines: &[usize],
+    node_index: usize,
     exprs: &mut ExprCache<Operation>,
 ) -> Option<usize> {
-    let last_node_index = *dependent_lines.last()?;
-    let last_node = frag.nodes.get(last_node_index)?;
+    let node = frag.nodes.get(node_index)?;
 
     // matCol.xyz in pcmdo shaders.
-    let mut current = &frag.exprs[last_node.input];
+    let mut current = &frag.exprs[node.input];
 
     // Remove some redundant float -> int float -> conversions found in some shaders.
     if let Expr::Func { name, args, .. } = current
@@ -235,11 +233,10 @@ fn color_or_param_output_expr(
 
 fn normal_output_expr(
     frag: &Graph,
-    dependent_lines: &[usize],
+    node_index: usize,
     exprs: &mut ExprCache<Operation>,
 ) -> Option<(usize, Option<usize>, Option<usize>)> {
-    let last_node_index = *dependent_lines.last()?;
-    let last_node = frag.nodes.get(last_node_index)?;
+    let last_node = frag.nodes.get(node_index)?;
 
     let mut view_normal = &frag.exprs[last_node.input];
 
