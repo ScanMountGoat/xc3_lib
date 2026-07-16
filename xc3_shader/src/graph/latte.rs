@@ -1143,6 +1143,7 @@ impl Graph {
         Ok(Self {
             nodes: nodes.nodes,
             exprs: nodes.exprs.into_iter().collect(),
+            discard_condition: None,
         })
     }
 }

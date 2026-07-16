@@ -4,9 +4,9 @@ use std::fmt::Write;
 use bimap::BiBTreeMap;
 use glsl_lang::{
     ast::{
-        DeclarationData, ExprData, FunIdentifierData, InitializerData, LayoutQualifierSpecData,
-        SingleDeclaration, Statement, StatementData, StorageQualifierData, TranslationUnit,
-        TypeQualifierSpecData,
+        DeclarationData, ExprData, FunIdentifierData, InitializerData, JumpStatementData,
+        LayoutQualifierSpecData, SelectionRestStatementData, SelectionStatement, SingleDeclaration,
+        Statement, StatementData, StorageQualifierData, TranslationUnit, TypeQualifierSpecData,
     },
     lexer::{HasLexerError, LangLexer},
     parse::{DefaultLexer, DefaultParse},
@@ -26,6 +26,8 @@ struct AssignmentVisitor {
 
     // Cache the last line where each variable was assigned.
     last_assignment_index: BTreeMap<Output, usize>,
+
+    discard_condition_expr: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -129,8 +131,31 @@ impl Visitor for AssignmentVisitor {
         }
     }
 
-    fn visit_selection_statement(&mut self, _: &glsl_lang::ast::SelectionStatement) -> Visit {
+    fn visit_selection_statement(&mut self, s: &SelectionStatement) -> Visit {
         // TODO: How to properly handle if statements in graph?
+        match &s.rest.content {
+            SelectionRestStatementData::Statement(node) => {
+                // TODO: Support if statements with multiple exprs.
+                // TODO: Support nested if statements with discard.
+                if let StatementData::Compound(compound) = &node.content
+                    && let Some(StatementData::Jump(jump)) =
+                        &compound.statement_list.first().map(|s| &s.content)
+                    && let JumpStatementData::Discard = jump.content
+                {
+                    let discard_condition = input_expr_inner(
+                        &s.cond,
+                        &self.last_assignment_index,
+                        &mut self.exprs,
+                        None,
+                    );
+                    let discard_condition = self.exprs.insert_full(discard_condition).0;
+                    self.discard_condition_expr = Some(discard_condition);
+                }
+            }
+            SelectionRestStatementData::Else(_node, _node1) => {
+                // TODO: negate the condition for discard in an else branch?
+            }
+        }
         Visit::Parent
     }
 }
@@ -154,6 +179,7 @@ impl Graph {
         Self {
             nodes,
             exprs: visitor.exprs.into_iter().collect(),
+            discard_condition: visitor.discard_condition_expr,
         }
     }
 
@@ -176,6 +202,16 @@ impl Graph {
         for node in &self.nodes {
             self.write_node_glsl(&mut output, node);
         }
+
+        // All values are assigned, so its fine to generate the discard here.
+        if let Some(discard) = &self.discard_condition {
+            write!(&mut output, "if (").unwrap();
+            self.write_expr_glsl(&mut output, *discard);
+            writeln!(&mut output, ") {{").unwrap();
+            writeln!(&mut output, "    discard;").unwrap();
+            writeln!(&mut output, "}}").unwrap();
+        }
+
         output
     }
 
@@ -895,6 +931,7 @@ mod tests {
                 },
                 Expr::Binary(BinaryOp::Sub, 6, 11),
             ],
+            discard_condition: None,
         };
         assert_eq!(graph, Graph::parse_glsl(glsl).unwrap());
 
@@ -999,6 +1036,7 @@ mod tests {
                     channel: None,
                 },
             ],
+            discard_condition: None,
         };
         assert_eq!(graph, Graph::parse_glsl(glsl).unwrap());
 
@@ -1049,6 +1087,7 @@ mod tests {
                     channel: Some('w'),
                 },
             ],
+            discard_condition: None,
         };
         assert_eq!(graph, Graph::parse_glsl(glsl).unwrap());
 
@@ -1143,6 +1182,7 @@ mod tests {
                     channel: Some('w'),
                 },
             ],
+            discard_condition: None,
         };
         assert_eq!(graph, Graph::parse_glsl(glsl).unwrap());
 
@@ -1152,6 +1192,76 @@ mod tests {
                 f1 = U_POST.data[int(temp_206)];
                 f2 = U_Mate.gMatCol.x;
                 f3 = U_Mate.gWrkCol[1].w;
+            "},
+            graph.to_glsl()
+        );
+    }
+
+    #[test]
+    fn graph_glsl_single_discard() {
+        let glsl = indoc! {"
+            void main() {
+                a = 1.0;
+                b = 2.0;
+                if (a < b) { 
+                    discard;
+                }
+                c = a + b;
+            }
+        "};
+
+        let graph = Graph {
+            nodes: vec![
+                Node {
+                    output: Output {
+                        name: "a".into(),
+                        channel: None,
+                    },
+                    input: 0,
+                },
+                Node {
+                    output: Output {
+                        name: "b".into(),
+                        channel: None,
+                    },
+                    input: 1,
+                },
+                Node {
+                    output: Output {
+                        name: "c".into(),
+                        channel: None,
+                    },
+                    input: 5,
+                },
+            ],
+            exprs: vec![
+                Expr::Float(1.0.into()),
+                Expr::Float(2.0.into()),
+                Expr::Node {
+                    node_index: 0,
+                    channel: None,
+                },
+                Expr::Node {
+                    node_index: 1,
+                    channel: None,
+                },
+                Expr::Binary(BinaryOp::Less, 2, 3),
+                Expr::Binary(BinaryOp::Add, 2, 3),
+            ],
+            discard_condition: Some(4),
+        };
+        assert_eq!(graph, Graph::parse_glsl(glsl).unwrap());
+
+        // The discard is moved to the end since its line number is not preserved.
+        // This is fine since each variable is assigned only once.
+        assert_eq!(
+            indoc! {"
+                a = 1.0;
+                b = 2.0;
+                c = a + b;
+                if (a < b) {
+                    discard;
+                }
             "},
             graph.to_glsl()
         );

@@ -17,16 +17,26 @@ type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
 /// A directed graph of shader assignments and input expressions to simplify analysis.
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct Graph {
+    /// The assignment statements.
+    ///
+    /// Processing code assumes each node is assigned exactly once for static single assignment (SSA).
+    /// Nodes should appear in the list after the nodes they depend on for code to work as expected.
     pub nodes: Vec<Node>,
+
     /// Unique [Expr] used for the input values for each [Node].
     pub exprs: Vec<Expr>,
+
+    /// Index into [exprs](#structfield.exprs) for the condition to discard the fragment.
+    ///
+    /// This will be [None] for shaders without any discard statements.
+    pub discard_condition: Option<usize>,
 }
 
 /// A single assignment statement of the form `output = operation(inputs);`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Node {
     pub output: Output,
-    /// Index into [exprs](struct.Graph.html#structfield.exprs) value assigned in this assignment statement.
+    /// Index into [exprs](struct.Graph.html#structfield.exprs) for the value assigned in this assignment statement.
     pub input: usize,
 }
 
@@ -333,6 +343,7 @@ impl Graph {
         Self {
             nodes,
             exprs: new_exprs.into_iter().collect(),
+            discard_condition: None,
         }
     }
 
