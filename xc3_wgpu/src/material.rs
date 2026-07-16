@@ -454,23 +454,29 @@ fn material_u_mate(material: &xc3_model::material::Material) -> crate::shader::m
     // TODO: Some xcxde materials have no work values but still have values set?
     // TODO: these default values aren't always the same?
     crate::shader::model::UMate {
-        g_al_inf: array_parameter(&material.parameters.alpha_info),
-        g_dp_rat: array_parameter(&material.parameters.dp_rat),
-        g_d_t_wrk: array_parameter(&material.parameters.dt_work),
-        g_mat_amb: array_parameter(&material.parameters.material_ambient),
+        g_al_inf: [material.parameters.alpha_info.into()],
+        g_dp_rat: array_parameter(&material.parameters.dp_rat, Vec4::ZERO),
+        g_d_t_wrk: array_parameter(&material.parameters.dt_work, Vec4::ZERO),
+        g_mat_amb: array_parameter(
+            &material.parameters.material_ambient,
+            vec4(0.231, 0.26895, 0.3, 1.0),
+        ),
         g_mat_col: [material.color.into()],
-        g_mat_spec: array_parameter(&material.parameters.material_specular),
-        g_mdl_param: array_parameter(&material.parameters.mdl_param),
+        g_mat_spec: array_parameter(
+            &material.parameters.material_specular,
+            vec4(0.0, 0.0, 0.0, 0.02),
+        ),
+        g_mdl_param: array_parameter(&material.parameters.mdl_param, Vec4::ZERO),
         g_pj_mat: [Vec4::ZERO; 3],
-        g_proj_tex_mat: array_parameter(&material.parameters.projection_tex_matrix),
-        g_tex_mat: array_parameter(&material.parameters.tex_matrix),
+        g_proj_tex_mat: array_parameter(&material.parameters.projection_tex_matrix, Vec4::ZERO),
+        g_tex_mat: array_parameter(&material.parameters.tex_matrix, Vec4::ZERO),
         g_toon_head_mat: [Vec4::ZERO; 3],
-        g_wrk_col: array_parameter(&material.parameters.work_color),
-        g_wrk_fl4: array_parameter(&material.parameters.work_float4),
+        g_wrk_col: array_parameter(&material.parameters.work_color, Vec4::ZERO),
+        g_wrk_fl4: array_parameter(&material.parameters.work_float4, Vec4::ZERO),
     }
 }
 
-fn array_parameter<const N: usize>(parameter: &Option<Vec<[f32; 4]>>) -> [Vec4; N] {
+fn array_parameter<const N: usize>(parameter: &Option<Vec<[f32; 4]>>, default: Vec4) -> [Vec4; N] {
     parameter
         .as_ref()
         .map(|m| {
@@ -482,5 +488,5 @@ fn array_parameter<const N: usize>(parameter: &Option<Vec<[f32; 4]>>) -> [Vec4; 
             }
             array
         })
-        .unwrap_or([Vec4::ZERO; N])
+        .unwrap_or([default; N])
 }

@@ -27,6 +27,7 @@ static WGSL_REPLACEMENTS: LazyLock<AhoCorasick> = LazyLock::new(|| {
     AhoCorasick::new([
         "let ASSIGN_VARS = 0.0;",
         "let ALPHA_TEST_DISCARD_GENERATED = 0.0;",
+        "let FRAGMENT_DISCARD_GENERATED = 0.0;",
         "let ASSIGN_NORMAL_INTENSITY_GENERATED = 0.0;",
         "let ASSIGN_VAL_INF_INTENSITY_GENERATED = 0.0;",
         "let ASSIGN_COLOR_GENERATED = 0.0;",
@@ -43,6 +44,7 @@ pub struct ShaderWgsl {
     assignments: String,
     outputs: Vec<String>,
     alpha_test: String,
+    fragment_discard: String,
     normal_intensity: String,
     val_inf_intensity: String,
 }
@@ -63,6 +65,12 @@ impl ShaderWgsl {
             .map(|_| generate_alpha_test_wgsl(alpha_test_channel_index, name_to_index))
             .unwrap_or_default();
 
+        // Generate empty code if there is no discard condition.
+        let fragment_discard = output_assignments
+            .discard_condition
+            .map(|i| generate_discard_wgsl(i))
+            .unwrap_or_default();
+
         let normal_intensity = output_assignments
             .normal_intensity
             .as_ref()
@@ -81,6 +89,7 @@ impl ShaderWgsl {
             alpha_test,
             normal_intensity,
             val_inf_intensity,
+            fragment_discard,
         }
     }
 
@@ -88,6 +97,7 @@ impl ShaderWgsl {
         let replace_with = &[
             &self.assignments,
             &self.alpha_test,
+            &self.fragment_discard,
             // TODO: Avoid these replace calls?
             &self.normal_intensity.replace(OUT_VAR, "intensity"),
             &self.val_inf_intensity.replace(OUT_VAR, "val_inf_intensity"),
@@ -260,6 +270,14 @@ fn generate_alpha_test_wgsl(
         error!("Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}");
         String::new()
     }
+}
+
+fn generate_discard_wgsl(condition_expr_index: usize) -> String {
+    formatdoc! {"
+        if {VAR_PREFIX}{condition_expr_index} {{
+            discard;
+        }}
+    "}
 }
 
 fn generate_assignments_wgsl(

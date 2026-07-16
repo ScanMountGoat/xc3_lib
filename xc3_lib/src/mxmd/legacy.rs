@@ -715,30 +715,71 @@ pub struct Technique {
     #[br(temp, restore_position)]
     offsets_counts: [u32; 4],
 
+    // TODO: always sorted in ascending order?
+    // TODO: gBuffer textures?
+    // TODO: enum for textures that aren't material textures like s0 or global textures like gIBL?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: offsets_counts[2] as usize }})]
     #[xc3(offset(u32))]
-    pub unk3: Option<Vec<u16>>,
+    pub textures: Option<Vec<u16>>,
 
+    // TODO: enum for global textures like gIBL?
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: args! { count: offsets_counts[3] as usize }})]
     #[xc3(offset(u32))]
-    pub unk4: Option<Vec<u16>>,
+    pub global_textures: Option<Vec<u16>>,
 
-    pub unk3_count: u32,
-    pub unk4_count: u32,
+    pub texture_count: u32,
+    pub global_texture_count: u32,
 
+    // TODO: Uniform buffers + storage buffers?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub unk7: Vec<[u16; 4]>,
 
-    // TODO: (material_texture_count?, ???)
-    pub unk8: (u16, u16),
+    // TODO: Textures from material like s0 or s2?
+    pub material_texture_count: u16,
+    pub unk8: u16,
 
     pub unk9: (u16, u16),
 
     // TODO: padding?
     pub padding: [u32; 5],
+}
+
+// TODO: Test these against the spch for all supported games.
+// TODO: Come up with more descriptive names.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u16))]
+pub enum TechniqueTexture {
+    /// `texShadow` texture in the [Spch](crate::spch::Spch).
+    TexShadow = 2,
+    /// `texBase` texture in the [Spch](crate::spch::Spch).
+    TexBase = 3,
+    /// `texDep` texture in the [Spch](crate::spch::Spch).
+    TexDep = 4,
+    /// `texLgt` texture in the [Spch](crate::spch::Spch).
+    TexLgt = 6,
+    // TODO: texAvaSec and texAvatar are either 7 or 14
+    /// `tAvEye` texture in the [Spch](crate::spch::Spch).
+    TAvEye = 15,
+    /// `texNom` texture in the [Spch](crate::spch::Spch).
+    TexNom = 17,
+    /// `tAvHaby` texture in the [Spch](crate::spch::Spch).
+    TAvHaBy = 21,
+}
+
+// TODO: Test these against the spch for all supported games.
+// TODO: Come up with more descriptive names.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u16))]
+pub enum TechniqueGlobalTexture {
+    /// `gIBL` texture in the [Spch](crate::spch::Spch).
+    GIbl = 2,
+    /// `texRef` texture in the [Spch](crate::spch::Spch).
+    TexRef = 4,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -1179,9 +1220,9 @@ impl Xc3WriteOffsets for TechniqueOffsets<'_> {
         // Different order than field order.
         self.attributes
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk3
+        self.textures
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk4
+        self.global_textures
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.unk7
             .write_full(writer, base_offset, data_ptr, endian, ())?;

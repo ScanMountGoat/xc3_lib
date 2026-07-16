@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## unreleased
+### Added
+* Added rendering and shader database support for model fragment shader alpha testing.
+
 ### Changed
 * Reworked xc3_model and xc3_shader database and material assignment types.
 * Changed shader assignments inferred from textures to merge XYZ channels for color and specular color.

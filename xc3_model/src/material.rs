@@ -101,7 +101,7 @@ pub struct MaterialParameters {
     pub work_color: Option<Vec<[f32; 4]>>,
 
     /// [xc3_lib::mxmd::ParamType::AlphaInfo]
-    pub alpha_info: Option<Vec<[f32; 4]>>,
+    pub alpha_info: [f32; 4],
 
     /// [xc3_lib::mxmd::ParamType::DpRat]
     pub dp_rat: Option<Vec<[f32; 4]>>,
@@ -140,12 +140,7 @@ impl MaterialParameters {
             ("U_Mate", "gWrkFl4") => self.work_float4.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gWrkCol") => self.work_color.as_ref()?.get(index)?.get(c),
             ("U_Mate", "gTexMat") => self.tex_matrix.as_ref()?.get(index)?.get(c),
-            ("U_Mate", "gAlInf") => self
-                .alpha_info
-                .as_ref()?
-                .get(index)
-                .unwrap_or(&[1.0, 0.999, 1.0, 1.0])
-                .get(c),
+            ("U_Mate", "gAlInf") => self.alpha_info.get(c),
             ("U_Mate", "gDpRat") => self
                 .dp_rat
                 .as_ref()?
@@ -488,7 +483,7 @@ where
                     material_texture_count: materials
                         .techniques
                         .get(t.technique_index as usize)
-                        .map(|t| t.unk8.0 as u32)
+                        .map(|t| t.material_texture_count as u32)
                         .unwrap_or_default(),
                 })
                 .collect();
@@ -787,6 +782,8 @@ fn assign_parameters(
 
     let mut parameters = MaterialParameters {
         material_color: material.color,
+        // TODO: Where do the other gAlInf values come from?
+        alpha_info: [1.0, material.alpha_test_ref, 1.0, 1.0],
         ..Default::default()
     };
 
@@ -795,7 +792,7 @@ fn assign_parameters(
         for param in &technique.parameters {
             match param.param_type {
                 xc3_lib::mxmd::ParamType::DpRat => {
-                    parameters.dp_rat = Some(read_param(param, &work_values));
+                    parameters.dp_rat = read_param(param, &work_values);
                 }
                 xc3_lib::mxmd::ParamType::TexMatrix => {
                     // TODO: Is there a better way of handling tex matrix counts?
@@ -803,13 +800,13 @@ fn assign_parameters(
                         count: param.count * 2,
                         ..param.clone()
                     };
-                    parameters.tex_matrix = Some(read_param(&param, &work_values));
+                    parameters.tex_matrix = read_param(&param, &work_values);
                 }
                 xc3_lib::mxmd::ParamType::WorkFloat4 => {
-                    parameters.work_float4 = Some(read_param(param, &work_values));
+                    parameters.work_float4 = read_param(param, &work_values);
                 }
                 xc3_lib::mxmd::ParamType::WorkColor => {
-                    parameters.work_color = Some(read_param(param, &work_values));
+                    parameters.work_color = read_param(param, &work_values);
                 }
                 xc3_lib::mxmd::ParamType::ProjectionTexMatrix => {
                     // TODO: Is there a better way of handling tex matrix counts?
@@ -817,11 +814,10 @@ fn assign_parameters(
                         count: param.count * 2,
                         ..param.clone()
                     };
-                    parameters.projection_tex_matrix = Some(read_param(&param, &work_values));
+                    parameters.projection_tex_matrix = read_param(&param, &work_values);
                 }
-                xc3_lib::mxmd::ParamType::AlphaInfo => {
-                    parameters.alpha_info = Some(read_param(param, &work_values));
-                }
+                // TODO: Do these parameters ever have values assigned?
+                xc3_lib::mxmd::ParamType::AlphaInfo => (),
                 xc3_lib::mxmd::ParamType::MaterialColor => (),
                 xc3_lib::mxmd::ParamType::Unk7 => (),
                 xc3_lib::mxmd::ParamType::ToonHeadMatrix => (),
@@ -865,25 +861,28 @@ fn apply_callbacks(work_values: &[f32], callbacks: &[WorkCallback]) -> Vec<f32> 
 fn read_param<const N: usize>(
     param: &xc3_lib::mxmd::MaterialParameter,
     work_values: &[f32],
-) -> Vec<[f32; N]> {
+) -> Option<Vec<[f32; N]>> {
     // Assume any parameter can be an array, so read a vec.
-    work_values
-        .get(param.work_value_index as usize..)
-        .map(|values| {
-            values
-                .chunks(N)
-                .take(param.count as usize)
-                .map(|v| {
-                    // TODO: Just keep indices to reference values instead?
-                    let mut output = [0.0; N];
-                    for (o, v) in output.iter_mut().zip(v) {
-                        *o = *v;
-                    }
-                    output
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    if param.count > 0 {
+        work_values
+            .get(param.work_value_index as usize..)
+            .map(|values| {
+                values
+                    .chunks(N)
+                    .take(param.count as usize)
+                    .map(|v| {
+                        // TODO: Just keep indices to reference values instead?
+                        let mut output = [0.0; N];
+                        for (o, v) in output.iter_mut().zip(v) {
+                            *o = *v;
+                        }
+                        output
+                    })
+                    .collect()
+            })
+    } else {
+        None
+    }
 }
 
 fn read_param_legacy<const N: usize>(
@@ -920,6 +919,7 @@ fn assign_parameters_legacy(
 ) -> Option<MaterialParameters> {
     let mut parameters = MaterialParameters {
         material_color: material.color,
+        alpha_info: [1.0, material.alpha_test_ref, 1.0, 1.0], // TODO: is this accurate for xcx de?
         ava_skin: materials.unks1_2_3.map(|v| [v[0], v[1], v[2], v[3]]),
         ..Default::default()
     };
@@ -960,9 +960,8 @@ fn assign_parameters_legacy(
                     };
                     parameters.projection_tex_matrix = read_param_legacy(&param, work_values);
                 }
-                xc3_lib::mxmd::legacy::ParamType::AlphaInfo => {
-                    parameters.alpha_info = read_param_legacy(param, work_values);
-                }
+                // TODO: Do these parameters ever have values assigned?
+                xc3_lib::mxmd::legacy::ParamType::AlphaInfo => {}
                 xc3_lib::mxmd::legacy::ParamType::MaterialColor => {}
                 xc3_lib::mxmd::legacy::ParamType::Unk16 => {}
 

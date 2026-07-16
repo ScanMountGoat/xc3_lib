@@ -482,6 +482,9 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
 
     let ASSIGN_VARS = 0.0;
 
+    // This needs to happen after all variables are assigned.
+    let FRAGMENT_DISCARD_GENERATED = 0.0;
+
     let ASSIGN_NORMAL_GENERATED = 0.0;
 
     // Not all materials and shaders use normal mapping.

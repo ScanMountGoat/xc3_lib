@@ -322,7 +322,7 @@ pub struct Technique {
     #[xc3(offset_count(u32, u32))]
     pub parameters: Vec<MaterialParameter>,
 
-    // TODO: enum for texture name?
+    // TODO: enum for global textures like "texRef" or "volTex0?
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
     pub textures: Vec<u16>,
@@ -379,6 +379,29 @@ pub struct MaterialParameter {
     /// The number of elements for an array or `1` for a single element
     /// or `0` for values initialized without work values.
     pub count: u16, // actual number of bytes depends on type?
+}
+
+// TODO: Test these against the spch for all supported games.
+// TODO: Come up with more descriptive names.
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u16))]
+pub enum TechniqueGlobalTexture {
+    // TODO: add remaining textures
+    /// `texDep` texture in the [Spch](crate::spch::Spch).
+    TexDep = 3,
+
+    /// `gTAmbBRDF` texture in the [Spch](crate::spch::Spch).
+    GTAmbBrdf = 17,
+
+    /// `texDither` texture in the [Spch](crate::spch::Spch).
+    TexDither = 22,
+
+    /// `volTex0` texture in the [Spch](crate::spch::Spch).
+    VolTex0 = 24,
+
+    /// `gTLightShaft` texture in the [Spch](crate::spch::Spch).
+    GTLightShaft = 47,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
