@@ -209,6 +209,24 @@ fn extract_and_decompile_msmd_shaders(
                 extract_shaders(&data.spch, &model_folder, shader_tools, false);
             }
 
+            if let Some(models) = &msmd.child_models {
+                for model in &models.models {
+                    let model_folder = output_folder.join(&model.streaming_file_name);
+                    std::fs::create_dir_all(&model_folder).unwrap();
+
+                    let streaming_path = path
+                        .with_file_name(&model.streaming_file_name)
+                        .with_extension("wismt");
+                    match Msrd::from_file(&streaming_path) {
+                        Ok(msrd) => {
+                            let files = msrd.extract_files(None).unwrap();
+                            extract_shaders(&files.shader, &model_folder, shader_tools, false);
+                        }
+                        Err(e) => println!("Error reading {streaming_path:?}: {e}"),
+                    }
+                }
+            }
+
             // TODO: Foliage shaders?
         }
     }

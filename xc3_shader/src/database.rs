@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::BTreeSet;
 use std::fmt::Write;
 use std::path::PathBuf;
 use std::{collections::BTreeMap, sync::LazyLock};
@@ -415,6 +414,7 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
     let mut programs = BTreeMap::new();
 
     // TODO: collect all the file names for a particular hash?
+    // The folder structure doesn't matter since we hash the wishp data.
     for path in globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wishp"])
         .build()
         .unwrap()
