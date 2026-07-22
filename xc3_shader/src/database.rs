@@ -1,11 +1,13 @@
 use std::borrow::Cow;
+use std::collections::BTreeSet;
 use std::fmt::Write;
+use std::path::PathBuf;
 use std::{collections::BTreeMap, sync::LazyLock};
 
 use indoc::indoc;
-use log::error;
 use rayon::prelude::*;
 use smol_str::format_smolstr;
+use tracing::{Level, error, span};
 use xc3_lib::{mths::Mths, spch::Spch};
 use xc3_model::shader_database::{
     AttributeXyz, Operation, ParameterXyz, ProgramHash, ShaderDatabase, ShaderProgram, Value,
@@ -385,7 +387,6 @@ pub fn modify_attributes(graph: &Graph, expr: &Expr) -> Expr {
         .or_else(|| u_mdl_view_attribute_xyzw(graph, expr))
         .or_else(|| u_mdl_attribute_xyz(graph, expr))
         .or_else(|| attribute_gm_cal_xyz(graph, expr))
-        .or_else(|| gm_cal_clip_attribute_xyzw(graph, expr))
     {
         expr = new_expr;
     }
@@ -394,6 +395,7 @@ pub fn modify_attributes(graph: &Graph, expr: &Expr) -> Expr {
     if let Some(new_expr) = skin_attribute_bitangent(graph, &expr)
         .or_else(|| u_mdl_view_bitangent_xyz(graph, &expr))
         .or_else(|| bitangent_gm_cal_xyz(graph, &expr))
+        .or_else(|| gm_cal_clip_attribute_xyzw(graph, &expr))
     {
         expr = new_expr;
     }
@@ -401,10 +403,18 @@ pub fn modify_attributes(graph: &Graph, expr: &Expr) -> Expr {
     expr
 }
 
+struct SpchProgram {
+    // Only store one path for now even though different files can have the same hash.
+    fragment_path: PathBuf,
+    vertex_source: Option<String>,
+    fragment_source: Option<String>,
+}
+
 pub fn create_shader_database(input: &str) -> ShaderDatabase {
     // Collect unique programs.
     let mut programs = BTreeMap::new();
 
+    // TODO: collect all the file names for a particular hash?
     for path in globwalk::GlobWalkerBuilder::from_patterns(input, &["*.wishp"])
         .build()
         .unwrap()
@@ -416,8 +426,8 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
     // Process programs in parallel since this is CPU heavy.
     let programs = programs
         .into_par_iter()
-        .map(|(hash, (vert, frag))| {
-            let vertex = vert.and_then(|s| {
+        .map(|(hash, p)| {
+            let vertex = p.vertex_source.and_then(|s| {
                 let source = shader_source_no_extensions(&s);
                 match GlslGraph::parse_glsl(source) {
                     Ok(vertex) => Some(vertex),
@@ -428,18 +438,28 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
                 }
             });
 
-            let shader_program = frag
-                .map(|s| {
-                    let source = shader_source_no_extensions(&s);
-                    match GlslGraph::parse_glsl(source) {
-                        Ok(fragment) => shader_from_glsl(vertex, fragment),
-                        Err(e) => {
-                            error!("Error parsing shader: {e}");
-                            ShaderProgram::default()
+            // TODO: span level?
+            // TODO: set hash as field on the span?
+            let span = span!(
+                Level::ERROR,
+                "shader",
+                path = p.fragment_path.display().to_string()
+            );
+
+            let shader_program = span.in_scope(|| {
+                p.fragment_source
+                    .map(|s| {
+                        let source = shader_source_no_extensions(&s);
+                        match GlslGraph::parse_glsl(source) {
+                            Ok(fragment) => shader_from_glsl(vertex, fragment),
+                            Err(e) => {
+                                error!("Error parsing shader: {e}");
+                                ShaderProgram::default()
+                            }
                         }
-                    }
-                })
-                .unwrap_or_default();
+                    })
+                    .unwrap_or_default()
+            });
 
             (hash, shader_program)
         })
@@ -448,10 +468,7 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
     ShaderDatabase::from_programs(programs)
 }
 
-fn add_programs(
-    programs: &mut BTreeMap<ProgramHash, (Option<String>, Option<String>)>,
-    spch_path: std::path::PathBuf,
-) {
+fn add_programs(programs: &mut BTreeMap<ProgramHash, SpchProgram>, spch_path: std::path::PathBuf) {
     if let Ok(spch) = Spch::from_file(&spch_path) {
         for (slct_index, slct_offset) in spch.slct_offsets.iter().enumerate() {
             let slct = slct_offset.read_slct(&spch.slct_section).unwrap();
@@ -470,8 +487,12 @@ fn add_programs(
 
                     // TODO: Should the vertex shader be mandatory?
                     let vertex_source = std::fs::read_to_string(path.with_extension("vert")).ok();
-                    let frag_source = std::fs::read_to_string(path).ok();
-                    (vertex_source, frag_source)
+                    let fragment_source = std::fs::read_to_string(path.clone()).ok();
+                    SpchProgram {
+                        fragment_path: path,
+                        vertex_source,
+                        fragment_source,
+                    }
                 });
             }
         }
@@ -548,7 +569,7 @@ pub fn shader_str(s: &ShaderProgram) -> String {
     let mut output = String::new();
     for (k, v) in &s.output_dependencies {
         write!(&mut output, "{k:?}: \"").unwrap();
-        write_expr(&mut output, s, *v);
+        write_expr(&mut output, &s.exprs, *v);
         output.push('\"');
         output.push('\n');
     }
@@ -564,7 +585,7 @@ pub fn shader_str(s: &ShaderProgram) -> String {
     match s.normal_intensity {
         Some(i) => {
             write!(&mut output, "normal_intensity: \"").unwrap();
-            write_expr(&mut output, s, i);
+            write_expr(&mut output, &s.exprs, i);
             output.push('\"');
             output.push('\n');
         }
@@ -573,7 +594,7 @@ pub fn shader_str(s: &ShaderProgram) -> String {
     match s.val_inf_intensity {
         Some(i) => {
             write!(&mut output, "val_inf_intensity: \"").unwrap();
-            write_expr(&mut output, s, i);
+            write_expr(&mut output, &s.exprs, i);
             output.push('\"');
             output.push('\n');
         }
@@ -582,7 +603,7 @@ pub fn shader_str(s: &ShaderProgram) -> String {
     match s.discard_condition {
         Some(i) => {
             write!(&mut output, "discard: \"").unwrap();
-            write_expr(&mut output, s, i);
+            write_expr(&mut output, &s.exprs, i);
             output.push('\"');
             output.push('\n');
         }
@@ -598,18 +619,18 @@ pub fn shader_str(s: &ShaderProgram) -> String {
     output
 }
 
-fn write_expr(output: &mut String, s: &ShaderProgram, v: usize) {
+fn write_expr(output: &mut String, exprs: &[xc3_model::shader_database::OutputExpr], v: usize) {
     // Substitute all args to produce a single line of condensed output.
-    match &s.exprs[v] {
+    match &exprs[v] {
         xc3_model::shader_database::OutputExpr::Value(Value::Texture(t)) => {
             write!(output, "Texture({}, ", t.name,).unwrap();
             // Don't write a trailing comma.
             if let Some((last, args)) = t.texcoords.split_last() {
                 for a in args {
-                    write_expr(output, s, *a);
+                    write_expr(output, exprs, *a);
                     write!(output, ", ").unwrap();
                 }
-                write_expr(output, s, *last);
+                write_expr(output, exprs, *last);
             }
             write!(
                 output,
@@ -623,10 +644,10 @@ fn write_expr(output: &mut String, s: &ShaderProgram, v: usize) {
             // Don't write a trailing comma.
             if let Some((last, args)) = args.split_last() {
                 for a in args {
-                    write_expr(output, s, *a);
+                    write_expr(output, exprs, *a);
                     write!(output, ", ").unwrap();
                 }
-                write_expr(output, s, *last);
+                write_expr(output, exprs, *last);
             }
             write!(output, ")").unwrap();
         }
@@ -642,10 +663,10 @@ fn write_expr_xyz(output: &mut String, s: &ShaderProgram, v: usize) {
             // Don't write a trailing comma.
             if let Some((last, args)) = t.texcoords.split_last() {
                 for a in args {
-                    write_expr(output, s, *a);
+                    write_expr(output, &s.exprs, *a);
                     write!(output, ", ").unwrap();
                 }
-                write_expr(output, s, *last);
+                write_expr(output, &s.exprs, *last);
             }
             write!(
                 output,

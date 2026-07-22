@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::graph::{Expr, Graph};
-use log::error;
+use tracing::error;
 use xc3_lib::mths::Mths;
 
 #[tracing::instrument(skip_all)]

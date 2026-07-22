@@ -8,8 +8,8 @@ use crate::{
     annotation::{annotate_fragment, annotate_vertex},
     extract::legacy::{annotate_legacy_shaders, extract_legacy_shaders},
 };
-use log::error;
 use rayon::prelude::*;
+use tracing::error;
 use xc3_lib::{
     msmd::Msmd,
     msrd::Msrd,

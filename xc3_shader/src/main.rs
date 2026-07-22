@@ -2,6 +2,9 @@ use std::path::Path;
 
 use clap::{Parser, Subcommand};
 
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::Layer;
+use tracing_subscriber::layer::SubscriberExt;
 use xc3_model::shader_database::ShaderDatabase;
 use xc3_shader::database::{
     create_shader_database, create_shader_database_legacy, shader_from_glsl, shader_graphviz,
@@ -13,9 +16,6 @@ use xc3_shader::extract::{
 use xc3_shader::graph::Graph;
 
 use xc3_shader::graph::glsl::{GlslGraph, glsl_dependencies, shader_source_no_extensions};
-
-#[cfg(feature = "tracing")]
-use tracing_subscriber::prelude::*;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -109,18 +109,21 @@ enum Commands {
 }
 
 fn main() {
-    simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Warn)
-        .init()
-        .unwrap();
-
     let cli = Cli::parse();
 
-    #[cfg(feature = "tracing")]
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::registry().with(tracing_tracy::TracyLayer::default()),
-    )
-    .unwrap();
+    let mut subscriber = tracing_subscriber::registry().with(
+        tracing_subscriber::fmt::layer()
+            .without_time()
+            .with_filter(LevelFilter::WARN),
+    );
+
+    #[cfg(feature = "tracy")]
+    {
+        // TODO: Will this work unfiltered?
+        subscriber = subscriber.with(tracing_tracy::TracyLayer::default());
+    }
+
+    tracing::subscriber::set_global_default(subscriber).unwrap();
 
     let start = std::time::Instant::now();
     match cli.command {

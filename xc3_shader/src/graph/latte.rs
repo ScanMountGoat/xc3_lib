@@ -1,7 +1,7 @@
-use log::error;
 use peg::parser;
 use smol_str::ToSmolStr;
 use thiserror::Error;
+use tracing::error;
 
 use super::*;
 

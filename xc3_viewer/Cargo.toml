@@ -19,4 +19,4 @@ tracing-tracy = { workspace = true, optional = true }
 anyhow.workspace = true
 
 [features]
-tracing = ["tracing-subscriber", "tracing-tracy"]
+tracy = ["tracing-subscriber", "tracing-tracy"]

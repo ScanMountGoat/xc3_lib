@@ -13,8 +13,8 @@ use glsl_lang::{
     transpiler::glsl::{FormattingState, show_expr, show_type_specifier},
     visitor::{Host, Visit, Visitor},
 };
-use log::error;
 use smol_str::ToSmolStr;
+use tracing::error;
 
 use super::*;
 

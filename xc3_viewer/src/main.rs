@@ -23,7 +23,7 @@ use xc3_model::{
 };
 use xc3_wgpu::{CameraData, Collision, ModelGroup, MonolibShaderTextures, RenderMode, Renderer};
 
-#[cfg(feature = "tracing")]
+#[cfg(feature = "tracy")]
 use tracing_subscriber::prelude::*;
 
 const FOV_Y: f32 = 0.5;
@@ -893,7 +893,7 @@ fn main() -> anyhow::Result<()> {
         .unwrap();
 
     // TODO: layer to print log messages?
-    #[cfg(feature = "tracing")]
+    #[cfg(feature = "tracy")]
     tracing::subscriber::set_global_default(
         tracing_subscriber::registry().with(tracing_tracy::TracyLayer::default()),
     )

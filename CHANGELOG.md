@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 * Reworked xc3_model and xc3_shader database and material assignment types.
 * Changed shader assignments inferred from textures to merge XYZ channels for color and specular color.
+* Renamed the "tracing" feature for xc3_viewer and xc3_shader to "tracy".
 
 ### Fixed
 * Fixed an issue where map models would use the wrong alpha testing texture in some cases.
