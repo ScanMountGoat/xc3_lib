@@ -1348,12 +1348,16 @@ pub fn attribute_gm_cal_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a 
             [x, y, z],
         ) => {
             // TODO: find a nicer way of writing this
-            if n1 == "vGmCal1" && n1 == n2 && n2 == n3 {
-                Some(x)
-            } else if n1 == "vGmCal2" && n1 == n2 && n2 == n3 {
-                Some(y)
-            } else if n1 == "vGmCal3" && n1 == n2 && n2 == n3 {
-                Some(z)
+            if n1 == n2 && n2 == n3 {
+                if n1 == "vGmCal1" {
+                    Some(x)
+                } else if n1 == "vGmCal2" {
+                    Some(y)
+                } else if n1 == "vGmCal3" {
+                    Some(z)
+                } else {
+                    None
+                }
             } else {
                 None
             }
@@ -1375,12 +1379,16 @@ pub fn attribute_gm_cal_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a 
                 },
             ],
         ) => {
-            if n1 == "vGmCal1" && n1 == n2 && n2 == n3 {
-                Some(x)
-            } else if n1 == "vGmCal2" && n1 == n2 && n2 == n3 {
-                Some(y)
-            } else if n1 == "vGmCal3" && n1 == n2 && n2 == n3 {
-                Some(z)
+            if n1 == n2 && n2 == n3 {
+                if n1 == "vGmCal1" {
+                    Some(x)
+                } else if n1 == "vGmCal2" {
+                    Some(y)
+                } else if n1 == "vGmCal3" {
+                    Some(z)
+                } else {
+                    None
+                }
             } else {
                 None
             }
@@ -1604,20 +1612,31 @@ static GM_CAL_CLIP_ATTRIBUTE_XYZW_W: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
-pub fn gm_cal_clip_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+pub fn gm_cal_clip_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
+    // TODO: This should match the attribute names exactly to be able to return &Expr?
+    // TODO: Don't assume vPos?
     query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_X)
-        .and_then(|r| r.get("result_x").copied())
-        .or_else(|| {
-            query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_Y)
-                .and_then(|r| r.get("result_y").copied())
+        .map(|_| Expr::Global {
+            name: "vPos".into(),
+            channel: Some('x'),
         })
         .or_else(|| {
-            query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_Z)
-                .and_then(|r| r.get("result_z").copied())
+            query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_Y).map(|_| Expr::Global {
+                name: "vPos".into(),
+                channel: Some('y'),
+            })
         })
         .or_else(|| {
-            query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_W)
-                .and_then(|r| r.get("result_w").copied())
+            query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_Z).map(|_| Expr::Global {
+                name: "vPos".into(),
+                channel: Some('z'),
+            })
+        })
+        .or_else(|| {
+            query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_W).map(|_| Expr::Global {
+                name: "vPos".into(),
+                channel: Some('w'),
+            })
         })
 }
 
