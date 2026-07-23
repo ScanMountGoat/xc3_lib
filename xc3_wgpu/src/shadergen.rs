@@ -68,19 +68,17 @@ impl ShaderWgsl {
         // Generate empty code if there is no discard condition.
         let fragment_discard = output_assignments
             .discard_condition
-            .map(|i| generate_discard_wgsl(i))
+            .map(generate_discard_wgsl)
             .unwrap_or_default();
 
         let normal_intensity = output_assignments
             .normal_intensity
-            .as_ref()
-            .map(|i| generate_normal_intensity_wgsl(*i))
+            .map(generate_normal_intensity_wgsl)
             .unwrap_or_default();
 
         let val_inf_intensity = output_assignments
             .val_inf_intensity
-            .as_ref()
-            .map(|i| generate_normal_intensity_wgsl(*i))
+            .map(generate_normal_intensity_wgsl)
             .unwrap_or_default();
 
         Self {
@@ -239,8 +237,8 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
         Operation::UintBitsToFloat => write!(wgsl, "bitcast<f32>({a}{})", arg0?).unwrap(),
         Operation::InverseSqrt => write!(wgsl, "inverseSqrt({a}{})", arg0?).unwrap(),
         Operation::Not => write!(wgsl, "!{a}{}", arg0?).unwrap(),
-        Operation::LeftShift => write!(wgsl, "{a}{} << {a}{}", arg0?, arg1?).unwrap(),
-        Operation::RightShift => write!(wgsl, "{a}{} >> {a}{}", arg0?, arg1?).unwrap(),
+        Operation::LeftShift => write!(wgsl, "{a}{} << u32({a}{})", arg0?, arg1?).unwrap(),
+        Operation::RightShift => write!(wgsl, "{a}{} >> u32({a}{})", arg0?, arg1?).unwrap(),
         Operation::BitAnd => write!(wgsl, "{a}{} & {a}{}", arg0?, arg1?).unwrap(),
         Operation::BitOr => write!(wgsl, "{a}{} | {a}{}", arg0?, arg1?).unwrap(),
         Operation::PartialDerivativeX => write!(wgsl, "dpdx({a}{})", arg0?).unwrap(),
@@ -574,8 +572,8 @@ fn write_func_xyz(
         OperationXyz::UintBitsToFloat => write!(wgsl, "bitcast<f32>({a}{})", arg0?).unwrap(),
         OperationXyz::InverseSqrt => write!(wgsl, "inverseSqrt({a}{})", arg0?).unwrap(),
         OperationXyz::Not => write!(wgsl, "(!{a}{})", arg0?).unwrap(),
-        OperationXyz::LeftShift => write!(wgsl, "({a}{} << {a}{})", arg0?, arg1?).unwrap(),
-        OperationXyz::RightShift => write!(wgsl, "({a}{} >> {a}{})", arg0?, arg1?).unwrap(),
+        OperationXyz::LeftShift => write!(wgsl, "({a}{} << u32({a}{}))", arg0?, arg1?).unwrap(),
+        OperationXyz::RightShift => write!(wgsl, "({a}{} >> u32({a}{}))", arg0?, arg1?).unwrap(),
         OperationXyz::Exp2 => write!(wgsl, "exp2({a}{})", arg0?).unwrap(),
         OperationXyz::Log2 => write!(wgsl, "log2({a}{})", arg0?).unwrap(),
         OperationXyz::Sin => write!(wgsl, "sin({a}{})", arg0?).unwrap(),
