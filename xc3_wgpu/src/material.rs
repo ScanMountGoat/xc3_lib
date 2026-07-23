@@ -475,6 +475,7 @@ fn material_u_mate(material: &xc3_model::material::Material) -> crate::shader::m
         g_toon_head_mat: [Vec4::ZERO; 3],
         g_wrk_col: array_parameter(&material.parameters.work_color, Vec4::ZERO),
         g_wrk_fl4: array_parameter(&material.parameters.work_float4, Vec4::ZERO),
+        g_aa_map: array_parameter(&material.parameters.aa_map, Vec4::ZERO),
     }
 }
 

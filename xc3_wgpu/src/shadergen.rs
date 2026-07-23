@@ -390,6 +390,7 @@ fn write_value(
                 "vTex6" => write_attribute(wgsl, "tex6", channel),
                 "vTex7" => write_attribute(wgsl, "tex7", channel),
                 "vTex8" => write_attribute(wgsl, "tex8", channel),
+                "vBlend" => write_attribute(wgsl, "in.blend", channel),
                 // The database uses "vBitan" to represent calculated bitangent attributes.
                 "vBitan" => write_attribute(wgsl, "bitangent", channel),
                 _ => {
@@ -626,6 +627,7 @@ fn write_value_xyz(
                 "vTex6" => write!(wgsl, "tex6{c}").unwrap(),
                 "vTex7" => write!(wgsl, "tex7{c}").unwrap(),
                 "vTex8" => write!(wgsl, "tex8{c}").unwrap(),
+                "vBlend" => write!(wgsl, "in.blend{c}").unwrap(),
                 // The database uses "vBitan" to represent calculated bitangent attributes.
                 "vBitan" => write!(wgsl, "bitangent{c}").unwrap(),
                 _ => {

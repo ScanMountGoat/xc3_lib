@@ -95,6 +95,7 @@ impl VertexBuffer {
                 tex45: Vec4::ZERO,
                 tex67: Vec4::ZERO,
                 tex8: Vec4::ZERO,
+                blend: Vec4::ZERO,
             };
             vertex_count
         ];
@@ -323,6 +324,7 @@ fn set_buffer1_attributes(verts: &mut [shader::model::VertexInput1], attributes:
             AttributeData::VertexColor(vals) => {
                 set_attribute1(verts, vals, |v, t| v.vertex_color = t)
             }
+            AttributeData::Blend(vals) => set_attribute1(verts, vals, |v, t| v.blend = t),
             AttributeData::WeightIndex(vals) => {
                 // TODO: What does the second index component do?
                 set_attribute1(verts, vals, |v, t| {

@@ -86,6 +86,7 @@ struct UMate {
     g_toon_head_mat: array<vec4<f32>, 3>,
     g_wrk_col: array<vec4<f32>, 34>,
     g_wrk_fl4: array<vec4<f32>, 17>,
+    g_aa_map: array<vec4<f32>, 3>,
 }
 
 // This needs to be storage instead of uniform to work with the texture binding arrays.
@@ -127,13 +128,15 @@ struct VertexInput1 {
     @location(8) tex45: vec4<f32>,
     @location(9) tex67: vec4<f32>,
     @location(10) tex8: vec4<f32>,
+    @location(11) blend: vec4<f32>,
 }
 
+// TODO: move this to a storage buffer to free up vertex attributes
 struct InstanceInput {
-    @location(11) model_matrix_0: vec4<f32>,
-    @location(12) model_matrix_1: vec4<f32>,
-    @location(13) model_matrix_2: vec4<f32>,
-    @location(14) model_matrix_3: vec4<f32>,
+    @location(12) model_matrix_0: vec4<f32>,
+    @location(13) model_matrix_1: vec4<f32>,
+    @location(14) model_matrix_2: vec4<f32>,
+    @location(15) model_matrix_3: vec4<f32>,
 }
 
 // TODO: Store additional attributes without exceeding attribute limit?
@@ -151,6 +154,7 @@ struct VertexOutput {
     @location(7) tex45: vec4<f32>,
     @location(8) tex67: vec4<f32>,
     @location(9) tex8: vec4<f32>,
+    @location(10) blend: vec4<f32>,
 }
 
 struct FragmentOutput {
@@ -241,6 +245,7 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
     out.tex45 = in1.tex45;
     out.tex67 = in1.tex67;
     out.tex8 = in1.tex8;
+    out.blend = in1.blend;
 
     out.vertex_color = vertex_color;
 

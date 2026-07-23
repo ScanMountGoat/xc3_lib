@@ -121,6 +121,9 @@ pub struct MaterialParameters {
     /// [xc3_lib::mxmd::legacy::ParamType::MdlParam]
     pub mdl_param: Option<Vec<[f32; 4]>>,
 
+    // TODO: what legacy param type is gAaMap?
+    pub aa_map: Option<Vec<[f32; 4]>>,
+
     // TODO: Add missing xcx de parameters.
     /// Skin color param for some Xenoblade X DE models like L.
     pub ava_skin: Option<[f32; 4]>,
