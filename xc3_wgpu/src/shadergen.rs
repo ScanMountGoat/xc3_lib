@@ -4,8 +4,8 @@ use aho_corasick::AhoCorasick;
 use case::CaseExt;
 use indexmap::IndexMap;
 use indoc::formatdoc;
-use log::{error, warn};
 use smol_str::SmolStr;
+use tracing::{error, warn};
 use xc3_model::{
     IndexMapExt,
     material::{
@@ -392,9 +392,9 @@ fn write_value(
                 "vBitan" => write_attribute(wgsl, "bitangent", channel),
                 _ => {
                     if let Some(c) = channel {
-                        warn!("Unsupported attribute {name}.{c}");
+                        error!("Unsupported attribute {name}.{c}");
                     } else {
-                        warn!("Unsupported attribute {name}");
+                        error!("Unsupported attribute {name}");
                     }
                     return None;
                 }

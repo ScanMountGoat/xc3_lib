@@ -1,5 +1,5 @@
 use glam::Mat4;
-use log::info;
+use tracing::info;
 use wgpu::util::DeviceExt;
 
 pub struct Collision {

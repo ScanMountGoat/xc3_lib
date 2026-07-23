@@ -8,7 +8,6 @@ use anyhow::{Context, anyhow};
 use clap::Parser;
 use futures::executor::block_on;
 use glam::{Mat4, Vec3, vec3};
-use log::info;
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalPosition,
@@ -23,7 +22,7 @@ use xc3_model::{
 };
 use xc3_wgpu::{CameraData, Collision, ModelGroup, MonolibShaderTextures, RenderMode, Renderer};
 
-#[cfg(feature = "tracy")]
+use tracing::{info, level_filters::LevelFilter};
 use tracing_subscriber::prelude::*;
 
 const FOV_Y: f32 = 0.5;
@@ -883,23 +882,22 @@ impl ApplicationHandler<()> for App {
 }
 
 fn main() -> anyhow::Result<()> {
-    // TODO: Use tracing instead of log or convert log to tracing events?
-    // Ignore most logs to avoid flooding the console.
-    simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Info)
-        .with_module_level("wgpu", log::LevelFilter::Warn)
-        .with_module_level("naga", log::LevelFilter::Warn)
-        .init()
-        .unwrap();
-
-    // TODO: layer to print log messages?
-    #[cfg(feature = "tracy")]
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::registry().with(tracing_tracy::TracyLayer::default()),
-    )
-    .unwrap();
-
     let cli = Cli::parse();
+
+    // Ignore most logs to avoid flooding the console.
+    let mut subscriber = tracing_subscriber::registry().with(
+        tracing_subscriber::fmt::layer()
+            .without_time()
+            .with_filter(LevelFilter::WARN),
+    );
+
+    #[cfg(feature = "tracy")]
+    {
+        // TODO: Will this work unfiltered?
+        subscriber = subscriber.with(tracing_tracy::TracyLayer::default());
+    }
+
+    tracing::subscriber::set_global_default(subscriber).unwrap();
 
     let (model_roots, map_roots, collision_meshes) = load_files(&cli)?;
 

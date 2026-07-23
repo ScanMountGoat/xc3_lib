@@ -1,5 +1,5 @@
 use futures::executor::block_on;
-use log::error;
+use tracing::error;
 use xc3_model::material::{BlendMode, ColorWriteMode, CullMode, MaterialTechniqueType, StateFlags};
 
 use crate::{
@@ -22,6 +22,7 @@ impl ModelPipelineData {
 /// The non shared components of a pipeline for use with pipeline caching.
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct PipelineKey {
+    pub technique_index: u32,
     pub technique_type: MaterialTechniqueType,
     pub flags: StateFlags,
     pub is_outline: bool,

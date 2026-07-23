@@ -16,7 +16,6 @@ bytemuck = { version = "1.13", features = [ "derive" ] }
 glam = { workspace = true, features = ["bytemuck", "encase"] }
 encase = "0.12.0"
 rayon.workspace = true
-log.workspace = true
 tracing.workspace = true
 indexmap.workspace = true
 smol_str.workspace = true

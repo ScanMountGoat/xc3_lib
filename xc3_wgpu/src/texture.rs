@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use log::warn;
+use tracing::warn;
 use wgpu::util::DeviceExt;
 use xc3_model::{ImageFormat, ImageTexture, ViewDimension};
 

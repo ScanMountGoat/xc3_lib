@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use glam::{Mat4, Vec3, Vec4, uvec4};
-use log::{error, info};
 use rayon::prelude::*;
+use tracing::{Level, span};
+use tracing::{error, info};
 use wgpu::util::DeviceExt;
 use xc3_model::{ImageTexture, MeshRenderFlags2, MeshRenderPass, vertex::AttributeData};
 
@@ -668,7 +669,16 @@ fn create_model_group(
             let pipelines: HashMap<_, _> = pipeline_keys
                 .into_par_iter()
                 .map(|key| {
-                    let pipeline = model_pipeline(device, pipeline_data, &key);
+                    // TODO: get information about the shader file path?
+                    // i.e. model name, map, etc
+                    let span = span!(
+                        Level::ERROR,
+                        "model_pipeline",
+                        root = root_index,
+                        group = group_index,
+                        technique = key.technique_index
+                    );
+                    let pipeline = span.in_scope(|| model_pipeline(device, pipeline_data, &key));
                     (key, pipeline)
                 })
                 .collect();

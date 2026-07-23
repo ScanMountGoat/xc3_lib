@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use glam::{Vec3, Vec4, uvec4, vec3, vec4};
 use indexmap::IndexMap;
-use log::{error, warn};
+use tracing::{error, warn};
 use xc3_model::{
     ImageTexture, IndexMapExt, material::assignments::OutputAssignments, shader_database::Value,
 };
@@ -253,6 +253,7 @@ pub fn create_material(
         // TODO: Is there a better way to store depth prepass pipelines?
         // The depth writes and compare function only happen in the prepass.
         let pipeline_key = PipelineKey {
+            technique_index: technique.technique_index,
             technique_type: technique.technique_type,
             flags: xc3_lib::mxmd::StateFlags {
                 depth_func: xc3_lib::mxmd::DepthFunc::Equal,
@@ -274,6 +275,7 @@ pub fn create_material(
     } else {
         (
             PipelineKey {
+                technique_index: technique.technique_index,
                 technique_type: technique.technique_type,
                 flags: material.state_flags,
                 is_outline: material.name.ends_with("_outline"),
