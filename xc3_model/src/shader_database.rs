@@ -281,6 +281,10 @@ pub enum Operation {
     LeftShift,
     /// `arg0 >> arg1`
     RightShift,
+    /// `argo & arg1`
+    BitAnd,
+    /// `argo | arg1`
+    BitOr,
     /// `dFdx(arg0)` or `dpdx(arg0)`
     PartialDerivativeX,
     /// `dFdy(arg0)` or `dpdy(arg0)`

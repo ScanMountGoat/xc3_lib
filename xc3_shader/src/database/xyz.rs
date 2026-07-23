@@ -64,6 +64,8 @@ impl OperationXyzChannel for Operation {
             Operation::Not => Some((OperationXyz::Not, None)),
             Operation::LeftShift => Some((OperationXyz::LeftShift, None)),
             Operation::RightShift => Some((OperationXyz::RightShift, None)),
+            Operation::BitAnd => None,
+            Operation::BitOr => None,
             Operation::PartialDerivativeX => None,
             Operation::PartialDerivativeY => None,
             Operation::Exp2 => Some((OperationXyz::Exp2, None)),

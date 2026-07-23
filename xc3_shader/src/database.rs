@@ -320,6 +320,8 @@ impl crate::expr::Operation for Operation {
             .or_else(|| binary_op(graph, expr, BinaryOp::GreaterEqual, Operation::GreaterEqual))
             .or_else(|| binary_op(graph, expr, BinaryOp::LeftShift, Operation::LeftShift))
             .or_else(|| binary_op(graph, expr, BinaryOp::RightShift, Operation::RightShift))
+            .or_else(|| binary_op(graph, expr, BinaryOp::BitAnd, Operation::BitAnd))
+            .or_else(|| binary_op(graph, expr, BinaryOp::BitOr, Operation::BitOr))
             .or_else(|| ternary(graph, expr))
             .or_else(|| unary_op(graph, expr, UnaryOp::Negate, Operation::Negate))
             .or_else(|| unary_op(graph, expr, UnaryOp::Not, Operation::Not))

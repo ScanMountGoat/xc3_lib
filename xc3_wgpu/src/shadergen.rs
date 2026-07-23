@@ -241,6 +241,8 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
         Operation::Not => write!(wgsl, "!{a}{}", arg0?).unwrap(),
         Operation::LeftShift => write!(wgsl, "{a}{} << {a}{}", arg0?, arg1?).unwrap(),
         Operation::RightShift => write!(wgsl, "{a}{} >> {a}{}", arg0?, arg1?).unwrap(),
+        Operation::BitAnd => write!(wgsl, "{a}{} & {a}{}", arg0?, arg1?).unwrap(),
+        Operation::BitOr => write!(wgsl, "{a}{} | {a}{}", arg0?, arg1?).unwrap(),
         Operation::PartialDerivativeX => write!(wgsl, "dpdx({a}{})", arg0?).unwrap(),
         Operation::PartialDerivativeY => write!(wgsl, "dpdy({a}{})", arg0?).unwrap(),
         Operation::Exp2 => write!(wgsl, "exp2({a}{})", arg0?).unwrap(),
@@ -433,13 +435,7 @@ fn write_value(
                 return None;
             }
         }
-        Value::Int(i) => {
-            if *i >= 0 {
-                write!(wgsl, "{i}u").unwrap()
-            } else {
-                write!(wgsl, "{i}i").unwrap()
-            }
-        }
+        Value::Int(i) => write!(wgsl, "{i}i").unwrap(),
     }
     Some(())
 }
