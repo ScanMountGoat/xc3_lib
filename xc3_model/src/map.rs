@@ -111,6 +111,7 @@ impl MapRoot {
         roots.push(MapRoot {
             groups: vec![map_model_group, prop_model_group],
             image_textures,
+            label: "maps props".to_string(),
         });
 
         Ok(roots)
@@ -157,6 +158,7 @@ impl MapRoot {
         roots.push(MapRoot {
             groups: vec![map_model_group, prop_model_group],
             image_textures,
+            label: "maps props".to_string(),
         });
 
         if let Some(child_models) = &msmd.child_models {
@@ -755,6 +757,7 @@ fn load_env_model(
             buffers: vec![buffers],
         }],
         image_textures,
+        label: "env".to_string(),
     })
 }
 
@@ -812,6 +815,7 @@ fn load_foliage_model(
             buffers: vec![buffers],
         }],
         image_textures,
+        label: "foliage".to_string(),
     })
 }
 
@@ -940,6 +944,7 @@ fn load_child_model(
             buffers: vec![model_root.buffers],
         }],
         image_textures: model_root.image_textures,
+        label: child_model.streaming_file_name.clone(),
     })
 }
 

@@ -507,6 +507,7 @@ pub fn load_model(
             },
             i,
             0,
+            "root", // TODO: root label?
             &textures,
             &root.image_textures,
             &pipeline_data,
@@ -550,6 +551,7 @@ pub fn load_map(
                         group,
                         root_index,
                         group_index,
+                        &root.label,
                         &textures,
                         &root.image_textures,
                         &pipeline_data,
@@ -586,6 +588,7 @@ fn create_model_group(
     group: &xc3_model::ModelGroup,
     root_index: usize,
     group_index: usize,
+    root_label: &str,
     textures: &[wgpu::Texture],
     image_textures: &[ImageTexture],
     pipeline_data: &ModelPipelineData,
@@ -669,12 +672,11 @@ fn create_model_group(
             let pipelines: HashMap<_, _> = pipeline_keys
                 .into_par_iter()
                 .map(|key| {
-                    // TODO: get information about the shader file path?
-                    // i.e. model name, map, etc
+                    // Add information to enable finding the path in the decompiled shader dump.
                     let span = span!(
                         Level::ERROR,
                         "model_pipeline",
-                        root = root_index,
+                        root = root_label,
                         group = group_index,
                         technique = key.technique_index
                     );

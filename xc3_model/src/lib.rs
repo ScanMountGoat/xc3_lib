@@ -104,6 +104,9 @@ pub struct MapRoot {
     /// This includes all packed and embedded textures after
     /// combining all mip levels.
     pub image_textures: Vec<ImageTexture>,
+
+    /// A descriptive name used for logging.
+    pub label: String,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
