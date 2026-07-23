@@ -27,7 +27,6 @@ pub struct PipelineKey {
     pub flags: StateFlags,
     pub is_outline: bool,
     pub output5_type: Output5Type,
-    pub is_instanced_static: bool,
     pub is_depth_prepass: bool,
     pub wgsl: ShaderWgsl,
 }
@@ -172,20 +171,11 @@ fn model_pipeline_normal_inner<const N: usize>(
     fragment: crate::shader::FragmentEntry<N>,
     key: &PipelineKey,
 ) -> wgpu::RenderPipeline {
-    if key.is_instanced_static {
-        let vertex = crate::shader::model::vs_main_instanced_static_entry(
-            wgpu::VertexStepMode::Vertex,
-            wgpu::VertexStepMode::Vertex,
-            wgpu::VertexStepMode::Instance,
-        );
-        model_pipeline_inner(device, data, vertex, fragment, key)
-    } else {
-        let vertex = crate::shader::model::vs_main_entry(
-            wgpu::VertexStepMode::Vertex,
-            wgpu::VertexStepMode::Vertex,
-        );
-        model_pipeline_inner(device, data, vertex, fragment, key)
-    }
+    let vertex = crate::shader::model::vs_main_entry(
+        wgpu::VertexStepMode::Vertex,
+        wgpu::VertexStepMode::Vertex,
+    );
+    model_pipeline_inner(device, data, vertex, fragment, key)
 }
 
 fn model_pipeline_inner<const M: usize, const N: usize>(

@@ -101,11 +101,6 @@ impl Models {
             .map(|s| create_sampler(device, s))
             .collect();
 
-        // TODO: Should instances be empty for character models instead of a single identity transform?
-        let is_instanced_static = models.models.iter().any(|m| {
-            m.instances.len() > 1 || matches!(m.instances.first(), Some(t) if *t != Mat4::IDENTITY)
-        });
-
         let mut index_to_materials = BTreeMap::new();
 
         let models = models
@@ -125,7 +120,6 @@ impl Models {
                     pipelines,
                     textures,
                     &samplers,
-                    is_instanced_static,
                     default_textures,
                 )
             })
@@ -282,35 +276,19 @@ impl ModelGroup {
                     .fur_shell_instance_count
                     .unwrap_or(model.instances.count);
 
-                let is_instanced_static = material.pipeline_key.is_instanced_static;
-
                 if let Some(key) = &material.prepass_pipeline_key {
                     // TODO: This should be done in a dedicated render pass with no fragment outputs.
                     let pipeline = &self.pipelines[key];
                     render_pass.set_pipeline(pipeline);
 
-                    self.draw_mesh(
-                        render_pass,
-                        model,
-                        mesh,
-                        is_outline,
-                        is_instanced_static,
-                        instance_count,
-                    );
+                    self.draw_mesh(render_pass, model, mesh, is_outline, instance_count);
                 }
 
                 // TODO: How to make sure the pipeline outputs match the render pass?
                 let pipeline = &self.pipelines[&material.pipeline_key];
                 render_pass.set_pipeline(pipeline);
 
-                self.draw_mesh(
-                    render_pass,
-                    model,
-                    mesh,
-                    is_outline,
-                    is_instanced_static,
-                    instance_count,
-                );
+                self.draw_mesh(render_pass, model, mesh, is_outline, instance_count);
             }
         }
     }
@@ -340,7 +318,6 @@ impl ModelGroup {
         model: &'a Model,
         mesh: &Mesh,
         is_outline: bool,
-        is_instanced_static: bool,
         instance_count: u32,
     ) {
         let buffers = &self.buffers[model.model_buffers_index];
@@ -358,14 +335,6 @@ impl ModelGroup {
             render_pass.set_vertex_buffer(1, vertex_buffers.outline_vertex_buffer1.slice(..));
         } else {
             render_pass.set_vertex_buffer(1, vertex_buffers.vertex_buffer1.slice(..));
-        }
-
-        if is_instanced_static {
-            if model.instances.count == 0 {
-                // TODO: Why are there map models with no instances?
-                return;
-            }
-            render_pass.set_vertex_buffer(2, model.instances.transforms.slice(..));
         }
 
         // TODO: Are all indices u16?
@@ -722,10 +691,19 @@ fn create_model(
     pipelines: &mut HashSet<PipelineKey>,
     textures: &[wgpu::Texture],
     samplers: &[wgpu::Sampler],
-    is_instanced_static: bool,
     default_textures: &DefaultTextures,
 ) -> Model {
     let model_buffers = &buffers[model.model_buffers_index];
+
+    let transforms = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("instance transforms"),
+        contents: bytemuck::cast_slice(&model.instances),
+        usage: wgpu::BufferUsages::STORAGE,
+    });
+    let instances = Instances {
+        transforms,
+        count: model.instances.len() as u32,
+    };
 
     let meshes = model
         .meshes
@@ -747,7 +725,6 @@ fn create_model(
                         samplers,
                         image_textures,
                         monolib_shader,
-                        is_instanced_static,
                         default_textures,
                     )
                 });
@@ -763,20 +740,11 @@ fn create_model(
                     mesh,
                     material.pipeline_key.technique_type,
                     weights,
+                    &instances.transforms,
                 ),
             }
         })
         .collect();
-
-    let transforms = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("instance transforms"),
-        contents: bytemuck::cast_slice(&model.instances),
-        usage: wgpu::BufferUsages::VERTEX,
-    });
-    let instances = Instances {
-        transforms,
-        count: model.instances.len() as u32,
-    };
 
     Model {
         meshes,
@@ -852,6 +820,7 @@ fn per_mesh_bind_group(
     mesh: &xc3_model::Mesh,
     technique_type: xc3_lib::mxmd::MaterialTechniqueType,
     weights: Option<&xc3_model::skinning::Weights>,
+    instance_transforms: &wgpu::Buffer,
 ) -> shader::model::bind_groups::BindGroup3 {
     // TODO: Fix weight indexing calculations.
     let start = buffers
@@ -939,6 +908,7 @@ fn per_mesh_bind_group(
             // TODO: Is it worth caching skinning buffers based on flags and parameters?
             bone_indices: bone_indices.as_entire_buffer_binding(),
             skin_weights: skin_weights.as_entire_buffer_binding(),
+            instance_transforms: instance_transforms.as_entire_buffer_binding(),
         },
     )
 }

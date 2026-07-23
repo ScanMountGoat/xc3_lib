@@ -110,6 +110,10 @@ var<storage> bone_indices: array<vec4<u32>>;
 @group(3) @binding(4)
 var<storage> skin_weights: array<vec4<f32>>;
 
+// TODO: Avoid storing instances per mesh?
+@group(3) @binding(5)
+var<storage> instance_transforms: array<mat4x4<f32>>;
+
 // Define all possible attributes even if unused.
 // This avoids needing separate shaders.
 struct VertexInput0 {
@@ -129,14 +133,6 @@ struct VertexInput1 {
     @location(9) tex67: vec4<f32>,
     @location(10) tex8: vec4<f32>,
     @location(11) blend: vec4<f32>,
-}
-
-// TODO: move this to a storage buffer to free up vertex attributes
-struct InstanceInput {
-    @location(12) model_matrix_0: vec4<f32>,
-    @location(13) model_matrix_1: vec4<f32>,
-    @location(14) model_matrix_2: vec4<f32>,
-    @location(15) model_matrix_3: vec4<f32>,
 }
 
 // TODO: Store additional attributes without exceeding attribute limit?
@@ -201,12 +197,15 @@ fn vertex_output(in0: VertexInput0, in1: VertexInput1, instance_index: u32, outl
         }
     }
 
-    // Transform any direction vectors by the camera transforms.
+    let instance_transform = instance_transforms[instance_index];
+
+    // Transform any direction vectors by the instance and camera transforms.
     // TODO: This assumes no scaling?
-    position = (camera.view * vec4(position, 1.0)).xyz;
-    normal_xyz = (camera.view * vec4(normalize(normal_xyz), 0.0)).xyz;
-    tangent_xyz = (camera.view * vec4(normalize(tangent_xyz), 0.0)).xyz;
-    val_inf_xyz = (camera.view * vec4(val_inf_xyz, 0.0)).xyz;
+    let model_view_matrix = camera.view * instance_transform;
+    position = (model_view_matrix * vec4(position, 1.0)).xyz;
+    normal_xyz = (model_view_matrix * vec4(normalize(normal_xyz), 0.0)).xyz;
+    tangent_xyz = (model_view_matrix * vec4(normalize(tangent_xyz), 0.0)).xyz;
+    val_inf_xyz = (model_view_matrix * vec4(val_inf_xyz, 0.0)).xyz;
 
     var vertex_color = in1.vertex_color;
 
@@ -276,41 +275,6 @@ fn vs_main(in0: VertexInput0, in1: VertexInput1, @builtin(instance_index) instan
 @vertex
 fn vs_outline_main(in0: VertexInput0, in1: VertexInput1, @builtin(instance_index) instance_index: u32) -> VertexOutput {
     return vertex_output(in0, in1, instance_index, true);
-}
-
-@vertex
-fn vs_main_instanced_static(in0: VertexInput0, in1: VertexInput1, instance: InstanceInput) -> VertexOutput {
-    // Simplified vertex shader for static stage meshes
-    var out: VertexOutput;
-
-    let instance_transform = mat4x4<f32>(
-        instance.model_matrix_0,
-        instance.model_matrix_1,
-        instance.model_matrix_2,
-        instance.model_matrix_3,
-    );
-
-    // Transform any direction vectors by the instance and camera transforms.
-    // TODO: This assumes no scaling?
-    let model_view_matrix = camera.view * instance_transform;
-    let position = (model_view_matrix * vec4(in0.position.xyz, 1.0)).xyz;
-    let normal_xyz = (model_view_matrix * vec4(in0.normal.xyz, 0.0)).xyz;
-    let tangent_xyz = (model_view_matrix * vec4(in0.tangent.xyz, 0.0)).xyz;
-
-    out.clip_position = camera.projection * vec4(position, 1.0);
-    out.position = vec4(position, 1.0);
-
-    // Some shaders have gTexA, gTexB, gTexC for up to 5 scaled versions of tex0.
-    // This is handled in the fragment shader, so just return the attributes.
-    out.tex01 = in1.tex01;
-    out.tex23 = in1.tex23;
-    out.tex45 = in1.tex45;
-    out.tex67 = in1.tex67;
-    out.tex8 = in1.tex8;
-    out.vertex_color = in1.vertex_color;
-    out.normal = vec4(normal_xyz, in0.normal.w);
-    out.tangent = vec4(tangent_xyz, in0.tangent.w);
-    return out;
 }
 
 // Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00028, getCalcNormalMap.

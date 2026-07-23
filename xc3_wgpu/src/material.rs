@@ -71,7 +71,6 @@ pub fn create_material(
     samplers: &[wgpu::Sampler],
     image_textures: &[ImageTexture],
     monolib_shader: &MonolibShaderTextures,
-    is_instanced_static: bool,
     default_textures: &DefaultTextures,
 ) -> Material {
     let default_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -262,7 +261,6 @@ pub fn create_material(
             },
             is_outline: material.name.ends_with("_outline"),
             output5_type,
-            is_instanced_static,
             is_depth_prepass: false,
             wgsl,
         };
@@ -280,7 +278,6 @@ pub fn create_material(
                 flags: material.state_flags,
                 is_outline: material.name.ends_with("_outline"),
                 output5_type,
-                is_instanced_static,
                 is_depth_prepass: false,
                 wgsl,
             },
