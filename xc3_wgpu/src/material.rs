@@ -80,6 +80,14 @@ pub fn create_material(
         mag_filter: wgpu::FilterMode::Linear,
         ..Default::default()
     });
+    let default_point_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        address_mode_u: wgpu::AddressMode::ClampToEdge,
+        address_mode_v: wgpu::AddressMode::ClampToEdge,
+        min_filter: wgpu::FilterMode::Nearest,
+        mag_filter: wgpu::FilterMode::Nearest,
+        mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+        ..Default::default()
+    });
 
     // Assign material textures by index to make GPU debugging easier.
     // TODO: Match the ordering in the actual in game shader using technique?
@@ -201,9 +209,14 @@ pub fn create_material(
         &default_textures.default_cube,
     );
 
-    let sampler_array = std::array::from_fn(|i| {
+    let mut sampler_array = std::array::from_fn(|i| {
         material_sampler(material, samplers, i).unwrap_or(&default_sampler)
     });
+    // TODO: how to set samplers for global textures?
+    if let Some(i) = name_to_index.get("texDither") {
+        // texdither2 is set to clamp to edge.
+        sampler_array[*i] = &default_point_sampler;
+    }
 
     // Bind all available textures and samplers.
     // Texture selection happens within generated shader code.
