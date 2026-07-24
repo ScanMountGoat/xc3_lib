@@ -7,11 +7,10 @@ use clap::{Parser, ValueEnum};
 use futures::executor::block_on;
 use glam::{Mat4, Vec3, vec3};
 use rayon::prelude::*;
-use tracing::trace_span;
+use tracing::{level_filters::LevelFilter, trace_span};
 use xc3_model::{load_animations, shader_database::ShaderDatabase};
 use xc3_wgpu::{CameraData, MonolibShaderTextures, Renderer};
 
-#[cfg(feature = "tracing")]
 use tracing_subscriber::prelude::*;
 
 const WIDTH: u32 = 1024;
@@ -79,16 +78,19 @@ fn main() {
     let start = std::time::Instant::now();
 
     // Ignore most logs to avoid flooding the console.
-    simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Error)
-        .init()
-        .unwrap();
+    let mut subscriber = tracing_subscriber::registry().with(
+        tracing_subscriber::fmt::layer()
+            .without_time()
+            .with_filter(LevelFilter::ERROR),
+    );
 
-    #[cfg(feature = "tracing")]
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::registry().with(tracing_tracy::TracyLayer::default()),
-    )
-    .unwrap();
+    #[cfg(feature = "tracy")]
+    {
+        // TODO: Will this work unfiltered?
+        subscriber = subscriber.with(tracing_tracy::TracyLayer::default());
+    }
+
+    tracing::subscriber::set_global_default(subscriber).unwrap();
 
     let backends = match &cli.backend {
         Some(backend) => match backend.to_lowercase().as_str() {

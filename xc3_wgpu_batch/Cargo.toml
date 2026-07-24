@@ -9,16 +9,14 @@ xc3_model = { path = "../xc3_model" }
 wgpu.workspace = true
 futures.workspace = true
 globwalk.workspace = true
-log.workspace = true
-simple_logger.workspace = true
 image = "0.25.2"
 glam.workspace = true
 clap = { workspace = true, features = ["derive"] }
 anyhow.workspace = true
 rayon.workspace = true
 tracing.workspace = true
-tracing-subscriber = { workspace = true, optional = true }
+tracing-subscriber.workspace = true
 tracing-tracy = { workspace = true, optional = true }
 
 [features]
-tracing = ["tracing-subscriber", "tracing-tracy"]
+tracy = ["tracing-tracy"]
