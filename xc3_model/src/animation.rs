@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Bound::*;
 
 use glam::{Mat4, Quat, Vec3, Vec4, Vec4Swizzles, vec3, vec4};
-use log::error;
 use ordered_float::OrderedFloat;
+use tracing::error;
 pub use xc3_lib::bc::anim::{BlendMode, PlayMode, SpaceMode};
 pub use xc3_lib::hash::murmur3;
 

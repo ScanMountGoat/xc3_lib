@@ -1,5 +1,5 @@
 use assignments::{OutputAssignments, infer_assignment_from_textures, output_assignments};
-use log::warn;
+use tracing::warn;
 
 use xc3_lib::mxmd::WorkCallbackType;
 pub use xc3_lib::mxmd::{

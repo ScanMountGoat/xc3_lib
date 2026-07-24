@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use clap::Parser;
+use tracing::level_filters::LevelFilter;
 use xc3_model::{
     MapRoot, ModelRoot,
     animation::Animation,
@@ -41,10 +42,10 @@ fn database_path() -> std::io::Result<PathBuf> {
 }
 
 fn main() -> anyhow::Result<()> {
-    simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Warn)
-        .init()
-        .unwrap();
+    tracing_subscriber::fmt()
+        .without_time()
+        .with_max_level(LevelFilter::WARN)
+        .init();
 
     let cli = Cli::parse();
 

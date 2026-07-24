@@ -1,6 +1,6 @@
 //! Utilities for working with vertex skinning.
 use glam::{Vec3, Vec4};
-use log::error;
+use tracing::error;
 use xc3_lib::{mxmd::MaterialTechniqueType, vertex::WeightLod};
 
 /// See [Skinning](xc3_lib::mxmd::Skinning).

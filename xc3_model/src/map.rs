@@ -3,8 +3,8 @@ use std::{collections::BTreeSet, io::Cursor, path::Path, sync::Mutex};
 use glam::{Mat4, Vec3};
 use image_dds::Surface;
 use indexmap::IndexMap;
-use log::error;
 use rayon::prelude::*;
+use tracing::error;
 use xc3_lib::{
     error::DecompressStreamError,
     map::{FoliageMaterials, PropInstance, PropLod, PropModelLod, PropPositions},

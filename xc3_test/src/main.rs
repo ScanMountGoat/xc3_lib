@@ -1,6 +1,7 @@
 use std::{
     io::Cursor,
     path::{Path, PathBuf},
+    sync::atomic::AtomicU32,
 };
 
 use approx::RelativeEq;
@@ -8,6 +9,7 @@ use binrw::{BinRead, BinReaderExt, Endian};
 use clap::Parser;
 use glam::Mat4;
 use rayon::prelude::*;
+use tracing::level_filters::LevelFilter;
 use xc3_lib::{
     apmd::Apmd,
     bc::Bc,
@@ -185,10 +187,10 @@ fn main() {
     let cli = Cli::parse();
     let root = Path::new(&cli.root_folder);
 
-    simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Error)
-        .init()
-        .unwrap();
+    tracing_subscriber::fmt()
+        .without_time()
+        .with_max_level(LevelFilter::ERROR)
+        .init();
 
     let start = std::time::Instant::now();
 

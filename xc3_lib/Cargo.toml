@@ -20,7 +20,6 @@ thiserror.workspace = true
 tegra_swizzle = "0.4.0"
 wiiu_swizzle = "0.3.0"
 bilge = "0.3.0"
-log.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 

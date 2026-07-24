@@ -1,5 +1,5 @@
 use glam::{Mat4, Quat, vec3};
-use log::{error, warn};
+use tracing::{error, warn};
 use xc3_lib::hkt::Hkt;
 
 use crate::Transform;

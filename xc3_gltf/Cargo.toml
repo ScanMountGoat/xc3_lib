@@ -7,5 +7,5 @@ edition = "2024"
 xc3_model = { path = "../xc3_model", features = ["gltf"] }
 clap = { workspace = true, features = ["derive"] }
 anyhow.workspace = true
-log.workspace = true
-simple_logger.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

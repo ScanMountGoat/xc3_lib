@@ -10,7 +10,7 @@ clap = { workspace = true, features = ["derive", "string"] }
 binrw.workspace = true
 strum.workspace = true
 anyhow.workspace = true
-log.workspace = true
-simple_logger.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 globwalk.workspace = true
 rayon.workspace = true

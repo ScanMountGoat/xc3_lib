@@ -8,6 +8,7 @@ use convert::{
 };
 use image_dds::{ImageFormat, Quality};
 use strum::IntoEnumIterator;
+use tracing::level_filters::LevelFilter;
 use xc3_lib::dds::DdsExt;
 
 use crate::convert::{extract_bmn_to_folder, extract_camdo_to_folder};
@@ -106,10 +107,10 @@ enum Commands {
 mod convert;
 
 fn main() -> anyhow::Result<()> {
-    simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Warn)
-        .init()
-        .unwrap();
+    tracing_subscriber::fmt()
+        .without_time()
+        .with_max_level(LevelFilter::WARN)
+        .init();
 
     let cli = Cli::parse();
 

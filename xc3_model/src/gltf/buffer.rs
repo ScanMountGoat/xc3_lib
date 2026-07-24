@@ -10,7 +10,7 @@ use gltf::{
     buffer::Target,
     json::validation::Checked::{self, Valid},
 };
-use log::error;
+use tracing::error;
 
 use super::align_bytes;
 

@@ -1,6 +1,6 @@
 use glam::{Mat4, vec4};
 use indexmap::IndexMap;
-use log::warn;
+use tracing::warn;
 use xc3_lib::{
     mibl::Mibl,
     msrd::{Msrd, streaming::ExtractedTexture},
@@ -763,7 +763,7 @@ macro_rules! attribute {
                 })
             )*
             .unwrap_or_else(|| {
-                log::warn!(
+                tracing::warn!(
                     "Assigning default values for missing required attribute {}",
                     stringify!($variant)
                 );
@@ -799,7 +799,7 @@ macro_rules! attribute_default {
                 })
             )*
             .unwrap_or_else(|| {
-                log::warn!(
+                tracing::warn!(
                     "Assigning default values for missing required attribute {}",
                     stringify!($variant)
                 );

@@ -2,7 +2,7 @@ use std::{borrow::Cow, path::Path};
 
 use binrw::Endian;
 use glam::Mat4;
-use log::error;
+use tracing::error;
 use xc3_lib::{
     bc::skel::Skel,
     error::ReadFileError,
