@@ -157,6 +157,7 @@ impl MaterialParameters {
             ("U_Static", "gEtcParm") => [37.68019, -0.00031, 1.376, 1.0].get(c),
             ("U_Static", "gCDep") => [-1.0, -0.2, 1.0, 2.2].get(c),
             ("U_Static", "gLightShaft") => [0.0; 4].get(c),
+            ("U_Static", "gDitVal") => [[452.0, 135.0, 0.01563, 64.0]].get(index)?.get(c),
             // U_Toon2 uniform buffer values taken from XC3 in RenderDoc.
             // These appear to be constant across models.
             // TODO: Compare with other games.

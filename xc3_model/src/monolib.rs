@@ -39,6 +39,7 @@
 //! | gTResidentTex46 | eyepatch_nrm.witex |
 //! | gTToonGrad | toon_grad.witex |
 //! | gTToonDarkGrad | toon_grad_night.witex |
+//! | texDither | dither2.witex |
 use crate::ImageTexture;
 use std::{collections::BTreeMap, path::Path};
 use xc3_lib::mibl::Mibl;
@@ -94,6 +95,7 @@ impl ShaderTextures {
                 ("gTAmbBRDF", tex(path, "ambientbrdf.witex")),
                 ("gTToonGrad", tex(path, "toon_grad.witex")),
                 ("gTToonDarkGrad", tex(path, "toon_grad_night.witex")),
+                ("texDither", tex(path, "dither2.witex")),
                 // Defaults for global textures not in monolib/shader
                 ("gTLightShaft", default_texture("gTLightShaft", [0; 4])),
                 ("texAO", default_texture("texAO", [128; 4])),
