@@ -1,4 +1,5 @@
 use std::{
+    io::IsTerminal,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -81,6 +82,7 @@ fn main() {
     let mut subscriber = tracing_subscriber::registry().with(
         tracing_subscriber::fmt::layer()
             .without_time()
+            .with_ansi(std::io::stdout().is_terminal())
             .with_filter(LevelFilter::ERROR),
     );
 

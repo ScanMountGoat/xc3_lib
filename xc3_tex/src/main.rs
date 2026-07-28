@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr};
+use std::{io::IsTerminal, path::PathBuf, str::FromStr};
 
 use anyhow::Context;
 use clap::{Parser, Subcommand, builder::PossibleValuesParser};
@@ -109,6 +109,7 @@ mod convert;
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .without_time()
+        .with_ansi(std::io::stdout().is_terminal())
         .with_max_level(LevelFilter::WARN)
         .init();
 

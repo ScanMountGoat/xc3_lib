@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    io::IsTerminal,
+    path::{Path, PathBuf},
+};
 
 use anyhow::Context;
 use clap::Parser;
@@ -44,6 +47,7 @@ fn database_path() -> std::io::Result<PathBuf> {
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .without_time()
+        .with_ansi(std::io::stdout().is_terminal())
         .with_max_level(LevelFilter::WARN)
         .init();
 

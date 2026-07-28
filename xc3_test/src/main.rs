@@ -1,5 +1,5 @@
 use std::{
-    io::Cursor,
+    io::{Cursor, IsTerminal},
     path::{Path, PathBuf},
     sync::atomic::AtomicU32,
 };
@@ -189,6 +189,7 @@ fn main() {
 
     tracing_subscriber::fmt()
         .without_time()
+        .with_ansi(std::io::stdout().is_terminal())
         .with_max_level(LevelFilter::ERROR)
         .init();
 

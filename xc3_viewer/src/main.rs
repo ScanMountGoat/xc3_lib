@@ -1,4 +1,5 @@
 use std::{
+    io::IsTerminal,
     path::Path,
     sync::Arc,
     time::{Duration, Instant},
@@ -888,6 +889,7 @@ fn main() -> anyhow::Result<()> {
     let mut subscriber = tracing_subscriber::registry().with(
         tracing_subscriber::fmt::layer()
             .without_time()
+            .with_ansi(std::io::stdout().is_terminal())
             .with_filter(LevelFilter::WARN),
     );
 
