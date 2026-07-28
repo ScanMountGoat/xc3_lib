@@ -1457,6 +1457,7 @@ pub fn bitangent_gm_cal_xyz(graph: &Graph, expr: &Expr) -> Option<Expr> {
     })
 }
 
+// TODO: Detect gmProj separately.
 static GM_CAL_CLIP_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         temp_3 = vGmCal1.x;
@@ -1612,32 +1613,87 @@ static GM_CAL_CLIP_ATTRIBUTE_XYZW_W: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
+static GM_CAL_CLIP_ATTRIBUTE_XYZW: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        temp_5 = result.x;
+        temp_9 = result.y;
+        temp_13 = result.z;
+        temp_17 = result.w;
+        temp_26 = vGmCal.x;
+        temp_27 = vGmCal.y;
+        temp_28 = vGmCal.z;
+        temp_29 = vGmCal.w;
+        temp_75 = temp_5 * temp_26;
+        temp_80 = fma(temp_9, temp_27, temp_75);
+        temp_86 = fma(temp_13, temp_28, temp_80);
+        temp_92 = fma(temp_17, temp_29, temp_86);
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
 pub fn gm_cal_clip_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
     // TODO: This should match the attribute names exactly to be able to return &Expr?
     // TODO: Don't assume vPos?
-    query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_X)
-        .map(|_| Expr::Global {
+    query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW)
+        .and_then(|result| {
+            // TODO: Detect names in the query itself to make this simpler.
+            let gm_cal = result.get("vGmCal")?;
+            let pos = result.get("result")?;
+            if let Expr::Global { name, .. } = gm_cal {
+                gm_cal_position(name).or_else(|| {
+                    if let Expr::Global { name, .. } = pos {
+                        gm_cal_position(name)
+                    } else {
+                        None
+                    }
+                })
+            } else {
+                None
+            }
+        })
+        .or_else(|| {
+            query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_X)
+                .map(|_| Expr::Global {
+                    name: "vPos".into(),
+                    channel: Some('x'),
+                })
+                .or_else(|| {
+                    query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_Y).map(|_| Expr::Global {
+                        name: "vPos".into(),
+                        channel: Some('y'),
+                    })
+                })
+                .or_else(|| {
+                    query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_Z).map(|_| Expr::Global {
+                        name: "vPos".into(),
+                        channel: Some('z'),
+                    })
+                })
+                .or_else(|| {
+                    query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_W).map(|_| Expr::Global {
+                        name: "vPos".into(),
+                        channel: Some('w'),
+                    })
+                })
+        })
+}
+
+fn gm_cal_position(name: &str) -> Option<Expr> {
+    match name {
+        "vGmCal1" => Some(Expr::Global {
             name: "vPos".into(),
             channel: Some('x'),
-        })
-        .or_else(|| {
-            query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_Y).map(|_| Expr::Global {
-                name: "vPos".into(),
-                channel: Some('y'),
-            })
-        })
-        .or_else(|| {
-            query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_Z).map(|_| Expr::Global {
-                name: "vPos".into(),
-                channel: Some('z'),
-            })
-        })
-        .or_else(|| {
-            query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_W).map(|_| Expr::Global {
-                name: "vPos".into(),
-                channel: Some('w'),
-            })
-        })
+        }),
+        "vGmCal2" => Some(Expr::Global {
+            name: "vPos".into(),
+            channel: Some('y'),
+        }),
+        "vGmCal3" => Some(Expr::Global {
+            name: "vPos".into(),
+            channel: Some('z'),
+        }),
+        _ => None,
+    }
 }
 
 static U_MDL_ATTRIBUTE_XYZW: LazyLock<Graph> = LazyLock::new(|| {
