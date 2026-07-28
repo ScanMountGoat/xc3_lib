@@ -121,6 +121,14 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
 
     let exprs = exprs.into_exprs();
 
+    for e in &exprs {
+        if matches!(e, OutputExpr::Value(crate::expr::Value::Attribute(a)) if a.name.starts_with("vGmCal"))
+        {
+            error!("Unexpected attribute vGmCal instance transform.");
+            break;
+        }
+    }
+
     // Merge XYZ channels during database creation to simplify consuming code.
     let mut output_dependencies_xyz = IndexMap::default();
 
@@ -351,12 +359,24 @@ impl crate::expr::Operation for Operation {
         if let Some(new_expr) = normal_map_fma(graph, expr) {
             expr = new_expr;
         }
+        // TODO: Detect these as operations.
         if let Some(new_expr) = normalize(graph, expr) {
             expr = new_expr;
         }
+        if let Some(new_expr) = attribute_gm_cal_xyz(graph, expr)
+            .or_else(|| gm_cal_u_bill_color_attribute_w(graph, expr))
+        {
+            expr = new_expr;
+        }
 
-        if let Some(new_expr) =
-            latte_texture_cube_coords(graph, expr).or_else(|| fma_normalize(graph, expr))
+        if let Some(new_expr) = latte_texture_cube_coords(graph, expr)
+            // TODO: Detect these as operations.
+            .or_else(|| fma_normalize(graph, expr))
+            .or_else(|| u_mdl_view_bitangent_xyz(graph, &expr))
+            .or_else(|| gm_cal_u_bill_attribute_xyzw(graph, &expr))
+            .or_else(|| gm_cal_u_nam_attribute_xyzw(graph, &expr))
+            .or_else(|| gm_cal_u_nam2_attribute_xyzw(graph, &expr))
+            .or_else(|| gm_cal_clip_attribute_xyzw(graph, &expr))
         {
             Cow::Owned(new_expr)
         } else {
@@ -388,6 +408,7 @@ pub fn modify_attributes(graph: &Graph, expr: &Expr) -> Expr {
         .or_else(|| u_mdl_view_attribute_xyzw(graph, expr))
         .or_else(|| u_mdl_attribute_xyz(graph, expr))
         .or_else(|| attribute_gm_cal_xyz(graph, expr))
+        .or_else(|| gm_cal_u_bill_color_attribute_w(graph, expr))
     {
         expr = new_expr;
     }
@@ -396,6 +417,9 @@ pub fn modify_attributes(graph: &Graph, expr: &Expr) -> Expr {
     if let Some(new_expr) = skin_attribute_bitangent(graph, &expr)
         .or_else(|| u_mdl_view_bitangent_xyz(graph, &expr))
         .or_else(|| bitangent_gm_cal_xyz(graph, &expr))
+        .or_else(|| gm_cal_u_bill_attribute_xyzw(graph, &expr))
+        .or_else(|| gm_cal_u_nam_attribute_xyzw(graph, &expr))
+        .or_else(|| gm_cal_u_nam2_attribute_xyzw(graph, &expr))
         .or_else(|| gm_cal_clip_attribute_xyzw(graph, &expr))
     {
         expr = new_expr;

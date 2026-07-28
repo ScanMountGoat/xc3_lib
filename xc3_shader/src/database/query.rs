@@ -1696,6 +1696,1435 @@ fn gm_cal_position(name: &str) -> Option<Expr> {
     }
 }
 
+// TODO: Detect gmProj separately.
+static GM_CAL_U_BILL_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
+    // xc2/ma02a/prop/1/slct48_nvsd0_shd0048.vert
+    let query = indoc! {"
+        temp_0 = nWgtIdx.x;
+        temp_1 = floatBitsToInt(temp_0) << 4;
+        temp_2 = vGmCal1.x;
+        temp_3 = uint(temp_1) >> 2;
+        temp_5 = int(temp_3) & 3;
+        temp_6 = U_BILL.data[int(temp_4)][temp_5];
+        temp_7 = int(temp_3) + 1;
+        temp_9 = temp_7 & 3;
+        temp_10 = U_BILL.data[int(temp_8)][temp_9];
+        temp_11 = temp_1 + 8;
+        temp_12 = uint(temp_11) >> 2;
+        temp_14 = int(temp_12) & 3;
+        temp_15 = U_BILL.data[int(temp_13)][temp_14];
+        temp_16 = vGmCal1.y;
+        temp_17 = vGmCal2.x;
+        temp_18 = vGmCal3.x;
+        temp_19 = vGmCal2.y;
+        temp_20 = vGmCal1.z;
+        temp_21 = vGmCal3.y;
+        temp_22 = vGmCal2.z;
+        temp_23 = vGmCal1.w;
+        temp_24 = vGmCal3.z;
+        temp_25 = vGmCal2.w;
+        temp_26 = vGmCal3.w;
+        temp_27 = temp_6 * temp_2;
+        temp_29 = temp_6 * temp_17;
+        temp_30 = fma(temp_10, temp_16, temp_27);
+        temp_31 = temp_6 * temp_18;
+        temp_32 = fma(temp_10, temp_19, temp_29);
+        temp_34 = fma(temp_15, temp_20, temp_30);
+        temp_35 = fma(temp_10, temp_21, temp_31);
+        temp_36 = vColor.w;
+        temp_37 = fma(temp_15, temp_22, temp_32);
+        temp_38 = vPos.z;
+        temp_39 = temp_34 + temp_23;
+        temp_40 = vPos.y;
+        temp_41 = fma(temp_15, temp_24, temp_35);
+        temp_42 = temp_37 + temp_25;
+        temp_43 = temp_39 * temp_39;
+        temp_44 = temp_41 + temp_26;
+        temp_45 = vPos.x;
+        temp_46 = fma(temp_42, temp_42, temp_43);
+        temp_47 = temp_2 * temp_2;
+        temp_49 = fma(temp_44, temp_44, temp_46);
+        temp_50 = sqrt(temp_49);
+        temp_51 = fma(temp_17, temp_17, temp_47);
+        temp_52 = fma(temp_18, temp_18, temp_51);
+        temp_54 = temp_50 * U_Mate.gWrkFl4[1].x;
+        temp_55 = sqrt(temp_52);
+        temp_56 = 0.0 - U_Mate.gWrkFl4[0].x;
+        temp_57 = temp_50 + temp_56;
+        temp_58 = temp_50 * U_Mate.gWrkFl4[1].y;
+        temp_59 = fma(temp_54, temp_45, temp_45);
+        temp_61 = fma(temp_58, temp_40, temp_40);
+        temp_62 = abs(temp_57);
+        temp_63 = 0.0 - temp_62;
+        temp_64 = temp_63 + -0.0;
+        temp_65 = fma(temp_59, temp_55, temp_39);
+        temp_66 = fma(temp_61, temp_55, temp_42);
+        temp_67 = fma(temp_64, U_Mate.gWrkFl4[0].y, 1.0);
+        temp_68 = clamp(temp_67, 0.0, 1.0);
+        temp_70 = temp_44 + U_Mate.gWrkFl4[0].z;
+        temp_71 = temp_68 * temp_36;
+        temp_73 = temp_70 * U_Mate.gWrkFl4[0].w;
+        temp_74 = clamp(temp_73, 0.0, 1.0);
+        temp_76 = temp_65 * U_Static.gmProj[0].x;
+        temp_77 = fma(temp_55, temp_38, temp_44);
+        temp_79 = 0.0 - temp_74;
+        temp_80 = fma(temp_71, temp_79, temp_71);
+        temp_82 = fma(temp_66, U_Static.gmProj[0].y, temp_76);
+        temp_86 = fma(temp_77, U_Static.gmProj[0].z, temp_82);
+        temp_89 = temp_80 <= vp_c1.data[0].x;
+        temp_90 = temp_89 ? 1.0 : 0.0;
+        temp_91 = temp_86 + U_Static.gmProj[0].w;
+        temp_96 = 0.0 - vp_c1.data[0].y;
+        temp_97 = fma(temp_90, temp_96, temp_91);
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+static GM_CAL_U_BILL_ATTRIBUTE_XYZW_Y: LazyLock<Graph> = LazyLock::new(|| {
+    // xc2/ma02a/prop/1/slct48_nvsd0_shd0048.vert
+    let query = indoc! {"
+        temp_0 = nWgtIdx.x;
+        temp_1 = floatBitsToInt(temp_0) << 4;
+        temp_2 = vGmCal1.x;
+        temp_3 = uint(temp_1) >> 2;
+        temp_5 = int(temp_3) & 3;
+        temp_6 = U_BILL.data[int(temp_4)][temp_5];
+        temp_7 = int(temp_3) + 1;
+        temp_9 = temp_7 & 3;
+        temp_10 = U_BILL.data[int(temp_8)][temp_9];
+        temp_11 = temp_1 + 8;
+        temp_12 = uint(temp_11) >> 2;
+        temp_14 = int(temp_12) & 3;
+        temp_15 = U_BILL.data[int(temp_13)][temp_14];
+        temp_16 = vGmCal1.y;
+        temp_17 = vGmCal2.x;
+        temp_18 = vGmCal3.x;
+        temp_19 = vGmCal2.y;
+        temp_20 = vGmCal1.z;
+        temp_21 = vGmCal3.y;
+        temp_22 = vGmCal2.z;
+        temp_23 = vGmCal1.w;
+        temp_24 = vGmCal3.z;
+        temp_25 = vGmCal2.w;
+        temp_26 = vGmCal3.w;
+        temp_27 = temp_6 * temp_2;
+        temp_29 = temp_6 * temp_17;
+        temp_30 = fma(temp_10, temp_16, temp_27);
+        temp_31 = temp_6 * temp_18;
+        temp_32 = fma(temp_10, temp_19, temp_29);
+        temp_34 = fma(temp_15, temp_20, temp_30);
+        temp_35 = fma(temp_10, temp_21, temp_31);
+        temp_36 = vColor.w;
+        temp_37 = fma(temp_15, temp_22, temp_32);
+        temp_38 = vPos.z;
+        temp_39 = temp_34 + temp_23;
+        temp_40 = vPos.y;
+        temp_41 = fma(temp_15, temp_24, temp_35);
+        temp_42 = temp_37 + temp_25;
+        temp_43 = temp_39 * temp_39;
+        temp_44 = temp_41 + temp_26;
+        temp_45 = vPos.x;
+        temp_46 = fma(temp_42, temp_42, temp_43);
+        temp_47 = temp_2 * temp_2;
+        temp_49 = fma(temp_44, temp_44, temp_46);
+        temp_50 = sqrt(temp_49);
+        temp_51 = fma(temp_17, temp_17, temp_47);
+        temp_52 = fma(temp_18, temp_18, temp_51);
+        temp_54 = temp_50 * U_Mate.gWrkFl4[1].x;
+        temp_55 = sqrt(temp_52);
+        temp_56 = 0.0 - U_Mate.gWrkFl4[0].x;
+        temp_57 = temp_50 + temp_56;
+        temp_58 = temp_50 * U_Mate.gWrkFl4[1].y;
+        temp_59 = fma(temp_54, temp_45, temp_45);
+        temp_61 = fma(temp_58, temp_40, temp_40);
+        temp_62 = abs(temp_57);
+        temp_63 = 0.0 - temp_62;
+        temp_64 = temp_63 + -0.0;
+        temp_65 = fma(temp_59, temp_55, temp_39);
+        temp_66 = fma(temp_61, temp_55, temp_42);
+        temp_67 = fma(temp_64, U_Mate.gWrkFl4[0].y, 1.0);
+        temp_68 = clamp(temp_67, 0.0, 1.0);
+        temp_70 = temp_44 + U_Mate.gWrkFl4[0].z;
+        temp_71 = temp_68 * temp_36;
+        temp_73 = temp_70 * U_Mate.gWrkFl4[0].w;
+        temp_74 = clamp(temp_73, 0.0, 1.0);
+        temp_77 = fma(temp_55, temp_38, temp_44);
+        temp_78 = temp_65 * U_Static.gmProj[1].x;
+        temp_79 = 0.0 - temp_74;
+        temp_80 = fma(temp_71, temp_79, temp_71);
+        temp_83 = fma(temp_66, U_Static.gmProj[1].y, temp_78);
+        temp_87 = fma(temp_77, U_Static.gmProj[1].z, temp_83);
+        temp_89 = temp_80 <= vp_c1.data[0].x;
+        temp_90 = temp_89 ? 1.0 : 0.0;
+        temp_92 = temp_87 + U_Static.gmProj[1].w;
+        temp_98 = 0.0 - vp_c1.data[0].y;
+        temp_99 = fma(temp_90, temp_98, temp_92);
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+static GM_CAL_U_BILL_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
+    // xc2/ma02a/prop/1/slct48_nvsd0_shd0048.vert
+    let query = indoc! {"
+        temp_0 = nWgtIdx.x;
+        temp_1 = floatBitsToInt(temp_0) << 4;
+        temp_2 = vGmCal1.x;
+        temp_3 = uint(temp_1) >> 2;
+        temp_5 = int(temp_3) & 3;
+        temp_6 = U_BILL.data[int(temp_4)][temp_5];
+        temp_7 = int(temp_3) + 1;
+        temp_9 = temp_7 & 3;
+        temp_10 = U_BILL.data[int(temp_8)][temp_9];
+        temp_11 = temp_1 + 8;
+        temp_12 = uint(temp_11) >> 2;
+        temp_14 = int(temp_12) & 3;
+        temp_15 = U_BILL.data[int(temp_13)][temp_14];
+        temp_16 = vGmCal1.y;
+        temp_17 = vGmCal2.x;
+        temp_18 = vGmCal3.x;
+        temp_19 = vGmCal2.y;
+        temp_20 = vGmCal1.z;
+        temp_21 = vGmCal3.y;
+        temp_22 = vGmCal2.z;
+        temp_23 = vGmCal1.w;
+        temp_24 = vGmCal3.z;
+        temp_25 = vGmCal2.w;
+        temp_26 = vGmCal3.w;
+        temp_27 = temp_6 * temp_2;
+        temp_29 = temp_6 * temp_17;
+        temp_30 = fma(temp_10, temp_16, temp_27);
+        temp_31 = temp_6 * temp_18;
+        temp_32 = fma(temp_10, temp_19, temp_29);
+        temp_34 = fma(temp_15, temp_20, temp_30);
+        temp_35 = fma(temp_10, temp_21, temp_31);
+        temp_37 = fma(temp_15, temp_22, temp_32);
+        temp_38 = vPos.z;
+        temp_39 = temp_34 + temp_23;
+        temp_40 = vPos.y;
+        temp_41 = fma(temp_15, temp_24, temp_35);
+        temp_42 = temp_37 + temp_25;
+        temp_43 = temp_39 * temp_39;
+        temp_44 = temp_41 + temp_26;
+        temp_45 = vPos.x;
+        temp_46 = fma(temp_42, temp_42, temp_43);
+        temp_47 = temp_2 * temp_2;
+        temp_49 = fma(temp_44, temp_44, temp_46);
+        temp_50 = sqrt(temp_49);
+        temp_51 = fma(temp_17, temp_17, temp_47);
+        temp_52 = fma(temp_18, temp_18, temp_51);
+        temp_54 = temp_50 * U_Mate.gWrkFl4[1].x;
+        temp_55 = sqrt(temp_52);
+        temp_58 = temp_50 * U_Mate.gWrkFl4[1].y;
+        temp_59 = fma(temp_54, temp_45, temp_45);
+        temp_61 = fma(temp_58, temp_40, temp_40);
+        temp_65 = fma(temp_59, temp_55, temp_39);
+        temp_66 = fma(temp_61, temp_55, temp_42);
+        temp_75 = temp_65 * U_Static.gmProj[2].x;
+        temp_77 = fma(temp_55, temp_38, temp_44);
+        temp_81 = fma(temp_66, U_Static.gmProj[2].y, temp_75);
+        temp_84 = fma(temp_77, U_Static.gmProj[2].z, temp_81);
+        temp_88 = temp_84 + U_Static.gmProj[2].w;
+        temp_93 = 0.0 - U_Static.gCDep.y;
+        temp_94 = temp_88 + temp_93;
+        temp_100 = temp_94 * U_Static.gCDep.z;
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+static GM_CAL_U_BILL_ATTRIBUTE_XYZW_W: LazyLock<Graph> = LazyLock::new(|| {
+    // xc2/ma02a/prop/1/slct48_nvsd0_shd0048.vert
+    let query = indoc! {"
+        temp_0 = nWgtIdx.x;
+        temp_1 = floatBitsToInt(temp_0) << 4;
+        temp_2 = vGmCal1.x;
+        temp_3 = uint(temp_1) >> 2;
+        temp_5 = int(temp_3) & 3;
+        temp_6 = U_BILL.data[int(temp_4)][temp_5];
+        temp_7 = int(temp_3) + 1;
+        temp_9 = temp_7 & 3;
+        temp_10 = U_BILL.data[int(temp_8)][temp_9];
+        temp_11 = temp_1 + 8;
+        temp_12 = uint(temp_11) >> 2;
+        temp_14 = int(temp_12) & 3;
+        temp_15 = U_BILL.data[int(temp_13)][temp_14];
+        temp_16 = vGmCal1.y;
+        temp_17 = vGmCal2.x;
+        temp_18 = vGmCal3.x;
+        temp_19 = vGmCal2.y;
+        temp_20 = vGmCal1.z;
+        temp_21 = vGmCal3.y;
+        temp_22 = vGmCal2.z;
+        temp_23 = vGmCal1.w;
+        temp_24 = vGmCal3.z;
+        temp_25 = vGmCal2.w;
+        temp_26 = vGmCal3.w;
+        temp_27 = temp_6 * temp_2;
+        temp_29 = temp_6 * temp_17;
+        temp_30 = fma(temp_10, temp_16, temp_27);
+        temp_31 = temp_6 * temp_18;
+        temp_32 = fma(temp_10, temp_19, temp_29);
+        temp_34 = fma(temp_15, temp_20, temp_30);
+        temp_35 = fma(temp_10, temp_21, temp_31);
+        temp_37 = fma(temp_15, temp_22, temp_32);
+        temp_38 = vPos.z;
+        temp_39 = temp_34 + temp_23;
+        temp_40 = vPos.y;
+        temp_41 = fma(temp_15, temp_24, temp_35);
+        temp_42 = temp_37 + temp_25;
+        temp_43 = temp_39 * temp_39;
+        temp_44 = temp_41 + temp_26;
+        temp_45 = vPos.x;
+        temp_46 = fma(temp_42, temp_42, temp_43);
+        temp_47 = temp_2 * temp_2;
+        temp_49 = fma(temp_44, temp_44, temp_46);
+        temp_50 = sqrt(temp_49);
+        temp_51 = fma(temp_17, temp_17, temp_47);
+        temp_52 = fma(temp_18, temp_18, temp_51);
+        temp_54 = temp_50 * U_Mate.gWrkFl4[1].x;
+        temp_55 = sqrt(temp_52);
+        temp_58 = temp_50 * U_Mate.gWrkFl4[1].y;
+        temp_59 = fma(temp_54, temp_45, temp_45);
+        temp_61 = fma(temp_58, temp_40, temp_40);
+        temp_65 = fma(temp_59, temp_55, temp_39);
+        temp_66 = fma(temp_61, temp_55, temp_42);
+        temp_69 = temp_65 * U_Static.gmProj[3].x;
+        temp_72 = fma(temp_66, U_Static.gmProj[3].y, temp_69);
+        temp_77 = fma(temp_55, temp_38, temp_44);
+        temp_85 = fma(temp_77, U_Static.gmProj[3].z, temp_72);
+        temp_95 = temp_85 + U_Static.gmProj[3].w;
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+pub fn gm_cal_u_bill_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
+    // TODO: This should match the attribute names exactly to be able to return &Expr?
+    // TODO: Don't assume vPos?
+    query_nodes(expr, graph, &GM_CAL_U_BILL_ATTRIBUTE_XYZW_X)
+        .map(|_| Expr::Global {
+            name: "vPos".into(),
+            channel: Some('x'),
+        })
+        .or_else(|| {
+            query_nodes(expr, graph, &GM_CAL_U_BILL_ATTRIBUTE_XYZW_Y).map(|_| Expr::Global {
+                name: "vPos".into(),
+                channel: Some('y'),
+            })
+        })
+        .or_else(|| {
+            query_nodes(expr, graph, &GM_CAL_U_BILL_ATTRIBUTE_XYZW_Z).map(|_| Expr::Global {
+                name: "vPos".into(),
+                channel: Some('z'),
+            })
+        })
+        .or_else(|| {
+            query_nodes(expr, graph, &GM_CAL_U_BILL_ATTRIBUTE_XYZW_W).map(|_| Expr::Global {
+                name: "vPos".into(),
+                channel: Some('w'),
+            })
+        })
+}
+
+// TODO: Detect gmProj separately.
+static GM_CAL_U_NAM_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
+    // xc2/ma01a/prop/1/slct18_nvsd0_shd0018.vert
+    let query = indoc! {"
+        temp_0 = nWgtIdx.y;
+        temp_1 = intBitsToFloat(gl_InstanceID);
+        temp_2 = trunc(U_NAM.gAnmIdx.x);
+        temp_3 = int(temp_2);
+        temp_4 = temp_3 & 65535;
+        temp_5 = floatBitsToInt(temp_1) & 65535;
+        temp_6 = temp_4 * temp_5;
+        temp_7 = temp_6 + floatBitsToInt(temp_0);
+        temp_9 = temp_3 & 65535;
+        temp_10 = floatBitsToUint(temp_1) >> 16;
+        temp_11 = temp_9 * int(temp_10);
+        temp_12 = temp_11 & 65535;
+        temp_13 = floatBitsToInt(temp_1) << 16;
+        temp_14 = temp_12 | temp_13;
+        temp_16 = uint(temp_3) >> 16;
+        temp_17 = uint(temp_14) >> 16;
+        temp_18 = int(temp_16) * int(temp_17);
+        temp_19 = temp_18 << 16;
+        temp_20 = temp_14 << 16;
+        temp_21 = temp_7 + temp_20;
+        temp_22 = temp_19 + temp_21;
+        temp_25 = temp_22 & 65535;
+        temp_26 = temp_25 * 48;
+        temp_27 = vPos.x;
+        temp_28 = uint(temp_22) >> 16;
+        temp_29 = int(temp_28) * 48;
+        temp_30 = temp_29 << 16;
+        temp_31 = temp_30 + temp_26;
+        temp_34 = temp_31 + 16;
+        temp_35 = uint(temp_34) >> 2;
+        temp_37 = int(temp_35) & 3;
+        temp_38 = U_NAM.data[int(temp_36)][temp_37];
+        temp_39 = int(temp_35) + 1;
+        temp_41 = temp_39 & 3;
+        temp_42 = U_NAM.data[int(temp_40)][temp_41];
+        temp_45 = temp_31 + 48;
+        temp_46 = uint(temp_45) >> 2;
+        temp_48 = int(temp_46) & 3;
+        temp_49 = U_NAM.data[int(temp_47)][temp_48];
+        temp_50 = int(temp_46) + 1;
+        temp_52 = temp_50 & 3;
+        temp_53 = U_NAM.data[int(temp_51)][temp_52];
+        temp_58 = temp_31 + 32;
+        temp_59 = uint(temp_58) >> 2;
+        temp_61 = int(temp_59) & 3;
+        temp_62 = U_NAM.data[int(temp_60)][temp_61];
+        temp_63 = int(temp_59) + 1;
+        temp_65 = temp_63 & 3;
+        temp_66 = U_NAM.data[int(temp_64)][temp_65];
+        temp_77 = vPos.y;
+        temp_96 = temp_31 + 24;
+        temp_97 = uint(temp_96) >> 2;
+        temp_99 = int(temp_97) & 3;
+        temp_100 = U_NAM.data[int(temp_98)][temp_99];
+        temp_101 = int(temp_97) + 1;
+        temp_103 = temp_101 & 3;
+        temp_104 = U_NAM.data[int(temp_102)][temp_103];
+        temp_105 = temp_31 + 56;
+        temp_106 = uint(temp_105) >> 2;
+        temp_108 = int(temp_106) & 3;
+        temp_109 = U_NAM.data[int(temp_107)][temp_108];
+        temp_110 = int(temp_106) + 1;
+        temp_112 = temp_110 & 3;
+        temp_113 = U_NAM.data[int(temp_111)][temp_112];
+        temp_115 = temp_31 + 40;
+        temp_116 = uint(temp_115) >> 2;
+        temp_118 = int(temp_116) & 3;
+        temp_119 = U_NAM.data[int(temp_117)][temp_118];
+        temp_120 = int(temp_116) + 1;
+        temp_122 = temp_120 & 3;
+        temp_123 = U_NAM.data[int(temp_121)][temp_122];
+        temp_127 = vPos.z;
+        temp_130 = temp_49 * temp_27;
+        temp_131 = vPos.w;
+        temp_133 = vGmCal2.x;
+        temp_139 = temp_62 * temp_27;
+        temp_143 = vGmCal1.y;
+        temp_144 = fma(temp_66, temp_77, temp_139);
+        temp_154 = temp_38 * temp_27;
+        temp_165 = fma(temp_42, temp_77, temp_154);
+        temp_176 = vGmCal2.y;
+        temp_178 = vGmCal3.x;
+        temp_179 = fma(temp_53, temp_77, temp_130);
+        temp_180 = vGmCal1.x;
+        temp_183 = vGmCal3.y;
+        temp_185 = vGmCal2.z;
+        temp_186 = fma(temp_109, temp_127, temp_179);
+        temp_190 = fma(temp_100, temp_127, temp_165);
+        temp_191 = vGmCal3.z;
+        temp_192 = fma(temp_119, temp_127, temp_144);
+        temp_194 = vGmCal1.z;
+        temp_201 = fma(temp_123, temp_131, temp_192);
+        temp_205 = fma(temp_113, temp_131, temp_186);
+        temp_207 = fma(temp_104, temp_131, temp_190);
+        temp_210 = vGmCal1.w;
+        temp_212 = vGmCal2.w;
+        temp_214 = vGmCal3.w;
+        temp_224 = temp_207 * temp_180;
+        temp_225 = temp_207 * temp_133;
+        temp_226 = temp_207 * temp_178;
+        temp_230 = fma(temp_201, temp_143, temp_224);
+        temp_231 = fma(temp_201, temp_176, temp_225);
+        temp_232 = fma(temp_201, temp_183, temp_226);
+        temp_242 = fma(temp_205, temp_194, temp_230);
+        temp_248 = fma(temp_205, temp_185, temp_231);
+        temp_249 = temp_242 + temp_210;
+        temp_257 = temp_248 + temp_212;
+        temp_260 = temp_249 * U_Static.gmProj[0].x;
+        temp_261 = fma(temp_205, temp_191, temp_232);
+        temp_267 = fma(temp_257, U_Static.gmProj[0].y, temp_260);
+        temp_269 = temp_261 + temp_214;
+        temp_288 = fma(temp_269, U_Static.gmProj[0].z, temp_267);
+        temp_298 = temp_288 + U_Static.gmProj[0].w;
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+static GM_CAL_U_NAM_ATTRIBUTE_XYZW_Y: LazyLock<Graph> = LazyLock::new(|| {
+    // xc2/ma01a/prop/1/slct18_nvsd0_shd0018.vert
+    let query = indoc! {"
+        temp_0 = nWgtIdx.y;
+        temp_1 = intBitsToFloat(gl_InstanceID);
+        temp_2 = trunc(U_NAM.gAnmIdx.x);
+        temp_3 = int(temp_2);
+        temp_4 = temp_3 & 65535;
+        temp_5 = floatBitsToInt(temp_1) & 65535;
+        temp_6 = temp_4 * temp_5;
+        temp_7 = temp_6 + floatBitsToInt(temp_0);
+        temp_9 = temp_3 & 65535;
+        temp_10 = floatBitsToUint(temp_1) >> 16;
+        temp_11 = temp_9 * int(temp_10);
+        temp_12 = temp_11 & 65535;
+        temp_13 = floatBitsToInt(temp_1) << 16;
+        temp_14 = temp_12 | temp_13;
+        temp_16 = uint(temp_3) >> 16;
+        temp_17 = uint(temp_14) >> 16;
+        temp_18 = int(temp_16) * int(temp_17);
+        temp_19 = temp_18 << 16;
+        temp_20 = temp_14 << 16;
+        temp_21 = temp_7 + temp_20;
+        temp_22 = temp_19 + temp_21;
+        temp_25 = temp_22 & 65535;
+        temp_26 = temp_25 * 48;
+        temp_27 = vPos.x;
+        temp_28 = uint(temp_22) >> 16;
+        temp_29 = int(temp_28) * 48;
+        temp_30 = temp_29 << 16;
+        temp_31 = temp_30 + temp_26;
+        temp_34 = temp_31 + 16;
+        temp_35 = uint(temp_34) >> 2;
+        temp_37 = int(temp_35) & 3;
+        temp_38 = U_NAM.data[int(temp_36)][temp_37];
+        temp_39 = int(temp_35) + 1;
+        temp_41 = temp_39 & 3;
+        temp_42 = U_NAM.data[int(temp_40)][temp_41];
+        temp_45 = temp_31 + 48;
+        temp_46 = uint(temp_45) >> 2;
+        temp_48 = int(temp_46) & 3;
+        temp_49 = U_NAM.data[int(temp_47)][temp_48];
+        temp_50 = int(temp_46) + 1;
+        temp_52 = temp_50 & 3;
+        temp_53 = U_NAM.data[int(temp_51)][temp_52];
+        temp_58 = temp_31 + 32;
+        temp_59 = uint(temp_58) >> 2;
+        temp_61 = int(temp_59) & 3;
+        temp_62 = U_NAM.data[int(temp_60)][temp_61];
+        temp_63 = int(temp_59) + 1;
+        temp_65 = temp_63 & 3;
+        temp_66 = U_NAM.data[int(temp_64)][temp_65];
+        temp_77 = vPos.y;
+        temp_96 = temp_31 + 24;
+        temp_97 = uint(temp_96) >> 2;
+        temp_99 = int(temp_97) & 3;
+        temp_100 = U_NAM.data[int(temp_98)][temp_99];
+        temp_101 = int(temp_97) + 1;
+        temp_103 = temp_101 & 3;
+        temp_104 = U_NAM.data[int(temp_102)][temp_103];
+        temp_105 = temp_31 + 56;
+        temp_106 = uint(temp_105) >> 2;
+        temp_108 = int(temp_106) & 3;
+        temp_109 = U_NAM.data[int(temp_107)][temp_108];
+        temp_110 = int(temp_106) + 1;
+        temp_112 = temp_110 & 3;
+        temp_113 = U_NAM.data[int(temp_111)][temp_112];
+        temp_115 = temp_31 + 40;
+        temp_116 = uint(temp_115) >> 2;
+        temp_118 = int(temp_116) & 3;
+        temp_119 = U_NAM.data[int(temp_117)][temp_118];
+        temp_120 = int(temp_116) + 1;
+        temp_122 = temp_120 & 3;
+        temp_123 = U_NAM.data[int(temp_121)][temp_122];
+        temp_127 = vPos.z;
+        temp_130 = temp_49 * temp_27;
+        temp_131 = vPos.w;
+        temp_133 = vGmCal2.x;
+        temp_139 = temp_62 * temp_27;
+        temp_143 = vGmCal1.y;
+        temp_144 = fma(temp_66, temp_77, temp_139);
+        temp_154 = temp_38 * temp_27;
+        temp_165 = fma(temp_42, temp_77, temp_154);
+        temp_176 = vGmCal2.y;
+        temp_178 = vGmCal3.x;
+        temp_179 = fma(temp_53, temp_77, temp_130);
+        temp_180 = vGmCal1.x;
+        temp_183 = vGmCal3.y;
+        temp_185 = vGmCal2.z;
+        temp_186 = fma(temp_109, temp_127, temp_179);
+        temp_190 = fma(temp_100, temp_127, temp_165);
+        temp_191 = vGmCal3.z;
+        temp_192 = fma(temp_119, temp_127, temp_144);
+        temp_194 = vGmCal1.z;
+        temp_201 = fma(temp_123, temp_131, temp_192);
+        temp_205 = fma(temp_113, temp_131, temp_186);
+        temp_207 = fma(temp_104, temp_131, temp_190);
+        temp_210 = vGmCal1.w;
+        temp_212 = vGmCal2.w;
+        temp_214 = vGmCal3.w;
+        temp_224 = temp_207 * temp_180;
+        temp_225 = temp_207 * temp_133;
+        temp_226 = temp_207 * temp_178;
+        temp_230 = fma(temp_201, temp_143, temp_224);
+        temp_231 = fma(temp_201, temp_176, temp_225);
+        temp_232 = fma(temp_201, temp_183, temp_226);
+        temp_242 = fma(temp_205, temp_194, temp_230);
+        temp_248 = fma(temp_205, temp_185, temp_231);
+        temp_249 = temp_242 + temp_210;
+        temp_257 = temp_248 + temp_212;
+        temp_259 = temp_249 * U_Static.gmProj[1].x;
+        temp_261 = fma(temp_205, temp_191, temp_232);
+        temp_265 = fma(temp_257, U_Static.gmProj[1].y, temp_259);
+        temp_269 = temp_261 + temp_214;
+        temp_287 = fma(temp_269, U_Static.gmProj[1].z, temp_265);
+        temp_297 = temp_287 + U_Static.gmProj[1].w;
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+static GM_CAL_U_NAM_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
+    // xc2/ma01a/prop/1/slct18_nvsd0_shd0018.vert
+    let query = indoc! {"
+        temp_0 = nWgtIdx.y;
+        temp_1 = intBitsToFloat(gl_InstanceID);
+        temp_2 = trunc(U_NAM.gAnmIdx.x);
+        temp_3 = int(temp_2);
+        temp_4 = temp_3 & 65535;
+        temp_5 = floatBitsToInt(temp_1) & 65535;
+        temp_6 = temp_4 * temp_5;
+        temp_7 = temp_6 + floatBitsToInt(temp_0);
+        temp_9 = temp_3 & 65535;
+        temp_10 = floatBitsToUint(temp_1) >> 16;
+        temp_11 = temp_9 * int(temp_10);
+        temp_12 = temp_11 & 65535;
+        temp_13 = floatBitsToInt(temp_1) << 16;
+        temp_14 = temp_12 | temp_13;
+        temp_16 = uint(temp_3) >> 16;
+        temp_17 = uint(temp_14) >> 16;
+        temp_18 = int(temp_16) * int(temp_17);
+        temp_19 = temp_18 << 16;
+        temp_20 = temp_14 << 16;
+        temp_21 = temp_7 + temp_20;
+        temp_22 = temp_19 + temp_21;
+        temp_25 = temp_22 & 65535;
+        temp_26 = temp_25 * 48;
+        temp_27 = vPos.x;
+        temp_28 = uint(temp_22) >> 16;
+        temp_29 = int(temp_28) * 48;
+        temp_30 = temp_29 << 16;
+        temp_31 = temp_30 + temp_26;
+        temp_34 = temp_31 + 16;
+        temp_35 = uint(temp_34) >> 2;
+        temp_37 = int(temp_35) & 3;
+        temp_38 = U_NAM.data[int(temp_36)][temp_37];
+        temp_39 = int(temp_35) + 1;
+        temp_41 = temp_39 & 3;
+        temp_42 = U_NAM.data[int(temp_40)][temp_41];
+        temp_45 = temp_31 + 48;
+        temp_46 = uint(temp_45) >> 2;
+        temp_48 = int(temp_46) & 3;
+        temp_49 = U_NAM.data[int(temp_47)][temp_48];
+        temp_50 = int(temp_46) + 1;
+        temp_52 = temp_50 & 3;
+        temp_53 = U_NAM.data[int(temp_51)][temp_52];
+        temp_58 = temp_31 + 32;
+        temp_59 = uint(temp_58) >> 2;
+        temp_61 = int(temp_59) & 3;
+        temp_62 = U_NAM.data[int(temp_60)][temp_61];
+        temp_63 = int(temp_59) + 1;
+        temp_65 = temp_63 & 3;
+        temp_66 = U_NAM.data[int(temp_64)][temp_65];
+        temp_77 = vPos.y;
+        temp_96 = temp_31 + 24;
+        temp_97 = uint(temp_96) >> 2;
+        temp_99 = int(temp_97) & 3;
+        temp_100 = U_NAM.data[int(temp_98)][temp_99];
+        temp_101 = int(temp_97) + 1;
+        temp_103 = temp_101 & 3;
+        temp_104 = U_NAM.data[int(temp_102)][temp_103];
+        temp_105 = temp_31 + 56;
+        temp_106 = uint(temp_105) >> 2;
+        temp_108 = int(temp_106) & 3;
+        temp_109 = U_NAM.data[int(temp_107)][temp_108];
+        temp_110 = int(temp_106) + 1;
+        temp_112 = temp_110 & 3;
+        temp_113 = U_NAM.data[int(temp_111)][temp_112];
+        temp_115 = temp_31 + 40;
+        temp_116 = uint(temp_115) >> 2;
+        temp_118 = int(temp_116) & 3;
+        temp_119 = U_NAM.data[int(temp_117)][temp_118];
+        temp_120 = int(temp_116) + 1;
+        temp_122 = temp_120 & 3;
+        temp_123 = U_NAM.data[int(temp_121)][temp_122];
+        temp_127 = vPos.z;
+        temp_130 = temp_49 * temp_27;
+        temp_131 = vPos.w;
+        temp_133 = vGmCal2.x;
+        temp_139 = temp_62 * temp_27;
+        temp_143 = vGmCal1.y;
+        temp_144 = fma(temp_66, temp_77, temp_139);
+        temp_154 = temp_38 * temp_27;
+        temp_165 = fma(temp_42, temp_77, temp_154);
+        temp_176 = vGmCal2.y;
+        temp_178 = vGmCal3.x;
+        temp_179 = fma(temp_53, temp_77, temp_130);
+        temp_180 = vGmCal1.x;
+        temp_183 = vGmCal3.y;
+        temp_185 = vGmCal2.z;
+        temp_186 = fma(temp_109, temp_127, temp_179);
+        temp_190 = fma(temp_100, temp_127, temp_165);
+        temp_191 = vGmCal3.z;
+        temp_192 = fma(temp_119, temp_127, temp_144);
+        temp_194 = vGmCal1.z;
+        temp_201 = fma(temp_123, temp_131, temp_192);
+        temp_205 = fma(temp_113, temp_131, temp_186);
+        temp_207 = fma(temp_104, temp_131, temp_190);
+        temp_210 = vGmCal1.w;
+        temp_212 = vGmCal2.w;
+        temp_214 = vGmCal3.w;
+        temp_224 = temp_207 * temp_180;
+        temp_225 = temp_207 * temp_133;
+        temp_226 = temp_207 * temp_178;
+        temp_230 = fma(temp_201, temp_143, temp_224);
+        temp_231 = fma(temp_201, temp_176, temp_225);
+        temp_232 = fma(temp_201, temp_183, temp_226);
+        temp_242 = fma(temp_205, temp_194, temp_230);
+        temp_248 = fma(temp_205, temp_185, temp_231);
+        temp_249 = temp_242 + temp_210;
+        temp_257 = temp_248 + temp_212;
+        temp_261 = fma(temp_205, temp_191, temp_232);
+        temp_262 = temp_249 * U_Static.gmProj[2].x;
+        temp_269 = temp_261 + temp_214;
+        temp_272 = fma(temp_257, U_Static.gmProj[2].y, temp_262);
+        temp_279 = fma(temp_269, U_Static.gmProj[2].z, temp_272);
+        temp_285 = temp_279 + U_Static.gmProj[2].w;
+        temp_293 = 0.0 - U_Static.gCDep.y;
+        temp_294 = temp_285 + temp_293;
+        temp_303 = temp_294 * U_Static.gCDep.z;
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+static GM_CAL_U_NAM_ATTRIBUTE_XYZW_W: LazyLock<Graph> = LazyLock::new(|| {
+    // xc2/ma01a/prop/1/slct18_nvsd0_shd0018.vert
+    let query = indoc! {"
+        temp_0 = nWgtIdx.y;
+        temp_1 = intBitsToFloat(gl_InstanceID);
+        temp_2 = trunc(U_NAM.gAnmIdx.x);
+        temp_3 = int(temp_2);
+        temp_4 = temp_3 & 65535;
+        temp_5 = floatBitsToInt(temp_1) & 65535;
+        temp_6 = temp_4 * temp_5;
+        temp_7 = temp_6 + floatBitsToInt(temp_0);
+        temp_9 = temp_3 & 65535;
+        temp_10 = floatBitsToUint(temp_1) >> 16;
+        temp_11 = temp_9 * int(temp_10);
+        temp_12 = temp_11 & 65535;
+        temp_13 = floatBitsToInt(temp_1) << 16;
+        temp_14 = temp_12 | temp_13;
+        temp_16 = uint(temp_3) >> 16;
+        temp_17 = uint(temp_14) >> 16;
+        temp_18 = int(temp_16) * int(temp_17);
+        temp_19 = temp_18 << 16;
+        temp_20 = temp_14 << 16;
+        temp_21 = temp_7 + temp_20;
+        temp_22 = temp_19 + temp_21;
+        temp_25 = temp_22 & 65535;
+        temp_26 = temp_25 * 48;
+        temp_27 = vPos.x;
+        temp_28 = uint(temp_22) >> 16;
+        temp_29 = int(temp_28) * 48;
+        temp_30 = temp_29 << 16;
+        temp_31 = temp_30 + temp_26;
+        temp_34 = temp_31 + 16;
+        temp_35 = uint(temp_34) >> 2;
+        temp_37 = int(temp_35) & 3;
+        temp_38 = U_NAM.data[int(temp_36)][temp_37];
+        temp_39 = int(temp_35) + 1;
+        temp_41 = temp_39 & 3;
+        temp_42 = U_NAM.data[int(temp_40)][temp_41];
+        temp_45 = temp_31 + 48;
+        temp_46 = uint(temp_45) >> 2;
+        temp_48 = int(temp_46) & 3;
+        temp_49 = U_NAM.data[int(temp_47)][temp_48];
+        temp_50 = int(temp_46) + 1;
+        temp_52 = temp_50 & 3;
+        temp_53 = U_NAM.data[int(temp_51)][temp_52];
+        temp_58 = temp_31 + 32;
+        temp_59 = uint(temp_58) >> 2;
+        temp_61 = int(temp_59) & 3;
+        temp_62 = U_NAM.data[int(temp_60)][temp_61];
+        temp_63 = int(temp_59) + 1;
+        temp_65 = temp_63 & 3;
+        temp_66 = U_NAM.data[int(temp_64)][temp_65];
+        temp_77 = vPos.y;
+        temp_96 = temp_31 + 24;
+        temp_97 = uint(temp_96) >> 2;
+        temp_99 = int(temp_97) & 3;
+        temp_100 = U_NAM.data[int(temp_98)][temp_99];
+        temp_101 = int(temp_97) + 1;
+        temp_103 = temp_101 & 3;
+        temp_104 = U_NAM.data[int(temp_102)][temp_103];
+        temp_105 = temp_31 + 56;
+        temp_106 = uint(temp_105) >> 2;
+        temp_108 = int(temp_106) & 3;
+        temp_109 = U_NAM.data[int(temp_107)][temp_108];
+        temp_110 = int(temp_106) + 1;
+        temp_112 = temp_110 & 3;
+        temp_113 = U_NAM.data[int(temp_111)][temp_112];
+        temp_115 = temp_31 + 40;
+        temp_116 = uint(temp_115) >> 2;
+        temp_118 = int(temp_116) & 3;
+        temp_119 = U_NAM.data[int(temp_117)][temp_118];
+        temp_120 = int(temp_116) + 1;
+        temp_122 = temp_120 & 3;
+        temp_123 = U_NAM.data[int(temp_121)][temp_122];
+        temp_127 = vPos.z;
+        temp_130 = temp_49 * temp_27;
+        temp_131 = vPos.w;
+        temp_133 = vGmCal2.x;
+        temp_139 = temp_62 * temp_27;
+        temp_143 = vGmCal1.y;
+        temp_144 = fma(temp_66, temp_77, temp_139);
+        temp_154 = temp_38 * temp_27;
+        temp_165 = fma(temp_42, temp_77, temp_154);
+        temp_176 = vGmCal2.y;
+        temp_178 = vGmCal3.x;
+        temp_179 = fma(temp_53, temp_77, temp_130);
+        temp_180 = vGmCal1.x;
+        temp_183 = vGmCal3.y;
+        temp_185 = vGmCal2.z;
+        temp_186 = fma(temp_109, temp_127, temp_179);
+        temp_190 = fma(temp_100, temp_127, temp_165);
+        temp_191 = vGmCal3.z;
+        temp_192 = fma(temp_119, temp_127, temp_144);
+        temp_194 = vGmCal1.z;
+        temp_201 = fma(temp_123, temp_131, temp_192);
+        temp_205 = fma(temp_113, temp_131, temp_186);
+        temp_207 = fma(temp_104, temp_131, temp_190);
+        temp_210 = vGmCal1.w;
+        temp_212 = vGmCal2.w;
+        temp_214 = vGmCal3.w;
+        temp_224 = temp_207 * temp_180;
+        temp_225 = temp_207 * temp_133;
+        temp_226 = temp_207 * temp_178;
+        temp_230 = fma(temp_201, temp_143, temp_224);
+        temp_231 = fma(temp_201, temp_176, temp_225);
+        temp_232 = fma(temp_201, temp_183, temp_226);
+        temp_242 = fma(temp_205, temp_194, temp_230);
+        temp_248 = fma(temp_205, temp_185, temp_231);
+        temp_249 = temp_242 + temp_210;
+        temp_257 = temp_248 + temp_212;
+        temp_258 = temp_249 * U_Static.gmProj[3].x;
+        temp_261 = fma(temp_205, temp_191, temp_232);
+        temp_264 = fma(temp_257, U_Static.gmProj[3].y, temp_258);
+        temp_269 = temp_261 + temp_214;
+        temp_286 = fma(temp_269, U_Static.gmProj[3].z, temp_264);
+        temp_296 = temp_286 + U_Static.gmProj[3].w;
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+pub fn gm_cal_u_nam_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
+    // TODO: This should match the attribute names exactly to be able to return &Expr?
+    // TODO: Don't assume vPos?
+    query_nodes(expr, graph, &GM_CAL_U_NAM_ATTRIBUTE_XYZW_X)
+        .map(|_| Expr::Global {
+            name: "vPos".into(),
+            channel: Some('x'),
+        })
+        .or_else(|| {
+            query_nodes(expr, graph, &GM_CAL_U_NAM_ATTRIBUTE_XYZW_Y).map(|_| Expr::Global {
+                name: "vPos".into(),
+                channel: Some('y'),
+            })
+        })
+        .or_else(|| {
+            query_nodes(expr, graph, &GM_CAL_U_NAM_ATTRIBUTE_XYZW_Z).map(|_| Expr::Global {
+                name: "vPos".into(),
+                channel: Some('z'),
+            })
+        })
+        .or_else(|| {
+            query_nodes(expr, graph, &GM_CAL_U_NAM_ATTRIBUTE_XYZW_W).map(|_| Expr::Global {
+                name: "vPos".into(),
+                channel: Some('w'),
+            })
+        })
+}
+
+static GM_CAL_U_NAM2_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
+    // xc2/ma01a/prop/1/slct18_nvsd0_shd0018.vert
+    let query = indoc! {"
+        temp_0 = nWgtIdx.y;
+        temp_1 = intBitsToFloat(gl_InstanceID);
+        temp_2 = trunc(U_NAM.gAnmIdx.x);
+        temp_3 = int(temp_2);
+        temp_4 = temp_3 & 65535;
+        temp_5 = floatBitsToInt(temp_1) & 65535;
+        temp_6 = temp_4 * temp_5;
+        temp_7 = temp_6 + floatBitsToInt(temp_0);
+        temp_9 = temp_3 & 65535;
+        temp_10 = floatBitsToUint(temp_1) >> 16;
+        temp_11 = temp_9 * int(temp_10);
+        temp_12 = temp_11 & 65535;
+        temp_13 = floatBitsToInt(temp_1) << 16;
+        temp_14 = temp_12 | temp_13;
+        temp_16 = uint(temp_3) >> 16;
+        temp_17 = uint(temp_14) >> 16;
+        temp_18 = int(temp_16) * int(temp_17);
+        temp_19 = temp_18 << 16;
+        temp_20 = temp_14 << 16;
+        temp_21 = temp_7 + temp_20;
+        temp_22 = temp_19 + temp_21;
+        temp_23 = trunc(U_NAM.gAnmIdx.y);
+        temp_24 = int(temp_23);
+        temp_27 = vPos.x;
+        temp_33 = temp_22 + temp_24;
+        temp_43 = temp_33 & 65535;
+        temp_44 = temp_43 * 48;
+        temp_54 = uint(temp_33) >> 16;
+        temp_55 = int(temp_54) * 48;
+        temp_56 = temp_55 << 16;
+        temp_57 = temp_56 + temp_44;
+        temp_67 = temp_57 + 16;
+        temp_68 = uint(temp_67) >> 2;
+        temp_70 = int(temp_68) & 3;
+        temp_71 = U_NAM.data[int(temp_69)][temp_70];
+        temp_72 = int(temp_68) + 1;
+        temp_74 = temp_72 & 3;
+        temp_75 = U_NAM.data[int(temp_73)][temp_74];
+        temp_77 = vPos.y;
+        temp_78 = temp_57 + 32;
+        temp_79 = uint(temp_78) >> 2;
+        temp_81 = int(temp_79) & 3;
+        temp_82 = U_NAM.data[int(temp_80)][temp_81];
+        temp_83 = int(temp_79) + 1;
+        temp_85 = temp_83 & 3;
+        temp_86 = U_NAM.data[int(temp_84)][temp_85];
+        temp_87 = temp_57 + 48;
+        temp_88 = uint(temp_87) >> 2;
+        temp_90 = int(temp_88) & 3;
+        temp_91 = U_NAM.data[int(temp_89)][temp_90];
+        temp_92 = int(temp_88) + 1;
+        temp_94 = temp_92 & 3;
+        temp_95 = U_NAM.data[int(temp_93)][temp_94];
+        temp_127 = vPos.z;
+        temp_131 = vPos.w;
+        temp_133 = vGmCal2.x;
+        temp_140 = temp_71 * temp_27;
+        temp_143 = vGmCal1.y;
+        temp_145 = temp_57 + 40;
+        temp_146 = uint(temp_145) >> 2;
+        temp_148 = int(temp_146) & 3;
+        temp_149 = U_NAM.data[int(temp_147)][temp_148];
+        temp_150 = int(temp_146) + 1;
+        temp_152 = temp_150 & 3;
+        temp_153 = U_NAM.data[int(temp_151)][temp_152];
+        temp_155 = fma(temp_75, temp_77, temp_140);
+        temp_156 = temp_57 + 56;
+        temp_157 = uint(temp_156) >> 2;
+        temp_159 = int(temp_157) & 3;
+        temp_160 = U_NAM.data[int(temp_158)][temp_159];
+        temp_161 = int(temp_157) + 1;
+        temp_163 = temp_161 & 3;
+        temp_164 = U_NAM.data[int(temp_162)][temp_163];
+        temp_166 = temp_57 + 24;
+        temp_167 = uint(temp_166) >> 2;
+        temp_169 = int(temp_167) & 3;
+        temp_170 = U_NAM.data[int(temp_168)][temp_169];
+        temp_171 = int(temp_167) + 1;
+        temp_173 = temp_171 & 3;
+        temp_174 = U_NAM.data[int(temp_172)][temp_173];
+        temp_175 = temp_82 * temp_27;
+        temp_176 = vGmCal2.y;
+        temp_177 = temp_91 * temp_27;
+        temp_178 = vGmCal3.x;
+        temp_180 = vGmCal1.x;
+        temp_181 = fma(temp_86, temp_77, temp_175);
+        temp_182 = fma(temp_95, temp_77, temp_177);
+        temp_183 = vGmCal3.y;
+        temp_185 = vGmCal2.z;
+        temp_191 = vGmCal3.z;
+        temp_194 = vGmCal1.z;
+        temp_195 = fma(temp_149, temp_127, temp_181);
+        temp_197 = fma(temp_160, temp_127, temp_182);
+        temp_199 = fma(temp_170, temp_127, temp_155);
+        temp_203 = fma(temp_153, temp_131, temp_195);
+        temp_210 = vGmCal1.w;
+        temp_212 = vGmCal2.w;
+        temp_214 = vGmCal3.w;
+        temp_216 = fma(temp_174, temp_131, temp_199);
+        temp_219 = fma(temp_164, temp_131, temp_197);
+        temp_233 = temp_216 * temp_180;
+        temp_234 = temp_216 * temp_133;
+        temp_235 = temp_216 * temp_178;
+        temp_244 = fma(temp_203, temp_176, temp_234);
+        temp_247 = fma(temp_203, temp_143, temp_233);
+        temp_256 = fma(temp_219, temp_194, temp_247);
+        temp_263 = fma(temp_219, temp_185, temp_244);
+        temp_266 = temp_256 + temp_210;
+        temp_268 = fma(temp_203, temp_183, temp_235);
+        temp_273 = temp_263 + temp_212;
+        temp_277 = fma(temp_219, temp_191, temp_268);
+        temp_278 = temp_266 * U_Static.gmDiffPreMat[0].x;
+        temp_283 = temp_277 + temp_214;
+        temp_284 = fma(temp_273, U_Static.gmDiffPreMat[0].y, temp_278);
+        temp_292 = fma(temp_283, U_Static.gmDiffPreMat[0].z, temp_284);
+        temp_302 = temp_292 + U_Static.gmDiffPreMat[0].w;
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+static GM_CAL_U_NAM2_ATTRIBUTE_XYZW_Y: LazyLock<Graph> = LazyLock::new(|| {
+    // xc2/ma01a/prop/1/slct18_nvsd0_shd0018.vert
+    let query = indoc! {"
+        temp_0 = nWgtIdx.y;
+        temp_1 = intBitsToFloat(gl_InstanceID);
+        temp_2 = trunc(U_NAM.gAnmIdx.x);
+        temp_3 = int(temp_2);
+        temp_4 = temp_3 & 65535;
+        temp_5 = floatBitsToInt(temp_1) & 65535;
+        temp_6 = temp_4 * temp_5;
+        temp_7 = temp_6 + floatBitsToInt(temp_0);
+        temp_9 = temp_3 & 65535;
+        temp_10 = floatBitsToUint(temp_1) >> 16;
+        temp_11 = temp_9 * int(temp_10);
+        temp_12 = temp_11 & 65535;
+        temp_13 = floatBitsToInt(temp_1) << 16;
+        temp_14 = temp_12 | temp_13;
+        temp_16 = uint(temp_3) >> 16;
+        temp_17 = uint(temp_14) >> 16;
+        temp_18 = int(temp_16) * int(temp_17);
+        temp_19 = temp_18 << 16;
+        temp_20 = temp_14 << 16;
+        temp_21 = temp_7 + temp_20;
+        temp_22 = temp_19 + temp_21;
+        temp_23 = trunc(U_NAM.gAnmIdx.y);
+        temp_24 = int(temp_23);
+        temp_27 = vPos.x;
+        temp_33 = temp_22 + temp_24;
+        temp_43 = temp_33 & 65535;
+        temp_44 = temp_43 * 48;
+        temp_54 = uint(temp_33) >> 16;
+        temp_55 = int(temp_54) * 48;
+        temp_56 = temp_55 << 16;
+        temp_57 = temp_56 + temp_44;
+        temp_67 = temp_57 + 16;
+        temp_68 = uint(temp_67) >> 2;
+        temp_70 = int(temp_68) & 3;
+        temp_71 = U_NAM.data[int(temp_69)][temp_70];
+        temp_72 = int(temp_68) + 1;
+        temp_74 = temp_72 & 3;
+        temp_75 = U_NAM.data[int(temp_73)][temp_74];
+        temp_77 = vPos.y;
+        temp_78 = temp_57 + 32;
+        temp_79 = uint(temp_78) >> 2;
+        temp_81 = int(temp_79) & 3;
+        temp_82 = U_NAM.data[int(temp_80)][temp_81];
+        temp_83 = int(temp_79) + 1;
+        temp_85 = temp_83 & 3;
+        temp_86 = U_NAM.data[int(temp_84)][temp_85];
+        temp_87 = temp_57 + 48;
+        temp_88 = uint(temp_87) >> 2;
+        temp_90 = int(temp_88) & 3;
+        temp_91 = U_NAM.data[int(temp_89)][temp_90];
+        temp_92 = int(temp_88) + 1;
+        temp_94 = temp_92 & 3;
+        temp_95 = U_NAM.data[int(temp_93)][temp_94];
+        temp_127 = vPos.z;
+        temp_131 = vPos.w;
+        temp_133 = vGmCal2.x;
+        temp_140 = temp_71 * temp_27;
+        temp_143 = vGmCal1.y;
+        temp_145 = temp_57 + 40;
+        temp_146 = uint(temp_145) >> 2;
+        temp_148 = int(temp_146) & 3;
+        temp_149 = U_NAM.data[int(temp_147)][temp_148];
+        temp_150 = int(temp_146) + 1;
+        temp_152 = temp_150 & 3;
+        temp_153 = U_NAM.data[int(temp_151)][temp_152];
+        temp_155 = fma(temp_75, temp_77, temp_140);
+        temp_156 = temp_57 + 56;
+        temp_157 = uint(temp_156) >> 2;
+        temp_159 = int(temp_157) & 3;
+        temp_160 = U_NAM.data[int(temp_158)][temp_159];
+        temp_161 = int(temp_157) + 1;
+        temp_163 = temp_161 & 3;
+        temp_164 = U_NAM.data[int(temp_162)][temp_163];
+        temp_166 = temp_57 + 24;
+        temp_167 = uint(temp_166) >> 2;
+        temp_169 = int(temp_167) & 3;
+        temp_170 = U_NAM.data[int(temp_168)][temp_169];
+        temp_171 = int(temp_167) + 1;
+        temp_173 = temp_171 & 3;
+        temp_174 = U_NAM.data[int(temp_172)][temp_173];
+        temp_175 = temp_82 * temp_27;
+        temp_176 = vGmCal2.y;
+        temp_177 = temp_91 * temp_27;
+        temp_178 = vGmCal3.x;
+        temp_180 = vGmCal1.x;
+        temp_181 = fma(temp_86, temp_77, temp_175);
+        temp_182 = fma(temp_95, temp_77, temp_177);
+        temp_183 = vGmCal3.y;
+        temp_185 = vGmCal2.z;
+        temp_191 = vGmCal3.z;
+        temp_194 = vGmCal1.z;
+        temp_195 = fma(temp_149, temp_127, temp_181);
+        temp_197 = fma(temp_160, temp_127, temp_182);
+        temp_199 = fma(temp_170, temp_127, temp_155);
+        temp_203 = fma(temp_153, temp_131, temp_195);
+        temp_210 = vGmCal1.w;
+        temp_212 = vGmCal2.w;
+        temp_214 = vGmCal3.w;
+        temp_216 = fma(temp_174, temp_131, temp_199);
+        temp_219 = fma(temp_164, temp_131, temp_197);
+        temp_233 = temp_216 * temp_180;
+        temp_234 = temp_216 * temp_133;
+        temp_235 = temp_216 * temp_178;
+        temp_244 = fma(temp_203, temp_176, temp_234);
+        temp_247 = fma(temp_203, temp_143, temp_233);
+        temp_256 = fma(temp_219, temp_194, temp_247);
+        temp_263 = fma(temp_219, temp_185, temp_244);
+        temp_266 = temp_256 + temp_210;
+        temp_268 = fma(temp_203, temp_183, temp_235);
+        temp_273 = temp_263 + temp_212;
+        temp_276 = temp_266 * U_Static.gmDiffPreMat[1].x;
+        temp_277 = fma(temp_219, temp_191, temp_268);
+        temp_282 = fma(temp_273, U_Static.gmDiffPreMat[1].y, temp_276);
+        temp_283 = temp_277 + temp_214;
+        temp_291 = fma(temp_283, U_Static.gmDiffPreMat[1].z, temp_282);
+        temp_301 = temp_291 + U_Static.gmDiffPreMat[1].w;
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+static GM_CAL_U_NAM2_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
+    // xc2/ma01a/prop/1/slct18_nvsd0_shd0018.vert
+    let query = indoc! {"
+        temp_0 = nWgtIdx.y;
+        temp_1 = intBitsToFloat(gl_InstanceID);
+        temp_2 = trunc(U_NAM.gAnmIdx.x);
+        temp_3 = int(temp_2);
+        temp_4 = temp_3 & 65535;
+        temp_5 = floatBitsToInt(temp_1) & 65535;
+        temp_6 = temp_4 * temp_5;
+        temp_7 = temp_6 + floatBitsToInt(temp_0);
+        temp_9 = temp_3 & 65535;
+        temp_10 = floatBitsToUint(temp_1) >> 16;
+        temp_11 = temp_9 * int(temp_10);
+        temp_12 = temp_11 & 65535;
+        temp_13 = floatBitsToInt(temp_1) << 16;
+        temp_14 = temp_12 | temp_13;
+        temp_16 = uint(temp_3) >> 16;
+        temp_17 = uint(temp_14) >> 16;
+        temp_18 = int(temp_16) * int(temp_17);
+        temp_19 = temp_18 << 16;
+        temp_20 = temp_14 << 16;
+        temp_21 = temp_7 + temp_20;
+        temp_22 = temp_19 + temp_21;
+        temp_23 = trunc(U_NAM.gAnmIdx.y);
+        temp_24 = int(temp_23);
+        temp_27 = vPos.x;
+        temp_33 = temp_22 + temp_24;
+        temp_43 = temp_33 & 65535;
+        temp_44 = temp_43 * 48;
+        temp_54 = uint(temp_33) >> 16;
+        temp_55 = int(temp_54) * 48;
+        temp_56 = temp_55 << 16;
+        temp_57 = temp_56 + temp_44;
+        temp_67 = temp_57 + 16;
+        temp_68 = uint(temp_67) >> 2;
+        temp_70 = int(temp_68) & 3;
+        temp_71 = U_NAM.data[int(temp_69)][temp_70];
+        temp_72 = int(temp_68) + 1;
+        temp_74 = temp_72 & 3;
+        temp_75 = U_NAM.data[int(temp_73)][temp_74];
+        temp_77 = vPos.y;
+        temp_78 = temp_57 + 32;
+        temp_79 = uint(temp_78) >> 2;
+        temp_81 = int(temp_79) & 3;
+        temp_82 = U_NAM.data[int(temp_80)][temp_81];
+        temp_83 = int(temp_79) + 1;
+        temp_85 = temp_83 & 3;
+        temp_86 = U_NAM.data[int(temp_84)][temp_85];
+        temp_87 = temp_57 + 48;
+        temp_88 = uint(temp_87) >> 2;
+        temp_90 = int(temp_88) & 3;
+        temp_91 = U_NAM.data[int(temp_89)][temp_90];
+        temp_92 = int(temp_88) + 1;
+        temp_94 = temp_92 & 3;
+        temp_95 = U_NAM.data[int(temp_93)][temp_94];
+        temp_127 = vPos.z;
+        temp_131 = vPos.w;
+        temp_133 = vGmCal2.x;
+        temp_140 = temp_71 * temp_27;
+        temp_143 = vGmCal1.y;
+        temp_145 = temp_57 + 40;
+        temp_146 = uint(temp_145) >> 2;
+        temp_148 = int(temp_146) & 3;
+        temp_149 = U_NAM.data[int(temp_147)][temp_148];
+        temp_150 = int(temp_146) + 1;
+        temp_152 = temp_150 & 3;
+        temp_153 = U_NAM.data[int(temp_151)][temp_152];
+        temp_155 = fma(temp_75, temp_77, temp_140);
+        temp_156 = temp_57 + 56;
+        temp_157 = uint(temp_156) >> 2;
+        temp_159 = int(temp_157) & 3;
+        temp_160 = U_NAM.data[int(temp_158)][temp_159];
+        temp_161 = int(temp_157) + 1;
+        temp_163 = temp_161 & 3;
+        temp_164 = U_NAM.data[int(temp_162)][temp_163];
+        temp_166 = temp_57 + 24;
+        temp_167 = uint(temp_166) >> 2;
+        temp_169 = int(temp_167) & 3;
+        temp_170 = U_NAM.data[int(temp_168)][temp_169];
+        temp_171 = int(temp_167) + 1;
+        temp_173 = temp_171 & 3;
+        temp_174 = U_NAM.data[int(temp_172)][temp_173];
+        temp_175 = temp_82 * temp_27;
+        temp_176 = vGmCal2.y;
+        temp_177 = temp_91 * temp_27;
+        temp_178 = vGmCal3.x;
+        temp_180 = vGmCal1.x;
+        temp_181 = fma(temp_86, temp_77, temp_175);
+        temp_182 = fma(temp_95, temp_77, temp_177);
+        temp_183 = vGmCal3.y;
+        temp_185 = vGmCal2.z;
+        temp_191 = vGmCal3.z;
+        temp_194 = vGmCal1.z;
+        temp_195 = fma(temp_149, temp_127, temp_181);
+        temp_197 = fma(temp_160, temp_127, temp_182);
+        temp_199 = fma(temp_170, temp_127, temp_155);
+        temp_203 = fma(temp_153, temp_131, temp_195);
+        temp_210 = vGmCal1.w;
+        temp_212 = vGmCal2.w;
+        temp_214 = vGmCal3.w;
+        temp_216 = fma(temp_174, temp_131, temp_199);
+        temp_219 = fma(temp_164, temp_131, temp_197);
+        temp_233 = temp_216 * temp_180;
+        temp_234 = temp_216 * temp_133;
+        temp_235 = temp_216 * temp_178;
+        temp_244 = fma(temp_203, temp_176, temp_234);
+        temp_247 = fma(temp_203, temp_143, temp_233);
+        temp_256 = fma(temp_219, temp_194, temp_247);
+        temp_263 = fma(temp_219, temp_185, temp_244);
+        temp_266 = temp_256 + temp_210;
+        temp_268 = fma(temp_203, temp_183, temp_235);
+        temp_273 = temp_263 + temp_212;
+        temp_274 = temp_266 * U_Static.gmDiffPreMat[2].x;
+        temp_277 = fma(temp_219, temp_191, temp_268);
+        temp_280 = fma(temp_273, U_Static.gmDiffPreMat[2].y, temp_274);
+        temp_283 = temp_277 + temp_214;
+        temp_289 = fma(temp_283, U_Static.gmDiffPreMat[2].z, temp_280);
+        temp_299 = temp_289 + U_Static.gmDiffPreMat[2].w;
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+static GM_CAL_U_NAM2_ATTRIBUTE_XYZW_W: LazyLock<Graph> = LazyLock::new(|| {
+    // xc2/ma01a/prop/1/slct18_nvsd0_shd0018.vert
+    let query = indoc! {"
+        temp_0 = nWgtIdx.y;
+        temp_1 = intBitsToFloat(gl_InstanceID);
+        temp_2 = trunc(U_NAM.gAnmIdx.x);
+        temp_3 = int(temp_2);
+        temp_4 = temp_3 & 65535;
+        temp_5 = floatBitsToInt(temp_1) & 65535;
+        temp_6 = temp_4 * temp_5;
+        temp_7 = temp_6 + floatBitsToInt(temp_0);
+        temp_9 = temp_3 & 65535;
+        temp_10 = floatBitsToUint(temp_1) >> 16;
+        temp_11 = temp_9 * int(temp_10);
+        temp_12 = temp_11 & 65535;
+        temp_13 = floatBitsToInt(temp_1) << 16;
+        temp_14 = temp_12 | temp_13;
+        temp_16 = uint(temp_3) >> 16;
+        temp_17 = uint(temp_14) >> 16;
+        temp_18 = int(temp_16) * int(temp_17);
+        temp_19 = temp_18 << 16;
+        temp_20 = temp_14 << 16;
+        temp_21 = temp_7 + temp_20;
+        temp_22 = temp_19 + temp_21;
+        temp_23 = trunc(U_NAM.gAnmIdx.y);
+        temp_24 = int(temp_23);
+        temp_27 = vPos.x;
+        temp_33 = temp_22 + temp_24;
+        temp_43 = temp_33 & 65535;
+        temp_44 = temp_43 * 48;
+        temp_54 = uint(temp_33) >> 16;
+        temp_55 = int(temp_54) * 48;
+        temp_56 = temp_55 << 16;
+        temp_57 = temp_56 + temp_44;
+        temp_67 = temp_57 + 16;
+        temp_68 = uint(temp_67) >> 2;
+        temp_70 = int(temp_68) & 3;
+        temp_71 = U_NAM.data[int(temp_69)][temp_70];
+        temp_72 = int(temp_68) + 1;
+        temp_74 = temp_72 & 3;
+        temp_75 = U_NAM.data[int(temp_73)][temp_74];
+        temp_77 = vPos.y;
+        temp_78 = temp_57 + 32;
+        temp_79 = uint(temp_78) >> 2;
+        temp_81 = int(temp_79) & 3;
+        temp_82 = U_NAM.data[int(temp_80)][temp_81];
+        temp_83 = int(temp_79) + 1;
+        temp_85 = temp_83 & 3;
+        temp_86 = U_NAM.data[int(temp_84)][temp_85];
+        temp_87 = temp_57 + 48;
+        temp_88 = uint(temp_87) >> 2;
+        temp_90 = int(temp_88) & 3;
+        temp_91 = U_NAM.data[int(temp_89)][temp_90];
+        temp_92 = int(temp_88) + 1;
+        temp_94 = temp_92 & 3;
+        temp_95 = U_NAM.data[int(temp_93)][temp_94];
+        temp_127 = vPos.z;
+        temp_131 = vPos.w;
+        temp_133 = vGmCal2.x;
+        temp_140 = temp_71 * temp_27;
+        temp_143 = vGmCal1.y;
+        temp_145 = temp_57 + 40;
+        temp_146 = uint(temp_145) >> 2;
+        temp_148 = int(temp_146) & 3;
+        temp_149 = U_NAM.data[int(temp_147)][temp_148];
+        temp_150 = int(temp_146) + 1;
+        temp_152 = temp_150 & 3;
+        temp_153 = U_NAM.data[int(temp_151)][temp_152];
+        temp_155 = fma(temp_75, temp_77, temp_140);
+        temp_156 = temp_57 + 56;
+        temp_157 = uint(temp_156) >> 2;
+        temp_159 = int(temp_157) & 3;
+        temp_160 = U_NAM.data[int(temp_158)][temp_159];
+        temp_161 = int(temp_157) + 1;
+        temp_163 = temp_161 & 3;
+        temp_164 = U_NAM.data[int(temp_162)][temp_163];
+        temp_166 = temp_57 + 24;
+        temp_167 = uint(temp_166) >> 2;
+        temp_169 = int(temp_167) & 3;
+        temp_170 = U_NAM.data[int(temp_168)][temp_169];
+        temp_171 = int(temp_167) + 1;
+        temp_173 = temp_171 & 3;
+        temp_174 = U_NAM.data[int(temp_172)][temp_173];
+        temp_175 = temp_82 * temp_27;
+        temp_176 = vGmCal2.y;
+        temp_177 = temp_91 * temp_27;
+        temp_178 = vGmCal3.x;
+        temp_180 = vGmCal1.x;
+        temp_181 = fma(temp_86, temp_77, temp_175);
+        temp_182 = fma(temp_95, temp_77, temp_177);
+        temp_183 = vGmCal3.y;
+        temp_185 = vGmCal2.z;
+        temp_191 = vGmCal3.z;
+        temp_194 = vGmCal1.z;
+        temp_195 = fma(temp_149, temp_127, temp_181);
+        temp_197 = fma(temp_160, temp_127, temp_182);
+        temp_199 = fma(temp_170, temp_127, temp_155);
+        temp_203 = fma(temp_153, temp_131, temp_195);
+        temp_210 = vGmCal1.w;
+        temp_212 = vGmCal2.w;
+        temp_214 = vGmCal3.w;
+        temp_216 = fma(temp_174, temp_131, temp_199);
+        temp_219 = fma(temp_164, temp_131, temp_197);
+        temp_233 = temp_216 * temp_180;
+        temp_234 = temp_216 * temp_133;
+        temp_235 = temp_216 * temp_178;
+        temp_244 = fma(temp_203, temp_176, temp_234);
+        temp_247 = fma(temp_203, temp_143, temp_233);
+        temp_256 = fma(temp_219, temp_194, temp_247);
+        temp_263 = fma(temp_219, temp_185, temp_244);
+        temp_266 = temp_256 + temp_210;
+        temp_268 = fma(temp_203, temp_183, temp_235);
+        temp_273 = temp_263 + temp_212;
+        temp_275 = temp_266 * U_Static.gmDiffPreMat[3].x;
+        temp_277 = fma(temp_219, temp_191, temp_268);
+        temp_281 = fma(temp_273, U_Static.gmDiffPreMat[3].y, temp_275);
+        temp_283 = temp_277 + temp_214;
+        temp_290 = fma(temp_283, U_Static.gmDiffPreMat[3].z, temp_281);
+        temp_300 = temp_290 + U_Static.gmDiffPreMat[3].w;
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+pub fn gm_cal_u_nam2_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
+    // TODO: This should match the attribute names exactly to be able to return &Expr?
+    // TODO: Don't assume vPos?
+    query_nodes(expr, graph, &GM_CAL_U_NAM2_ATTRIBUTE_XYZW_X)
+        .map(|_| Expr::Global {
+            name: "vPos".into(),
+            channel: Some('x'),
+        })
+        .or_else(|| {
+            query_nodes(expr, graph, &GM_CAL_U_NAM2_ATTRIBUTE_XYZW_Y).map(|_| Expr::Global {
+                name: "vPos".into(),
+                channel: Some('y'),
+            })
+        })
+        .or_else(|| {
+            query_nodes(expr, graph, &GM_CAL_U_NAM2_ATTRIBUTE_XYZW_Z).map(|_| Expr::Global {
+                name: "vPos".into(),
+                channel: Some('z'),
+            })
+        })
+        .or_else(|| {
+            query_nodes(expr, graph, &GM_CAL_U_NAM2_ATTRIBUTE_XYZW_W).map(|_| Expr::Global {
+                name: "vPos".into(),
+                channel: Some('w'),
+            })
+        })
+}
+
+static GM_CAL_U_BILL_COLOR_ATTRIBUTE_W: LazyLock<Graph> = LazyLock::new(|| {
+    // TODO: Why does the vertex color alpha need the instance transform from vGmCal?
+    // TODO: U_BILL contains some sort of position?
+    // xc2/ma02a/prop/1/slct48_nvsd0_shd0048.vert
+    let query = indoc! {"
+        temp_0 = nWgtIdx.x;
+        temp_1 = floatBitsToInt(temp_0) << 4;
+        temp_2 = vGmCal1.x;
+        temp_3 = uint(temp_1) >> 2;
+        temp_5 = int(temp_3) & 3;
+        temp_6 = U_BILL.data[int(temp_4)][temp_5];
+        temp_7 = int(temp_3) + 1;
+        temp_9 = temp_7 & 3;
+        temp_10 = U_BILL.data[int(temp_8)][temp_9];
+        temp_11 = temp_1 + 8;
+        temp_12 = uint(temp_11) >> 2;
+        temp_14 = int(temp_12) & 3;
+        temp_15 = U_BILL.data[int(temp_13)][temp_14];
+        temp_16 = vGmCal1.y;
+        temp_17 = vGmCal2.x;
+        temp_18 = vGmCal3.x;
+        temp_19 = vGmCal2.y;
+        temp_20 = vGmCal1.z;
+        temp_21 = vGmCal3.y;
+        temp_22 = vGmCal2.z;
+        temp_23 = vGmCal1.w;
+        temp_24 = vGmCal3.z;
+        temp_25 = vGmCal2.w;
+        temp_26 = vGmCal3.w;
+        temp_27 = temp_6 * temp_2;
+        temp_29 = temp_6 * temp_17;
+        temp_30 = fma(temp_10, temp_16, temp_27);
+        temp_31 = temp_6 * temp_18;
+        temp_32 = fma(temp_10, temp_19, temp_29);
+        temp_34 = fma(temp_15, temp_20, temp_30);
+        temp_35 = fma(temp_10, temp_21, temp_31);
+        temp_36 = color_w;
+        temp_37 = fma(temp_15, temp_22, temp_32);
+        temp_39 = temp_34 + temp_23;
+        temp_41 = fma(temp_15, temp_24, temp_35);
+        temp_42 = temp_37 + temp_25;
+        temp_43 = temp_39 * temp_39;
+        temp_44 = temp_41 + temp_26;
+        temp_46 = fma(temp_42, temp_42, temp_43);
+        temp_49 = fma(temp_44, temp_44, temp_46);
+        temp_50 = sqrt(temp_49);
+        temp_56 = 0.0 - U_Mate.gWrkFl4[0].x;
+        temp_57 = temp_50 + temp_56;
+        temp_62 = abs(temp_57);
+        temp_63 = 0.0 - temp_62;
+        temp_64 = temp_63 + -0.0;
+        temp_67 = fma(temp_64, U_Mate.gWrkFl4[0].y, 1.0);
+        temp_68 = clamp(temp_67, 0.0, 1.0);
+        temp_70 = temp_44 + U_Mate.gWrkFl4[0].z;
+        temp_71 = temp_68 * temp_36;
+        temp_73 = temp_70 * U_Mate.gWrkFl4[0].w;
+        temp_74 = clamp(temp_73, 0.0, 1.0);
+        temp_79 = 0.0 - temp_74;
+        temp_80 = fma(temp_71, temp_79, temp_71);
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+pub fn gm_cal_u_bill_color_attribute_w<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    // TODO: This should match the attribute names exactly to be able to return &Expr?
+    let result = query_nodes(expr, graph, &GM_CAL_U_BILL_COLOR_ATTRIBUTE_W)?;
+    result.get("color_w").copied()
+}
+
 static U_MDL_ATTRIBUTE_XYZW: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         temp_0 = result_x;
