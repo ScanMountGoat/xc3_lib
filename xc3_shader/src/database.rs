@@ -1,11 +1,14 @@
 use std::borrow::Cow;
+use std::collections::BTreeSet;
 use std::fmt::Write;
 use std::path::PathBuf;
 use std::{collections::BTreeMap, sync::LazyLock};
 
+use ahash::HashSet;
+use clap::ValueEnum;
 use indoc::indoc;
 use rayon::prelude::*;
-use smol_str::format_smolstr;
+use smol_str::{SmolStr, format_smolstr};
 use tracing::{Level, error, span};
 use xc3_lib::{mths::Mths, spch::Spch};
 use xc3_model::shader_database::{
@@ -13,8 +16,8 @@ use xc3_model::shader_database::{
     ValueXyz,
 };
 
-use crate::expr::ExprCache;
 use crate::expr::xyz::ExprCacheXyz;
+use crate::expr::{ExprCache, Texture};
 use crate::expr::{OutputExpr, output_expr, xyz::merge_xyz_exprs};
 use crate::graph::UnaryOp;
 use crate::graph::glsl::{GlslGraph, merge_vertex_fragment};
@@ -36,7 +39,11 @@ use query::*;
 // Faster than the default hash implementation.
 type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
 
-pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> ShaderProgram {
+pub fn shader_from_glsl(
+    vertex: Option<GlslGraph>,
+    fragment: GlslGraph,
+    version: GameVersion,
+) -> ShaderProgram {
     // This doesn't work with a simplified graph.
     let outline_width = vertex
         .as_ref()
@@ -96,6 +103,9 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
                 } else {
                     value = None;
                 }
+            } else if i == 2 && c == 'z' && version == GameVersion::Xcx {
+                // XCX and XCX DE only have 2 components for this G-Buffer texture.
+                value = None
             } else if i == 2 && c == 'w' {
                 // o2.w is n.z * 1000 + 0.5 for XC1 DE, XC2, and XC3.
                 // This can be easily handled by consuming applications.
@@ -127,6 +137,11 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
             error!("Unexpected attribute vGmCal instance transform.");
             break;
         }
+    }
+
+    // Don't infer ambient occlusion for shaders with only a color output.
+    if version == GameVersion::Xcx && frag_attributes.output_locations.len() > 1 {
+        insert_xcx_de_inferred_ambient_occlusion(&mut output_dependencies, &exprs);
     }
 
     // Merge XYZ channels during database creation to simplify consuming code.
@@ -183,6 +198,44 @@ pub fn shader_from_glsl(vertex: Option<GlslGraph>, fragment: GlslGraph) -> Shade
         exprs,
         output_dependencies_xyz,
         exprs_xyz,
+    }
+}
+
+fn insert_xcx_de_inferred_ambient_occlusion(
+    output_dependencies: &mut IndexMap<SmolStr, usize>,
+    exprs: &[OutputExpr<Operation>],
+) {
+    // Simply using a single ambient lighting output channel does not work as ambient occlusion.
+    // Assume a single channel texture used for ambient lighting is ambient occlusion.
+    // This removes the "lighting" portion of the ambient lighting output.
+    // TODO: Is this there a more reliable way to do this using queries?
+    let x = output_textures(&*output_dependencies, exprs, "o0.x");
+    let y = output_textures(&*output_dependencies, exprs, "o0.y");
+    let z = output_textures(&*output_dependencies, exprs, "o0.z");
+
+    let xy: HashSet<_> = x.intersection(&y).cloned().collect();
+    let xyz: HashSet<_> = xy.intersection(&z).collect();
+    if !xyz.is_empty() {
+        let mut channels_by_name = BTreeMap::<_, BTreeSet<_>>::new();
+        for t in &xyz {
+            channels_by_name
+                .entry(t.name.clone())
+                .or_default()
+                .insert(t.channel);
+        }
+        let filtered: Vec<_> = channels_by_name
+            .iter()
+            .filter(|(n, cs)| is_material_texture(n) && cs.len() == 1)
+            .collect();
+        if let &[(name, _)] = &filtered[..] {
+            if let Some(ao_tex) = xyz.iter().find(|t| &t.name == name) {
+                if let Some(expr_index) = exprs.iter().position(|e| {
+                    e == &OutputExpr::Value(crate::expr::Value::Texture((*ao_tex).clone()))
+                }) {
+                    output_dependencies.insert("o2.z".into(), expr_index);
+                }
+            }
+        }
     }
 }
 
@@ -435,7 +488,15 @@ struct SpchProgram {
     fragment_source: Option<String>,
 }
 
-pub fn create_shader_database(input: &str) -> ShaderDatabase {
+#[derive(Debug, PartialEq, Eq, Clone, Copy, ValueEnum)]
+pub enum GameVersion {
+    Xc1,
+    Xc2,
+    Xc3,
+    Xcx,
+}
+
+pub fn create_shader_database(input: &str, version: GameVersion) -> ShaderDatabase {
     // Collect unique programs.
     let mut programs = BTreeMap::new();
 
@@ -477,7 +538,7 @@ pub fn create_shader_database(input: &str) -> ShaderDatabase {
                     .map(|s| {
                         let source = shader_source_no_extensions(&s);
                         match GlslGraph::parse_glsl(source) {
-                            Ok(fragment) => shader_from_glsl(vertex, fragment),
+                            Ok(fragment) => shader_from_glsl(vertex, fragment, version),
                             Err(e) => {
                                 error!("Error parsing shader: {e}");
                                 ShaderProgram::default()
@@ -557,7 +618,7 @@ pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
             };
 
             let shader_program = fragment
-                .map(|fragment| shader_from_glsl(vertex, fragment))
+                .map(|fragment| shader_from_glsl(vertex, fragment, GameVersion::Xcx))
                 .unwrap_or_default();
 
             (hash, shader_program)
@@ -826,6 +887,40 @@ fn xc3_channel_xyz(value: crate::expr::xyz::ChannelXyz) -> xc3_model::shader_dat
     }
 }
 
+fn is_material_texture(name: &str) -> bool {
+    // "s11" -> true, "s_tex1" -> false
+    name.strip_prefix("s")
+        .map(|n| n.parse::<usize>().is_ok())
+        .unwrap_or_default()
+}
+
+fn output_textures(
+    output_dependencies: &IndexMap<SmolStr, usize>,
+    exprs: &[OutputExpr<Operation>],
+    name: &str,
+) -> HashSet<Texture> {
+    let mut textures = HashSet::default();
+    if let Some(i) = output_dependencies.get(name) {
+        add_textures(*i, exprs, &mut textures);
+    }
+    textures
+}
+
+fn add_textures(i: usize, exprs: &[OutputExpr<Operation>], textures: &mut HashSet<Texture>) {
+    match &exprs[i] {
+        OutputExpr::Value(value) => {
+            if let crate::expr::Value::Texture(t) = value {
+                textures.insert(t.clone());
+            }
+        }
+        OutputExpr::Func { args, .. } => {
+            for a in args {
+                add_textures(*a, exprs, textures);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -841,7 +936,15 @@ mod tests {
             let vertex = GlslGraph::parse_glsl(vert_glsl).unwrap();
             let fragment = GlslGraph::parse_glsl(frag_glsl).unwrap();
 
-            let shader = shader_from_glsl(Some(vertex), fragment);
+            let version = match $folder {
+                "xc1" => GameVersion::Xc1,
+                "xc2" => GameVersion::Xc2,
+                "xc3" => GameVersion::Xc3,
+                "xcxde" => GameVersion::Xcx,
+                _ => todo!(),
+            };
+
+            let shader = shader_from_glsl(Some(vertex), fragment, version);
 
             let mut settings = insta::Settings::new();
             settings.set_prepend_module_to_snapshot(false);

@@ -8,8 +8,8 @@ use tracing_subscriber::Layer;
 use tracing_subscriber::layer::SubscriberExt;
 use xc3_model::shader_database::ShaderDatabase;
 use xc3_shader::database::{
-    create_shader_database, create_shader_database_legacy, shader_from_glsl, shader_graphviz,
-    shader_str,
+    GameVersion, create_shader_database, create_shader_database_legacy, shader_from_glsl,
+    shader_graphviz, shader_str,
 };
 use xc3_shader::extract::{
     annotate_all_legacy_shaders, extract_all_legacy_shaders, extract_and_decompile_shaders,
@@ -60,6 +60,9 @@ enum Commands {
         input_folder: String,
         /// The output database file.
         output_file: String,
+        /// The game version.
+        #[arg(long)]
+        game: GameVersion,
     },
     /// Create a database of decompiled shader data for Xenoblade X.
     ShaderDatabaseLegacy {
@@ -106,6 +109,9 @@ enum Commands {
         frag: String,
         /// The output txt or Graphviz dot file.
         output: String,
+        /// The game version.
+        #[arg(long)]
+        game: Option<GameVersion>,
     },
 }
 
@@ -146,8 +152,9 @@ fn main() {
         Commands::ShaderDatabase {
             input_folder,
             output_file,
+            game,
         } => {
-            let database = create_shader_database(&input_folder);
+            let database = create_shader_database(&input_folder, game);
             database.save(output_file).unwrap();
         }
         Commands::ShaderDatabaseLegacy {
@@ -192,7 +199,7 @@ fn main() {
             let graph = Graph::from_latte_asm(&asm).unwrap();
             std::fs::write(output, graph.to_glsl()).unwrap();
         }
-        Commands::GlslOutputDependencies { frag, output } => {
+        Commands::GlslOutputDependencies { frag, output, game } => {
             let frag_glsl = std::fs::read_to_string(&frag).unwrap();
             let frag_glsl = shader_source_no_extensions(&frag_glsl);
             let fragment = GlslGraph::parse_glsl(frag_glsl).unwrap();
@@ -202,7 +209,7 @@ fn main() {
                 .ok()
                 .map(|v| GlslGraph::parse_glsl(&v).unwrap());
 
-            let shader = shader_from_glsl(vert, fragment);
+            let shader = shader_from_glsl(vert, fragment, game.unwrap_or(GameVersion::Xc3));
             if output.ends_with(".dot") {
                 std::fs::write(output, shader_graphviz(&shader)).unwrap();
             } else {

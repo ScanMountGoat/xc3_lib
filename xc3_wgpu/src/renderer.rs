@@ -352,6 +352,7 @@ impl Renderer {
         self.unbranch_to_depth_pass(encoder);
         if self.render_mode == RenderMode::Shaded {
             self.deferred_pass(encoder);
+            // TODO: pass for technique type unk5?
             self.alpha3_pass(
                 encoder,
                 models,
@@ -362,6 +363,8 @@ impl Renderer {
             self.snn_filter_pass(encoder);
         } else {
             // Move forward passes earlier to show all meshes in debug modes.
+            // TODO: pass for technique type unk5?
+
             self.alpha3_pass(
                 encoder,
                 models,
