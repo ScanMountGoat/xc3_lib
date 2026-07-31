@@ -79,7 +79,7 @@ struct UMate {
     g_mat_amb: array<vec4<f32>, 1>,
     g_mat_col: array<vec4<f32>, 1>,
     g_mat_spec: array<vec4<f32>, 1>,
-    g_mdl_param: array<vec4<f32>, 1>,
+    g_mdl_parm: array<vec4<f32>, 1>,
     g_pj_mat: array<vec4<f32>, 3>,
     g_proj_tex_mat: array<vec4<f32>, 8>,
     g_tex_mat: array<vec4<f32>, 54>,

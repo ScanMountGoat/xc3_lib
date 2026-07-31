@@ -478,7 +478,7 @@ fn material_u_mate(material: &xc3_model::material::Material) -> crate::shader::m
             &material.parameters.material_specular,
             vec4(0.0, 0.0, 0.0, 0.02),
         ),
-        g_mdl_param: array_parameter(&material.parameters.mdl_param, Vec4::ZERO),
+        g_mdl_parm: array_parameter(&material.parameters.model_param, Vec4::ZERO),
         g_pj_mat: [Vec4::ZERO; 3],
         g_proj_tex_mat: array_parameter(&material.parameters.projection_tex_matrix, Vec4::ZERO),
         g_tex_mat: array_parameter(&material.parameters.tex_matrix, Vec4::ZERO),

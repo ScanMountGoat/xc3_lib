@@ -117,8 +117,8 @@ pub struct MaterialParameters {
     /// [xc3_lib::mxmd::legacy::ParamType::DtWork]
     pub dt_work: Option<Vec<[f32; 4]>>,
 
-    /// [xc3_lib::mxmd::legacy::ParamType::MdlParam]
-    pub mdl_param: Option<Vec<[f32; 4]>>,
+    /// [xc3_lib::mxmd::legacy::ParamType::ModelParam]
+    pub model_param: Option<Vec<[f32; 4]>>,
 
     // TODO: what legacy param type is gAaMap?
     pub aa_map: Option<Vec<[f32; 4]>>,
@@ -184,7 +184,7 @@ impl MaterialParameters {
                 .unwrap_or(&[0.0, 0.0, 0.0, 0.1])
                 .get(c),
             ("U_Mate", "gDTWrk") => self.dt_work.as_ref()?.get(index)?.get(c),
-            ("U_Mate", "gMdlParm") => self.mdl_param.as_ref()?.get(index)?.get(c),
+            ("U_Mate", "gMdlParm") => self.model_param.as_ref()?.get(index)?.get(c),
             ("U_CHR", "gAvaSkin") => self.ava_skin.as_ref()?.get(c),
             // TODO: initialized somewhere else?
             ("U_CHR", "gAvaHair") => [
@@ -961,8 +961,8 @@ fn assign_parameters_legacy(
                     parameters.dt_work = read_param_legacy(param, work_values);
                 }
                 xc3_lib::mxmd::legacy::ParamType::Unk18 => {}
-                xc3_lib::mxmd::legacy::ParamType::MdlParam => {
-                    parameters.mdl_param = read_param_legacy(param, work_values);
+                xc3_lib::mxmd::legacy::ParamType::ModelParam => {
+                    parameters.model_param = read_param_legacy(param, work_values);
                 }
             }
         }

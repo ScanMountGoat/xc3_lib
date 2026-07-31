@@ -820,7 +820,7 @@ pub enum ParamType {
     DtWork = 17,
     Unk18 = 18,
     /// `gMdlParm` uniform in the [Spch](crate::spch::Spch).
-    MdlParam = 19,
+    ModelParam = 19,
 }
 
 #[binread]
