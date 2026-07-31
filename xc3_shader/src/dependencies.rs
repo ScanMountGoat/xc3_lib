@@ -38,9 +38,9 @@ where
     Op: Operation + std::hash::Hash + Eq + Default,
 {
     // The arg0 should always be the texture name.
-    // texture(arg0, vec2(arg1, arg2))
-    if let Some(Expr::Func { args, .. }) = args.get(1).map(|a| &graph.exprs[*a])
-        && args.len() == 2
+    // texture(arg0, vec2(arg1, arg2)) or texture(arg0, vec3(arg1, arg2, arg3))
+    if let Some(Expr::Func { name, args, .. }) = args.get(1).map(|a| &graph.exprs[*a])
+        && matches!(name.as_str(), "vec2" | "vec3")
     {
         args.iter()
             .map(|e| output_expr(&graph.exprs[*e], graph, exprs))

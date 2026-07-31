@@ -383,6 +383,7 @@ impl crate::expr::Operation for Operation {
             .or_else(|| binary_op(graph, expr, BinaryOp::RightShift, Operation::RightShift))
             .or_else(|| binary_op(graph, expr, BinaryOp::BitAnd, Operation::BitAnd))
             .or_else(|| binary_op(graph, expr, BinaryOp::BitOr, Operation::BitOr))
+            .or_else(|| binary_op(graph, expr, BinaryOp::BitXor, Operation::BitXor))
             .or_else(|| ternary(graph, expr))
             .or_else(|| unary_op(graph, expr, UnaryOp::Negate, Operation::Negate))
             .or_else(|| unary_op(graph, expr, UnaryOp::Not, Operation::Not))
@@ -940,7 +941,7 @@ mod tests {
                 "xc1" => GameVersion::Xc1,
                 "xc2" => GameVersion::Xc2,
                 "xc3" => GameVersion::Xc3,
-                "xcxde" => GameVersion::Xcx,
+                "xcx" | "xcxde" => GameVersion::Xcx,
                 _ => todo!(),
             };
 

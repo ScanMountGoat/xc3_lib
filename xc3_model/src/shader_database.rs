@@ -269,6 +269,8 @@ pub enum Operation {
     Truncate,
     /// `floatBitsToInt(arg0)`
     FloatBitsToInt,
+    /// `floatBitsToUint(arg0)`
+    FloatBitsToUint,
     /// `intBitsToFloat(arg0)`
     IntBitsToFloat,
     /// `uintBitsToFloat(arg0)`
@@ -285,6 +287,8 @@ pub enum Operation {
     BitAnd,
     /// `argo | arg1`
     BitOr,
+    /// `argo ^ arg1`
+    BitXor,
     /// `dFdx(arg0)` or `dpdx(arg0)`
     PartialDerivativeX,
     /// `dFdy(arg0)` or `dpdy(arg0)`
@@ -479,6 +483,8 @@ pub enum OperationXyz {
     Truncate,
     /// `floatBitsToInt(arg0.xyz)`
     FloatBitsToInt,
+    /// `floatBitsToUint(arg0.xyz)`
+    FloatBitsToUint,
     /// `intBitsToFloat(arg0.xyz)`
     IntBitsToFloat,
     /// `uintBitsToFloat(arg0.xyz)`

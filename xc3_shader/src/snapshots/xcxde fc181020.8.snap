@@ -11,7 +11,6 @@ source: xc3_shader/src/database.rs
 "o1.w": "0.0"
 "o2.x": "Texture(s1, vTex0.x, vTex0.y).x"
 "o2.y": "Texture(s1, vTex0.x, vTex0.y).y"
-"o2.z": "0.0"
 "o3.x": "Mul(Texture(s2, vTex0.x, vTex0.y).z, U_CHR.gAvaSkin.w)"
 "o3.y": "Mul(Texture(s2, vTex0.x, vTex0.y).z, U_CHR.gAvaSkin.w)"
 "o3.z": "Mul(Texture(s2, vTex0.x, vTex0.y).z, U_CHR.gAvaSkin.w)"
@@ -24,6 +23,7 @@ source: xc3_shader/src/database.rs
 "o6.y": "Texture(s3, vTex0.x, vTex0.y).x"
 "o6.z": "Texture(s3, vTex0.x, vTex0.y).y"
 "o6.w": "0.0"
+"o2.z": "Texture(s2, vTex0.x, vTex0.y).y"
 outline_width: None
 normal_intensity: None
 val_inf_intensity: None
