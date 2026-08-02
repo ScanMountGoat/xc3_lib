@@ -1,7 +1,6 @@
 use std::{
     io::{Cursor, IsTerminal},
     path::{Path, PathBuf},
-    sync::atomic::AtomicU32,
 };
 
 use approx::RelativeEq;

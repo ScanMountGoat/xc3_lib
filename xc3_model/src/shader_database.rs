@@ -694,6 +694,7 @@ impl<'a> arbitrary::Arbitrary<'a> for ShaderProgram {
                 .collect(),
             exprs_xyz: u.arbitrary()?,
             val_inf_intensity: u.arbitrary()?,
+            discard_condition: u.arbitrary()?,
         })
     }
 }

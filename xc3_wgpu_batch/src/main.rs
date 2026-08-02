@@ -78,21 +78,23 @@ fn main() {
 
     let start = std::time::Instant::now();
 
-    // Ignore most logs to avoid flooding the console.
-    let mut subscriber = tracing_subscriber::registry().with(
-        tracing_subscriber::fmt::layer()
-            .without_time()
-            .with_ansi(std::io::stdout().is_terminal())
-            .with_filter(LevelFilter::ERROR),
-    );
-
+    #[cfg(not(feature = "tracy"))]
+    {
+        // Ignore most logs to avoid flooding the console.
+        let subscriber = tracing_subscriber::registry().with(
+            tracing_subscriber::fmt::layer()
+                .without_time()
+                .with_ansi(std::io::stdout().is_terminal())
+                .with_filter(LevelFilter::ERROR),
+        );
+        tracing::subscriber::set_global_default(subscriber).unwrap();
+    }
     #[cfg(feature = "tracy")]
     {
         // TODO: Will this work unfiltered?
-        subscriber = subscriber.with(tracing_tracy::TracyLayer::default());
+        let subscriber = tracing_subscriber::registry().with(tracing_tracy::TracyLayer::default());
+        tracing::subscriber::set_global_default(subscriber).unwrap();
     }
-
-    tracing::subscriber::set_global_default(subscriber).unwrap();
 
     let backends = match &cli.backend {
         Some(backend) => match backend.to_lowercase().as_str() {

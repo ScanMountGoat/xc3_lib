@@ -118,20 +118,21 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
 
-    let mut subscriber = tracing_subscriber::registry().with(
-        tracing_subscriber::fmt::layer()
-            .without_time()
-            .with_ansi(std::io::stdout().is_terminal())
-            .with_filter(LevelFilter::WARN),
-    );
-
+    #[cfg(not(feature = "tracy"))]
+    {
+        let subscriber = tracing_subscriber::registry().with(
+            tracing_subscriber::fmt::layer()
+                .without_time()
+                .with_ansi(std::io::stdout().is_terminal())
+                .with_filter(LevelFilter::WARN),
+        );
+        tracing::subscriber::set_global_default(subscriber).unwrap();
+    }
     #[cfg(feature = "tracy")]
     {
-        // TODO: Will this work unfiltered?
-        subscriber = subscriber.with(tracing_tracy::TracyLayer::default());
+        let subscriber = tracing_subscriber::registry().with(tracing_tracy::TracyLayer::default());
+        tracing::subscriber::set_global_default(subscriber).unwrap();
     }
-
-    tracing::subscriber::set_global_default(subscriber).unwrap();
 
     let start = std::time::Instant::now();
     match cli.command {

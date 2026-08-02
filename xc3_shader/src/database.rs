@@ -227,15 +227,13 @@ fn insert_xcx_de_inferred_ambient_occlusion(
             .iter()
             .filter(|(n, cs)| is_material_texture(n) && cs.len() == 1)
             .collect();
-        if let &[(name, _)] = &filtered[..] {
-            if let Some(ao_tex) = xyz.iter().find(|t| &t.name == name) {
-                if let Some(expr_index) = exprs.iter().position(|e| {
+        if let &[(name, _)] = &filtered[..]
+            && let Some(ao_tex) = xyz.iter().find(|t| &t.name == name)
+                && let Some(expr_index) = exprs.iter().position(|e| {
                     e == &OutputExpr::Value(crate::expr::Value::Texture((*ao_tex).clone()))
                 }) {
                     output_dependencies.insert("o2.z".into(), expr_index);
                 }
-            }
-        }
     }
 }
 
@@ -426,11 +424,11 @@ impl crate::expr::Operation for Operation {
         if let Some(new_expr) = latte_texture_cube_coords(graph, expr)
             // TODO: Detect these as operations.
             .or_else(|| fma_normalize(graph, expr))
-            .or_else(|| u_mdl_view_bitangent_xyz(graph, &expr))
-            .or_else(|| gm_cal_u_bill_attribute_xyzw(graph, &expr))
-            .or_else(|| gm_cal_u_nam_attribute_xyzw(graph, &expr))
-            .or_else(|| gm_cal_u_nam2_attribute_xyzw(graph, &expr))
-            .or_else(|| gm_cal_clip_attribute_xyzw(graph, &expr))
+            .or_else(|| u_mdl_view_bitangent_xyz(graph, expr))
+            .or_else(|| gm_cal_u_bill_attribute_xyzw(graph, expr))
+            .or_else(|| gm_cal_u_nam_attribute_xyzw(graph, expr))
+            .or_else(|| gm_cal_u_nam2_attribute_xyzw(graph, expr))
+            .or_else(|| gm_cal_clip_attribute_xyzw(graph, expr))
         {
             Cow::Owned(new_expr)
         } else {

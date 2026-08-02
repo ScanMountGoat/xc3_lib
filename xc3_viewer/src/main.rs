@@ -885,21 +885,22 @@ impl ApplicationHandler<()> for App {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    // Ignore most logs to avoid flooding the console.
-    let mut subscriber = tracing_subscriber::registry().with(
-        tracing_subscriber::fmt::layer()
-            .without_time()
-            .with_ansi(std::io::stdout().is_terminal())
-            .with_filter(LevelFilter::WARN),
-    );
-
+    #[cfg(not(feature = "tracy"))]
+    {
+        // Ignore most logs to avoid flooding the console.
+        let subscriber = tracing_subscriber::registry().with(
+            tracing_subscriber::fmt::layer()
+                .without_time()
+                .with_ansi(std::io::stdout().is_terminal())
+                .with_filter(LevelFilter::WARN),
+        );
+        tracing::subscriber::set_global_default(subscriber).unwrap();
+    }
     #[cfg(feature = "tracy")]
     {
-        // TODO: Will this work unfiltered?
-        subscriber = subscriber.with(tracing_tracy::TracyLayer::default());
+        let subscriber = tracing_subscriber::registry().with(tracing_tracy::TracyLayer::default());
+        tracing::subscriber::set_global_default(subscriber).unwrap();
     }
-
-    tracing::subscriber::set_global_default(subscriber).unwrap();
 
     let (model_roots, map_roots, collision_meshes) = load_files(&cli)?;
 
