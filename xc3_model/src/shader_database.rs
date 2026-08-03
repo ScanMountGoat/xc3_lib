@@ -301,6 +301,12 @@ pub enum Operation {
     Sin,
     /// `cos(arg0)`
     Cos,
+    /// `normalize(vec3(arg0, arg1, arg2)).x`
+    NormalizeX,
+    /// `normalize(vec3(arg0, arg1, arg2)).y`
+    NormalizeZ,
+    /// `normalize(vec3(arg0, arg1, arg2)).z`
+    NormalizeY,
 }
 
 /// A tree of computations with [Value] for the leaf values.
@@ -505,6 +511,8 @@ pub enum OperationXyz {
     Sin,
     /// `cos(arg0.xyz)`
     Cos,
+    /// `normalize(arg0.xyz)`
+    Normalize,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

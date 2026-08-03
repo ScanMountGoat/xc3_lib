@@ -447,7 +447,7 @@ pub fn op_add_normal<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation,
     // The normalize is baked into the outer query and might not be present.
     let mut expr = expr;
     if let Some(new_expr) = normalize(graph, expr) {
-        expr = assign_x_recursive(graph, new_expr);
+        expr = new_expr;
     }
 
     let result = query_nodes(expr, graph, &OP_ADD_NORMAL_OUTER)
@@ -462,14 +462,13 @@ pub fn op_add_normal<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation,
     let ratio = result.get("ratio")?;
 
     let mut nom_work = *result.get("nom_work")?;
-    nom_work = assign_x_recursive(graph, nom_work);
     if let Some(new_expr) = normalize(graph, nom_work) {
-        nom_work = assign_x_recursive(graph, new_expr);
+        nom_work = new_expr;
     }
 
-    let op = if nom_work == assign_x_recursive(graph, n1_x) {
+    let op = if nom_work == *n1_x {
         Operation::AddNormalX
-    } else if nom_work == assign_x_recursive(graph, n1_y) {
+    } else if nom_work == *n1_y {
         Operation::AddNormalY
     } else {
         Operation::Unk
@@ -756,6 +755,11 @@ pub fn op_calc_normal_map<'a>(
     expr: &'a Expr,
 ) -> Option<(Operation, Vec<&'a Expr>)> {
     // TODO: Detect normal mapping from other games.
+    let mut expr = expr;
+    if let Some(new_expr) = normalize(graph, expr) {
+        expr = new_expr;
+    }
+
     let (op, result) = query_nodes(expr, graph, &CALC_NORMAL_MAP_XCX_X)
         .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_X))
         .map(|r| (Operation::NormalMapX, r))
@@ -3120,7 +3124,6 @@ static GM_CAL_U_BILL_COLOR_ATTRIBUTE_W: LazyLock<Graph> = LazyLock::new(|| {
 });
 
 pub fn gm_cal_u_bill_color_attribute_w<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
-    // TODO: This should match the attribute names exactly to be able to return &Expr?
     let result = query_nodes(expr, graph, &GM_CAL_U_BILL_COLOR_ATTRIBUTE_W)?;
     result.get("color_w").copied()
 }
@@ -3140,6 +3143,8 @@ static U_MDL_ATTRIBUTE_XYZW: LazyLock<Graph> = LazyLock::new(|| {
 });
 
 pub fn u_mdl_view_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    // TODO: return an operation for this conversion.
+    // TODO: match the buffer name and field.
     let result = query_nodes(expr, graph, &U_MDL_ATTRIBUTE_XYZW)?;
     let index = result.get("index")?;
     match index {
@@ -3536,6 +3541,52 @@ pub fn op_fur_instance_alpha<'a>(
     let result = query_nodes(expr, graph, &FUR_INSTANCE_ALPHA)?;
     let param = result.get("param")?;
     Some((Operation::FurInstanceAlpha, vec![param]))
+}
+
+static OP_NORMALIZE_XYZ: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            length2 = x * x;
+            length2 = fma(y, y, length2);
+            length2 = fma(z, z, length2);
+            inverse_length = inversesqrt(length2);
+            result = value * inverse_length;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap().simplify()
+});
+
+static OP_NORMALIZE_XCX_XYZ: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        void main() {
+            length2 = dot(vec4(x, y, z, 0.0), vec4(x, y, z, 0.0));
+            inverse_length = inversesqrt(length2);
+            result = value * inverse_length;
+        }
+    "};
+    Graph::parse_glsl(query).unwrap().simplify()
+});
+
+pub fn op_normalize<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes(expr, graph, &OP_NORMALIZE_XYZ)
+        .or_else(|| query_nodes(expr, graph, &OP_NORMALIZE_XCX_XYZ))?;
+
+    let value = result.get("value")?;
+    let x = result.get("x")?;
+    let y = result.get("y")?;
+    let z = result.get("z")?;
+
+    let op = if value == x {
+        Operation::NormalizeX
+    } else if value == y {
+        Operation::NormalizeY
+    } else if value == z {
+        Operation::NormalizeZ
+    } else {
+        return None;
+    };
+
+    Some((op, vec![x, y, z]))
 }
 
 fn latte_texture_cube_query(c: char) -> String {

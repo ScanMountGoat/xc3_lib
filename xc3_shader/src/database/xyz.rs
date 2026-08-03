@@ -74,6 +74,9 @@ impl OperationXyzChannel for Operation {
             Operation::Log2 => Some((OperationXyz::Log2, None)),
             Operation::Sin => Some((OperationXyz::Sin, None)),
             Operation::Cos => Some((OperationXyz::Cos, None)),
+            Operation::NormalizeX => Some((OperationXyz::Normalize, Some('x'))),
+            Operation::NormalizeZ => Some((OperationXyz::Normalize, Some('y'))),
+            Operation::NormalizeY => Some((OperationXyz::Normalize, Some('z'))),
         }
     }
 }
@@ -119,6 +122,11 @@ impl MergeXyzArgs<Operation> for OperationXyz {
 
                 let normal = merge_xyz_exprs(args_x[3], args_x[4], args_x[5], exprs, exprs_xyz)?;
                 args.push(normal);
+            }
+            OperationXyz::Normalize => {
+                // TODO: Check that all args are the same.
+                let xyz = merge_xyz_exprs(args_x[0], args_x[1], args_x[2], exprs, exprs_xyz)?;
+                args.push(xyz);
             }
             _ => {
                 for ((x, y), z) in args_x.iter().zip(args_y.iter()).zip(args_z.iter()) {

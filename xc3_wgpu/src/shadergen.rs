@@ -248,7 +248,19 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
         Operation::Exp2 => write!(wgsl, "exp2({a}{})", arg0?).unwrap(),
         Operation::Log2 => write!(wgsl, "log2({a}{})", arg0?).unwrap(),
         Operation::Sin => write!(wgsl, "sin({a}{})", arg0?).unwrap(),
-        Operation::Cos => write!(wgsl, "cos({a}{})", arg0?).unwrap(),
+        Operation::Cos => write!(wgsl, "cos({a}{})", arg0?).unwrap(),        
+        Operation::NormalizeX => write!(wgsl,
+            "normalize({a}{}, {a}{}, {a}{}, {a}{}).x",
+            arg0?, arg1?, arg2?, arg3?
+        ).unwrap(),
+        Operation::NormalizeY => write!(wgsl,
+            "normalize({a}{}, {a}{}, {a}{}, {a}{}).y",
+            arg0?, arg1?, arg2?, arg3?
+        ).unwrap(),
+        Operation::NormalizeZ => write!(wgsl,
+            "normalize({a}{}, {a}{}, {a}{}, {a}{}).z",
+            arg0?, arg1?, arg2?, arg3?
+        ).unwrap(),
     }
     Some(())
 }
@@ -411,12 +423,19 @@ fn write_value(
                     write_parameter(wgsl, "per_material.u_mate", &p.field, p.index, p.channel);
                 }
                 "U_Static" => match p.field.as_str() {
-                    "gmView" => write_parameter(wgsl, "camera", "view_inv", p.index, p.channel),
+                    "gmView" => write_parameter(wgsl, "camera", "view", p.index, p.channel),
                     "gmProj" => write_parameter(wgsl, "camera", "projection", p.index, p.channel),
                     "gmViewProj" => {
                         write_parameter(wgsl, "camera", "view_projection", p.index, p.channel)
                     }
                     "gmInvView" => write_parameter(wgsl, "camera", "view_inv", p.index, p.channel),
+                    _ => {
+                        error!("Unsupported parameter {p}");
+                        return None;
+                    }
+                },
+                "U_Mdl" => match p.field.as_str() {
+                    "gmWorldView" => write_parameter(wgsl, "camera", "view", p.index, p.channel),
                     _ => {
                         error!("Unsupported parameter {p}");
                         return None;
@@ -581,6 +600,7 @@ fn write_func_xyz(
         OperationXyz::Log2 => write!(wgsl, "log2({a}{})", arg0?).unwrap(),
         OperationXyz::Sin => write!(wgsl, "sin({a}{})", arg0?).unwrap(),
         OperationXyz::Cos => write!(wgsl, "cos({a}{})", arg0?).unwrap(),
+        OperationXyz::Normalize => write!(wgsl, "normalize({a}{})", arg0?).unwrap(),
     }
     write!(wgsl, "{}", channel_xyz_wgsl(channel)).unwrap();
     Some(())

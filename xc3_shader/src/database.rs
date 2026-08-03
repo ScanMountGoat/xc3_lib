@@ -229,11 +229,12 @@ fn insert_xcx_de_inferred_ambient_occlusion(
             .collect();
         if let &[(name, _)] = &filtered[..]
             && let Some(ao_tex) = xyz.iter().find(|t| &t.name == name)
-                && let Some(expr_index) = exprs.iter().position(|e| {
-                    e == &OutputExpr::Value(crate::expr::Value::Texture((*ao_tex).clone()))
-                }) {
-                    output_dependencies.insert("o2.z".into(), expr_index);
-                }
+            && let Some(expr_index) = exprs.iter().position(|e| {
+                e == &OutputExpr::Value(crate::expr::Value::Texture((*ao_tex).clone()))
+            })
+        {
+            output_dependencies.insert("o2.z".into(), expr_index);
+        }
     }
 }
 
@@ -345,6 +346,8 @@ impl crate::expr::Operation for Operation {
         // TODO: inversesqrt
         // TODO: exp2 should always be part of a pow expression
         op_add_normal(graph, expr)
+            .or_else(|| op_calc_normal_map(graph, expr))
+            .or_else(|| op_normalize(graph, expr))
             .or_else(|| op_monochrome(graph, expr))
             .or_else(|| op_fresnel_ratio(graph, expr))
             .or_else(|| op_overlay2(graph, expr))
@@ -354,7 +357,6 @@ impl crate::expr::Operation for Operation {
             .or_else(|| tex_parallax(graph, expr))
             .or_else(|| tex_matrix(graph, expr))
             .or_else(|| op_reflect(graph, expr))
-            .or_else(|| op_calc_normal_map(graph, expr))
             .or_else(|| op_fur_instance_alpha(graph, expr))
             .or_else(|| op_mix(graph, expr))
             .or_else(|| op_mul_ratio(graph, expr))
@@ -412,9 +414,6 @@ impl crate::expr::Operation for Operation {
             expr = new_expr;
         }
         // TODO: Detect these as operations.
-        if let Some(new_expr) = normalize(graph, expr) {
-            expr = new_expr;
-        }
         if let Some(new_expr) = attribute_gm_cal_xyz(graph, expr)
             .or_else(|| gm_cal_u_bill_color_attribute_w(graph, expr))
         {
@@ -438,9 +437,6 @@ impl crate::expr::Operation for Operation {
 
     fn preprocess_value_expr<'a>(graph: &'a Graph, expr: &'a Expr) -> Cow<'a, Expr> {
         let mut expr = expr;
-        if let Some(new_expr) = normalize(graph, expr) {
-            expr = new_expr;
-        }
         if let Some(new_expr) = normal_map_fma(graph, expr) {
             expr = new_expr;
         }
@@ -971,6 +967,8 @@ mod tests {
         // Check that the color texture is multiplied by vertex color.
         assert_shader_snapshot!("xc2", "bl000101", "8");
     }
+
+    // TODO: bl302101 9
 
     #[test]
     fn shader_from_glsl_mio_skirt() {
