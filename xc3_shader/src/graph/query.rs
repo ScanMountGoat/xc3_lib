@@ -29,17 +29,25 @@ use smol_str::SmolStr;
 use std::{collections::BTreeMap, sync::LazyLock};
 
 impl Graph {
-    /// Find the corresponding [Expr] in the graph for each [Expr::Global] in `query`
-    /// or `None` if the graphs do not match.
-    ///
-    /// Variables in `query` function as placeholder variables and will match any input expression.
-    /// This allows for extracting variable values from specific parts of the code.
-    ///
-    /// This uses a structural match that allows for differences in variable names
-    /// and implements basic algebraic identities like `a*b == b*a`.
+    /// Queries the last [Node](super::Node) input expression using [query_nodes].
     pub fn query(&self, query: &Graph) -> Option<BTreeMap<SmolStr, &Expr>> {
         // TODO: Should this always be the last node?
         query_nodes(&self.exprs[self.nodes.last()?.input], self, query)
+    }
+
+    /// Queries the last [Node](super::Node) input expression using [query_nodes_vars].
+    pub fn query_vars(
+        &self,
+        query: &Graph,
+        query_var_names: &BTreeMap<SmolStr, SmolStr>,
+    ) -> Option<BTreeMap<SmolStr, &Expr>> {
+        // TODO: Should this always be the last node?
+        query_nodes_vars(
+            &self.exprs[self.nodes.last()?.input],
+            self,
+            query,
+            query_var_names,
+        )
     }
 }
 
@@ -57,15 +65,7 @@ pub fn query_nodes_glsl<'a>(
     query_nodes(input, input_graph, &query)
 }
 
-/// Find the corresponding [Expr] in the graph for each [Expr::Global] in `query_nodes`
-/// or `None` if the graphs do not match.
-///
-/// Variables in `query_nodes` function as placeholder variables and will match any input expression.
-/// This allows for extracting variable values from specific parts of the code.
-/// Unrelated nodes in the input will be ignored.
-///
-/// This uses a structural match that effectively checks if the query is a subgraph of the input
-/// while allowing for differences in variable names basic algebraic identities like `a*b == b*a`.
+/// [query_nodes_vars] but without any exact variable name matching.
 pub fn query_nodes<'a>(
     input: &'a Expr,
     input_graph: &'a Graph,
@@ -81,6 +81,41 @@ pub fn query_nodes<'a>(
         query_graph,
         input_graph,
         &mut vars,
+        &BTreeMap::new(),
+    );
+
+    is_match.then_some(vars)
+}
+
+/// Find the corresponding [Expr] in the graph for each [Expr::Global] in `query_nodes`
+/// or `None` if the graphs do not match.
+///
+/// Variables in `query_nodes` function as placeholder variables and will match any input expression.
+/// This allows for extracting variable values from specific parts of the code.
+/// Unrelated nodes in the input will be ignored.
+///
+/// This uses a structural match that effectively checks if the query is a subgraph of the input
+/// while allowing for differences in variable names basic algebraic identities like `a*b == b*a`.
+///
+/// The `query_var_names` defines a mapping from variables in `query_graph` to their expected name in `input_graph`.
+/// This allows for checking for exact names like `vPos.x * var1.x` vs `var0.x * var1.x`.
+pub fn query_nodes_vars<'a>(
+    input: &'a Expr,
+    input_graph: &'a Graph,
+    query_graph: &Graph,
+    query_var_names: &BTreeMap<SmolStr, SmolStr>,
+) -> Option<BTreeMap<SmolStr, &'a Expr>> {
+    // Keep track of corresponding input exprs for global vars in query.
+    let mut vars = BTreeMap::new();
+
+    // TODO: Is this the right way to handle multiple query nodes?
+    let is_match = check_exprs(
+        query_graph.nodes.last()?.input,
+        input,
+        query_graph,
+        input_graph,
+        &mut vars,
+        query_var_names,
     );
 
     is_match.then_some(vars)
@@ -92,8 +127,9 @@ fn check_exprs<'a>(
     query_graph: &Graph,
     input_graph: &'a Graph,
     vars: &mut BTreeMap<SmolStr, &'a Expr>,
+    query_var_names: &BTreeMap<SmolStr, SmolStr>,
 ) -> bool {
-    let mut check = |a, b| check_args(a, b, query_graph, input_graph, vars);
+    let mut check = |a, b| check_args(a, b, query_graph, input_graph, vars, query_var_names);
 
     match (&query_graph.exprs[query], input) {
         (Expr::Binary(BinaryOp::Sub, a1, b1), Expr::Binary(BinaryOp::Add, a2, b2)) => {
@@ -203,12 +239,30 @@ fn check_exprs<'a>(
                 _ => false,
             }
         }
-        (Expr::Global { name, channel }, i) => {
+        (
+            Expr::Global {
+                name: n1,
+                channel: c1,
+            },
+            i,
+        ) => {
+            // Check if a variable in the query matches the expected variable name.
+            // Checking here allows for differentiating cases like a*expected vs expected*a.
+            if let Some(expected) = query_var_names.get(n1)
+                && let Expr::Global {
+                    name: n2,
+                    channel: c2,
+                } = i
+                && (expected != n2 || !check_channels(*c1, *c2))
+            {
+                return false;
+            }
+
             // TODO: What happens if the var is already in the map?
             // TODO: Special case to check name if query and input are both Expr::Global?
-            vars.insert(name.clone(), i);
+            vars.insert(n1.clone(), i);
 
-            check_channels(*channel, i.channel())
+            check_channels(*c1, i.channel())
         }
         // TODO: Move this to simplification instead?
         (Expr::Unary(UnaryOp::Negate, a1), Expr::Binary(BinaryOp::Sub, a2, b2)) => {
@@ -234,6 +288,7 @@ fn check_args<'a>(
     query_graph: &Graph,
     input_graph: &'a Graph,
     vars: &mut BTreeMap<SmolStr, &'a Expr>,
+    query_var_names: &BTreeMap<SmolStr, SmolStr>,
 ) -> bool {
     // Track values for query variables used in this expr.
     // fma(a, b, a) should not match fma(0.0, 1.0, 2.0).
@@ -249,7 +304,14 @@ fn check_args<'a>(
                     return false;
                 }
             }
-            check_exprs(*q, &input_graph.exprs[*i], query_graph, input_graph, vars)
+            check_exprs(
+                *q,
+                &input_graph.exprs[*i],
+                query_graph,
+                input_graph,
+                vars,
+                query_var_names,
+            )
         })
 }
 
@@ -373,8 +435,28 @@ mod tests {
         let graph = Graph::parse_glsl_query(graph_glsl).unwrap();
         let query = Graph::parse_glsl_query(query_glsl).unwrap();
 
-        // TODO: Check vars?
         graph.query(&query).map(|v| {
+            v.into_iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect()
+        })
+    }
+
+    fn query_glsl_vars(
+        graph_glsl: &str,
+        query_glsl: &str,
+        vars: &[(&str, &str)],
+    ) -> Option<BTreeMap<String, Expr>> {
+        let graph = Graph::parse_glsl_query(graph_glsl).unwrap();
+        let query = Graph::parse_glsl_query(query_glsl).unwrap();
+
+        let vars: BTreeMap<_, _> = vars
+            .into_iter()
+            .copied()
+            .map(|(k, v)| (k.into(), v.into()))
+            .collect();
+
+        graph.query_vars(&query, &vars).map(|v| {
             v.into_iter()
                 .map(|(k, v)| (k.to_string(), v.clone()))
                 .collect()
@@ -519,6 +601,27 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn query_vars() {
+        assert!(
+            query_glsl_vars(
+                "result = a * var;",
+                "result = temp0 * var;",
+                &[("temp0", "a")]
+            )
+            .is_some()
+        );
+        assert!(
+            query_glsl_vars(
+                "result = a * var;",
+                "result = temp0 * var;",
+                &[("temp0", "b")]
+            )
+            .is_none()
+        );
+        assert!(query_glsl_vars("result = a * var;", "result = temp0 * var;", &[]).is_some());
     }
 
     #[test]
