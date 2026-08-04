@@ -392,7 +392,7 @@ static OP_ADD_NORMAL: LazyLock<Graph> = LazyLock::new(|| {
     // xeno3/chr/ch/ch01027000, "body_toon", shd0087
     // The normal maps have only XY channels.
     // The t and u values are negated here for some reason.
-    // The the final result is still equivalent to the pcmdo code.
+    // The final result is still equivalent to the pcmdo code.
     // t = n1.xyz + vec3(0.0, 0.0, 1.0);
     // u = n2.xyz * vec3(-1.0, -1.0, 1.0);
     // r = t * dot(t, u) - u * t.z;
@@ -401,8 +401,8 @@ static OP_ADD_NORMAL: LazyLock<Graph> = LazyLock::new(|| {
     // TODO: Assume n2 is a normal map?
     // TODO: detect t.z for r?
     let query = indoc! {"
-        t_x = 0.0 + n1_x;
-        t_y = 0.0 + n1_y;
+        t_x = n1_x + 0.0;
+        t_y = n1_y + 0.0;
         t_z = n1_z + 1.0;
         u_x = n2_x;
         u_y = n2_y;
@@ -434,6 +434,7 @@ static OP_ADD_NORMAL2: LazyLock<Graph> = LazyLock::new(|| {
     // r = t * dot(t, u) - u * t.z;
     // result = normalize(mix(n1, normalize(r), ratio));
     // TODO: detect t.z for r?
+    // TODO: detect normalize n1 in fma separately?
     let query = indoc! {"
         t_x = fma(n1_x, n1_inverse_sqrt, 0.0);
         t_y = fma(n1_y, n1_inverse_sqrt, 0.0);
@@ -446,7 +447,7 @@ static OP_ADD_NORMAL2: LazyLock<Graph> = LazyLock::new(|| {
         dot_t_u = fma(t_y, u_y, dot_t_u);
         dot_t_u = fma(t_z, u_z, dot_t_u);
 
-        temp6 = fma(t_x, dot_t_u, neg_n2);
+        temp6 = fma(t, dot_t_u, neg_n2);
 
         n_inv_sqrt = inversesqrt(temp4);
         r = fma(temp6, n_inv_sqrt, neg_n1);
@@ -459,19 +460,28 @@ static OP_ADD_NORMAL2: LazyLock<Graph> = LazyLock::new(|| {
 static OP_ADD_NORMAL3: LazyLock<Graph> = LazyLock::new(|| {
     // xeno2/model/np/np001101, "body", shd0013
     // Slightly different version of dot(t, u) for the outermost call.
+    // t = n1.xyz + vec3(0.0, 0.0, 1.0);
+    // u = n2.xyz * vec3(-1.0, -1.0, 1.0);
+    // r = t * dot(t, u) - u * t.z;
+    // result = normalize(mix(n1, normalize(r), ratio));
+    // TODO: detect t.z for r?
     // TODO: Figure out why this needs a separate query.
+    // TODO: detect normalize n1 in fma separately?
     let query = indoc! {"
-        n1_x = fma(n1_x, n1_inverse_sqrt, 0.0);
-        n1_y = fma(n1_y, n1_inverse_sqrt, 0.0);
-        n1_z_plus_one = fma(n1_z, n1_inverse_sqrt, 1.0);
-        neg_n1_x = 0.0 - n1_x;
-        neg_n1_y = 0.0 - n1_y;
+        t_x = fma(n1_x, n1_inverse_sqrt, 0.0);
+        t_y = fma(n1_y, n1_inverse_sqrt, 0.0);
+        t_z = fma(n1_z, n1_inverse_sqrt, 1.0);
+        u_x = n2_x;
+        u_y = n2_y;
+        u_z = n2_z;
+        neg_t_x = 0.0 - t_x;
+        neg_t_y = 0.0 - t_y;
 
-        dot_t_u = n2_x * neg_n1_x;
-        dot_t_u = fma(n2_y, neg_n1_y, dot_t_u);
-        dot_t_u = fma(n2_z, n1_z_plus_one, dot_t_u);
+        dot_t_u = u_x * neg_t_x;
+        dot_t_u = fma(u_y, neg_t_y, dot_t_u);
+        dot_t_u = fma(u_z, t_z, dot_t_u);
 
-        temp6 = fma(n1_x, dot_t_u, neg_n2);
+        temp6 = fma(t, dot_t_u, neg_n2);
 
         n_inv_sqrt = inversesqrt(temp4);
         r = fma(temp6, n_inv_sqrt, neg_n1);
