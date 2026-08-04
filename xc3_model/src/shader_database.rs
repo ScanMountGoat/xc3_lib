@@ -558,6 +558,18 @@ pub enum ChannelXyz {
     W,
 }
 
+impl std::fmt::Display for OutputExprXyz {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OutputExprXyz::Value(d) => write!(f, "{d}"),
+            OutputExprXyz::Func { op, args, channel } => {
+                let args: Vec<_> = args.iter().map(|a| format!("var{a}")).collect();
+                write!(f, "{op}({}){}", args.join(", "), channels_xyz(*channel))
+            }
+        }
+    }
+}
+
 impl std::fmt::Display for ValueXyz {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

@@ -13,7 +13,6 @@ use tracing::{Level, error, span};
 use xc3_lib::{mths::Mths, spch::Spch};
 use xc3_model::shader_database::{
     AttributeXyz, Operation, ParameterXyz, ProgramHash, ShaderDatabase, ShaderProgram, Value,
-    ValueXyz,
 };
 
 use crate::expr::xyz::ExprCacheXyz;
@@ -665,131 +664,97 @@ pub fn shader_str(s: &ShaderProgram) -> String {
     // Use a condensed representation similar to GLSL for nicer diffs.
     let mut output = String::new();
     for (k, v) in &s.output_dependencies {
-        write!(&mut output, "{k:?}: \"").unwrap();
-        write_expr(&mut output, &s.exprs, *v);
-        output.push('\"');
-        output.push('\n');
+        let mut visited = BTreeSet::new();
+        write_expr_dependencies_recursive(&mut output, s, *v, &mut visited);
+        writeln!(&mut output, "{k} = var{v};").unwrap();
+        writeln!(&mut output).unwrap();
     }
-    writeln!(
-        &mut output,
-        "outline_width: {}",
-        s.outline_width
-            .as_ref()
-            .map(|d| d.to_string())
-            .unwrap_or("None".to_string())
-    )
-    .unwrap();
-    match s.normal_intensity {
-        Some(i) => {
-            write!(&mut output, "normal_intensity: \"").unwrap();
-            write_expr(&mut output, &s.exprs, i);
-            output.push('\"');
-            output.push('\n');
-        }
-        None => writeln!(&mut output, "normal_intensity: None").unwrap(),
+    if let Some(v) = &s.outline_width {
+        writeln!(&mut output, "outline_width = {v};").unwrap();
+        writeln!(&mut output).unwrap();
     }
-    match s.val_inf_intensity {
-        Some(i) => {
-            write!(&mut output, "val_inf_intensity: \"").unwrap();
-            write_expr(&mut output, &s.exprs, i);
-            output.push('\"');
-            output.push('\n');
-        }
-        None => writeln!(&mut output, "val_inf_intensity: None").unwrap(),
+    if let Some(i) = s.normal_intensity {
+        let mut visited = BTreeSet::new();
+        write_expr_dependencies_recursive(&mut output, s, i, &mut visited);
+        writeln!(&mut output, "normal_intensity = {i};").unwrap();
+        writeln!(&mut output).unwrap();
     }
-    match s.discard_condition {
-        Some(i) => {
-            write!(&mut output, "discard: \"").unwrap();
-            write_expr(&mut output, &s.exprs, i);
-            output.push('\"');
-            output.push('\n');
-        }
-        None => writeln!(&mut output, "discard: None").unwrap(),
+    if let Some(i) = s.val_inf_intensity {
+        let mut visited = BTreeSet::new();
+        write_expr_dependencies_recursive(&mut output, s, i, &mut visited);
+        writeln!(&mut output, "val_inf_intensity = {i};").unwrap();
+        writeln!(&mut output).unwrap();
+    }
+    if let Some(i) = s.discard_condition {
+        let mut visited = BTreeSet::new();
+        write_expr_dependencies_recursive(&mut output, s, i, &mut visited);
+        writeln!(&mut output, "discard = {i};").unwrap();
+        writeln!(&mut output).unwrap();
     }
     for (k, v) in &s.output_dependencies_xyz {
-        write!(&mut output, "{k:?}: \"").unwrap();
-        write_expr_xyz(&mut output, s, *v);
-        output.push('\"');
-        output.push('\n');
+        let mut visited = BTreeSet::new();
+        let mut visited_xyz = BTreeSet::new();
+        write_expr_xyz_dependencies_recursive(&mut output, s, *v, &mut visited, &mut visited_xyz);
+        writeln!(&mut output, "{k} = var{v};").unwrap();
+        writeln!(&mut output).unwrap();
     }
 
     output
 }
-
-fn write_expr(output: &mut String, exprs: &[xc3_model::shader_database::OutputExpr], v: usize) {
-    // Substitute all args to produce a single line of condensed output.
-    match &exprs[v] {
-        xc3_model::shader_database::OutputExpr::Value(Value::Texture(t)) => {
-            write!(output, "Texture({}, ", t.name,).unwrap();
-            // Don't write a trailing comma.
-            if let Some((last, args)) = t.texcoords.split_last() {
-                for a in args {
-                    write_expr(output, exprs, *a);
-                    write!(output, ", ").unwrap();
+fn write_expr_dependencies_recursive(
+    output: &mut String,
+    s: &ShaderProgram,
+    i: usize,
+    visited: &mut BTreeSet<usize>,
+) {
+    // Write all values that this value depends on first.
+    if visited.insert(i) {
+        let expr = &s.exprs[i];
+        match expr {
+            xc3_model::shader_database::OutputExpr::Value(
+                xc3_model::shader_database::Value::Texture(t),
+            ) => {
+                for arg in &t.texcoords {
+                    write_expr_dependencies_recursive(output, s, *arg, visited);
                 }
-                write_expr(output, exprs, *last);
             }
-            write!(
-                output,
-                "){}",
-                t.channel.map(|c| format!(".{c}")).unwrap_or_default()
-            )
-            .unwrap();
-        }
-        xc3_model::shader_database::OutputExpr::Func { op, args } => {
-            write!(output, "{op}(").unwrap();
-            // Don't write a trailing comma.
-            if let Some((last, args)) = args.split_last() {
-                for a in args {
-                    write_expr(output, exprs, *a);
-                    write!(output, ", ").unwrap();
+            xc3_model::shader_database::OutputExpr::Func { args, .. } => {
+                for arg in args {
+                    write_expr_dependencies_recursive(output, s, *arg, visited);
                 }
-                write_expr(output, exprs, *last);
             }
-            write!(output, ")").unwrap();
+            xc3_model::shader_database::OutputExpr::Value(_) => (),
         }
-        xc3_model::shader_database::OutputExpr::Value(v) => write!(output, "{v}").unwrap(),
+        writeln!(output, "var{i} = {expr};").unwrap();
     }
 }
 
-fn write_expr_xyz(output: &mut String, s: &ShaderProgram, v: usize) {
-    // Substitute all args to produce a single line of condensed output.
-    match &s.exprs_xyz[v] {
-        xc3_model::shader_database::OutputExprXyz::Value(ValueXyz::Texture(t)) => {
-            write!(output, "Texture({}, ", t.name,).unwrap();
-            // Don't write a trailing comma.
-            if let Some((last, args)) = t.texcoords.split_last() {
-                for a in args {
-                    write_expr(output, &s.exprs, *a);
-                    write!(output, ", ").unwrap();
+fn write_expr_xyz_dependencies_recursive(
+    output: &mut String,
+    s: &crate::database::ShaderProgram,
+    i: usize,
+    visited: &mut BTreeSet<usize>,
+    visited_xyz: &mut BTreeSet<usize>,
+) {
+    // Write all values that this value depends on first.
+    if visited_xyz.insert(i) {
+        let expr = &s.exprs_xyz[i];
+        match expr {
+            xc3_model::shader_database::OutputExprXyz::Value(
+                xc3_model::shader_database::ValueXyz::Texture(t),
+            ) => {
+                for arg in &t.texcoords {
+                    write_expr_dependencies_recursive(output, s, *arg, visited);
                 }
-                write_expr(output, &s.exprs, *last);
             }
-            write!(
-                output,
-                "){}",
-                t.channel.map(|c| format!(".{c}")).unwrap_or_default()
-            )
-            .unwrap();
-        }
-        xc3_model::shader_database::OutputExprXyz::Value(v) => write!(output, "{v}").unwrap(),
-        xc3_model::shader_database::OutputExprXyz::Func { op, args, channel } => {
-            write!(output, "{op}(").unwrap();
-            // Don't write a trailing comma.
-            if let Some((last, args)) = args.split_last() {
-                for a in args {
-                    write_expr_xyz(output, s, *a);
-                    write!(output, ", ").unwrap();
+            xc3_model::shader_database::OutputExprXyz::Func { args, .. } => {
+                for arg in args {
+                    write_expr_xyz_dependencies_recursive(output, s, *arg, visited, visited_xyz);
                 }
-                write_expr_xyz(output, s, *last);
             }
-            write!(
-                output,
-                "){}",
-                channel.map(|c| format!(".{c}")).unwrap_or_default()
-            )
-            .unwrap();
+            xc3_model::shader_database::OutputExprXyz::Value(_) => (),
         }
+        writeln!(output, "var{i} = {expr};").unwrap();
     }
 }
 

@@ -1,27 +1,351 @@
 ---
 source: xc3_shader/src/database.rs
 ---
-"o0.x": "MonochromeX(Fma(Texture(gTResidentTex03, Fma(ReflectX(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].z, 0.5), Fma(ReflectY(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].w, 0.5)).x, Texture(s1, vTex0.x, vTex0.y).x, Texture(s0, vTex0.x, vTex0.y).x), Fma(Texture(gTResidentTex03, Fma(ReflectX(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].z, 0.5), Fma(ReflectY(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].w, 0.5)).y, Texture(s1, vTex0.x, vTex0.y).x, Texture(s0, vTex0.x, vTex0.y).y), Fma(Texture(gTResidentTex03, Fma(ReflectX(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].z, 0.5), Fma(ReflectY(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].w, 0.5)).z, Texture(s1, vTex0.x, vTex0.y).x, Texture(s0, vTex0.x, vTex0.y).z), U_Mate.gWrkFl4[1].w)"
-"o0.y": "MonochromeY(Fma(Texture(gTResidentTex03, Fma(ReflectX(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].z, 0.5), Fma(ReflectY(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].w, 0.5)).x, Texture(s1, vTex0.x, vTex0.y).x, Texture(s0, vTex0.x, vTex0.y).x), Fma(Texture(gTResidentTex03, Fma(ReflectX(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].z, 0.5), Fma(ReflectY(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].w, 0.5)).y, Texture(s1, vTex0.x, vTex0.y).x, Texture(s0, vTex0.x, vTex0.y).y), Fma(Texture(gTResidentTex03, Fma(ReflectX(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].z, 0.5), Fma(ReflectY(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].w, 0.5)).z, Texture(s1, vTex0.x, vTex0.y).x, Texture(s0, vTex0.x, vTex0.y).z), U_Mate.gWrkFl4[1].w)"
-"o0.z": "MonochromeZ(Fma(Texture(gTResidentTex03, Fma(ReflectX(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].z, 0.5), Fma(ReflectY(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].w, 0.5)).x, Texture(s1, vTex0.x, vTex0.y).x, Texture(s0, vTex0.x, vTex0.y).x), Fma(Texture(gTResidentTex03, Fma(ReflectX(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].z, 0.5), Fma(ReflectY(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].w, 0.5)).y, Texture(s1, vTex0.x, vTex0.y).x, Texture(s0, vTex0.x, vTex0.y).y), Fma(Texture(gTResidentTex03, Fma(ReflectX(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].z, 0.5), Fma(ReflectY(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].w, 0.5)).z, Texture(s1, vTex0.x, vTex0.y).x, Texture(s0, vTex0.x, vTex0.y).z), U_Mate.gWrkFl4[1].w)"
-"o0.w": "Mul(Float(Uint(LeftShift(Int(Uint(Max(Truncate(Mul(Clamp(Add(vColor.y, 0.004), 0.0, 1.0), 3.0)), 0.0))), 6))), 0.003921569)"
-"o1.x": "Texture(s3, vTex0.x, vTex0.y).y"
-"o1.y": "Texture(s1, vTex0.x, vTex0.y).y"
-"o1.z": "U_Mate.gWrkFl4[1].y"
-"o1.w": "0.008235293"
-"o2.x": "AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)"
-"o2.y": "AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)"
-"o2.z": "Texture(s1, vTex0.x, vTex0.y).z"
-"o3.x": "Div(1.0, InverseSqrt(Abs(Div(Mul(Fma(Div(1.0, vPos.w), vPos.x, Negate(Div(vPos.x, vPos.w))), 0.5), Max(Max(Abs(Mul(Fma(Div(1.0, vPos.w), vPos.x, Negate(Div(vPos.x, vPos.w))), 0.5)), Abs(Mul(Fma(Div(1.0, vPos.w), vPos.y, Negate(Div(vPos.y, vPos.w))), 0.5))), 1.0)))))"
-"o3.y": "Div(1.0, InverseSqrt(Abs(Div(Mul(Fma(Div(1.0, vPos.w), vPos.y, Negate(Div(vPos.y, vPos.w))), 0.5), Max(Max(Abs(Mul(Fma(Div(1.0, vPos.w), vPos.x, Negate(Div(vPos.x, vPos.w))), 0.5)), Abs(Mul(Fma(Div(1.0, vPos.w), vPos.y, Negate(Div(vPos.y, vPos.w))), 0.5))), 1.0)))))"
-"o3.z": "0.0"
-"o3.w": "Add(Fma(Select(GreaterEqual(Div(Mul(Fma(Div(1.0, vPos.w), vPos.x, Negate(Div(vPos.x, vPos.w))), 0.5), Max(Max(Abs(Mul(Fma(Div(1.0, vPos.w), vPos.x, Negate(Div(vPos.x, vPos.w))), 0.5)), Abs(Mul(Fma(Div(1.0, vPos.w), vPos.y, Negate(Div(vPos.y, vPos.w))), 0.5))), 1.0)), 0.0), 1.0, 0.0), 0.33333334, Mul(Select(GreaterEqual(Div(Mul(Fma(Div(1.0, vPos.w), vPos.y, Negate(Div(vPos.y, vPos.w))), 0.5), Max(Max(Abs(Mul(Fma(Div(1.0, vPos.w), vPos.x, Negate(Div(vPos.x, vPos.w))), 0.5)), Abs(Mul(Fma(Div(1.0, vPos.w), vPos.y, Negate(Div(vPos.y, vPos.w))), 0.5))), 1.0)), 0.0), 1.0, 0.0), 0.6666667)), 0.01)"
-"o4.x": "Sub(Mul(vPos.z, 8.0), Floor(Mul(vPos.z, 8.0)))"
-"o4.y": "Sub(Mul(Floor(Mul(vPos.z, 8.0)), 0.003921569), Floor(Mul(Floor(Mul(vPos.z, 8.0)), 0.003921569)))"
-"o4.z": "Mul(Floor(Mul(Floor(Mul(vPos.z, 8.0)), 0.003921569)), 0.003921569)"
-"o4.w": "vColor.x"
-outline_width: None
-normal_intensity: None
-val_inf_intensity: None
-discard: None
-"o0.xyz": "Monochrome(Fma(Texture(gTResidentTex03, Fma(ReflectX(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].z, 0.5), Fma(ReflectY(NormalizeX(vPos.x, vPos.y, vPos.z), NormalizeY(vPos.x, vPos.y, vPos.z), NormalizeZ(vPos.x, vPos.y, vPos.z), NormalMapX(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapY(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x)), NormalMapZ(AddNormalX(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x), AddNormalY(Texture(s2, vTex0.x, vTex0.y).x, Texture(s2, vTex0.x, vTex0.y).y, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).x, Texture(gTResidentTex09, Mul(vTex0.x, U_Mate.gWrkFl4[0].x), Mul(vTex0.y, U_Mate.gWrkFl4[0].y)).y, U_Mate.gWrkFl4[1].x))), U_Mate.gWrkFl4[0].w, 0.5)).xyz, Texture(s1, vTex0.x, vTex0.y).xxx, Texture(s0, vTex0.x, vTex0.y).xyz), U_Mate.gWrkFl4[1].www).xyz"
+var0 = vPos.x;
+var1 = vPos.y;
+var2 = vPos.z;
+var3 = NormalizeX(var0, var1, var2);
+var4 = NormalizeY(var0, var1, var2);
+var5 = NormalizeZ(var0, var1, var2);
+var6 = vTex0.x;
+var7 = vTex0.y;
+var8 = Texture(s2, var6, var7).x;
+var9 = Texture(s2, var6, var7).y;
+var10 = U_Mate.gWrkFl4[0].x;
+var11 = Mul(var6, var10);
+var12 = U_Mate.gWrkFl4[0].y;
+var13 = Mul(var7, var12);
+var14 = Texture(gTResidentTex09, var11, var13).x;
+var15 = Texture(gTResidentTex09, var11, var13).y;
+var16 = U_Mate.gWrkFl4[1].x;
+var17 = AddNormalX(var8, var9, var14, var15, var16);
+var18 = AddNormalY(var8, var9, var14, var15, var16);
+var19 = NormalMapX(var17, var18);
+var20 = NormalMapY(var17, var18);
+var21 = NormalMapZ(var17, var18);
+var22 = ReflectX(var3, var4, var5, var19, var20, var21);
+var23 = U_Mate.gWrkFl4[0].z;
+var24 = 0.5;
+var25 = Fma(var22, var23, var24);
+var26 = ReflectY(var3, var4, var5, var19, var20, var21);
+var27 = U_Mate.gWrkFl4[0].w;
+var28 = Fma(var26, var27, var24);
+var29 = Texture(gTResidentTex03, var25, var28).x;
+var30 = Texture(s1, var6, var7).x;
+var31 = Texture(s0, var6, var7).x;
+var32 = Fma(var29, var30, var31);
+var33 = Texture(gTResidentTex03, var25, var28).y;
+var34 = Texture(s0, var6, var7).y;
+var35 = Fma(var33, var30, var34);
+var36 = Texture(gTResidentTex03, var25, var28).z;
+var37 = Texture(s0, var6, var7).z;
+var38 = Fma(var36, var30, var37);
+var39 = U_Mate.gWrkFl4[1].w;
+var40 = MonochromeX(var32, var35, var38, var39);
+o0.x = var40;
+
+var0 = vPos.x;
+var1 = vPos.y;
+var2 = vPos.z;
+var3 = NormalizeX(var0, var1, var2);
+var4 = NormalizeY(var0, var1, var2);
+var5 = NormalizeZ(var0, var1, var2);
+var6 = vTex0.x;
+var7 = vTex0.y;
+var8 = Texture(s2, var6, var7).x;
+var9 = Texture(s2, var6, var7).y;
+var10 = U_Mate.gWrkFl4[0].x;
+var11 = Mul(var6, var10);
+var12 = U_Mate.gWrkFl4[0].y;
+var13 = Mul(var7, var12);
+var14 = Texture(gTResidentTex09, var11, var13).x;
+var15 = Texture(gTResidentTex09, var11, var13).y;
+var16 = U_Mate.gWrkFl4[1].x;
+var17 = AddNormalX(var8, var9, var14, var15, var16);
+var18 = AddNormalY(var8, var9, var14, var15, var16);
+var19 = NormalMapX(var17, var18);
+var20 = NormalMapY(var17, var18);
+var21 = NormalMapZ(var17, var18);
+var22 = ReflectX(var3, var4, var5, var19, var20, var21);
+var23 = U_Mate.gWrkFl4[0].z;
+var24 = 0.5;
+var25 = Fma(var22, var23, var24);
+var26 = ReflectY(var3, var4, var5, var19, var20, var21);
+var27 = U_Mate.gWrkFl4[0].w;
+var28 = Fma(var26, var27, var24);
+var29 = Texture(gTResidentTex03, var25, var28).x;
+var30 = Texture(s1, var6, var7).x;
+var31 = Texture(s0, var6, var7).x;
+var32 = Fma(var29, var30, var31);
+var33 = Texture(gTResidentTex03, var25, var28).y;
+var34 = Texture(s0, var6, var7).y;
+var35 = Fma(var33, var30, var34);
+var36 = Texture(gTResidentTex03, var25, var28).z;
+var37 = Texture(s0, var6, var7).z;
+var38 = Fma(var36, var30, var37);
+var39 = U_Mate.gWrkFl4[1].w;
+var41 = MonochromeY(var32, var35, var38, var39);
+o0.y = var41;
+
+var0 = vPos.x;
+var1 = vPos.y;
+var2 = vPos.z;
+var3 = NormalizeX(var0, var1, var2);
+var4 = NormalizeY(var0, var1, var2);
+var5 = NormalizeZ(var0, var1, var2);
+var6 = vTex0.x;
+var7 = vTex0.y;
+var8 = Texture(s2, var6, var7).x;
+var9 = Texture(s2, var6, var7).y;
+var10 = U_Mate.gWrkFl4[0].x;
+var11 = Mul(var6, var10);
+var12 = U_Mate.gWrkFl4[0].y;
+var13 = Mul(var7, var12);
+var14 = Texture(gTResidentTex09, var11, var13).x;
+var15 = Texture(gTResidentTex09, var11, var13).y;
+var16 = U_Mate.gWrkFl4[1].x;
+var17 = AddNormalX(var8, var9, var14, var15, var16);
+var18 = AddNormalY(var8, var9, var14, var15, var16);
+var19 = NormalMapX(var17, var18);
+var20 = NormalMapY(var17, var18);
+var21 = NormalMapZ(var17, var18);
+var22 = ReflectX(var3, var4, var5, var19, var20, var21);
+var23 = U_Mate.gWrkFl4[0].z;
+var24 = 0.5;
+var25 = Fma(var22, var23, var24);
+var26 = ReflectY(var3, var4, var5, var19, var20, var21);
+var27 = U_Mate.gWrkFl4[0].w;
+var28 = Fma(var26, var27, var24);
+var29 = Texture(gTResidentTex03, var25, var28).x;
+var30 = Texture(s1, var6, var7).x;
+var31 = Texture(s0, var6, var7).x;
+var32 = Fma(var29, var30, var31);
+var33 = Texture(gTResidentTex03, var25, var28).y;
+var34 = Texture(s0, var6, var7).y;
+var35 = Fma(var33, var30, var34);
+var36 = Texture(gTResidentTex03, var25, var28).z;
+var37 = Texture(s0, var6, var7).z;
+var38 = Fma(var36, var30, var37);
+var39 = U_Mate.gWrkFl4[1].w;
+var42 = MonochromeZ(var32, var35, var38, var39);
+o0.z = var42;
+
+var43 = vColor.y;
+var44 = 0.004;
+var45 = Add(var43, var44);
+var46 = 0.0;
+var47 = 1.0;
+var48 = Clamp(var45, var46, var47);
+var49 = 3.0;
+var50 = Mul(var48, var49);
+var51 = Truncate(var50);
+var52 = Max(var51, var46);
+var53 = Uint(var52);
+var54 = Int(var53);
+var55 = 6;
+var56 = LeftShift(var54, var55);
+var57 = Uint(var56);
+var58 = Float(var57);
+var59 = 0.003921569;
+var60 = Mul(var58, var59);
+o0.w = var60;
+
+var6 = vTex0.x;
+var7 = vTex0.y;
+var61 = Texture(s3, var6, var7).y;
+o1.x = var61;
+
+var6 = vTex0.x;
+var7 = vTex0.y;
+var62 = Texture(s1, var6, var7).y;
+o1.y = var62;
+
+var63 = U_Mate.gWrkFl4[1].y;
+o1.z = var63;
+
+var64 = 0.008235293;
+o1.w = var64;
+
+var6 = vTex0.x;
+var7 = vTex0.y;
+var8 = Texture(s2, var6, var7).x;
+var9 = Texture(s2, var6, var7).y;
+var10 = U_Mate.gWrkFl4[0].x;
+var11 = Mul(var6, var10);
+var12 = U_Mate.gWrkFl4[0].y;
+var13 = Mul(var7, var12);
+var14 = Texture(gTResidentTex09, var11, var13).x;
+var15 = Texture(gTResidentTex09, var11, var13).y;
+var16 = U_Mate.gWrkFl4[1].x;
+var17 = AddNormalX(var8, var9, var14, var15, var16);
+o2.x = var17;
+
+var6 = vTex0.x;
+var7 = vTex0.y;
+var8 = Texture(s2, var6, var7).x;
+var9 = Texture(s2, var6, var7).y;
+var10 = U_Mate.gWrkFl4[0].x;
+var11 = Mul(var6, var10);
+var12 = U_Mate.gWrkFl4[0].y;
+var13 = Mul(var7, var12);
+var14 = Texture(gTResidentTex09, var11, var13).x;
+var15 = Texture(gTResidentTex09, var11, var13).y;
+var16 = U_Mate.gWrkFl4[1].x;
+var18 = AddNormalY(var8, var9, var14, var15, var16);
+o2.y = var18;
+
+var6 = vTex0.x;
+var7 = vTex0.y;
+var65 = Texture(s1, var6, var7).z;
+o2.z = var65;
+
+var47 = 1.0;
+var66 = vPos.w;
+var67 = Div(var47, var66);
+var0 = vPos.x;
+var68 = Div(var0, var66);
+var69 = Negate(var68);
+var70 = Fma(var67, var0, var69);
+var24 = 0.5;
+var71 = Mul(var70, var24);
+var72 = Abs(var71);
+var1 = vPos.y;
+var73 = Div(var1, var66);
+var74 = Negate(var73);
+var75 = Fma(var67, var1, var74);
+var76 = Mul(var75, var24);
+var77 = Abs(var76);
+var78 = Max(var72, var77);
+var79 = Max(var78, var47);
+var80 = Div(var71, var79);
+var81 = Abs(var80);
+var82 = InverseSqrt(var81);
+var83 = Div(var47, var82);
+o3.x = var83;
+
+var47 = 1.0;
+var66 = vPos.w;
+var67 = Div(var47, var66);
+var1 = vPos.y;
+var73 = Div(var1, var66);
+var74 = Negate(var73);
+var75 = Fma(var67, var1, var74);
+var24 = 0.5;
+var76 = Mul(var75, var24);
+var0 = vPos.x;
+var68 = Div(var0, var66);
+var69 = Negate(var68);
+var70 = Fma(var67, var0, var69);
+var71 = Mul(var70, var24);
+var72 = Abs(var71);
+var77 = Abs(var76);
+var78 = Max(var72, var77);
+var79 = Max(var78, var47);
+var84 = Div(var76, var79);
+var85 = Abs(var84);
+var86 = InverseSqrt(var85);
+var87 = Div(var47, var86);
+o3.y = var87;
+
+var46 = 0.0;
+o3.z = var46;
+
+var47 = 1.0;
+var66 = vPos.w;
+var67 = Div(var47, var66);
+var0 = vPos.x;
+var68 = Div(var0, var66);
+var69 = Negate(var68);
+var70 = Fma(var67, var0, var69);
+var24 = 0.5;
+var71 = Mul(var70, var24);
+var72 = Abs(var71);
+var1 = vPos.y;
+var73 = Div(var1, var66);
+var74 = Negate(var73);
+var75 = Fma(var67, var1, var74);
+var76 = Mul(var75, var24);
+var77 = Abs(var76);
+var78 = Max(var72, var77);
+var79 = Max(var78, var47);
+var80 = Div(var71, var79);
+var46 = 0.0;
+var88 = GreaterEqual(var80, var46);
+var89 = Select(var88, var47, var46);
+var90 = 0.33333334;
+var84 = Div(var76, var79);
+var91 = GreaterEqual(var84, var46);
+var92 = Select(var91, var47, var46);
+var93 = 0.6666667;
+var94 = Mul(var92, var93);
+var95 = Fma(var89, var90, var94);
+var96 = 0.01;
+var97 = Add(var95, var96);
+o3.w = var97;
+
+var2 = vPos.z;
+var98 = 8.0;
+var99 = Mul(var2, var98);
+var100 = Floor(var99);
+var101 = Sub(var99, var100);
+o4.x = var101;
+
+var2 = vPos.z;
+var98 = 8.0;
+var99 = Mul(var2, var98);
+var100 = Floor(var99);
+var59 = 0.003921569;
+var102 = Mul(var100, var59);
+var103 = Floor(var102);
+var104 = Sub(var102, var103);
+o4.y = var104;
+
+var2 = vPos.z;
+var98 = 8.0;
+var99 = Mul(var2, var98);
+var100 = Floor(var99);
+var59 = 0.003921569;
+var102 = Mul(var100, var59);
+var103 = Floor(var102);
+var105 = Mul(var103, var59);
+o4.z = var105;
+
+var106 = vColor.x;
+o4.w = var106;
+
+var0 = vPos.x;
+var1 = vPos.y;
+var2 = vPos.z;
+var3 = NormalizeX(var0, var1, var2);
+var4 = NormalizeY(var0, var1, var2);
+var5 = NormalizeZ(var0, var1, var2);
+var6 = vTex0.x;
+var7 = vTex0.y;
+var8 = Texture(s2, var6, var7).x;
+var9 = Texture(s2, var6, var7).y;
+var10 = U_Mate.gWrkFl4[0].x;
+var11 = Mul(var6, var10);
+var12 = U_Mate.gWrkFl4[0].y;
+var13 = Mul(var7, var12);
+var14 = Texture(gTResidentTex09, var11, var13).x;
+var15 = Texture(gTResidentTex09, var11, var13).y;
+var16 = U_Mate.gWrkFl4[1].x;
+var17 = AddNormalX(var8, var9, var14, var15, var16);
+var18 = AddNormalY(var8, var9, var14, var15, var16);
+var19 = NormalMapX(var17, var18);
+var20 = NormalMapY(var17, var18);
+var21 = NormalMapZ(var17, var18);
+var22 = ReflectX(var3, var4, var5, var19, var20, var21);
+var23 = U_Mate.gWrkFl4[0].z;
+var24 = 0.5;
+var25 = Fma(var22, var23, var24);
+var26 = ReflectY(var3, var4, var5, var19, var20, var21);
+var27 = U_Mate.gWrkFl4[0].w;
+var28 = Fma(var26, var27, var24);
+var0 = Texture(gTResidentTex03, var25, var28).xyz;
+var1 = Texture(s1, var6, var7).xxx;
+var2 = Texture(s0, var6, var7).xyz;
+var3 = Fma(var0, var1, var2);
+var4 = U_Mate.gWrkFl4[1].www;
+var5 = Monochrome(var3, var4).xyz;
+o0.xyz = var5;

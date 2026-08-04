@@ -1,30 +1,318 @@
 ---
 source: xc3_shader/src/database.rs
 ---
-"o0.x": "MonochromeX(Texture(s0, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).x, Texture(s0, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).y, Texture(s0, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).z, U_Mate.gWrkFl4[3].x)"
-"o0.y": "MonochromeY(Texture(s0, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).x, Texture(s0, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).y, Texture(s0, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).z, U_Mate.gWrkFl4[3].x)"
-"o0.z": "MonochromeZ(Texture(s0, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).x, Texture(s0, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).y, Texture(s0, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).z, U_Mate.gWrkFl4[3].x)"
-"o0.w": "Mul(Float(Uint(LeftShift(Int(Uint(Max(Truncate(Mul(Clamp(Add(vColor.y, 0.004), 0.0, 1.0), 3.0)), 0.0))), 6))), 0.003921569)"
-"o1.x": "vColor.z"
-"o1.y": "U_Mate.gWrkFl4[1].w"
-"o1.z": "U_Mate.gWrkFl4[1].x"
-"o1.w": "0.008235293"
-"o2.z": "1.0"
-"o3.x": "Div(1.0, InverseSqrt(Abs(Div(Mul(Fma(Div(1.0, vPos.w), vPos.x, Negate(Div(vPos.x, vPos.w))), 0.5), Max(Max(Abs(Mul(Fma(Div(1.0, vPos.w), vPos.x, Negate(Div(vPos.x, vPos.w))), 0.5)), Abs(Mul(Fma(Div(1.0, vPos.w), vPos.y, Negate(Div(vPos.y, vPos.w))), 0.5))), 1.0)))))"
-"o3.y": "Div(1.0, InverseSqrt(Abs(Div(Mul(Fma(Div(1.0, vPos.w), vPos.y, Negate(Div(vPos.y, vPos.w))), 0.5), Max(Max(Abs(Mul(Fma(Div(1.0, vPos.w), vPos.x, Negate(Div(vPos.x, vPos.w))), 0.5)), Abs(Mul(Fma(Div(1.0, vPos.w), vPos.y, Negate(Div(vPos.y, vPos.w))), 0.5))), 1.0)))))"
-"o3.z": "U_Mate.gWrkFl4[1].z"
-"o3.w": "Add(Fma(Select(GreaterEqual(Div(Mul(Fma(Div(1.0, vPos.w), vPos.x, Negate(Div(vPos.x, vPos.w))), 0.5), Max(Max(Abs(Mul(Fma(Div(1.0, vPos.w), vPos.x, Negate(Div(vPos.x, vPos.w))), 0.5)), Abs(Mul(Fma(Div(1.0, vPos.w), vPos.y, Negate(Div(vPos.y, vPos.w))), 0.5))), 1.0)), 0.0), 1.0, 0.0), 0.33333334, Mul(Select(GreaterEqual(Div(Mul(Fma(Div(1.0, vPos.w), vPos.y, Negate(Div(vPos.y, vPos.w))), 0.5), Max(Max(Abs(Mul(Fma(Div(1.0, vPos.w), vPos.x, Negate(Div(vPos.x, vPos.w))), 0.5)), Abs(Mul(Fma(Div(1.0, vPos.w), vPos.y, Negate(Div(vPos.y, vPos.w))), 0.5))), 1.0)), 0.0), 1.0, 0.0), 0.6666667)), 0.01)"
-"o4.x": "Sub(Mul(vPos.z, 8.0), Floor(Mul(vPos.z, 8.0)))"
-"o4.y": "Sub(Mul(Floor(Mul(vPos.z, 8.0)), 0.003921569), Floor(Mul(Floor(Mul(vPos.z, 8.0)), 0.003921569)))"
-"o4.z": "Mul(Floor(Mul(Floor(Mul(vPos.z, 8.0)), 0.003921569)), 0.003921569)"
-"o4.w": "vColor.x"
-"o5.x": "Mul(Power(Max(0.0, MonochromeX(Mix(U_Mate.gWrkCol[1].x, Texture(s1, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).x, U_Mate.gWrkFl4[0].w), Mix(U_Mate.gWrkCol[1].y, Texture(s1, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).y, U_Mate.gWrkFl4[0].w), Mix(U_Mate.gWrkCol[1].z, Texture(s1, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).z, U_Mate.gWrkFl4[0].w), U_Mate.gWrkFl4[3].x)), U_Static.gCDep.w), U_Mate.gWrkFl4[2].z)"
-"o5.y": "Mul(Power(Max(0.0, MonochromeY(Mix(U_Mate.gWrkCol[1].x, Texture(s1, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).x, U_Mate.gWrkFl4[0].w), Mix(U_Mate.gWrkCol[1].y, Texture(s1, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).y, U_Mate.gWrkFl4[0].w), Mix(U_Mate.gWrkCol[1].z, Texture(s1, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).z, U_Mate.gWrkFl4[0].w), U_Mate.gWrkFl4[3].x)), U_Static.gCDep.w), U_Mate.gWrkFl4[2].z)"
-"o5.z": "Mul(Power(Max(0.0, MonochromeZ(Mix(U_Mate.gWrkCol[1].x, Texture(s1, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).x, U_Mate.gWrkFl4[0].w), Mix(U_Mate.gWrkCol[1].y, Texture(s1, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).y, U_Mate.gWrkFl4[0].w), Mix(U_Mate.gWrkCol[1].z, Texture(s1, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).z, U_Mate.gWrkFl4[0].w), U_Mate.gWrkFl4[3].x)), U_Static.gCDep.w), U_Mate.gWrkFl4[2].z)"
-"o5.w": "1.0"
-outline_width: None
-normal_intensity: None
-val_inf_intensity: None
-discard: None
-"o0.xyz": "Monochrome(Texture(s0, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).xyz, U_Mate.gWrkFl4[3].xxx).xyz"
-"o5.xyz": "Mul(Power(Max([0.0, 0.0, 0.0], Monochrome(Mix(U_Mate.gWrkCol[1].xyz, Texture(s1, TexParallaxX(vTex0.x, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z)), TexParallaxX(vTex0.y, Mix(U_Mate.gWrkFl4[0].x, Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z))).xyz, U_Mate.gWrkFl4[0].www), U_Mate.gWrkFl4[3].xxx).xyz), U_Static.gCDep.www), U_Mate.gWrkFl4[2].zzz)"
+var0 = vTex0.x;
+var1 = U_Mate.gWrkFl4[0].x;
+var2 = vTex0.y;
+var3 = Texture(s2, var0, var2).z;
+var4 = U_Mate.gWrkFl4[0].z;
+var5 = Mix(var1, var3, var4);
+var6 = TexParallaxX(var0, var5);
+var7 = TexParallaxX(var2, var5);
+var8 = Texture(s0, var6, var7).x;
+var9 = Texture(s0, var6, var7).y;
+var10 = Texture(s0, var6, var7).z;
+var11 = U_Mate.gWrkFl4[3].x;
+var12 = MonochromeX(var8, var9, var10, var11);
+o0.x = var12;
+
+var0 = vTex0.x;
+var1 = U_Mate.gWrkFl4[0].x;
+var2 = vTex0.y;
+var3 = Texture(s2, var0, var2).z;
+var4 = U_Mate.gWrkFl4[0].z;
+var5 = Mix(var1, var3, var4);
+var6 = TexParallaxX(var0, var5);
+var7 = TexParallaxX(var2, var5);
+var8 = Texture(s0, var6, var7).x;
+var9 = Texture(s0, var6, var7).y;
+var10 = Texture(s0, var6, var7).z;
+var11 = U_Mate.gWrkFl4[3].x;
+var13 = MonochromeY(var8, var9, var10, var11);
+o0.y = var13;
+
+var0 = vTex0.x;
+var1 = U_Mate.gWrkFl4[0].x;
+var2 = vTex0.y;
+var3 = Texture(s2, var0, var2).z;
+var4 = U_Mate.gWrkFl4[0].z;
+var5 = Mix(var1, var3, var4);
+var6 = TexParallaxX(var0, var5);
+var7 = TexParallaxX(var2, var5);
+var8 = Texture(s0, var6, var7).x;
+var9 = Texture(s0, var6, var7).y;
+var10 = Texture(s0, var6, var7).z;
+var11 = U_Mate.gWrkFl4[3].x;
+var14 = MonochromeZ(var8, var9, var10, var11);
+o0.z = var14;
+
+var15 = vColor.y;
+var16 = 0.004;
+var17 = Add(var15, var16);
+var18 = 0.0;
+var19 = 1.0;
+var20 = Clamp(var17, var18, var19);
+var21 = 3.0;
+var22 = Mul(var20, var21);
+var23 = Truncate(var22);
+var24 = Max(var23, var18);
+var25 = Uint(var24);
+var26 = Int(var25);
+var27 = 6;
+var28 = LeftShift(var26, var27);
+var29 = Uint(var28);
+var30 = Float(var29);
+var31 = 0.003921569;
+var32 = Mul(var30, var31);
+o0.w = var32;
+
+var33 = vColor.z;
+o1.x = var33;
+
+var34 = U_Mate.gWrkFl4[1].w;
+o1.y = var34;
+
+var35 = U_Mate.gWrkFl4[1].x;
+o1.z = var35;
+
+var36 = 0.008235293;
+o1.w = var36;
+
+var19 = 1.0;
+o2.z = var19;
+
+var19 = 1.0;
+var37 = vPos.w;
+var38 = Div(var19, var37);
+var39 = vPos.x;
+var40 = Div(var39, var37);
+var41 = Negate(var40);
+var42 = Fma(var38, var39, var41);
+var43 = 0.5;
+var44 = Mul(var42, var43);
+var45 = Abs(var44);
+var46 = vPos.y;
+var47 = Div(var46, var37);
+var48 = Negate(var47);
+var49 = Fma(var38, var46, var48);
+var50 = Mul(var49, var43);
+var51 = Abs(var50);
+var52 = Max(var45, var51);
+var53 = Max(var52, var19);
+var54 = Div(var44, var53);
+var55 = Abs(var54);
+var56 = InverseSqrt(var55);
+var57 = Div(var19, var56);
+o3.x = var57;
+
+var19 = 1.0;
+var37 = vPos.w;
+var38 = Div(var19, var37);
+var46 = vPos.y;
+var47 = Div(var46, var37);
+var48 = Negate(var47);
+var49 = Fma(var38, var46, var48);
+var43 = 0.5;
+var50 = Mul(var49, var43);
+var39 = vPos.x;
+var40 = Div(var39, var37);
+var41 = Negate(var40);
+var42 = Fma(var38, var39, var41);
+var44 = Mul(var42, var43);
+var45 = Abs(var44);
+var51 = Abs(var50);
+var52 = Max(var45, var51);
+var53 = Max(var52, var19);
+var58 = Div(var50, var53);
+var59 = Abs(var58);
+var60 = InverseSqrt(var59);
+var61 = Div(var19, var60);
+o3.y = var61;
+
+var62 = U_Mate.gWrkFl4[1].z;
+o3.z = var62;
+
+var19 = 1.0;
+var37 = vPos.w;
+var38 = Div(var19, var37);
+var39 = vPos.x;
+var40 = Div(var39, var37);
+var41 = Negate(var40);
+var42 = Fma(var38, var39, var41);
+var43 = 0.5;
+var44 = Mul(var42, var43);
+var45 = Abs(var44);
+var46 = vPos.y;
+var47 = Div(var46, var37);
+var48 = Negate(var47);
+var49 = Fma(var38, var46, var48);
+var50 = Mul(var49, var43);
+var51 = Abs(var50);
+var52 = Max(var45, var51);
+var53 = Max(var52, var19);
+var54 = Div(var44, var53);
+var18 = 0.0;
+var63 = GreaterEqual(var54, var18);
+var64 = Select(var63, var19, var18);
+var65 = 0.33333334;
+var58 = Div(var50, var53);
+var66 = GreaterEqual(var58, var18);
+var67 = Select(var66, var19, var18);
+var68 = 0.6666667;
+var69 = Mul(var67, var68);
+var70 = Fma(var64, var65, var69);
+var71 = 0.01;
+var72 = Add(var70, var71);
+o3.w = var72;
+
+var73 = vPos.z;
+var74 = 8.0;
+var75 = Mul(var73, var74);
+var76 = Floor(var75);
+var77 = Sub(var75, var76);
+o4.x = var77;
+
+var73 = vPos.z;
+var74 = 8.0;
+var75 = Mul(var73, var74);
+var76 = Floor(var75);
+var31 = 0.003921569;
+var78 = Mul(var76, var31);
+var79 = Floor(var78);
+var80 = Sub(var78, var79);
+o4.y = var80;
+
+var73 = vPos.z;
+var74 = 8.0;
+var75 = Mul(var73, var74);
+var76 = Floor(var75);
+var31 = 0.003921569;
+var78 = Mul(var76, var31);
+var79 = Floor(var78);
+var81 = Mul(var79, var31);
+o4.z = var81;
+
+var82 = vColor.x;
+o4.w = var82;
+
+var18 = 0.0;
+var83 = U_Mate.gWrkCol[1].x;
+var0 = vTex0.x;
+var1 = U_Mate.gWrkFl4[0].x;
+var2 = vTex0.y;
+var3 = Texture(s2, var0, var2).z;
+var4 = U_Mate.gWrkFl4[0].z;
+var5 = Mix(var1, var3, var4);
+var6 = TexParallaxX(var0, var5);
+var7 = TexParallaxX(var2, var5);
+var84 = Texture(s1, var6, var7).x;
+var85 = U_Mate.gWrkFl4[0].w;
+var86 = Mix(var83, var84, var85);
+var87 = U_Mate.gWrkCol[1].y;
+var88 = Texture(s1, var6, var7).y;
+var89 = Mix(var87, var88, var85);
+var90 = U_Mate.gWrkCol[1].z;
+var91 = Texture(s1, var6, var7).z;
+var92 = Mix(var90, var91, var85);
+var11 = U_Mate.gWrkFl4[3].x;
+var93 = MonochromeX(var86, var89, var92, var11);
+var94 = Max(var18, var93);
+var95 = U_Static.gCDep.w;
+var96 = Power(var94, var95);
+var97 = U_Mate.gWrkFl4[2].z;
+var98 = Mul(var96, var97);
+o5.x = var98;
+
+var18 = 0.0;
+var83 = U_Mate.gWrkCol[1].x;
+var0 = vTex0.x;
+var1 = U_Mate.gWrkFl4[0].x;
+var2 = vTex0.y;
+var3 = Texture(s2, var0, var2).z;
+var4 = U_Mate.gWrkFl4[0].z;
+var5 = Mix(var1, var3, var4);
+var6 = TexParallaxX(var0, var5);
+var7 = TexParallaxX(var2, var5);
+var84 = Texture(s1, var6, var7).x;
+var85 = U_Mate.gWrkFl4[0].w;
+var86 = Mix(var83, var84, var85);
+var87 = U_Mate.gWrkCol[1].y;
+var88 = Texture(s1, var6, var7).y;
+var89 = Mix(var87, var88, var85);
+var90 = U_Mate.gWrkCol[1].z;
+var91 = Texture(s1, var6, var7).z;
+var92 = Mix(var90, var91, var85);
+var11 = U_Mate.gWrkFl4[3].x;
+var99 = MonochromeY(var86, var89, var92, var11);
+var100 = Max(var18, var99);
+var95 = U_Static.gCDep.w;
+var101 = Power(var100, var95);
+var97 = U_Mate.gWrkFl4[2].z;
+var102 = Mul(var101, var97);
+o5.y = var102;
+
+var18 = 0.0;
+var83 = U_Mate.gWrkCol[1].x;
+var0 = vTex0.x;
+var1 = U_Mate.gWrkFl4[0].x;
+var2 = vTex0.y;
+var3 = Texture(s2, var0, var2).z;
+var4 = U_Mate.gWrkFl4[0].z;
+var5 = Mix(var1, var3, var4);
+var6 = TexParallaxX(var0, var5);
+var7 = TexParallaxX(var2, var5);
+var84 = Texture(s1, var6, var7).x;
+var85 = U_Mate.gWrkFl4[0].w;
+var86 = Mix(var83, var84, var85);
+var87 = U_Mate.gWrkCol[1].y;
+var88 = Texture(s1, var6, var7).y;
+var89 = Mix(var87, var88, var85);
+var90 = U_Mate.gWrkCol[1].z;
+var91 = Texture(s1, var6, var7).z;
+var92 = Mix(var90, var91, var85);
+var11 = U_Mate.gWrkFl4[3].x;
+var103 = MonochromeZ(var86, var89, var92, var11);
+var104 = Max(var18, var103);
+var95 = U_Static.gCDep.w;
+var105 = Power(var104, var95);
+var97 = U_Mate.gWrkFl4[2].z;
+var106 = Mul(var105, var97);
+o5.z = var106;
+
+var19 = 1.0;
+o5.w = var19;
+
+var0 = vTex0.x;
+var1 = U_Mate.gWrkFl4[0].x;
+var2 = vTex0.y;
+var3 = Texture(s2, var0, var2).z;
+var4 = U_Mate.gWrkFl4[0].z;
+var5 = Mix(var1, var3, var4);
+var6 = TexParallaxX(var0, var5);
+var7 = TexParallaxX(var2, var5);
+var0 = Texture(s0, var6, var7).xyz;
+var1 = U_Mate.gWrkFl4[3].xxx;
+var2 = Monochrome(var0, var1).xyz;
+o0.xyz = var2;
+
+var3 = [0.0, 0.0, 0.0];
+var4 = U_Mate.gWrkCol[1].xyz;
+var0 = vTex0.x;
+var1 = U_Mate.gWrkFl4[0].x;
+var2 = vTex0.y;
+var3 = Texture(s2, var0, var2).z;
+var4 = U_Mate.gWrkFl4[0].z;
+var5 = Mix(var1, var3, var4);
+var6 = TexParallaxX(var0, var5);
+var7 = TexParallaxX(var2, var5);
+var5 = Texture(s1, var6, var7).xyz;
+var6 = U_Mate.gWrkFl4[0].www;
+var7 = Mix(var4, var5, var6);
+var1 = U_Mate.gWrkFl4[3].xxx;
+var8 = Monochrome(var7, var1).xyz;
+var9 = Max(var3, var8);
+var10 = U_Static.gCDep.www;
+var11 = Power(var9, var10);
+var12 = U_Mate.gWrkFl4[2].zzz;
+var13 = Mul(var11, var12);
+o5.xyz = var13;
