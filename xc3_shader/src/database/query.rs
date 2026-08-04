@@ -457,6 +457,31 @@ static OP_ADD_NORMAL2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
+static OP_ADD_NORMAL2_1: LazyLock<Graph> = LazyLock::new(|| {
+    // xeno2/map/ma30a, props, "TR0502d_BaseTrunkA", shd0001
+    // TODO: Find a better way to detect fma normalize.
+    let query = indoc! {"
+        t_x = n1_x + 0.0;
+        t_y = n1_y + 0.0;
+        t_z = n1_z + 1.0;
+        u_x = fma(n2_x, -2.0, 1.0);
+        u_y = fma(n2_y, -2.0, 1.0);
+        u_z = fma(n2_z, 2.0, -1.0);
+
+        dot_t_u = t_x * u_x;
+        dot_t_u = fma(t_y, u_y, dot_t_u);
+        dot_t_u = fma(t_z, u_z, dot_t_u);
+
+        temp6 = fma(t, dot_t_u, neg_n2);
+
+        n_inv_sqrt = inversesqrt(temp4);
+        r = fma(temp6, n_inv_sqrt, neg_n1);
+
+        nom_work = fma(r, ratio, nom_work);
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
 static OP_ADD_NORMAL3: LazyLock<Graph> = LazyLock::new(|| {
     // xeno2/model/np/np001101, "body", shd0013
     // Slightly different version of dot(t, u) for the outermost call.
@@ -504,6 +529,7 @@ pub fn op_add_normal<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation,
     }
     let result = query_nodes(expr, graph, &OP_ADD_NORMAL3)
         .or_else(|| query_nodes(expr, graph, &OP_ADD_NORMAL2))
+        .or_else(|| query_nodes(expr, graph, &OP_ADD_NORMAL2_1))
         .or_else(|| query_nodes(expr, graph, &OP_ADD_NORMAL))?;
 
     let n1_x = result.get("n1_x")?;
@@ -511,6 +537,10 @@ pub fn op_add_normal<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation,
 
     let n2_x = result.get("n2_x")?;
     let n2_y = result.get("n2_y")?;
+
+    // TODO: this can also have n2_z?
+
+    // TODO: normal map fma?
 
     let ratio = result.get("ratio")?;
 
