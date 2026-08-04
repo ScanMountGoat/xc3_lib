@@ -304,9 +304,9 @@ pub enum Operation {
     /// `normalize(vec3(arg0, arg1, arg2)).x`
     NormalizeX,
     /// `normalize(vec3(arg0, arg1, arg2)).y`
-    NormalizeZ,
-    /// `normalize(vec3(arg0, arg1, arg2)).z`
     NormalizeY,
+    /// `normalize(vec3(arg0, arg1, arg2)).z`
+    NormalizeZ,
 }
 
 /// A tree of computations with [Value] for the leaf values.

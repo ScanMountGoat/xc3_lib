@@ -317,12 +317,26 @@ fn normal_output_expr(
     // TODO: front facing in calcNormalZAbs in pcmdo?
 
     // nomWork input for getCalcNormalMap in pcmdo shaders.
-    let (nom_work, intensity, val_inf_intensity) = calc_normal_map(frag, view_normal)
+    let (mut nom_work, intensity, val_inf_intensity) = calc_normal_map(frag, view_normal)
         .map(|n| (n, None, None))
         .or_else(|| calc_normal_map_val_inf(frag, view_normal).map(|(n, i)| (n, None, Some(i))))
         .or_else(|| {
             calc_normal_map_w_intensity(frag, view_normal).map(|(n, i)| (n, Some(i), None))
         })?;
+
+    // TODO: Detect the proper channels in the normal map queries themselves.
+    nom_work = nom_work.map(|e| {
+        if let Some((op, args)) = op_normalize(frag, e) {
+            match op {
+                Operation::NormalizeX => args[0],
+                Operation::NormalizeY => args[1],
+                Operation::NormalizeZ => args[2],
+                _ => todo!(),
+            }
+        } else {
+            e
+        }
+    });
 
     let nom_work = match last_node.output.channel {
         Some('x') => nom_work[0],
@@ -411,6 +425,7 @@ impl crate::expr::Operation for Operation {
         // Simplify any expressions that would interfere with queries.
         let mut expr = expr;
         if let Some(new_expr) = normal_map_fma(graph, expr) {
+            // TODO: Only check for normal map fma for normal maps?
             expr = new_expr;
         }
         // TODO: Detect these as operations.

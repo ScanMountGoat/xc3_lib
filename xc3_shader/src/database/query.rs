@@ -72,12 +72,7 @@ pub fn op_mul_ratio<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, 
     let a = result.get("a")?;
     let b = result.get("b")?;
     let ratio = result.get("ratio")?;
-    // TODO: find a better way to handle normalization
-    if matches!(b, Expr::Func { name, .. } if name == "inversesqrt") {
-        None
-    } else {
-        Some((Operation::MulRatio, vec![a, b, ratio]))
-    }
+    Some((Operation::MulRatio, vec![a, b, ratio]))
 }
 
 pub fn op_fma<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
@@ -394,20 +389,64 @@ pub fn op_monochrome<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation,
 }
 
 static OP_ADD_NORMAL: LazyLock<Graph> = LazyLock::new(|| {
+    // xeno3/chr/ch/ch01027000, "body_toon", shd0087
+    // The normal maps have only XY channels.
+    // The t and u values are negated here for some reason.
+    // The the final result is still equivalent to the pcmdo code.
     // t = n1.xyz + vec3(0.0, 0.0, 1.0);
     // u = n2.xyz * vec3(-1.0, -1.0, 1.0);
     // r = t * dot(t, u) - u * t.z;
     // result = normalize(mix(n1, normalize(r), ratio));
+    // TODO: include the normal map fma for n2 here?
+    // TODO: Assume n2 is a normal map?
+    // TODO: detect t.z for r?
     let query = indoc! {"
-        n1_x = 0.0 + n1_x;
-        neg_n1_x = 0.0 - n1_x;
-        dot_t_u = n2_x * neg_n1_x;
-        n1_y = 0.0 + n1_y;
-        neg_n1_y = 0.0 - n1_y;
-        dot_t_u = fma(n2_y, neg_n1_y, dot_t_u);
-        one_plus_n1_z = n1_z + 1.0;
-        dot_t_u = fma(n2_z, one_plus_n1_z, dot_t_u);
+        t_x = 0.0 + n1_x;
+        t_y = 0.0 + n1_y;
+        t_z = n1_z + 1.0;
+        u_x = n2_x;
+        u_y = n2_y;
+
+        neg_t_x = 0.0 - t_x;
+        neg_t_y = 0.0 - t_y;
+
+        dot_t_u = u_x * neg_t_x;
+        dot_t_u = fma(u_y, neg_t_y, dot_t_u);
+        dot_t_u = fma(u_z, t_z, dot_t_u);
+
         temp6 = fma(temp2, dot_t_u, neg_n2);
+
+        neg_n1 = 0.0 - n1;
+        n_inv_sqrt = inversesqrt(temp4);
+        r = fma(temp6, n_inv_sqrt, neg_n1);
+
+        nom_work = fma(r, ratio, nom_work);
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+static OP_ADD_NORMAL2: LazyLock<Graph> = LazyLock::new(|| {
+    // xeno2/map/ma30a, props, "TR0502d_BaseTrunkA", shd0001
+    // Unlike most shaders, the normal maps have XYZ channels.
+    // Assume n2 is a normal map texture.
+    // t = n1.xyz + vec3(0.0, 0.0, 1.0);
+    // u = n2.xyz * vec3(-1.0, -1.0, 1.0);
+    // r = t * dot(t, u) - u * t.z;
+    // result = normalize(mix(n1, normalize(r), ratio));
+    // TODO: detect t.z for r?
+    let query = indoc! {"
+        t_x = fma(n1_x, n1_inverse_sqrt, 0.0);
+        t_y = fma(n1_y, n1_inverse_sqrt, 0.0);
+        t_z = fma(n1_z, n1_inverse_sqrt, 1.0);
+        u_x = fma(n2_x, -2.0, 1.0);
+        u_y = fma(n2_y, -2.0, 1.0);
+        u_z = fma(n2_z, 2.0, -1.0);
+
+        dot_t_u = t_x * u_x;
+        dot_t_u = fma(t_y, u_y, dot_t_u);
+        dot_t_u = fma(t_z, u_z, dot_t_u);
+
+        temp6 = fma(t_x, dot_t_u, neg_n2);
 
         n_inv_sqrt = inversesqrt(temp4);
         r = fma(temp6, n_inv_sqrt, neg_n1);
@@ -417,17 +456,21 @@ static OP_ADD_NORMAL: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
-static OP_ADD_NORMAL_OUTER: LazyLock<Graph> = LazyLock::new(|| {
+static OP_ADD_NORMAL3: LazyLock<Graph> = LazyLock::new(|| {
+    // xeno2/model/np/np001101, "body", shd0013
     // Slightly different version of dot(t, u) for the outermost call.
+    // TODO: Figure out why this needs a separate query.
     let query = indoc! {"
         n1_x = fma(n1_x, n1_inverse_sqrt, 0.0);
         n1_y = fma(n1_y, n1_inverse_sqrt, 0.0);
         n1_z_plus_one = fma(n1_z, n1_inverse_sqrt, 1.0);
         neg_n1_x = 0.0 - n1_x;
-        dot_t_u = n2_x * neg_n1_x;
         neg_n1_y = 0.0 - n1_y;
+
+        dot_t_u = n2_x * neg_n1_x;
         dot_t_u = fma(n2_y, neg_n1_y, dot_t_u);
         dot_t_u = fma(n2_z, n1_z_plus_one, dot_t_u);
+
         temp6 = fma(n1_x, dot_t_u, neg_n2);
 
         n_inv_sqrt = inversesqrt(temp4);
@@ -449,8 +492,8 @@ pub fn op_add_normal<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation,
     if let Some(new_expr) = normalize(graph, expr) {
         expr = new_expr;
     }
-
-    let result = query_nodes(expr, graph, &OP_ADD_NORMAL_OUTER)
+    let result = query_nodes(expr, graph, &OP_ADD_NORMAL3)
+        .or_else(|| query_nodes(expr, graph, &OP_ADD_NORMAL2))
         .or_else(|| query_nodes(expr, graph, &OP_ADD_NORMAL))?;
 
     let n1_x = result.get("n1_x")?;
