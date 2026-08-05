@@ -662,11 +662,12 @@ fn add_programs_legacy(
 
 pub fn shader_str(s: &ShaderProgram) -> String {
     // Use a condensed representation similar to GLSL for nicer diffs.
+    // TODO: reindex exprs to make the diffs nicer?
     let mut output = String::new();
     for (k, v) in &s.output_dependencies {
         let mut visited = BTreeSet::new();
         write_expr_dependencies_recursive(&mut output, s, *v, &mut visited);
-        writeln!(&mut output, "{k} = var{v};").unwrap();
+        write_assignment(&mut output, s, k, *v);
         writeln!(&mut output).unwrap();
     }
     if let Some(v) = &s.outline_width {
@@ -676,31 +677,41 @@ pub fn shader_str(s: &ShaderProgram) -> String {
     if let Some(i) = s.normal_intensity {
         let mut visited = BTreeSet::new();
         write_expr_dependencies_recursive(&mut output, s, i, &mut visited);
-        writeln!(&mut output, "normal_intensity = {i};").unwrap();
+        write_assignment(&mut output, s, "normal_intensity", i);
         writeln!(&mut output).unwrap();
     }
     if let Some(i) = s.val_inf_intensity {
         let mut visited = BTreeSet::new();
         write_expr_dependencies_recursive(&mut output, s, i, &mut visited);
-        writeln!(&mut output, "val_inf_intensity = {i};").unwrap();
+        write_assignment(&mut output, s, "val_inf_intensity", i);
         writeln!(&mut output).unwrap();
     }
     if let Some(i) = s.discard_condition {
         let mut visited = BTreeSet::new();
         write_expr_dependencies_recursive(&mut output, s, i, &mut visited);
-        writeln!(&mut output, "discard = {i};").unwrap();
+        write_assignment(&mut output, s, "discard", i);
         writeln!(&mut output).unwrap();
     }
     for (k, v) in &s.output_dependencies_xyz {
         let mut visited = BTreeSet::new();
         let mut visited_xyz = BTreeSet::new();
         write_expr_xyz_dependencies_recursive(&mut output, s, *v, &mut visited, &mut visited_xyz);
-        writeln!(&mut output, "{k} = var{v};").unwrap();
+        write_assignment_xyz(&mut output, s, k, *v);
         writeln!(&mut output).unwrap();
     }
 
     output
 }
+
+// TODO: assume the index is used exactly once because of SSA and never write var{i}?
+fn write_assignment(output: &mut String, s: &ShaderProgram, var: &str, i: usize) {
+    writeln!(output, "{var} = {};", arg_inlined_value(s, i)).unwrap();
+}
+
+fn write_assignment_xyz(output: &mut String, s: &ShaderProgram, var: &str, i: usize) {
+    writeln!(output, "{var} = {};", arg_inlined_value_xyz(s, i)).unwrap();
+}
+
 fn write_expr_dependencies_recursive(
     output: &mut String,
     s: &ShaderProgram,
@@ -718,14 +729,40 @@ fn write_expr_dependencies_recursive(
                     write_expr_dependencies_recursive(output, s, *arg, visited);
                 }
             }
-            xc3_model::shader_database::OutputExpr::Func { args, .. } => {
+            xc3_model::shader_database::OutputExpr::Func { op, args } => {
                 for arg in args {
                     write_expr_dependencies_recursive(output, s, *arg, visited);
                 }
+
+                // Write values inline to make the output easier to read.
+                let args = args_inlined_values(s, args);
+                writeln!(output, "var{i} = {op}({});", args.join(", ")).unwrap();
             }
             xc3_model::shader_database::OutputExpr::Value(_) => (),
         }
-        writeln!(output, "var{i} = {expr};").unwrap();
+    }
+}
+
+fn args_inlined_values(s: &ShaderProgram, args: &Vec<usize>) -> Vec<String> {
+    args.iter().map(|a| arg_inlined_value(s, *a)).collect()
+}
+
+fn arg_inlined_value(s: &ShaderProgram, i: usize) -> String {
+    match &s.exprs[i] {
+        xc3_model::shader_database::OutputExpr::Value(v) => {
+            if let xc3_model::shader_database::Value::Texture(t) = v {
+                let coords: Vec<_> = args_inlined_values(s, &t.texcoords);
+                format!(
+                    "Texture({}, {}){}",
+                    t.name,
+                    coords.join(", "),
+                    t.channel.map(|c| format!(".{c}")).unwrap_or_default()
+                )
+            } else {
+                v.to_string()
+            }
+        }
+        _ => format!("var{i}"),
     }
 }
 
@@ -747,14 +784,46 @@ fn write_expr_xyz_dependencies_recursive(
                     write_expr_dependencies_recursive(output, s, *arg, visited);
                 }
             }
-            xc3_model::shader_database::OutputExprXyz::Func { args, .. } => {
+            xc3_model::shader_database::OutputExprXyz::Func { op, args, channel } => {
                 for arg in args {
                     write_expr_xyz_dependencies_recursive(output, s, *arg, visited, visited_xyz);
                 }
+
+                // Write values inline to make the output easier to read.
+                let args = args_inlined_values_xyz(s, args);
+                writeln!(
+                    output,
+                    "var{i} = {op}({}){};",
+                    args.join(", "),
+                    channel.map(|c| format!(".{c}")).unwrap_or_default()
+                )
+                .unwrap();
             }
             xc3_model::shader_database::OutputExprXyz::Value(_) => (),
         }
-        writeln!(output, "var{i} = {expr};").unwrap();
+    }
+}
+
+fn args_inlined_values_xyz(s: &ShaderProgram, args: &Vec<usize>) -> Vec<String> {
+    args.iter().map(|a| arg_inlined_value_xyz(s, *a)).collect()
+}
+
+fn arg_inlined_value_xyz(s: &ShaderProgram, i: usize) -> String {
+    match &s.exprs_xyz[i] {
+        xc3_model::shader_database::OutputExprXyz::Value(v) => {
+            if let xc3_model::shader_database::ValueXyz::Texture(t) = v {
+                let coords: Vec<_> = args_inlined_values(s, &t.texcoords);
+                format!(
+                    "Texture({}, {}){}",
+                    t.name,
+                    coords.join(", "),
+                    t.channel.map(|c| format!(".{c}")).unwrap_or_default()
+                )
+            } else {
+                v.to_string()
+            }
+        }
+        _ => format!("var{i}"),
     }
 }
 
