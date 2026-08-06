@@ -37,6 +37,7 @@ use query::*;
 
 // Faster than the default hash implementation.
 type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
+type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
 
 pub fn shader_from_glsl(
     vertex: Option<GlslGraph>,
@@ -662,12 +663,12 @@ fn add_programs_legacy(
 
 pub fn shader_str(s: &ShaderProgram) -> String {
     // Use a condensed representation similar to GLSL for nicer diffs.
-    // TODO: reindex exprs to make the diffs nicer?
+    // Reindex exprs for each output to produce fewer changes in diffs.
     let mut output = String::new();
     for (k, v) in &s.output_dependencies {
-        let mut visited = BTreeSet::new();
+        let mut visited = IndexSet::default();
         write_expr_dependencies_recursive(&mut output, s, *v, &mut visited);
-        write_assignment(&mut output, s, k, *v);
+        write_assignment(&mut output, s, k, *v, &mut visited);
         writeln!(&mut output).unwrap();
     }
     if let Some(v) = &s.outline_width {
@@ -675,28 +676,28 @@ pub fn shader_str(s: &ShaderProgram) -> String {
         writeln!(&mut output).unwrap();
     }
     if let Some(i) = s.normal_intensity {
-        let mut visited = BTreeSet::new();
+        let mut visited = IndexSet::default();
         write_expr_dependencies_recursive(&mut output, s, i, &mut visited);
-        write_assignment(&mut output, s, "normal_intensity", i);
+        write_assignment(&mut output, s, "normal_intensity", i, &mut visited);
         writeln!(&mut output).unwrap();
     }
     if let Some(i) = s.val_inf_intensity {
-        let mut visited = BTreeSet::new();
+        let mut visited = IndexSet::default();
         write_expr_dependencies_recursive(&mut output, s, i, &mut visited);
-        write_assignment(&mut output, s, "val_inf_intensity", i);
+        write_assignment(&mut output, s, "val_inf_intensity", i, &mut visited);
         writeln!(&mut output).unwrap();
     }
     if let Some(i) = s.discard_condition {
-        let mut visited = BTreeSet::new();
+        let mut visited = IndexSet::default();
         write_expr_dependencies_recursive(&mut output, s, i, &mut visited);
-        write_assignment(&mut output, s, "discard", i);
+        write_assignment(&mut output, s, "discard", i, &mut visited);
         writeln!(&mut output).unwrap();
     }
     for (k, v) in &s.output_dependencies_xyz {
-        let mut visited = BTreeSet::new();
-        let mut visited_xyz = BTreeSet::new();
+        let mut visited = IndexSet::default();
+        let mut visited_xyz = IndexSet::default();
         write_expr_xyz_dependencies_recursive(&mut output, s, *v, &mut visited, &mut visited_xyz);
-        write_assignment_xyz(&mut output, s, k, *v);
+        write_assignment_xyz(&mut output, s, k, *v, &mut visited, &mut visited_xyz);
         writeln!(&mut output).unwrap();
     }
 
@@ -704,54 +705,88 @@ pub fn shader_str(s: &ShaderProgram) -> String {
 }
 
 // TODO: assume the index is used exactly once because of SSA and never write var{i}?
-fn write_assignment(output: &mut String, s: &ShaderProgram, var: &str, i: usize) {
-    writeln!(output, "{var} = {};", arg_inlined_value(s, i)).unwrap();
+fn write_assignment(
+    output: &mut String,
+    s: &ShaderProgram,
+    var: &str,
+    i: usize,
+    old_to_new_index: &mut IndexSet<usize>,
+) {
+    writeln!(
+        output,
+        "{var} = {};",
+        arg_inlined_value(s, i, old_to_new_index)
+    )
+    .unwrap();
 }
 
-fn write_assignment_xyz(output: &mut String, s: &ShaderProgram, var: &str, i: usize) {
-    writeln!(output, "{var} = {};", arg_inlined_value_xyz(s, i)).unwrap();
+fn write_assignment_xyz(
+    output: &mut String,
+    s: &ShaderProgram,
+    var: &str,
+    i: usize,
+    old_to_new_index: &mut IndexSet<usize>,
+    old_to_new_index_xyz: &mut IndexSet<usize>,
+) {
+    writeln!(
+        output,
+        "{var} = {};",
+        arg_inlined_value_xyz(s, i, old_to_new_index, old_to_new_index_xyz)
+    )
+    .unwrap();
 }
 
 fn write_expr_dependencies_recursive(
     output: &mut String,
     s: &ShaderProgram,
     i: usize,
-    visited: &mut BTreeSet<usize>,
+    old_to_new_index: &mut IndexSet<usize>,
 ) {
     // Write all values that this value depends on first.
-    if visited.insert(i) {
+    if !old_to_new_index.contains(&i) {
         let expr = &s.exprs[i];
         match expr {
             xc3_model::shader_database::OutputExpr::Value(
                 xc3_model::shader_database::Value::Texture(t),
             ) => {
                 for arg in &t.texcoords {
-                    write_expr_dependencies_recursive(output, s, *arg, visited);
+                    write_expr_dependencies_recursive(output, s, *arg, old_to_new_index);
                 }
             }
             xc3_model::shader_database::OutputExpr::Func { op, args } => {
                 for arg in args {
-                    write_expr_dependencies_recursive(output, s, *arg, visited);
+                    write_expr_dependencies_recursive(output, s, *arg, old_to_new_index);
                 }
 
                 // Write values inline to make the output easier to read.
-                let args = args_inlined_values(s, args);
-                writeln!(output, "var{i} = {op}({});", args.join(", ")).unwrap();
+                let args = args_inlined_values(s, args, old_to_new_index);
+                let new_index = old_to_new_index.insert_full(i).0;
+                writeln!(output, "var{new_index} = {op}({});", args.join(", ")).unwrap();
             }
             xc3_model::shader_database::OutputExpr::Value(_) => (),
         }
     }
 }
 
-fn args_inlined_values(s: &ShaderProgram, args: &Vec<usize>) -> Vec<String> {
-    args.iter().map(|a| arg_inlined_value(s, *a)).collect()
+fn args_inlined_values(
+    s: &ShaderProgram,
+    args: &[usize],
+    old_to_new_index: &mut IndexSet<usize>,
+) -> Vec<String> {
+    args.iter()
+        .map(|a| arg_inlined_value(s, *a, old_to_new_index))
+        .collect()
 }
 
-fn arg_inlined_value(s: &ShaderProgram, i: usize) -> String {
+fn arg_inlined_value(
+    s: &ShaderProgram,
+    i: usize,
+    old_to_new_index: &mut IndexSet<usize>,
+) -> String {
     match &s.exprs[i] {
         xc3_model::shader_database::OutputExpr::Value(v) => {
             if let xc3_model::shader_database::Value::Texture(t) = v {
-                let coords: Vec<_> = args_inlined_values(s, &t.texcoords);
+                let coords: Vec<_> = args_inlined_values(s, &t.texcoords, old_to_new_index);
                 format!(
                     "Texture({}, {}){}",
                     t.name,
@@ -762,7 +797,7 @@ fn arg_inlined_value(s: &ShaderProgram, i: usize) -> String {
                 v.to_string()
             }
         }
-        _ => format!("var{i}"),
+        _ => format!("var{}", old_to_new_index.insert_full(i).0),
     }
 }
 
@@ -770,30 +805,37 @@ fn write_expr_xyz_dependencies_recursive(
     output: &mut String,
     s: &crate::database::ShaderProgram,
     i: usize,
-    visited: &mut BTreeSet<usize>,
-    visited_xyz: &mut BTreeSet<usize>,
+    old_to_new_index: &mut IndexSet<usize>,
+    old_to_new_index_xyz: &mut IndexSet<usize>,
 ) {
     // Write all values that this value depends on first.
-    if visited_xyz.insert(i) {
+    if !old_to_new_index_xyz.contains(&i) {
         let expr = &s.exprs_xyz[i];
         match expr {
             xc3_model::shader_database::OutputExprXyz::Value(
                 xc3_model::shader_database::ValueXyz::Texture(t),
             ) => {
                 for arg in &t.texcoords {
-                    write_expr_dependencies_recursive(output, s, *arg, visited);
+                    write_expr_dependencies_recursive(output, s, *arg, old_to_new_index);
                 }
             }
             xc3_model::shader_database::OutputExprXyz::Func { op, args, channel } => {
                 for arg in args {
-                    write_expr_xyz_dependencies_recursive(output, s, *arg, visited, visited_xyz);
+                    write_expr_xyz_dependencies_recursive(
+                        output,
+                        s,
+                        *arg,
+                        old_to_new_index,
+                        old_to_new_index_xyz,
+                    );
                 }
 
                 // Write values inline to make the output easier to read.
-                let args = args_inlined_values_xyz(s, args);
+                let args = args_inlined_values_xyz(s, args, old_to_new_index, old_to_new_index_xyz);
+                let new_index = old_to_new_index_xyz.insert_full(i).0;
                 writeln!(
                     output,
-                    "var{i} = {op}({}){};",
+                    "var{new_index} = {op}({}){};",
                     args.join(", "),
                     channel.map(|c| format!(".{c}")).unwrap_or_default()
                 )
@@ -804,15 +846,27 @@ fn write_expr_xyz_dependencies_recursive(
     }
 }
 
-fn args_inlined_values_xyz(s: &ShaderProgram, args: &Vec<usize>) -> Vec<String> {
-    args.iter().map(|a| arg_inlined_value_xyz(s, *a)).collect()
+fn args_inlined_values_xyz(
+    s: &ShaderProgram,
+    args: &[usize],
+    old_to_new_index: &mut IndexSet<usize>,
+    old_to_new_index_xyz: &mut IndexSet<usize>,
+) -> Vec<String> {
+    args.iter()
+        .map(|a| arg_inlined_value_xyz(s, *a, old_to_new_index, old_to_new_index_xyz))
+        .collect()
 }
 
-fn arg_inlined_value_xyz(s: &ShaderProgram, i: usize) -> String {
+fn arg_inlined_value_xyz(
+    s: &ShaderProgram,
+    i: usize,
+    old_to_new_index: &mut IndexSet<usize>,
+    old_to_new_index_xyz: &mut IndexSet<usize>,
+) -> String {
     match &s.exprs_xyz[i] {
         xc3_model::shader_database::OutputExprXyz::Value(v) => {
             if let xc3_model::shader_database::ValueXyz::Texture(t) = v {
-                let coords: Vec<_> = args_inlined_values(s, &t.texcoords);
+                let coords: Vec<_> = args_inlined_values(s, &t.texcoords, old_to_new_index);
                 format!(
                     "Texture({}, {}){}",
                     t.name,
@@ -823,7 +877,7 @@ fn arg_inlined_value_xyz(s: &ShaderProgram, i: usize) -> String {
                 v.to_string()
             }
         }
-        _ => format!("var{i}"),
+        _ => format!("var{}", old_to_new_index_xyz.insert_full(i).0),
     }
 }
 
