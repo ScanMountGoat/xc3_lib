@@ -3,22 +3,22 @@ source: xc3_shader/src/database.rs
 ---
 var0 = Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w);
 var1 = TexParallaxX(vTex0.x, var0);
-var2 = TexParallaxX(vTex0.y, var0);
+var2 = TexParallaxY(vTex0.y, var0);
 o0.x = Texture(s0, var1, var2).x;
 
 var0 = Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w);
 var1 = TexParallaxX(vTex0.x, var0);
-var2 = TexParallaxX(vTex0.y, var0);
+var2 = TexParallaxY(vTex0.y, var0);
 o0.y = Texture(s0, var1, var2).y;
 
 var0 = Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w);
 var1 = TexParallaxX(vTex0.x, var0);
-var2 = TexParallaxX(vTex0.y, var0);
+var2 = TexParallaxY(vTex0.y, var0);
 o0.z = Texture(s0, var1, var2).z;
 
 var0 = Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w);
 var1 = TexParallaxX(vTex0.x, var0);
-var2 = TexParallaxX(vTex0.y, var0);
+var2 = TexParallaxY(vTex0.y, var0);
 var3 = Mix(Texture(s1, var1, var2).y, U_Mate.gWrkFl4[0].x, U_Mate.gWrkFl4[0].z);
 o0.w = var3;
 
@@ -144,5 +144,5 @@ discard = var20;
 
 var0 = Mix(Texture(s1, vTex0.x, vTex0.y).x, U_Mate.gWrkFl4[0].y, U_Mate.gWrkFl4[0].w);
 var1 = TexParallaxX(vTex0.x, var0);
-var2 = TexParallaxX(vTex0.y, var0);
+var2 = TexParallaxY(vTex0.y, var0);
 o0.xyz = Texture(s0, var1, var2).xyz;

@@ -3441,41 +3441,55 @@ pub fn tex_matrix<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Ve
     Some((Operation::TexMatrix, vec![u, v, x, y, z, w]))
 }
 
-static TEX_PARALLAX: LazyLock<Graph> = LazyLock::new(|| {
+fn tex_parallax_query(c: char) -> String {
     // uv = ratio * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
-    let query = indoc! {"
+    formatdoc! {"
+        nrm_inv_length = inversesqrt(nrm_length);
+        nrm_y = nrm_y * nrm_inv_length;
+
+        bitan_inv_length = inversesqrt(bitan_length);
+        bitan = bitan.{c} * bitan_inv_length;
+
+        temp2 = nrm_y * bitan;
+        temp2 = temp2 * -0.7;
+
+        nrm_inv_length = inversesqrt(nrm_length);
+        nrm_x = nrm_x * nrm_inv_length;
+
+        tan_inv_length = inversesqrt(tan_length);
+        tan = tan.{c} * tan_inv_length;
+
+        temp1 = nrm_x * tan;
+
         nrm_result = fma(temp1, 0.7, temp2);
         result = fma(nrm_result, ratio, coord);
-    "};
-    Graph::parse_glsl_query(query).unwrap().simplify()
+    "}
+}
+
+static TEX_PARALLAX_X: LazyLock<Graph> = LazyLock::new(|| {
+    let query = tex_parallax_query('x');
+    Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
-static TEX_PARALLAX2: LazyLock<Graph> = LazyLock::new(|| {
-    // uv = ratio * 0.7 * (nrm.x * tan.xy - norm.y * bitan.xy) + vTex0.xy
-    let query = indoc! {"
-        coord = coord;
-        mask = mask;
-        nrm_result = fma(temp1, 0.7, temp2);
-        result = fma(ratio, nrm_result, coord);
-        // Generated for some shaders.
-        result = abs(result);
-        result = result + -0.0;
-    "};
-    Graph::parse_glsl_query(query).unwrap().simplify()
+static TEX_PARALLAX_Y: LazyLock<Graph> = LazyLock::new(|| {
+    let query = tex_parallax_query('y');
+    Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
 pub fn tex_parallax<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     let expr = assign_x_recursive(graph, expr);
 
     // Some eye shaders use some form of parallax mapping.
-    let result = query_nodes(expr, graph, &TEX_PARALLAX)
-        .or_else(|| query_nodes(expr, graph, &TEX_PARALLAX2))?;
+    let (op, result) = query_nodes(expr, graph, &TEX_PARALLAX_X)
+        .map(|r| (Operation::TexParallaxX, r))
+        .or_else(|| {
+            query_nodes(expr, graph, &TEX_PARALLAX_Y).map(|r| (Operation::TexParallaxY, r))
+        })?;
 
     let ratio = result.get("ratio")?;
     let coord = result.get("coord")?;
 
-    // TODO: Detect x vs y
-    Some((Operation::TexParallaxX, vec![coord, ratio]))
+    Some((op, vec![coord, ratio]))
 }
 
 static TEX_PARALLAX3_X: LazyLock<Graph> = LazyLock::new(|| {
@@ -3556,14 +3570,17 @@ static TEX_PARALLAX3_Y: LazyLock<Graph> = LazyLock::new(|| {
 
 pub fn tex_parallax2<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
     // Some eye shaders use some form of parallax mapping.
-    let result = query_nodes(expr, graph, &TEX_PARALLAX3_X)
-        .or_else(|| query_nodes(expr, graph, &TEX_PARALLAX3_Y))?;
+    let (op, result) = query_nodes(expr, graph, &TEX_PARALLAX3_X)
+        .map(|r| (Operation::TexParallaxX, r))
+        .or_else(|| {
+            query_nodes(expr, graph, &TEX_PARALLAX3_Y).map(|r| (Operation::TexParallaxY, r))
+        })?;
 
     let ratio = result.get("ratio")?;
     let coord = result.get("coord")?;
 
     // TODO: New operation for this since the math is different.
-    Some((Operation::TexParallaxX, vec![coord, ratio]))
+    Some((op, vec![coord, ratio]))
 }
 
 static REFLECT: LazyLock<Graph> = LazyLock::new(|| {
