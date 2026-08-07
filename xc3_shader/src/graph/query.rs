@@ -219,20 +219,34 @@ fn check_exprs<'a>(
         }
         (
             Expr::Parameter {
-                name: _n1,
-                field: _f1,
+                name: n1,
+                field: f1,
                 index: i1,
                 channel: c1,
             },
             Expr::Parameter {
-                name: _n2,
-                field: _f2,
+                name: n2,
+                field: f2,
                 index: i2,
                 channel: c2,
             },
         ) => {
             // TODO: does it make sense to match buffer and field names?
             // TODO: store the names in vars?
+            if let Some(expected) = query_var_names.get(n1)
+                && expected != n2
+            {
+                return false;
+            }
+
+            if let Some(f1) = f1 {
+                if let Some(expected) = query_var_names.get(f1)
+                    && Some(expected) != f2.as_ref()
+                {
+                    return false;
+                }
+            }
+
             match (i1, i2) {
                 (Some(i1), Some(i2)) => c1 == c2 && check(&[*i1], &[*i2]),
                 (None, None) => c1 == c2,
@@ -622,6 +636,42 @@ mod tests {
             .is_none()
         );
         assert!(query_glsl_vars("result = a * var;", "result = temp0 * var;", &[]).is_some());
+    }
+
+    #[test]
+    fn query_parameter_vars() {
+        assert!(
+            query_glsl_vars(
+                "result = a * U_Mate.gWrkCol[0].x;",
+                "result = temp0 * Buffer.field1[0].x;",
+                &[("Buffer", "U_Mate"), ("field1", "gWrkCol")]
+            )
+            .is_some()
+        );
+        assert!(
+            query_glsl_vars(
+                "result = a * U_Mate.gWrkCol[0].x;",
+                "result = temp0 * Buffer.field1[0].x;",
+                &[("Buffer", "U_Static"), ("field1", "gWrkCol")]
+            )
+            .is_none()
+        );
+        assert!(
+            query_glsl_vars(
+                "result = a * U_Mate.gWrkCol[0].x;",
+                "result = temp0 * Buffer.field1[0].x;",
+                &[("Buffer", "U_Mate"), ("field1", "gMatCol")]
+            )
+            .is_none()
+        );
+        assert!(
+            query_glsl_vars(
+                "result = a * U_Mate.gWrkCol[0].x;",
+                "result = temp0 * Buffer.field1[0].x;",
+                &[]
+            )
+            .is_some()
+        );
     }
 
     #[test]
