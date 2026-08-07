@@ -261,6 +261,29 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
             "normalize({a}{}, {a}{}, {a}{}, {a}{}).z",
             arg0?, arg1?, arg2?, arg3?
         ).unwrap(),
+        Operation::MatMulPointProjX => write!(wgsl,
+            "(camera.projection * vec4({a}{}, {a}{}, {a}{}, 1.0)).x",
+            arg0?, arg1?, arg2?
+        ).unwrap(),
+        Operation::MatMulPointProjY => write!(wgsl,
+            "(camera.projection * vec4({a}{}, {a}{}, {a}{}, 1.0)).y",
+            arg0?, arg1?, arg2?
+        ).unwrap(),
+        Operation::MatMulPointProjZ => write!(wgsl,
+            "(camera.projection * vec4({a}{}, {a}{}, {a}{}, 1.0)).z",
+            arg0?, arg1?, arg2?
+        ).unwrap(),
+        Operation::MatMulPointProjW => write!(wgsl,
+            "(camera.projection * vec4({a}{}, {a}{}, {a}{}, 1.0)).w",
+            arg0?, arg1?, arg2?
+        ).unwrap(),
+        // TODO: Should skinning always be included in the shader?
+        Operation::SkinVectorX => write!(wgsl, "{a}{}", arg0?).unwrap(),
+        Operation::SkinVectorY => write!(wgsl, "{a}{}", arg1?).unwrap(),
+        Operation::SkinVectorZ => write!(wgsl, "{a}{}", arg2?).unwrap(),
+        Operation::SkinPointX => write!(wgsl, "{a}{}", arg0?).unwrap(),
+        Operation::SkinPointY => write!(wgsl, "{a}{}", arg1?).unwrap(),
+        Operation::SkinPointZ => write!(wgsl, "{a}{}", arg2?).unwrap(),
     }
     Some(())
 }

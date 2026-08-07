@@ -307,6 +307,22 @@ pub enum Operation {
     NormalizeY,
     /// `normalize(vec3(arg0, arg1, arg2)).z`
     NormalizeZ,
+    // TODO: Is there a better way to represent attribute transforms?
+    /// `(projection * vec4(arg0, arg1, arg2, 1.0)).x`
+    MatMulPointProjX,
+    /// `(projection * vec4(arg0, arg1, arg2, 1.0)).y`
+    MatMulPointProjY,
+    /// `(projection * vec4(arg0, arg1, arg2, 1.0)).z`
+    MatMulPointProjZ,
+    /// `(projection * vec4(arg0, arg1, arg2, 1.0)).w`
+    MatMulPointProjW,
+    // TODO: Separate operations for skin point vs vector?
+    SkinVectorX,
+    SkinVectorY,
+    SkinVectorZ,
+    SkinPointX,
+    SkinPointY,
+    SkinPointZ,
 }
 
 /// A tree of computations with [Value] for the leaf values.

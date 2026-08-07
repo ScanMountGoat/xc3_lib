@@ -6,7 +6,7 @@ use xc3_model::shader_database::Operation;
 
 use crate::graph::{
     BinaryOp, Expr, Graph, UnaryOp,
-    query::{assign_x_recursive, dot3_a_b, fma_a_b_c, normalize, query_nodes},
+    query::{assign_x_recursive, dot3_a_b, fma_a_b_c, normalize, query_nodes, query_nodes_vars},
 };
 
 pub fn op_func<'a>(
@@ -624,15 +624,15 @@ pub fn normal_map_fma<'a>(graph: &'a Graph, nom_work: &'a Expr) -> Option<&'a Ex
 static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         inverse_length_tangent = inversesqrt(tangent_length);
-        normalize_tangent = tangent.x * inverse_length_tangent;
+        normalize_tangent = tangent_x * inverse_length_tangent;
         result = result_x * normalize_tangent;
 
         inverse_length_bitangent = inversesqrt(bitangent_length);
-        normalize_bitangent = bitangent.x * inverse_length_bitangent;
+        normalize_bitangent = bitangent_x * inverse_length_bitangent;
         result = fma(result_y, normalize_bitangent, result);
 
         inverse_length_normal = inversesqrt(normal_length);
-        normalize_normal = normal.x * inverse_length_normal;
+        normalize_normal = normal_x * inverse_length_normal;
         result = fma(result_z, normalize_normal, result);
     "};
     Graph::parse_glsl_query(query).unwrap().simplify()
@@ -641,29 +641,32 @@ static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
 static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
         inverse_length_tangent = inversesqrt(tangent_length);
-        normalize_tangent = tangent.y * inverse_length_tangent;
+        normalize_tangent = tangent_y * inverse_length_tangent;
         result = result_x * normalize_tangent;
 
         inverse_length_normal = inversesqrt(normal_length);
-        normalize_normal = normal.y * inverse_length_normal;
+        normalize_normal = normal_y * inverse_length_normal;
         result = fma(result_z, normalize_normal, result);
 
         inverse_length_bitangent = inversesqrt(bitangent_length);
-        normalize_bitangent = bitangent.y * inverse_length_bitangent;
+        normalize_bitangent = bitangent_y * inverse_length_bitangent;
         result = fma(result_y, normalize_bitangent, result);
     "};
     Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
-pub fn calc_normal_map<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<[&'a Expr; 3]> {
-    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_X)
-        .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_MAP_Y))?;
+pub fn calc_normal_map_x<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_X)?;
+
     // TODO: detect TBN vectors to properly differentiate result_xyz
-    Some([
-        result.get("result_x")?,
-        result.get("result_y")?,
-        result.get("result_z")?,
-    ])
+    Some(result.get("result_x")?)
+}
+
+pub fn calc_normal_map_y<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_Y)?;
+
+    // TODO: detect TBN vectors to properly differentiate result_xyz
+    Some(result.get("result_y")?)
 }
 
 fn calc_normal_map_w_intensity_query(c: char) -> String {
@@ -709,20 +712,20 @@ static CALC_NORMAL_MAP_W_INTENSITY_Y: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
-pub fn calc_normal_map_w_intensity<'a>(
+pub fn calc_normal_map_w_intensity_x<'a>(
     graph: &'a Graph,
     expr: &'a Expr,
-) -> Option<([&'a Expr; 3], &'a Expr)> {
-    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_W_INTENSITY_X)
-        .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_MAP_W_INTENSITY_Y))?;
-    Some((
-        [
-            result.get("result_x")?,
-            result.get("result_y")?,
-            result.get("result_z")?,
-        ],
-        result.get("intensity")?,
-    ))
+) -> Option<(&'a Expr, &'a Expr)> {
+    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_W_INTENSITY_X)?;
+    Some((result.get("result_x")?, result.get("intensity")?))
+}
+
+pub fn calc_normal_map_w_intensity_y<'a>(
+    graph: &'a Graph,
+    expr: &'a Expr,
+) -> Option<(&'a Expr, &'a Expr)> {
+    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_W_INTENSITY_Y)?;
+    Some((result.get("result_y")?, result.get("intensity")?))
 }
 
 fn calc_normal_map_val_inf_query(c: char) -> String {
@@ -735,19 +738,19 @@ fn calc_normal_map_val_inf_query(c: char) -> String {
     // TODO: should this be its own operation?
     formatdoc! {"
         inverse_length_tangent = inversesqrt(tangent_length);
-        tangent = tangent.{c};
+        tangent = tangent_{c};
         normalize_tangent = tangent * inverse_length_tangent;
         result_x = result_x;
         result = result_x * normalize_tangent;
 
         inverse_length_normal = inversesqrt(normal_length);
-        normal = normal.{c};
+        normal = normal_{c};
         normalize_normal = normal * inverse_length_normal;
         result_z = result_z;
         result = fma(result_z, normalize_normal, result);
 
         inverse_length_bitangent = inversesqrt(bitangent_length);
-        bitangent = bitangent.{c};
+        bitangent = bitangent_{c};
         normalize_bitangent = bitangent * inverse_length_bitangent;
         result_y = result_y;
         result = fma(result_y, normalize_bitangent, result);
@@ -780,38 +783,38 @@ static CALC_NORMAL_MAP_VAL_INF_XCX_Z: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
-pub fn calc_normal_map_val_inf<'a>(
+pub fn calc_normal_map_val_inf_x<'a>(
     graph: &'a Graph,
     expr: &'a Expr,
-) -> Option<([&'a Expr; 3], &'a Expr)> {
-    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_X)
-        .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_Y))?;
-    Some((
-        [
-            result.get("result_x")?,
-            result.get("result_y")?,
-            result.get("result_z")?,
-        ],
-        result.get("intensity")?,
-    ))
+) -> Option<(&'a Expr, &'a Expr)> {
+    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_X)?;
+    Some((result.get("result_x")?, result.get("intensity")?))
+}
+
+pub fn calc_normal_map_val_inf_y<'a>(
+    graph: &'a Graph,
+    expr: &'a Expr,
+) -> Option<(&'a Expr, &'a Expr)> {
+    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_Y)?;
+    Some((result.get("result_y")?, result.get("intensity")?))
 }
 
 fn calc_normal_map_xcx_query(c: char) -> String {
     formatdoc! {"
         inverse_length_tangent = inversesqrt(tangent_length);
-        tangent = tangent.{c};
+        tangent = tangent_{c};
         normalize_tangent = tangent * inverse_length_tangent;
         result_x = result_x;
         result = result_x * normalize_tangent;
 
         inverse_length_normal = inversesqrt(normal_length);
-        normal = normal.{c};
+        normal = normal_{c};
         normalize_normal = normal * inverse_length_normal;
         result_z = result_z;
         result = fma(result_z, normalize_normal, result);
 
         inverse_length_bitangent = inversesqrt(bitangent_length);
-        bitangent = bitangent.{c};
+        bitangent = bitangent_{c};
         normalize_bitangent = bitangent * inverse_length_bitangent;
         result_y = result_y;
         result = fma(result_y, normalize_bitangent, result);
@@ -838,24 +841,20 @@ pub fn op_calc_normal_map<'a>(
     expr: &'a Expr,
 ) -> Option<(Operation, Vec<&'a Expr>)> {
     // TODO: Detect normal mapping from other games.
-    let mut expr = expr;
-    if let Some(new_expr) = normalize(graph, expr) {
-        expr = new_expr;
-    }
-
-    let (op, result) = query_nodes(expr, graph, &CALC_NORMAL_MAP_XCX_X)
-        .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_X))
-        .map(|r| (Operation::NormalMapX, r))
-        .or_else(|| {
-            query_nodes(expr, graph, &CALC_NORMAL_MAP_XCX_Y)
-                .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_Y))
-                .map(|r| (Operation::NormalMapY, r))
-        })
-        .or_else(|| {
-            query_nodes(expr, graph, &CALC_NORMAL_MAP_XCX_Z)
-                .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_Z))
-                .map(|r| (Operation::NormalMapZ, r))
-        })?;
+    // TODO: Is the normalize op accurate for channel detection or should this check TBN vectors?
+    let (normalize_op, normalize_args) = op_normalize(graph, expr)?;
+    let (op, result) = match normalize_op {
+        Operation::NormalizeX => query_nodes(normalize_args[0], graph, &CALC_NORMAL_MAP_XCX_X)
+            .or_else(|| query_nodes(normalize_args[0], graph, &CALC_NORMAL_MAP_VAL_INF_XCX_X))
+            .map(|r| (Operation::NormalMapX, r)),
+        Operation::NormalizeY => query_nodes(normalize_args[1], graph, &CALC_NORMAL_MAP_XCX_Y)
+            .or_else(|| query_nodes(normalize_args[1], graph, &CALC_NORMAL_MAP_VAL_INF_XCX_Y))
+            .map(|r| (Operation::NormalMapY, r)),
+        Operation::NormalizeZ => query_nodes(normalize_args[2], graph, &CALC_NORMAL_MAP_XCX_Z)
+            .or_else(|| query_nodes(normalize_args[2], graph, &CALC_NORMAL_MAP_VAL_INF_XCX_Z))
+            .map(|r| (Operation::NormalMapZ, r)),
+        _ => todo!(),
+    }?;
 
     // Don't store result_z since it can be calculated from result_x and result_y.
     Some((op, vec![result.get("result_x")?, result.get("result_y")?]))
@@ -1047,20 +1046,26 @@ static SKIN_ATTRIBUTE_XYZ_Z2: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
-pub fn skin_attribute_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
-    query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_X)
+pub fn op_skin_xyz<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let (op, result) = query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_X)
         .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_X2))
-        .and_then(|r| r.get("result_x").copied())
+        .map(|r| (Operation::SkinVectorX, r))
         .or_else(|| {
             query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_Y)
                 .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_Y2))
-                .and_then(|r| r.get("result_y").copied())
+                .map(|r| (Operation::SkinVectorY, r))
         })
         .or_else(|| {
             query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_Z)
                 .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZ_Z2))
-                .and_then(|r| r.get("result_z").copied())
-        })
+                .map(|r| (Operation::SkinVectorZ, r))
+        })?;
+
+    let x = result.get("result_x")?;
+    let y = result.get("result_y")?;
+    let z = result.get("result_z")?;
+
+    Some((op, vec![x, y, z]))
 }
 
 // TODO: combine these queries and only check the integer values?
@@ -1129,117 +1134,73 @@ static SKIN_ATTRIBUTE_XYZW_YZ: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
-pub fn skin_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+pub fn op_skin_point_xyzw<'a>(
+    graph: &'a Graph,
+    expr: &'a Expr,
+) -> Option<(Operation, Vec<&'a Expr>)> {
     // TODO: Combine these queries
-    query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZW_X)
-        .and_then(|r| r.get("result_x").copied())
+    let (op, result) = query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZW_X)
+        .map(|r| (Operation::SkinPointX, r))
         .or_else(|| {
             query_nodes(expr, graph, &SKIN_ATTRIBUTE_XYZW_YZ).and_then(|r| {
                 let offset = r.get("offset")?;
                 match offset {
-                    Expr::Int(16) => r.get("result_y").copied(),
-                    Expr::Int(32) => r.get("result_z").copied(),
+                    Expr::Int(16) => Some((Operation::SkinPointY, r)),
+                    Expr::Int(32) => Some((Operation::SkinPointZ, r)),
                     _ => None,
                 }
             })
-        })
+        })?;
+
+    let x = result.get("result_x")?;
+    let y = result.get("result_y")?;
+    let z = result.get("result_z")?;
+
+    Some((op, vec![x, y, z]))
 }
 
-static SKIN_ATTRIBUTE_CLIP_XYZW: LazyLock<Graph> = LazyLock::new(|| {
-    // TODO: Detect this as matrix multiplication and regular skinning?
+static OP_MATMUL_POINT_PROJ: LazyLock<Graph> = LazyLock::new(|| {
+    // U_Static.gmProj * vec4(result_x, result_y, result_z, 1.0)
     let query = indoc! {"
-        temp_3 = result_x;
-        temp_8 = result_y;
-        temp_9 = result_z;
-        temp_11 = result_w;
-        temp_15 = uintBitsToFloat(U_Bone.data[int(temp_14)]);
-        temp_18 = uintBitsToFloat(U_Bone.data[int(temp_17)]);
-        temp_21 = uintBitsToFloat(U_Bone.data[int(temp_20)]);
-        temp_24 = uintBitsToFloat(U_Bone.data[int(temp_23)]);
-        temp_30 = uintBitsToFloat(U_Bone.data[int(temp_29)]);
-        temp_33 = uintBitsToFloat(U_Bone.data[int(temp_32)]);
-        temp_36 = uintBitsToFloat(U_Bone.data[int(temp_35)]);
-        temp_39 = uintBitsToFloat(U_Bone.data[int(temp_38)]);
-        temp_41 = uintBitsToFloat(U_Bone.data[int(temp_40)]);
-        temp_44 = uintBitsToFloat(U_Bone.data[int(temp_43)]);
-        temp_47 = uintBitsToFloat(U_Bone.data[int(temp_46)]);
-        temp_50 = uintBitsToFloat(U_Bone.data[int(temp_49)]);
-        temp_58 = temp_15 * temp_3;
-        temp_59 = fma(temp_18, temp_8, temp_58);
-        temp_61 = fma(temp_21, temp_9, temp_59);
-        temp_62 = fma(temp_24, temp_11, temp_61);
-        temp_63 = temp_30 * temp_3;
-        temp_64 = temp_41 * temp_3;
-        temp_65 = fma(temp_33, temp_8, temp_63);
-        temp_66 = fma(temp_36, temp_9, temp_65);
-        temp_67 = fma(temp_44, temp_8, temp_64);
-        temp_68 = fma(temp_39, temp_11, temp_66);
-        temp_70 = fma(temp_47, temp_9, temp_67);
-        temp_72 = fma(temp_50, temp_11, temp_70);
-        temp_139 = temp_62 * U_Static.gmProj[i].x;
-        temp_155 = fma(temp_68, U_Static.gmProj[i].y, temp_139);
-        temp_160 = fma(temp_72, U_Static.gmProj[i].z, temp_155);
-        temp_168 = temp_160 + U_Static.gmProj[i].w;
+        void main() {
+            temp_128 = result_x * U_Static.gmProj[i].x;
+            temp_143 = fma(result_y, U_Static.gmProj[i].y, temp_128);
+            temp_152 = fma(result_z, U_Static.gmProj[i].z, temp_143);
+            temp_160 = temp_152 + U_Static.gmProj[i].w;
+        }
     "};
-    Graph::parse_glsl_query(query).unwrap().simplify()
+    Graph::parse_glsl(query).unwrap().simplify()
 });
 
-static SKIN_ATTRIBUTE_CLIP_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
-    // TODO: Detect this as matrix multiplication and regular skinning?
-    let query = indoc! {"
-        temp_1 = result_x;
-        temp_2 = result_y;
-        temp_3 = result_z;
-        temp_4 = result_w;
-        temp_17 = uintBitsToFloat(U_Bone.data[int(temp_16)]);
-        temp_20 = uintBitsToFloat(U_Bone.data[int(temp_19)]);
-        temp_23 = uintBitsToFloat(U_Bone.data[int(temp_22)]);
-        temp_26 = uintBitsToFloat(U_Bone.data[int(temp_25)]);
-        temp_28 = uintBitsToFloat(U_Bone.data[int(temp_27)]);
-        temp_31 = uintBitsToFloat(U_Bone.data[int(temp_30)]);
-        temp_34 = uintBitsToFloat(U_Bone.data[int(temp_33)]);
-        temp_37 = uintBitsToFloat(U_Bone.data[int(temp_36)]);
-        temp_39 = uintBitsToFloat(U_Bone.data[int(temp_38)]);
-        temp_42 = uintBitsToFloat(U_Bone.data[int(temp_41)]);
-        temp_45 = uintBitsToFloat(U_Bone.data[int(temp_44)]);
-        temp_48 = uintBitsToFloat(U_Bone.data[int(temp_47)]);
-        temp_49 = temp_17 * temp_1;
-        temp_51 = temp_28 * temp_1;
-        temp_52 = fma(temp_20, temp_2, temp_49);
-        temp_53 = temp_39 * temp_1;
-        temp_56 = fma(temp_31, temp_2, temp_51);
-        temp_57 = fma(temp_23, temp_3, temp_52);
-        temp_58 = fma(temp_42, temp_2, temp_53);
-        temp_59 = fma(temp_34, temp_3, temp_56);
-        temp_60 = fma(temp_26, temp_4, temp_57);
-        temp_61 = fma(temp_45, temp_3, temp_58);
-        temp_63 = fma(temp_37, temp_4, temp_59);
-        temp_65 = fma(temp_48, temp_4, temp_61);
-        temp_128 = temp_60 * U_Static.gmProj[i].x;
-        temp_143 = fma(temp_63, U_Static.gmProj[i].y, temp_128);
-        temp_152 = fma(temp_65, U_Static.gmProj[i].z, temp_143);
-        temp_160 = temp_152 + U_Static.gmProj[i].w;
-        temp_165 = 0.0 - U_Static.gCDep.y;
-        temp_166 = temp_160 + temp_165;
-        temp_177 = temp_166 * U_Static.gCDep.z;
-    "};
-    Graph::parse_glsl_query(query).unwrap().simplify()
-});
+pub fn op_matmul_proj<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes_vars(
+        expr,
+        graph,
+        &OP_MATMUL_POINT_PROJ,
+        &[
+            ("U_Static".into(), "U_Static".into()),
+            ("gmProj".into(), "gmProj".into()),
+        ]
+        .into(),
+    )?;
 
-pub fn skin_attribute_clip_space_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
-    let result = query_nodes(expr, graph, &SKIN_ATTRIBUTE_CLIP_XYZW)
-        .or_else(|| query_nodes(expr, graph, &SKIN_ATTRIBUTE_CLIP_XYZW_Z))?;
+    let x = result.get("result_x")?;
+    let y = result.get("result_y")?;
+    let z = result.get("result_z")?;
+
     let index = result.get("i")?;
     match index {
-        Expr::Int(0) => result.get("result_x").copied(),
-        Expr::Int(1) => result.get("result_y").copied(),
-        Expr::Int(2) => result.get("result_z").copied(),
-        Expr::Int(3) => result.get("result_w").copied(),
+        Expr::Int(0) => Some((Operation::MatMulPointProjX, vec![x, y, z])),
+        Expr::Int(1) => Some((Operation::MatMulPointProjY, vec![x, y, z])),
+        Expr::Int(2) => Some((Operation::MatMulPointProjZ, vec![x, y, z])),
+        Expr::Int(3) => Some((Operation::MatMulPointProjW, vec![x, y, z])),
         _ => None,
     }
 }
 
 // TODO: reduce repetition?
+// TODO: How to combine this with the skinning operation?
+// TODO: how to make this work with normal map detection?
 static SKIN_ATTRIBUTE_BITANGENT_XC3_X: LazyLock<Graph> = LazyLock::new(|| {
     // TODO: This can be U_OdB (XC3) or U_Bone (XC1)
     let query = indoc! {"

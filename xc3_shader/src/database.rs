@@ -27,7 +27,7 @@ use crate::{
     graph::{
         BinaryOp, Expr, Graph,
         glsl::shader_source_no_extensions,
-        query::{assign_x_recursive, fma_half_half, normalize, query_nodes},
+        query::{assign_x_recursive, fma_half_half, query_nodes},
     },
 };
 
@@ -312,38 +312,28 @@ fn normal_output_expr(
         view_normal = new_view_normal;
     }
 
-    view_normal = normalize(frag, view_normal)?;
+    // The normal map result is always normalized, so we can infer the channel here.
+    let (op, args) = op_normalize(frag, view_normal)?;
 
     // TODO: front facing in calcNormalZAbs in pcmdo?
 
     // nomWork input for getCalcNormalMap in pcmdo shaders.
-    let (mut nom_work, intensity, val_inf_intensity) = calc_normal_map(frag, view_normal)
-        .map(|n| (n, None, None))
-        .or_else(|| calc_normal_map_val_inf(frag, view_normal).map(|(n, i)| (n, None, Some(i))))
-        .or_else(|| {
-            calc_normal_map_w_intensity(frag, view_normal).map(|(n, i)| (n, Some(i), None))
-        })?;
-
-    // TODO: Detect the proper channels in the normal map queries themselves.
-    nom_work = nom_work.map(|e| {
-        if let Some((op, args)) = op_normalize(frag, e) {
-            match op {
-                Operation::NormalizeX => args[0],
-                Operation::NormalizeY => args[1],
-                Operation::NormalizeZ => args[2],
-                _ => todo!(),
-            }
-        } else {
-            e
-        }
-    });
-
-    let nom_work = match last_node.output.channel {
-        Some('x') => nom_work[0],
-        Some('y') => nom_work[1],
-        Some('z') => nom_work[2],
-        _ => nom_work[0],
-    };
+    // TODO: Find a cleaner way to detect separate normal map channels.
+    let (nom_work, intensity, val_inf_intensity) = match op {
+        Operation::NormalizeX => calc_normal_map_x(frag, args[0])
+            .map(|n| (n, None, None))
+            .or_else(|| calc_normal_map_val_inf_x(frag, args[0]).map(|(n, i)| (n, None, Some(i))))
+            .or_else(|| {
+                calc_normal_map_w_intensity_x(frag, args[0]).map(|(n, i)| (n, Some(i), None))
+            }),
+        Operation::NormalizeY => calc_normal_map_y(frag, args[1])
+            .map(|n| (n, None, None))
+            .or_else(|| calc_normal_map_val_inf_y(frag, args[1]).map(|(n, i)| (n, None, Some(i))))
+            .or_else(|| {
+                calc_normal_map_w_intensity_y(frag, args[1]).map(|(n, i)| (n, Some(i), None))
+            }),
+        _ => todo!(),
+    }?;
 
     let value = output_expr(nom_work, frag, exprs);
 
@@ -357,10 +347,12 @@ impl crate::expr::Operation for Operation {
     fn query_operation_args<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Self, Vec<&'a Expr>)> {
         // Detect operations from most specific to least specific.
         // This results in fewer operations in many cases.
-        // TODO: inversesqrt
-        // TODO: exp2 should always be part of a pow expression
+        // TODO: should exp2 should always be part of a pow expression?
         op_add_normal(graph, expr)
             .or_else(|| op_calc_normal_map(graph, expr))
+            .or_else(|| op_matmul_proj(graph, expr))
+            .or_else(|| op_skin_point_xyzw(graph, expr))
+            .or_else(|| op_skin_xyz(graph, expr))
             .or_else(|| op_normalize(graph, expr))
             .or_else(|| op_monochrome(graph, expr))
             .or_else(|| op_fresnel_ratio(graph, expr))
@@ -429,20 +421,20 @@ impl crate::expr::Operation for Operation {
             expr = new_expr;
         }
         // TODO: Detect these as operations.
-        if let Some(new_expr) = attribute_gm_cal_xyz(graph, expr)
-            .or_else(|| gm_cal_u_bill_color_attribute_w(graph, expr))
-        {
-            expr = new_expr;
-        }
+        // if let Some(new_expr) = attribute_gm_cal_xyz(graph, expr)
+        //     .or_else(|| gm_cal_u_bill_color_attribute_w(graph, expr))
+        // {
+        //     expr = new_expr;
+        // }
 
         if let Some(new_expr) = latte_texture_cube_coords(graph, expr)
             // TODO: Detect these as operations.
             .or_else(|| fma_normalize(graph, expr))
-            .or_else(|| u_mdl_view_bitangent_xyz(graph, expr))
-            .or_else(|| gm_cal_u_bill_attribute_xyzw(graph, expr))
-            .or_else(|| gm_cal_u_nam_attribute_xyzw(graph, expr))
-            .or_else(|| gm_cal_u_nam2_attribute_xyzw(graph, expr))
-            .or_else(|| gm_cal_clip_attribute_xyzw(graph, expr))
+        // .or_else(|| u_mdl_view_bitangent_xyz(graph, expr))
+        // .or_else(|| gm_cal_u_bill_attribute_xyzw(graph, expr))
+        // .or_else(|| gm_cal_u_nam_attribute_xyzw(graph, expr))
+        // .or_else(|| gm_cal_u_nam2_attribute_xyzw(graph, expr))
+        // .or_else(|| gm_cal_clip_attribute_xyzw(graph, expr))
         {
             Cow::Owned(new_expr)
         } else {
@@ -463,27 +455,29 @@ impl crate::expr::Operation for Operation {
 pub fn modify_attributes(graph: &Graph, expr: &Expr) -> Expr {
     // Remove attribute skinning if present, so queries can detect globals like "vNormal.x".
     // TODO: preserve the space for attributes like clip or view?
+
+    // TODO: Finish converting these into operations.
     let mut expr = assign_x_recursive(graph, expr);
-    if let Some(new_expr) = skin_attribute_xyzw(graph, expr)
-        .or_else(|| skin_attribute_xyz(graph, expr))
-        .or_else(|| skin_attribute_clip_space_xyzw(graph, expr))
-        .or_else(|| u_mdl_clip_attribute_xyzw(graph, expr))
-        .or_else(|| u_mdl_view_attribute_xyzw(graph, expr))
-        .or_else(|| u_mdl_attribute_xyz(graph, expr))
-        .or_else(|| attribute_gm_cal_xyz(graph, expr))
-        .or_else(|| gm_cal_u_bill_color_attribute_w(graph, expr))
-    {
-        expr = new_expr;
-    }
+    // if let Some(new_expr) = skin_attribute_xyzw(graph, expr)
+    //     .or_else(|| skin_attribute_xyz(graph, expr))
+    //     .or_else(|| skin_attribute_clip_space_xyzw(graph, expr))
+    //     .or_else(|| u_mdl_clip_attribute_xyzw(graph, expr))
+    //     .or_else(|| u_mdl_view_attribute_xyzw(graph, expr))
+    //     .or_else(|| u_mdl_attribute_xyz(graph, expr))
+    //     .or_else(|| attribute_gm_cal_xyz(graph, expr))
+    //     .or_else(|| gm_cal_u_bill_color_attribute_w(graph, expr))
+    // {
+    //     expr = new_expr;
+    // }
 
     let mut expr = expr.clone();
     if let Some(new_expr) = skin_attribute_bitangent(graph, &expr)
-        .or_else(|| u_mdl_view_bitangent_xyz(graph, &expr))
-        .or_else(|| bitangent_gm_cal_xyz(graph, &expr))
-        .or_else(|| gm_cal_u_bill_attribute_xyzw(graph, &expr))
-        .or_else(|| gm_cal_u_nam_attribute_xyzw(graph, &expr))
-        .or_else(|| gm_cal_u_nam2_attribute_xyzw(graph, &expr))
-        .or_else(|| gm_cal_clip_attribute_xyzw(graph, &expr))
+    //     .or_else(|| u_mdl_view_bitangent_xyz(graph, &expr))
+    //     .or_else(|| bitangent_gm_cal_xyz(graph, &expr))
+    //     .or_else(|| gm_cal_u_bill_attribute_xyzw(graph, &expr))
+    //     .or_else(|| gm_cal_u_nam_attribute_xyzw(graph, &expr))
+    //     .or_else(|| gm_cal_u_nam2_attribute_xyzw(graph, &expr))
+    //     .or_else(|| gm_cal_clip_attribute_xyzw(graph, &expr))
     {
         expr = new_expr;
     }

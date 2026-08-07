@@ -77,6 +77,17 @@ impl OperationXyzChannel for Operation {
             Operation::NormalizeX => Some((OperationXyz::Normalize, Some('x'))),
             Operation::NormalizeZ => Some((OperationXyz::Normalize, Some('y'))),
             Operation::NormalizeY => Some((OperationXyz::Normalize, Some('z'))),
+            // TODO: Support xyz ops for transforms?
+            Operation::MatMulPointProjX => None,
+            Operation::MatMulPointProjY => None,
+            Operation::MatMulPointProjZ => None,
+            Operation::MatMulPointProjW => None,
+            Operation::SkinVectorX => None,
+            Operation::SkinVectorY => None,
+            Operation::SkinVectorZ => None,
+            Operation::SkinPointX => None,
+            Operation::SkinPointY => None,
+            Operation::SkinPointZ => None,
         }
     }
 }
