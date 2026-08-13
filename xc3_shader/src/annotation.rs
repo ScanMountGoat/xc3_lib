@@ -145,7 +145,9 @@ impl ShaderMetadata {
             }
         }
 
-        annotate_samplers(&mut replacements, self);
+        let texture_prefix = if is_vertex { "vp_t_tcb" } else { "fp_t_tcb" };
+
+        annotate_samplers(&mut replacements, self, texture_prefix);
         annotate_buffers(&mut replacements, &mut struct_fields, buffer_prefix, self);
 
         // Annotate constants from fp_c1 with tests.
@@ -366,10 +368,14 @@ pub fn annotate_vertex(
     metadata.annotate_glsl(glsl, "vp", true)
 }
 
-fn annotate_samplers(replacements: &mut HashMap<String, String>, metadata: &ShaderMetadata) {
+fn annotate_samplers(
+    replacements: &mut HashMap<String, String>,
+    metadata: &ShaderMetadata,
+    texture_prefix: &str,
+) {
     for sampler in &metadata.samplers {
         let handle = sampler.handle * 2 + 8;
-        let texture_name = format!("fp_t_tcb_{handle:X}");
+        let texture_name = format!("{texture_prefix}_{handle:X}");
         replacements.insert(texture_name, sampler.name.clone());
     }
 }
