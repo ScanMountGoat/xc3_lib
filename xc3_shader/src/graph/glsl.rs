@@ -42,6 +42,7 @@ impl AssignmentVisitor {
         output_name: SmolStr,
         output_channels: &str,
         assignment_input: &glsl_lang::ast::Expr,
+        if_condition_expr: Option<usize>,
     ) {
         let inputs = input_expr(
             assignment_input,
@@ -56,12 +57,31 @@ impl AssignmentVisitor {
 
         // Convert vector swizzles to scalar operations to simplify analysis code.
         for input in inputs {
+            let input = if let Some(condition) = if_condition_expr {
+                // Convert conditional assignment to a ternary.
+                let new_value = self.exprs.insert_full(input).0;
+
+                let previous_value = last_assignment_expr(
+                    &self.last_assignment_index,
+                    output_name.clone(),
+                    output_channels.chars().next(),
+                );
+                let previous_value = self.exprs.insert_full(previous_value).0;
+
+                // If the if condition is true, use the new value.
+                self.exprs
+                    .insert_full(Expr::Ternary(condition, new_value, previous_value))
+                    .0
+            } else {
+                self.exprs.insert_full(input).0
+            };
+
             let assignment = AssignmentValue {
                 output: Output {
                     name: output_name.clone(),
                     channel: channels.next(),
                 },
-                input: self.exprs.insert_full(input).0,
+                input,
             };
             // The visitor doesn't track line numbers.
             // We only need to look up the assignments, so use the index instead.
@@ -70,46 +90,56 @@ impl AssignmentVisitor {
             self.assignments.push(assignment);
         }
     }
+
+    fn add_assignment_expr(
+        &mut self,
+        lh: &glsl_lang::ast::Node<ExprData>,
+        rh: &glsl_lang::ast::Node<ExprData>,
+        if_condition_expr: Option<usize>,
+    ) {
+        let (output_name, output_channels) = match &lh.content {
+            ExprData::Variable(id) => (id.0.clone(), ""),
+            ExprData::IntConst(_) => todo!(),
+            ExprData::UIntConst(_) => todo!(),
+            ExprData::BoolConst(_) => todo!(),
+            ExprData::FloatConst(_) => todo!(),
+            ExprData::DoubleConst(_) => todo!(),
+            ExprData::Unary(_, _) => todo!(),
+            ExprData::Binary(_, _, _) => todo!(),
+            ExprData::Ternary(_, _, _) => todo!(),
+            ExprData::Assignment(_, _, _) => todo!(),
+            ExprData::Bracket(_, _) => {
+                // TODO: Better support for assigning to array elements?
+                let mut text = String::new();
+                show_expr(&mut text, lh, &mut FormattingState::default()).unwrap();
+                (text.to_smolstr(), "")
+            }
+            ExprData::FunCall(_, _) => todo!(),
+            ExprData::Dot(e, channel) => {
+                if let ExprData::Variable(id) = &e.content {
+                    (id.0.clone(), channel.as_str())
+                } else {
+                    todo!()
+                }
+            }
+            ExprData::PostInc(_) => todo!(),
+            ExprData::PostDec(_) => todo!(),
+            ExprData::Comma(_, _) => todo!(),
+        };
+
+        self.add_assignment(output_name, output_channels, rh, if_condition_expr);
+    }
 }
 
 impl Visitor for AssignmentVisitor {
     fn visit_statement(&mut self, statement: &Statement) -> Visit {
+        // TODO: Track the current condition in the visitor to simplify if handling?
         match &statement.content {
             StatementData::Expression(expr) => {
                 if let Some(ExprData::Assignment(lh, _, rh)) =
                     expr.content.0.as_ref().map(|c| &c.content)
                 {
-                    let (output_name, output_channels) = match &lh.content {
-                        ExprData::Variable(id) => (id.0.clone(), ""),
-                        ExprData::IntConst(_) => todo!(),
-                        ExprData::UIntConst(_) => todo!(),
-                        ExprData::BoolConst(_) => todo!(),
-                        ExprData::FloatConst(_) => todo!(),
-                        ExprData::DoubleConst(_) => todo!(),
-                        ExprData::Unary(_, _) => todo!(),
-                        ExprData::Binary(_, _, _) => todo!(),
-                        ExprData::Ternary(_, _, _) => todo!(),
-                        ExprData::Assignment(_, _, _) => todo!(),
-                        ExprData::Bracket(_, _) => {
-                            // TODO: Better support for assigning to array elements?
-                            let mut text = String::new();
-                            show_expr(&mut text, lh, &mut FormattingState::default()).unwrap();
-                            (text.to_smolstr(), "")
-                        }
-                        ExprData::FunCall(_, _) => todo!(),
-                        ExprData::Dot(e, channel) => {
-                            if let ExprData::Variable(id) = &e.content {
-                                (id.0.clone(), channel.as_str())
-                            } else {
-                                todo!()
-                            }
-                        }
-                        ExprData::PostInc(_) => todo!(),
-                        ExprData::PostDec(_) => todo!(),
-                        ExprData::Comma(_, _) => todo!(),
-                    };
-
-                    self.add_assignment(output_name, output_channels, rh);
+                    self.add_assignment_expr(lh, rh, None);
                 }
 
                 Visit::Children
@@ -121,7 +151,7 @@ impl Visitor for AssignmentVisitor {
                         l.head.initializer.as_ref().map(|c| &c.content)
                     {
                         let output = l.head.name.as_ref().unwrap().0.clone();
-                        self.add_assignment(output, "", init);
+                        self.add_assignment(output, "", init, None);
                     }
                 }
 
@@ -132,31 +162,54 @@ impl Visitor for AssignmentVisitor {
     }
 
     fn visit_selection_statement(&mut self, s: &SelectionStatement) -> Visit {
-        // TODO: How to properly handle if statements in graph?
         match &s.rest.content {
             SelectionRestStatementData::Statement(node) => {
                 // TODO: Support if statements with multiple exprs.
-                // TODO: Support nested if statements with discard.
                 // TODO: Support unconditional discard after a return.
-                if let StatementData::Compound(compound) = &node.content
-                    && let Some(StatementData::Jump(jump)) =
+                if let StatementData::Compound(compound) = &node.content {
+                    if let Some(StatementData::Jump(jump)) =
                         &compound.statement_list.first().map(|s| &s.content)
-                    && let JumpStatementData::Discard = jump.content
-                {
-                    let discard_condition = input_expr_inner(
-                        &s.cond,
-                        &self.last_assignment_index,
-                        &mut self.exprs,
-                        None,
-                    );
-                    let discard_condition = self.exprs.insert_full(discard_condition).0;
-                    self.discard_condition_expr = Some(discard_condition);
+                        && let JumpStatementData::Discard = jump.content
+                    {
+                        // Skip any statements after the discard since they will never execute.
+                        let discard_condition = input_expr_inner(
+                            &s.cond,
+                            &self.last_assignment_index,
+                            &mut self.exprs,
+                            None,
+                        );
+                        let discard_condition = self.exprs.insert_full(discard_condition).0;
+                        self.discard_condition_expr = Some(discard_condition);
+                    } else {
+                        let assignment_condition = input_expr_inner(
+                            &s.cond,
+                            &self.last_assignment_index,
+                            &mut self.exprs,
+                            None,
+                        );
+                        let assignment_condition = self.exprs.insert_full(assignment_condition).0;
+
+                        // Vars in the condition expr may be reassigned.
+                        // TODO: Create backups for the values of vars used in the expr.
+
+                        for statement in &compound.statement_list {
+                            if let StatementData::Expression(expr) = &statement.content
+                                && let Some(ExprData::Assignment(lh, _, rh)) =
+                                    expr.content.0.as_ref().map(|c| &c.content)
+                            {
+                                // Convert conditional assignment to a ternary.
+                                self.add_assignment_expr(lh, rh, Some(assignment_condition));
+                            }
+                        }
+                    }
                 }
             }
             SelectionRestStatementData::Else(_node, _node1) => {
                 // TODO: negate the condition for discard in an else branch?
             }
         }
+        // TODO: Support nested if statements for discard and assignment.
+        // TODO: Visit child here and track the current nested conditions in the visitor?
         Visit::Parent
     }
 }
@@ -418,26 +471,7 @@ fn input_expr_inner(
             // The base case is a single variable like temp_01.
             // Also handle values like buffer or texture names.
             // The previous assignment may not always have a channel.
-            match last_assignment_index
-                .get(&Output {
-                    name: i.0.clone(),
-                    channel,
-                })
-                .or_else(|| {
-                    last_assignment_index.get(&Output {
-                        name: i.0.clone(),
-                        channel: None,
-                    })
-                }) {
-                Some(i) => Expr::Node {
-                    node_index: *i,
-                    channel,
-                },
-                None => Expr::Global {
-                    name: i.0.clone(),
-                    channel,
-                },
-            }
+            last_assignment_expr(last_assignment_index, i.0.clone(), channel)
         }
         ExprData::IntConst(i) => Expr::Int(*i),
         ExprData::UIntConst(u) => Expr::Uint(*u),
@@ -610,6 +644,30 @@ fn input_expr_inner(
         ExprData::PostInc(e) => input_expr_inner(e, last_assignment_index, exprs, channel),
         ExprData::PostDec(e) => input_expr_inner(e, last_assignment_index, exprs, channel),
         ExprData::Comma(_, _) => todo!(),
+    }
+}
+
+fn last_assignment_expr(
+    last_assignment_index: &BTreeMap<Output, usize>,
+    name: SmolStr,
+    channel: Option<char>,
+) -> Expr {
+    match last_assignment_index
+        .get(&Output {
+            name: name.clone(),
+            channel,
+        })
+        .or_else(|| {
+            last_assignment_index.get(&Output {
+                name: name.clone(),
+                channel: None,
+            })
+        }) {
+        Some(i) => Expr::Node {
+            node_index: *i,
+            channel,
+        },
+        None => Expr::Global { name, channel },
     }
 }
 
@@ -1269,6 +1327,78 @@ mod tests {
                 if (a < b) {
                     discard;
                 }
+            "},
+            graph.to_glsl()
+        );
+    }
+
+    #[test]
+    fn graph_glsl_if_assignments() {
+        let glsl = indoc! {"
+            void main() {
+                a = 1.0;
+                if (a < 0.0) { 
+                    a = 2.0;
+                    b = a;
+                }
+            }
+        "};
+
+        let graph = Graph {
+            nodes: vec![
+                Node {
+                    output: Output {
+                        name: "a".into(),
+                        channel: None,
+                    },
+                    input: 0,
+                },
+                Node {
+                    output: Output {
+                        name: "a".into(),
+                        channel: None,
+                    },
+                    input: 5,
+                },
+                Node {
+                    output: Output {
+                        name: "b".into(),
+                        channel: None,
+                    },
+                    input: 8,
+                },
+            ],
+            exprs: vec![
+                Expr::Float(1.0.into()),
+                Expr::Node {
+                    node_index: 0,
+                    channel: None,
+                },
+                Expr::Float(0.0.into()),
+                Expr::Binary(BinaryOp::Less, 1, 2),
+                Expr::Float(2.0.into()),
+                Expr::Ternary(3, 4, 1),
+                Expr::Node {
+                    node_index: 1, // TODO: this should be 0
+                    channel: None,
+                },
+                Expr::Global {
+                    name: "b".into(),
+                    channel: None,
+                },
+                Expr::Ternary(3, 6, 7),
+            ],
+            discard_condition: None,
+        };
+        assert_eq!(graph, Graph::parse_glsl(glsl).unwrap());
+
+        // Assignments in the if should be converted to graph nodes.
+        // TODO: This should create a backup for the "a" var used for the condition.
+        assert_eq!(
+            indoc! {"
+                a = 1.0;
+                a = a < 0.0 ? 2.0 : a;
+                b = a < 0.0 ? a : b;
             "},
             graph.to_glsl()
         );
