@@ -413,7 +413,7 @@ impl std::fmt::Display for Value {
             Value::Uint(u) => write!(f, "{u:?}"),
             Value::Float(c) => write!(f, "{c:?}"),
             Value::Bool(b) => write!(f, "{b:?}"),
-            Value::Parameter(b) => write!(f, "{b}"),
+            Value::Parameter(p) => write!(f, "{p}"),
             Value::Texture(t) => write!(f, "{t}"),
             Value::Attribute(a) => write!(f, "{a}"),
         }
@@ -632,7 +632,7 @@ impl std::fmt::Display for ParameterXyz {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}{}{}{}",
+            "{}{}{}{}{}",
             self.name,
             if self.field.is_empty() {
                 String::new()
@@ -640,6 +640,7 @@ impl std::fmt::Display for ParameterXyz {
                 format!(".{}", self.field)
             },
             self.index.map(|i| format!("[{i}]")).unwrap_or_default(),
+            self.index2.map(|i| format!("[{i}]")).unwrap_or_default(),
             channels_xyz(self.channel)
         )
     }
@@ -674,6 +675,7 @@ impl<'a> arbitrary::Arbitrary<'a> for Parameter {
             name: crate::arbitrary_smolstr(u)?,
             field: crate::arbitrary_smolstr(u)?,
             index: u.arbitrary()?,
+            index2: u.arbitrary()?,
             channel: u.arbitrary()?,
         })
     }
@@ -718,6 +720,7 @@ impl<'a> arbitrary::Arbitrary<'a> for ParameterXyz {
             name: crate::arbitrary_smolstr(u)?,
             field: crate::arbitrary_smolstr(u)?,
             index: u.arbitrary()?,
+            index2: u.arbitrary()?,
             channel: u.arbitrary()?,
         })
     }

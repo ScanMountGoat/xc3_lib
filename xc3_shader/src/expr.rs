@@ -221,7 +221,7 @@ impl std::fmt::Display for Parameter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}{}{}{}",
+            "{}{}{}{}{}",
             self.name,
             if !self.field.is_empty() {
                 format!(".{}", self.field)
@@ -229,6 +229,7 @@ impl std::fmt::Display for Parameter {
                 String::new()
             },
             self.index.map(|i| format!("[{i}]")).unwrap_or_default(),
+            self.index2.map(|i| format!("[{i}]")).unwrap_or_default(),
             channels(self.channel)
         )
     }
