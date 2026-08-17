@@ -59,24 +59,28 @@ pub fn parameter(graph: &Graph, e: &Expr) -> Option<crate::expr::Parameter> {
         name,
         field,
         index,
+        index2,
         channel,
     } = e
     {
-        if let Some(Expr::Int(index)) = index.map(|i| &graph.exprs[i]) {
-            Some(crate::expr::Parameter {
-                name: name.clone(),
-                field: field.clone().unwrap_or_default(),
-                index: Some((*index).try_into().unwrap()),
-                channel: *channel,
-            })
+        // TODO: Support non integer indices.
+        let index = if let Some(Expr::Int(index)) = index.map(|i| &graph.exprs[i]) {
+            Some((*index).try_into().unwrap())
         } else {
-            Some(crate::expr::Parameter {
-                name: name.clone(),
-                field: field.clone().unwrap_or_default(),
-                index: None,
-                channel: *channel,
-            })
-        }
+            None
+        };
+        let index2 = if let Some(Expr::Int(index)) = index2.map(|i| &graph.exprs[i]) {
+            Some((*index).try_into().unwrap())
+        } else {
+            None
+        };
+        Some(crate::expr::Parameter {
+            name: name.clone(),
+            field: field.clone().unwrap_or_default(),
+            index,
+            index2,
+            channel: *channel,
+        })
     } else {
         None
     }

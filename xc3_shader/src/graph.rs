@@ -62,6 +62,9 @@ pub enum Expr {
         field: Option<SmolStr>,
         /// Index into [exprs](struct.Graph.html#structfield.exprs) for the array index if present.
         index: Option<usize>,
+        /// Index into [exprs](struct.Graph.html#structfield.exprs) for an additional array index if present
+        /// like `matrices[index][index2]`.
+        index2: Option<usize>,
         channel: Option<char>,
     },
     /// A global identifier like `in_attr0.x`.
@@ -531,11 +534,16 @@ impl Graph {
                     name,
                     field,
                     index,
+                    index2,
                     channel,
                 } => Expr::Parameter {
                     name: name.clone(),
                     field: field.clone(),
                     index: index.map(|i| {
+                        let new_index = self.simplify_expr(i, simplified, exprs);
+                        exprs.insert_full(new_index).0
+                    }),
+                    index2: index2.map(|i| {
                         let new_index = self.simplify_expr(i, simplified, exprs);
                         exprs.insert_full(new_index).0
                     }),
@@ -563,11 +571,13 @@ fn reindex_expr(
                     name,
                     field,
                     index,
+                    index2,
                     channel,
                 } => Expr::Parameter {
                     name: name.clone(),
                     field: field.clone(),
                     index: index.map(|i| reindex_expr(i, exprs, new_exprs, old_to_new_indices)),
+                    index2: index2.map(|i| reindex_expr(i, exprs, new_exprs, old_to_new_indices)),
                     channel: *channel,
                 },
                 Expr::Unary(op, a) => {

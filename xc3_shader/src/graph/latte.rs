@@ -1984,6 +1984,7 @@ fn constant_buffer(
         name: format!("CB{}", cb.index).into(),
         field: None,
         index: Some(nodes.expr(Expr::Int((index + cb.start_index) as i32))),
+        index2: None,
         channel,
     }
 }
@@ -2139,6 +2140,7 @@ fn fetch_inst_node(tex: FetchInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
                         name: cb_name.clone(),
                         field: None,
                         index: Some(src_index),
+                        index2: None,
                         channel: Some(c_in),
                     };
                     Some(Node {

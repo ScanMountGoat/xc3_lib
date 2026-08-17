@@ -222,12 +222,14 @@ fn check_exprs<'a>(
                 name: n1,
                 field: f1,
                 index: i1,
+                index2: i21,
                 channel: c1,
             },
             Expr::Parameter {
                 name: n2,
                 field: f2,
                 index: i2,
+                index2: i22,
                 channel: c2,
             },
         ) => {
@@ -239,19 +241,37 @@ fn check_exprs<'a>(
                 return false;
             }
 
-            if let Some(f1) = f1 {
-                if let Some(expected) = query_var_names.get(f1)
-                    && Some(expected) != f2.as_ref()
-                {
-                    return false;
-                }
+            if let Some(f1) = f1
+                && let Some(expected) = query_var_names.get(f1)
+                && Some(expected) != f2.as_ref()
+            {
+                return false;
             }
 
-            match (i1, i2) {
-                (Some(i1), Some(i2)) => c1 == c2 && check(&[*i1], &[*i2]),
-                (None, None) => c1 == c2,
+            // TODO: find a way to use the closure here.
+            (match (i1, i2) {
+                (Some(i1), Some(i2)) => check_args(
+                    &[*i1],
+                    &[*i2],
+                    query_graph,
+                    input_graph,
+                    vars,
+                    query_var_names,
+                ),
+                (None, None) => true,
                 _ => false,
-            }
+            }) && (match (i21, i22) {
+                (Some(i21), Some(i22)) => check_args(
+                    &[*i21],
+                    &[*i22],
+                    query_graph,
+                    input_graph,
+                    vars,
+                    query_var_names,
+                ),
+                (None, None) => true,
+                _ => false,
+            }) && check_channels(*c1, *c2)
         }
         (
             Expr::Global {

@@ -150,8 +150,13 @@ impl Visitor for AssignmentVisitor {
                     if let Some(InitializerData::Simple(init)) =
                         l.head.initializer.as_ref().map(|c| &c.content)
                     {
+                        // float temp_0 = 1.0;
                         let output = l.head.name.as_ref().unwrap().0.clone();
                         self.add_assignment(output, "", init, None);
+                    } else {
+                        // float temp_0;
+                        // TODO: Initialize with the default value for that type.
+                        let _output = l.head.name.as_ref().unwrap().0.clone();
                     }
                 }
 
@@ -299,6 +304,7 @@ impl Graph {
                 name,
                 field,
                 index,
+                index2,
                 channel,
             } => {
                 write!(output, "{name}",).unwrap();
@@ -306,6 +312,11 @@ impl Graph {
                     write!(output, ".{f}").unwrap();
                 }
                 if let Some(i) = index {
+                    write!(output, "[").unwrap();
+                    self.write_expr_glsl(output, *i);
+                    write!(output, "]").unwrap();
+                }
+                if let Some(i) = index2 {
                     write!(output, "[").unwrap();
                     self.write_expr_glsl(output, *i);
                     write!(output, "]").unwrap();
@@ -536,6 +547,9 @@ fn input_expr_inner(
         }
         ExprData::Assignment(_, _, _) => todo!(),
         ExprData::Bracket(e, specifier) => {
+            let mut index = input_expr_inner(specifier, last_assignment_index, exprs, None);
+
+            let mut index2 = None;
             let (name, field) = match &e.as_ref().content {
                 ExprData::Variable(id) => {
                     // buffer[index].x
@@ -552,13 +566,15 @@ fn input_expr_inner(
                 ExprData::Bracket(e2, specifier2) => {
                     if let ExprData::Dot(e, field) = &e2.content {
                         if let ExprData::Variable(id) = &e.content {
-                            // TODO: Add proper support for multiple brackets in the graph itself?
                             // buffer.field[index2][index]
-                            let mut index2 = String::new();
-                            show_expr(&mut index2, specifier2, &mut FormattingState::default())
-                                .unwrap();
+                            let new_index =
+                                input_expr_inner(specifier2, last_assignment_index, exprs, None);
 
-                            (id.0.clone(), Some(format!("{field}[{index2}]").into()))
+                            // TODO: Find a nicer way to detect repeated bracket exprs.
+                            index2 = Some(index);
+                            index = new_index;
+
+                            (id.0.clone(), Some(field.0.clone()))
                         } else {
                             todo!()
                         }
@@ -574,12 +590,11 @@ fn input_expr_inner(
                 }
             };
 
-            let index = input_expr_inner(specifier, last_assignment_index, exprs, None);
-
             Expr::Parameter {
                 name,
                 field,
                 index: Some(exprs.insert_full(index).0),
+                index2: index2.map(|e| exprs.insert_full(e).0),
                 channel,
             }
         }
@@ -631,6 +646,7 @@ fn input_expr_inner(
                     name,
                     field: Some(rh.0.clone()),
                     index: None,
+                    index2: None,
                     channel,
                 }
             } else {
@@ -845,11 +861,13 @@ fn reindex_node_expr(
             name,
             field,
             index,
+            index2,
             channel,
         } => Expr::Parameter {
             name: name.clone(),
             field: field.clone(),
             index: index.map(|i| reindex_node_expr(old_graph, exprs, i, start_index)),
+            index2: index2.map(|i| reindex_node_expr(old_graph, exprs, i, start_index)),
             channel: *channel,
         },
         Expr::Unary(op, a) => {
@@ -960,6 +978,7 @@ mod tests {
                     name: "fp_c9_data".into(),
                     field: None,
                     index: Some(0),
+                    index2: None,
                     channel: Some('x'),
                 },
                 Expr::Global {
@@ -1098,6 +1117,7 @@ mod tests {
                     name: "data".into(),
                     field: None,
                     index: Some(11),
+                    index2: None,
                     channel: None,
                 },
             ],
@@ -1183,39 +1203,49 @@ mod tests {
                         name: "f0".into(),
                         channel: None,
                     },
-                    input: 1,
+                    input: 3,
                 },
                 Node {
                     output: Output {
                         name: "f1".into(),
                         channel: None,
                     },
-                    input: 4,
+                    input: 6,
                 },
                 Node {
                     output: Output {
                         name: "f2".into(),
                         channel: None,
                     },
-                    input: 5,
+                    input: 7,
                 },
                 Node {
                     output: Output {
                         name: "f3".into(),
                         channel: None,
                     },
-                    input: 7,
+                    input: 9,
                 },
             ],
             exprs: vec![
+                Expr::Global {
+                    name: "temp_4".into(),
+                    channel: None,
+                },
+                Expr::Func {
+                    name: "int".into(),
+                    args: vec![0],
+                    channel: None,
+                },
                 Expr::Global {
                     name: "temp_5".into(),
                     channel: None,
                 },
                 Expr::Parameter {
                     name: "U_BILL".into(),
-                    field: Some("data[int(temp_4)]".into()),
-                    index: Some(0),
+                    field: Some("data".into()),
+                    index: Some(1),
+                    index2: Some(2),
                     channel: None,
                 },
                 Expr::Global {
@@ -1224,26 +1254,29 @@ mod tests {
                 },
                 Expr::Func {
                     name: "int".into(),
-                    args: vec![2],
+                    args: vec![4],
                     channel: None,
                 },
                 Expr::Parameter {
                     name: "U_POST".into(),
                     field: Some("data".into()),
-                    index: Some(3),
+                    index: Some(5),
+                    index2: None,
                     channel: None,
                 },
                 Expr::Parameter {
                     name: "U_Mate".into(),
                     field: Some("gMatCol".into()),
                     index: None,
+                    index2: None,
                     channel: Some('x'),
                 },
                 Expr::Int(1),
                 Expr::Parameter {
                     name: "U_Mate".into(),
                     field: Some("gWrkCol".into()),
-                    index: Some(6),
+                    index: Some(8),
+                    index2: None,
                     channel: Some('w'),
                 },
             ],

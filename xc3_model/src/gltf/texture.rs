@@ -498,6 +498,8 @@ fn assignment_image_index(material: &crate::Material, assignment: &Value) -> Opt
         Value::Attribute(_) => None,
         Value::Float(v) => Some(ImageIndex::Value(*v)),
         Value::Int(_) => None,
+        Value::Uint(_) => None,
+        Value::Bool(_) => None,
     }
 }
 

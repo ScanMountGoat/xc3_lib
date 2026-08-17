@@ -387,6 +387,8 @@ impl crate::expr::Operation for Operation {
             .or_else(|| binary_op(graph, expr, BinaryOp::GreaterEqual, Operation::GreaterEqual))
             .or_else(|| binary_op(graph, expr, BinaryOp::LeftShift, Operation::LeftShift))
             .or_else(|| binary_op(graph, expr, BinaryOp::RightShift, Operation::RightShift))
+            .or_else(|| binary_op(graph, expr, BinaryOp::And, Operation::And))
+            .or_else(|| binary_op(graph, expr, BinaryOp::Or, Operation::Or))
             .or_else(|| binary_op(graph, expr, BinaryOp::BitAnd, Operation::BitAnd))
             .or_else(|| binary_op(graph, expr, BinaryOp::BitOr, Operation::BitOr))
             .or_else(|| binary_op(graph, expr, BinaryOp::BitXor, Operation::BitXor))
@@ -398,6 +400,7 @@ impl crate::expr::Operation for Operation {
             .or_else(|| op_func(graph, expr, "uint", Operation::Uint))
             .or_else(|| op_func(graph, expr, "trunc", Operation::Truncate))
             .or_else(|| op_func(graph, expr, "floatBitsToInt", Operation::FloatBitsToInt))
+            .or_else(|| op_func(graph, expr, "floatBitsToUint", Operation::FloatBitsToUint))
             .or_else(|| op_func(graph, expr, "intBitsToFloat", Operation::IntBitsToFloat))
             .or_else(|| op_func(graph, expr, "uintBitsToFloat", Operation::UintBitsToFloat))
             .or_else(|| op_func(graph, expr, "inversesqrt", Operation::InverseSqrt))
@@ -407,6 +410,7 @@ impl crate::expr::Operation for Operation {
             .or_else(|| op_func(graph, expr, "exp2", Operation::Exp2))
             .or_else(|| op_func(graph, expr, "sin", Operation::Sin))
             .or_else(|| op_func(graph, expr, "cos", Operation::Cos))
+            .or_else(|| op_func(graph, expr, "isnan", Operation::IsNaN))
             .or_else(|| {
                 error!("Unsupported expression {expr:?}");
                 None
@@ -917,12 +921,15 @@ pub fn shader_graphviz(shader: &ShaderProgram) -> String {
 fn xc3_value(value: crate::expr::Value) -> xc3_model::shader_database::Value {
     match value {
         crate::expr::Value::Int(i) => xc3_model::shader_database::Value::Int(i),
+        crate::expr::Value::Uint(u) => xc3_model::shader_database::Value::Uint(u),
         crate::expr::Value::Float(f) => xc3_model::shader_database::Value::Float(f),
+        crate::expr::Value::Bool(b) => xc3_model::shader_database::Value::Bool(b),
         crate::expr::Value::Parameter(parameter) => {
             xc3_model::shader_database::Value::Parameter(xc3_model::shader_database::Parameter {
                 name: parameter.name,
                 field: parameter.field,
                 index: parameter.index,
+                index2: parameter.index2,
                 channel: parameter.channel,
             })
         }
@@ -962,6 +969,7 @@ fn xc3_value_xyz(value: crate::expr::xyz::ValueXyz) -> xc3_model::shader_databas
                 name: p.name,
                 field: p.field,
                 index: p.index,
+                index2: p.index2,
                 channel: p.channel.map(xc3_channel_xyz),
             })
         }

@@ -240,18 +240,21 @@ impl MaterialParameters {
             name: p.name.clone(),
             field: p.field.clone(),
             index: p.index,
+            index2: p.index2,
             channel: Some('x'),
         };
         let y = Parameter {
             name: p.name.clone(),
             field: p.field.clone(),
             index: p.index,
+            index2: p.index2,
             channel: Some('y'),
         };
         let z = Parameter {
             name: p.name.clone(),
             field: p.field.clone(),
             index: p.index,
+            index2: p.index2,
             channel: Some('z'),
         };
         if let (Some(fx), Some(fy), Some(fz)) = (
@@ -274,6 +277,7 @@ impl MaterialParameters {
             name: p.name.clone(),
             field: p.field.clone(),
             index: p.index,
+            index2: p.index2,
             channel,
         })
         .map(|f| [f; 3])

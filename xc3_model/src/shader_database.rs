@@ -136,18 +136,21 @@ pub struct ShaderProgram {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Value {
     Int(i32),
+    Uint(u32),
     Float(OrderedFloat<f32>),
+    Bool(bool),
     Parameter(Parameter),
     Texture(Texture),
     Attribute(Attribute),
 }
 
-/// A single buffer access like `UniformBuffer.field[0].y` or `UniformBuffer.field.y` in GLSL.
+/// A single buffer access like `UniformBuffer.field[0][1].y` or `UniformBuffer.field.y` in GLSL.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct Parameter {
     pub name: SmolStr,
     pub field: SmolStr,
     pub index: Option<usize>,
+    pub index2: Option<usize>,
     pub channel: Option<char>,
 }
 
@@ -227,7 +230,7 @@ pub enum Operation {
     ReflectZ,
     /// `floor(arg0)`
     Floor,
-    /// `if arg0 { arg1 } else { arg2 }` or `mix(arg2, arg1, arg0)`
+    /// `if arg0 { arg1 } else { arg2 }` or `select(arg2, arg1, arg0)`
     Select,
     /// `arg0 == arg1`
     Equal,
@@ -283,11 +286,15 @@ pub enum Operation {
     LeftShift,
     /// `arg0 >> arg1`
     RightShift,
-    /// `argo & arg1`
+    /// `arg0 && arg1`
+    And,
+    /// `arg0 || arg1`
+    Or,
+    /// `arg0 & arg1`
     BitAnd,
-    /// `argo | arg1`
+    /// `arg0 | arg1`
     BitOr,
-    /// `argo ^ arg1`
+    /// `arg0 ^ arg1`
     BitXor,
     /// `dFdx(arg0)` or `dpdx(arg0)`
     PartialDerivativeX,
@@ -323,6 +330,8 @@ pub enum Operation {
     SkinPointX,
     SkinPointY,
     SkinPointZ,
+    /// `isnan(arg0)`
+    IsNaN,
 }
 
 /// A tree of computations with [Value] for the leaf values.
@@ -401,7 +410,9 @@ impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Int(i) => write!(f, "{i:?}"),
+            Value::Uint(u) => write!(f, "{u:?}"),
             Value::Float(c) => write!(f, "{c:?}"),
+            Value::Bool(b) => write!(f, "{b:?}"),
             Value::Parameter(b) => write!(f, "{b}"),
             Value::Texture(t) => write!(f, "{t}"),
             Value::Attribute(a) => write!(f, "{a}"),
@@ -477,7 +488,7 @@ pub enum OperationXyz {
     Reflect,
     /// `floor(arg0.xyz)`
     Floor,
-    /// `if arg0.xyz { arg1.xyz } else { arg2.xyz }` or `mix(arg2.xyz, arg1.xyz, arg0.xyz)`
+    /// `if arg0.xyz { arg1.xyz } else { arg2.xyz }` or `select(arg2.xyz, arg1.xyz, arg0.xyz)`
     Select,
     /// `arg0.xyz == arg1.xyz`
     Equal,
@@ -561,6 +572,7 @@ pub struct ParameterXyz {
     pub name: SmolStr,
     pub field: SmolStr,
     pub index: Option<usize>,
+    pub index2: Option<usize>,
     pub channel: Option<ChannelXyz>,
 }
 

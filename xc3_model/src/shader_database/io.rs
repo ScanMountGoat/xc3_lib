@@ -173,6 +173,12 @@ enum ValueIndexed {
 
     #[brw(magic(4u8))]
     Int(i32),
+
+    #[brw(magic(5u8))]
+    Uint(u32),
+
+    #[brw(magic(6u8))]
+    Bool(u8),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, BinRead, BinWrite)]
@@ -180,6 +186,7 @@ struct ParameterIndexed {
     name: VarInt,
     field: VarInt,
     index: OptVarInt,
+    index2: OptVarInt,
     channel: Channel,
 }
 
@@ -244,6 +251,7 @@ struct ParameterXyzIndexed {
     name: VarInt,
     field: VarInt,
     index: OptVarInt,
+    index2: OptVarInt,
     channel: ChannelXyz,
 }
 
@@ -517,6 +525,7 @@ impl ShaderDatabaseIndexed {
                 name: add_string(&mut self.buffer_names, p.name),
                 field: add_string(&mut self.buffer_field_names, p.field),
                 index: OptVarInt(p.index),
+                index2: OptVarInt(p.index2),
                 channel: p.channel.into(),
             }),
             ValueXyz::Float(f) => ValueXyzIndexed::Float(f),
@@ -621,7 +630,9 @@ impl ShaderDatabaseIndexed {
     ) -> Value {
         match v {
             ValueIndexed::Int(i) => Value::Int(*i),
+            ValueIndexed::Uint(u) => Value::Uint(*u),
             ValueIndexed::Float(f) => Value::Float(*f),
+            ValueIndexed::Bool(b) => Value::Bool(*b != 0),
             ValueIndexed::Parameter(b) => Value::Parameter(self.parameter_from_indexed(b)),
             ValueIndexed::Texture(t) => Value::Texture(Texture {
                 name: self.texture_names[t.name.0].clone(),
@@ -647,7 +658,9 @@ impl ShaderDatabaseIndexed {
     ) -> ValueIndexed {
         match v {
             Value::Int(i) => ValueIndexed::Int(i),
+            Value::Uint(u) => ValueIndexed::Uint(u),
             Value::Float(c) => ValueIndexed::Float(c),
+            Value::Bool(b) => ValueIndexed::Bool(b as u8),
             Value::Parameter(p) => ValueIndexed::Parameter(self.parameter_indexed(p)),
             Value::Texture(t) => ValueIndexed::Texture(TextureIndexed {
                 name: add_string(&mut self.texture_names, t.name),
@@ -670,6 +683,7 @@ impl ShaderDatabaseIndexed {
             name: self.buffer_names[p.name.0].clone(),
             field: self.buffer_field_names[p.field.0].clone(),
             index: p.index.0,
+            index2: p.index2.0,
             channel: p.channel.into(),
         }
     }
@@ -679,6 +693,7 @@ impl ShaderDatabaseIndexed {
             name: add_string(&mut self.buffer_names, p.name),
             field: add_string(&mut self.buffer_field_names, p.field),
             index: OptVarInt(p.index),
+            index2: OptVarInt(p.index2),
             channel: p.channel.into(),
         }
     }
@@ -734,6 +749,7 @@ impl ShaderDatabaseIndexed {
                 name: self.buffer_names[p.name.0].clone(),
                 field: self.buffer_field_names[p.field.0].clone(),
                 index: p.index.0,
+                index2: p.index2.0,
                 channel: p.channel.into(),
             }),
             ValueXyzIndexed::Texture(t) => ValueXyz::Texture(TextureXyz {

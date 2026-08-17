@@ -68,6 +68,7 @@ pub struct ParameterXyz {
     pub name: SmolStr,
     pub field: SmolStr,
     pub index: Option<usize>,
+    pub index2: Option<usize>,
     pub channel: Option<ChannelXyz>,
 }
 
@@ -173,24 +174,28 @@ where
                                 name: n_x,
                                 field: f_x,
                                 index: i_x,
+                                index2: i2_x,
                                 channel: c_x,
                             }),
                             Value::Parameter(Parameter {
                                 name: n_y,
                                 field: f_y,
                                 index: i_y,
+                                index2: i2_y,
                                 channel: c_y,
                             }),
                             Value::Parameter(Parameter {
                                 name: n_z,
                                 field: f_z,
                                 index: i_z,
+                                index2: i2_z,
                                 channel: c_z,
                             }),
                         ) => Some(OutputExprXyz::Value(ValueXyz::Parameter(ParameterXyz {
                             name: name_xyz(n_x, n_y, n_z)?,
                             field: name_xyz(f_x, f_y, f_z)?,
                             index: index_xyz(*i_x, *i_y, *i_z)?,
+                            index2: index_xyz(*i2_x, *i2_y, *i2_z)?,
                             channel: channel_xyz(*c_x, *c_y, *c_z)?,
                         }))),
                         (Value::Float(fx), Value::Float(fy), Value::Float(fz)) => {

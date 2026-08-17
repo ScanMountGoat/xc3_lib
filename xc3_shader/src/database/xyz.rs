@@ -65,6 +65,8 @@ impl OperationXyzChannel for Operation {
             Operation::Not => Some((OperationXyz::Not, None)),
             Operation::LeftShift => Some((OperationXyz::LeftShift, None)),
             Operation::RightShift => Some((OperationXyz::RightShift, None)),
+            Operation::And => None,
+            Operation::Or => None,
             Operation::BitAnd => None,
             Operation::BitOr => None,
             Operation::BitXor => None,
@@ -88,6 +90,7 @@ impl OperationXyzChannel for Operation {
             Operation::SkinPointX => None,
             Operation::SkinPointY => None,
             Operation::SkinPointZ => None,
+            Operation::IsNaN => None,
         }
     }
 }

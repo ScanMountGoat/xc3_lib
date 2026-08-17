@@ -70,6 +70,7 @@ pub struct OutputAssignment {
 fn assignment_value(v: &Value, parameters: &MaterialParameters) -> Value {
     match v {
         Value::Int(i) => Value::Int(*i),
+        Value::Uint(u) => Value::Uint(*u),
         Value::Float(f) => Value::Float(*f),
         Value::Parameter(p) => {
             if p.name != "U_Mate" {
@@ -83,6 +84,7 @@ fn assignment_value(v: &Value, parameters: &MaterialParameters) -> Value {
         }
         Value::Texture(t) => Value::Texture(t.clone()),
         Value::Attribute(a) => Value::Attribute(a.clone()),
+        Value::Bool(b) => Value::Bool(*b),
     }
 }
 

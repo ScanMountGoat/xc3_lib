@@ -34,7 +34,9 @@ pub enum OutputExpr<Op> {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Value {
     Int(i32),
+    Uint(u32),
     Float(OrderedFloat<f32>),
+    Bool(bool),
     Parameter(Parameter),
     Texture(Texture),
     Attribute(Attribute),
@@ -47,6 +49,7 @@ pub struct Parameter {
     pub name: SmolStr,
     pub field: SmolStr,
     pub index: Option<usize>,
+    pub index2: Option<usize>,
     pub channel: Option<char>,
 }
 
@@ -171,6 +174,8 @@ where
                 },
                 Expr::Float(f) => Some(crate::expr::Value::Float(*f)),
                 Expr::Int(i) => Some(crate::expr::Value::Int(*i)),
+                Expr::Uint(u) => Some(crate::expr::Value::Uint(*u)),
+                Expr::Bool(b) => Some(crate::expr::Value::Bool(*b)),
                 Expr::Global { name, channel } => {
                     // TODO: Also check if this matches a vertex input name?
                     Some(crate::expr::Value::Attribute(crate::expr::Attribute {
@@ -202,7 +207,9 @@ impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Int(i) => write!(f, "{i:?}"),
+            Value::Uint(u) => write!(f, "{u:?}"),
             Value::Float(c) => write!(f, "{c:?}"),
+            Value::Bool(b) => write!(f, "{b:?}"),
             Value::Parameter(p) => write!(f, "{p}"),
             Value::Texture(t) => write!(f, "{t}"),
             Value::Attribute(a) => write!(f, "{a}"),

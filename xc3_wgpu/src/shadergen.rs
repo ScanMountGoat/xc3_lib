@@ -190,7 +190,7 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?
         ).unwrap(),
         Operation::Floor => write!(wgsl, "floor({a}{})", arg0?).unwrap(),
-        Operation::Select => write!(wgsl, "mix(f32({a}{}), f32({a}{}), f32({a}{}))", arg2?, arg1?, arg0?).unwrap(),
+        Operation::Select => write!(wgsl, "select({a}{}, {a}{}, {a}{})", arg2?, arg1?, arg0?).unwrap(),
         Operation::Equal => write!(wgsl, "{a}{} == {a}{}", arg0?, arg1?).unwrap(),
         Operation::NotEqual => write!(wgsl, "{a}{} != {a}{}", arg0?, arg1?).unwrap(),
         Operation::Less => write!(wgsl, "{a}{} < {a}{}", arg0?, arg1?).unwrap(),
@@ -240,6 +240,8 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
         Operation::Not => write!(wgsl, "!{a}{}", arg0?).unwrap(),
         Operation::LeftShift => write!(wgsl, "{a}{} << u32({a}{})", arg0?, arg1?).unwrap(),
         Operation::RightShift => write!(wgsl, "{a}{} >> u32({a}{})", arg0?, arg1?).unwrap(),
+        Operation::And => write!(wgsl, "{a}{} && {a}{}", arg0?, arg1?).unwrap(),
+        Operation::Or => write!(wgsl, "{a}{} || {a}{}", arg0?, arg1?).unwrap(),
         Operation::BitAnd => write!(wgsl, "{a}{} & {a}{}", arg0?, arg1?).unwrap(),
         Operation::BitOr => write!(wgsl, "{a}{} | {a}{}", arg0?, arg1?).unwrap(),
         Operation::BitXor => write!(wgsl, "{a}{} ^ {a}{}", arg0?, arg1?).unwrap(),
@@ -284,6 +286,7 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
         Operation::SkinPointX => write!(wgsl, "{a}{}", arg0?).unwrap(),
         Operation::SkinPointY => write!(wgsl, "{a}{}", arg1?).unwrap(),
         Operation::SkinPointZ => write!(wgsl, "{a}{}", arg2?).unwrap(),
+        Operation::IsNaN => write!(wgsl, "false").unwrap(), // TODO: does WGSL support isnan?
     }
     Some(())
 }
@@ -479,6 +482,8 @@ fn write_value(
             }
         }
         Value::Int(i) => write!(wgsl, "{i}i").unwrap(),
+        Value::Uint(u) => write!(wgsl, "{u}u").unwrap(),
+        Value::Bool(b) => write!(wgsl, "{b}").unwrap(),
     }
     Some(())
 }
@@ -588,12 +593,9 @@ fn write_func_xyz(
         OperationXyz::Sqrt => write!(wgsl, "sqrt({a}{})", arg0?).unwrap(),
         OperationXyz::Reflect => write!(wgsl, "reflect({a}{}, {a}{})", arg0?, arg1?).unwrap(),
         OperationXyz::Floor => write!(wgsl, "floor({a}{})", arg0?).unwrap(),
-        OperationXyz::Select => write!(
-            wgsl,
-            "mix({a}{}, {a}{}, vec3<f32>({a}{}))",
-            arg2?, arg1?, arg0?
-        )
-        .unwrap(),
+        OperationXyz::Select => {
+            write!(wgsl, "select({a}{}, {a}{}, {a}{})", arg2?, arg1?, arg0?).unwrap()
+        }
         OperationXyz::Equal => write!(wgsl, "({a}{} == {a}{})", arg0?, arg1?).unwrap(),
         OperationXyz::NotEqual => write!(wgsl, "({a}{} != {a}{})", arg0?, arg1?).unwrap(),
         OperationXyz::Less => write!(wgsl, "({a}{} < {a}{})", arg0?, arg1?).unwrap(),
