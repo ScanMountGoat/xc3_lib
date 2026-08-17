@@ -3,10 +3,7 @@ use std::borrow::Cow;
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
 
-use crate::{
-    dependencies::{parameter, texture},
-    graph::{Expr, Graph, UnaryOp},
-};
+use crate::graph::{Expr, Graph, UnaryOp};
 
 pub mod xyz;
 
@@ -164,7 +161,7 @@ where
     Op: Operation + std::hash::Hash + Eq + Default,
 {
     texture(e, graph, exprs).or_else(|| {
-        parameter(graph, e)
+        parameter(graph, e, exprs)
             .map(crate::expr::Value::Parameter)
             .or_else(|| match e {
                 Expr::Unary(UnaryOp::Negate, e) => match &graph.exprs[*e] {
@@ -228,8 +225,8 @@ impl std::fmt::Display for Parameter {
             } else {
                 String::new()
             },
-            self.index.map(|i| format!("[{i}]")).unwrap_or_default(),
-            self.index2.map(|i| format!("[{i}]")).unwrap_or_default(),
+            self.index.map(|i| format!("[var{i}]")).unwrap_or_default(),
+            self.index2.map(|i| format!("[var{i}]")).unwrap_or_default(),
             channels(self.channel)
         )
     }
@@ -256,4 +253,85 @@ impl std::fmt::Display for Attribute {
 
 fn channels(c: Option<char>) -> String {
     c.map(|c| format!(".{c}")).unwrap_or_default()
+}
+
+pub fn texture<Op>(e: &Expr, graph: &Graph, exprs: &mut ExprCache<Op>) -> Option<crate::expr::Value>
+where
+    Op: Operation + std::hash::Hash + Eq + Default,
+{
+    if let Expr::Func {
+        name,
+        args,
+        channel,
+    } = e
+    {
+        if name.starts_with("texture") {
+            if let Some(Expr::Global { name, .. }) = args.first().map(|a| &graph.exprs[*a]) {
+                let texcoords = texcoord_args(args, graph, exprs);
+
+                Some(crate::expr::Value::Texture(crate::expr::Texture {
+                    name: name.clone(),
+                    channel: *channel,
+                    texcoords,
+                }))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
+fn texcoord_args<Op>(args: &[usize], graph: &Graph, exprs: &mut ExprCache<Op>) -> Vec<usize>
+where
+    Op: Operation + std::hash::Hash + Eq + Default,
+{
+    // The arg0 should always be the texture name.
+    // texture(arg0, vec2(arg1, arg2)) or texture(arg0, vec3(arg1, arg2, arg3))
+    if let Some(Expr::Func { name, args, .. }) = args.get(1).map(|a| &graph.exprs[*a])
+        && matches!(name.as_str(), "vec2" | "vec3")
+    {
+        args.iter()
+            .map(|e| output_expr(&graph.exprs[*e], graph, exprs))
+            .collect::<Vec<_>>()
+    } else {
+        // textureCube(arg0, arg1, arg2, arg3)
+        args.iter()
+            .skip(1)
+            .map(|e| output_expr(&graph.exprs[*e], graph, exprs))
+            .collect::<Vec<_>>()
+    }
+}
+
+pub fn parameter<Op>(
+    graph: &Graph,
+    e: &Expr,
+    exprs: &mut ExprCache<Op>,
+) -> Option<crate::expr::Parameter>
+where
+    Op: Operation + std::hash::Hash + Eq + Default,
+{
+    if let Expr::Parameter {
+        name,
+        field,
+        index,
+        index2,
+        channel,
+    } = e
+    {
+        let index = index.map(|i| output_expr(&graph.exprs[i], graph, exprs));
+        let index2 = index2.map(|i| output_expr(&graph.exprs[i], graph, exprs));
+        Some(crate::expr::Parameter {
+            name: name.clone(),
+            field: field.clone().unwrap_or_default(),
+            index,
+            index2,
+            channel: *channel,
+        })
+    } else {
+        None
+    }
 }

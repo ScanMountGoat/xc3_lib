@@ -305,8 +305,8 @@ impl std::fmt::Display for ParameterXyz {
             } else {
                 String::new()
             },
-            self.index.map(|i| format!("[{i}]")).unwrap_or_default(),
-            self.index2.map(|i| format!("[{i}]")).unwrap_or_default(),
+            self.index.map(|i| format!("[var{i}]")).unwrap_or_default(),
+            self.index2.map(|i| format!("[var{i}]")).unwrap_or_default(),
             channels_xyz(self.channel)
         )
     }

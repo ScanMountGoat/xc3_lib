@@ -15,20 +15,13 @@ use xc3_model::shader_database::{
     AttributeXyz, Operation, ParameterXyz, ProgramHash, ShaderDatabase, ShaderProgram, Value,
 };
 
-use crate::expr::xyz::ExprCacheXyz;
-use crate::expr::{ExprCache, Texture};
-use crate::expr::{OutputExpr, output_expr, xyz::merge_xyz_exprs};
-use crate::graph::UnaryOp;
-use crate::graph::glsl::{GlslGraph, merge_vertex_fragment};
-use crate::graph::query::fma_normalize;
-use crate::{
-    dependencies::parameter,
-    extract::nvsd_glsl_name,
-    graph::{
-        BinaryOp, Expr, Graph,
-        glsl::shader_source_no_extensions,
-        query::{assign_x_recursive, fma_half_half, query_nodes},
-    },
+use crate::expr::xyz::{ExprCacheXyz, merge_xyz_exprs};
+use crate::expr::{ExprCache, OutputExpr, Texture, output_expr, parameter};
+use crate::extract::nvsd_glsl_name;
+use crate::graph::{
+    BinaryOp, Expr, Graph, UnaryOp,
+    glsl::{GlslGraph, merge_vertex_fragment, shader_source_no_extensions},
+    query::{assign_x_recursive, fma_half_half, fma_normalize, query_nodes},
 };
 
 mod query;
@@ -44,10 +37,12 @@ pub fn shader_from_glsl(
     fragment: GlslGraph,
     version: GameVersion,
 ) -> ShaderProgram {
+    let mut exprs = ExprCache::default();
+
     // This doesn't work with a simplified graph.
     let outline_width = vertex
         .as_ref()
-        .map(|v| outline_width_parameter(&v.graph))
+        .map(|v| outline_width_parameter(&v.graph, &mut exprs))
         .unwrap_or_default();
 
     let frag_attributes = fragment.attributes.clone();
@@ -73,8 +68,6 @@ pub fn shader_from_glsl(
     let mut output_dependencies = IndexMap::default();
     let mut normal_intensity = None;
     let mut val_inf_intensity = None;
-
-    let mut exprs = ExprCache::default();
 
     // Some shaders have up to 8 outputs.
     for i in frag_attributes.output_locations.right_values().copied() {
@@ -251,7 +244,10 @@ static OUTLINE_WIDTH_PARAMETER: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl(query).unwrap()
 });
 
-fn outline_width_parameter(vert: &Graph) -> Option<crate::expr::Value> {
+fn outline_width_parameter(
+    vert: &Graph,
+    exprs: &mut ExprCache<Operation>,
+) -> Option<crate::expr::Value> {
     vert.nodes.iter().find_map(|n| {
         // TODO: Add a way to match identifiers like "vColor" exactly.
         let result = query_nodes(&vert.exprs[n.input], vert, &OUTLINE_WIDTH_PARAMETER)?;
@@ -260,7 +256,7 @@ fn outline_width_parameter(vert: &Graph) -> Option<crate::expr::Value> {
 
         if matches!(vcolor, Expr::Global { name, channel } if name == "vColor" && *channel == Some('w')) {
             // TODO: Handle other value types?
-            parameter(vert, param).map(crate::expr::Value::Parameter)
+            parameter(vert, param, exprs).map(crate::expr::Value::Parameter)
         } else {
             None
         }
@@ -670,6 +666,7 @@ pub fn shader_str(s: &ShaderProgram) -> String {
         writeln!(&mut output).unwrap();
     }
     if let Some(v) = &s.outline_width {
+        // TODO: Fix formatting standalone values
         writeln!(&mut output, "outline_width = {v};").unwrap();
         writeln!(&mut output).unwrap();
     }
@@ -782,8 +779,26 @@ fn arg_inlined_value(
     old_to_new_index: &mut IndexSet<usize>,
 ) -> String {
     match &s.exprs[i] {
-        xc3_model::shader_database::OutputExpr::Value(v) => {
-            if let xc3_model::shader_database::Value::Texture(t) = v {
+        xc3_model::shader_database::OutputExpr::Value(v) => match v {
+            Value::Parameter(p) => {
+                format!(
+                    "{}{}{}{}{}",
+                    p.name,
+                    if !p.field.is_empty() {
+                        format!(".{}", p.field)
+                    } else {
+                        String::new()
+                    },
+                    p.index
+                        .map(|i| format!("[{}]", arg_inlined_value(s, i, old_to_new_index)))
+                        .unwrap_or_default(),
+                    p.index2
+                        .map(|i| format!("[{}]", arg_inlined_value(s, i, old_to_new_index)))
+                        .unwrap_or_default(),
+                    p.channel.map(|c| format!(".{c}")).unwrap_or_default()
+                )
+            }
+            Value::Texture(t) => {
                 let coords: Vec<_> = args_inlined_values(s, &t.texcoords, old_to_new_index);
                 format!(
                     "Texture({}, {}){}",
@@ -791,10 +806,9 @@ fn arg_inlined_value(
                     coords.join(", "),
                     t.channel.map(|c| format!(".{c}")).unwrap_or_default()
                 )
-            } else {
-                v.to_string()
             }
-        }
+            v => v.to_string(),
+        },
         _ => format!("var{}", old_to_new_index.insert_full(i).0),
     }
 }
@@ -862,8 +876,8 @@ fn arg_inlined_value_xyz(
     old_to_new_index_xyz: &mut IndexSet<usize>,
 ) -> String {
     match &s.exprs_xyz[i] {
-        xc3_model::shader_database::OutputExprXyz::Value(v) => {
-            if let xc3_model::shader_database::ValueXyz::Texture(t) = v {
+        xc3_model::shader_database::OutputExprXyz::Value(v) => match v {
+            xc3_model::shader_database::ValueXyz::Texture(t) => {
                 let coords: Vec<_> = args_inlined_values(s, &t.texcoords, old_to_new_index);
                 format!(
                     "Texture({}, {}){}",
@@ -871,10 +885,27 @@ fn arg_inlined_value_xyz(
                     coords.join(", "),
                     t.channel.map(|c| format!(".{c}")).unwrap_or_default()
                 )
-            } else {
-                v.to_string()
             }
-        }
+            xc3_model::shader_database::ValueXyz::Parameter(p) => {
+                format!(
+                    "{}{}{}{}{}",
+                    p.name,
+                    if !p.field.is_empty() {
+                        format!(".{}", p.field)
+                    } else {
+                        String::new()
+                    },
+                    p.index
+                        .map(|i| format!("[{}]", arg_inlined_value(s, i, old_to_new_index)))
+                        .unwrap_or_default(),
+                    p.index2
+                        .map(|i| format!("[{}]", arg_inlined_value(s, i, old_to_new_index)))
+                        .unwrap_or_default(),
+                    p.channel.map(|c| format!(".{c}")).unwrap_or_default()
+                )
+            }
+            v => v.to_string(),
+        },
         _ => format!("var{}", old_to_new_index_xyz.insert_full(i).0),
     }
 }

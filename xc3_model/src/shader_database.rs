@@ -387,7 +387,7 @@ impl std::fmt::Display for Parameter {
             } else {
                 format!(".{}", self.field)
             },
-            self.index.map(|i| format!("[{i}]")).unwrap_or_default(),
+            self.index.map(|i| format!("[var{i}]")).unwrap_or_default(),
             channels(self.channel)
         )
     }
@@ -571,6 +571,7 @@ pub struct AttributeXyz {
 pub struct ParameterXyz {
     pub name: SmolStr,
     pub field: SmolStr,
+    // TODO: These should still be scalar indices?
     pub index: Option<usize>,
     pub index2: Option<usize>,
     pub channel: Option<ChannelXyz>,
@@ -639,8 +640,8 @@ impl std::fmt::Display for ParameterXyz {
             } else {
                 format!(".{}", self.field)
             },
-            self.index.map(|i| format!("[{i}]")).unwrap_or_default(),
-            self.index2.map(|i| format!("[{i}]")).unwrap_or_default(),
+            self.index.map(|i| format!("[var{i}]")).unwrap_or_default(),
+            self.index2.map(|i| format!("[var{i}]")).unwrap_or_default(),
             channels_xyz(self.channel)
         )
     }
