@@ -1,5 +1,5 @@
 use peg::parser;
-use smol_str::ToSmolStr;
+use smol_str::{ToSmolStr, format_smolstr};
 use thiserror::Error;
 use tracing::error;
 
@@ -1178,11 +1178,11 @@ fn add_exp_inst(exp: CfExpInst, nodes: &mut Nodes) {
         for c in channels.chars() {
             let node = Node {
                 output: Output {
-                    name: format!("{target_name}{}", target_index + i).into(),
+                    name: format_smolstr!("{target_name}{}", target_index + i),
                     channel: Some(c),
                 },
                 input: nodes.previous_assignment_expr(
-                    &format!("{source_name}{}", source_index + i),
+                    &format_smolstr!("{source_name}{}", source_index + i),
                     Some(c),
                     exp.inst_count,
                 ),
@@ -1267,8 +1267,8 @@ fn add_alu_clause(clause: AluClause, nodes: &mut Nodes) {
                 // TODO: Is there a better way to handle alu units with write masks?
                 if !scalar.output.name.starts_with("PV") && !scalar.output.name.starts_with("PS") {
                     let (name, channel): (SmolStr, _) = match scalar.alu_unit {
-                        c @ ('x' | 'y' | 'z' | 'w') => (format!("PV{inst_count}").into(), Some(c)),
-                        't' => (format!("PS{inst_count}").into(), None),
+                        c @ ('x' | 'y' | 'z' | 'w') => (format_smolstr!("PV{inst_count}"), Some(c)),
+                        't' => (format_smolstr!("PS{inst_count}"), None),
                         _ => unreachable!(),
                     };
                     if previous_vectors_scalars.contains(&(name.clone(), channel)) {
@@ -1314,10 +1314,10 @@ fn get_scalar_data(
     let backup_gprs = backup_gprs(&group);
 
     for (i, channel) in &backup_gprs {
-        let name = format!("R{i}");
+        let name = format_smolstr!("R{i}");
         let node = Node {
             output: Output {
-                name: format!("{name}_backup").into(),
+                name: format_smolstr!("{name}_backup"),
                 channel: *channel,
             },
             input: nodes.previous_assignment_expr(&name, *channel, inst_count),
@@ -1571,7 +1571,7 @@ fn reduction_node_index(
             _ => unreachable!(),
         };
 
-        let temp_name: SmolStr = format!("temp{inst_count}").into();
+        let temp_name = format_smolstr!("temp{inst_count}");
         let node = Node {
             output: Output {
                 name: temp_name.clone(),
@@ -1829,12 +1829,12 @@ fn alu_dst_output(dst: AluDst, inst_count: InstCount, alu_unit: char) -> Output 
             match alu_unit {
                 // ____ mask for xyzw writes to a previous vector "PV".
                 c @ ('x' | 'y' | 'z' | 'w') => Output {
-                    name: format!("PV{inst_count}").into(),
+                    name: format_smolstr!("PV{inst_count}"),
                     channel: Some(c),
                 },
                 // ____ mask for t writes to a previous scalar "PS".
                 't' => Output {
-                    name: format!("PS{inst_count}").into(),
+                    name: format_smolstr!("PS{inst_count}"),
                     channel: None,
                 },
                 _ => unreachable!(),
@@ -1939,7 +1939,7 @@ fn value_expr(
         AluSrcValue::Gpr(gpr) => {
             if backup_gprs.contains(&(gpr.0, channel)) {
                 // Find the backed up value from before this ALU group.
-                previous_assignment(&format!("{gpr}_backup"), channel, nodes, inst_count)
+                previous_assignment(&format_smolstr!("{gpr}_backup"), channel, nodes, inst_count)
             } else {
                 previous_assignment(&gpr.to_string(), channel, nodes, inst_count)
             }
@@ -1960,7 +1960,7 @@ fn value_expr(
 fn constant_file(cf: ConstantFile, channel: Option<char>) -> Expr {
     // TODO: how to handle constant file expressions?
     Expr::Global {
-        name: format!("C{}", cf.0).into(),
+        name: format_smolstr!("C{}", cf.0),
         channel,
     }
 }
@@ -1981,7 +1981,7 @@ fn constant_buffer(
 ) -> Expr {
     let cb = constant_buffer.as_ref().unwrap();
     Expr::Parameter {
-        name: format!("CB{}", cb.index).into(),
+        name: format_smolstr!("CB{}", cb.index),
         field: None,
         index: Some(nodes.expr(Expr::Int((index + cb.start_index) as i32))),
         index2: None,
@@ -2081,7 +2081,7 @@ fn tex_src_coords(tex: &TexInst, nodes: &mut Nodes) -> Option<usize> {
             .map(|c| {
                 let node = Node {
                     output: Output {
-                        name: format!("{gpr}_backup").into(),
+                        name: format_smolstr!("{gpr}_backup"),
                         channel: Some(c),
                     },
                     input: nodes.previous_assignment_expr(&gpr, Some(c), tex.inst_count),
@@ -2123,7 +2123,7 @@ fn fetch_inst_node(tex: FetchInst, nodes: &mut Nodes) -> Option<Vec<Node>> {
 
     // TODO: Is this the correct way to calculate the buffer index?
     let cb_index = tex.buffer_id - 128;
-    let cb_name: SmolStr = format!("CB{cb_index}").into();
+    let cb_name = format_smolstr!("CB{cb_index}");
 
     // TODO: How should the OFFSET property be used?
     let src_expr = previous_assignment(&src_name, src_channel, nodes, tex.inst_count);

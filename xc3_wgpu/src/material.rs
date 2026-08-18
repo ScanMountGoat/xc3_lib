@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use glam::{Vec3, Vec4, uvec4, vec3, vec4};
 use indexmap::IndexMap;
+use smol_str::format_smolstr;
 use tracing::{error, warn};
 use xc3_model::{
     ImageTexture, IndexMapExt, material::assignments::OutputAssignments, shader_database::Value,
@@ -92,7 +93,7 @@ pub fn create_material(
     // Assign material textures by index to make GPU debugging easier.
     // TODO: Match the ordering in the actual in game shader using technique?
     let mut name_to_index: IndexMap<_, _> = (0..material.textures.len())
-        .map(|i| (format!("s{i}").into(), i))
+        .map(|i| (format_smolstr!("s{i}"), i))
         .collect();
 
     let material_assignments = material.output_assignments(image_textures);
