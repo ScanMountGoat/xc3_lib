@@ -121,10 +121,10 @@ impl ShaderWgsl {
 
 fn write_expr(
     wgsl: &mut String,
-    value: &OutputExpr,
+    expr: &OutputExpr,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> Option<()> {
-    match value {
+    match expr {
         OutputExpr::Func { op, args } => write_func(wgsl, op, args),
         OutputExpr::Value(v) => write_value(wgsl, v, name_to_index),
     }
@@ -328,18 +328,19 @@ fn generate_assignments_wgsl(
 
     // Write variables shared by all outputs.
     // Assume that values appear after values they depend on.
-    for (i, value) in assignments.exprs.iter().enumerate() {
+    for (i, expr) in assignments.exprs.iter().enumerate() {
         write!(wgsl, "let {VAR_PREFIX}{i} = ").unwrap();
-        if write_expr(&mut wgsl, value, name_to_index).is_none() {
+        if write_expr(&mut wgsl, expr, name_to_index).is_none() {
+            // TODO: The default may not be a float?
             write!(&mut wgsl, "0.0").unwrap();
         }
         writeln!(wgsl, ";").unwrap();
     }
 
     // TODO: Share xyz assignments with all channels?
-    for (i, value) in assignments.exprs_xyz.iter().enumerate() {
+    for (i, expr) in assignments.exprs_xyz.iter().enumerate() {
         write!(wgsl, "let {VAR_PREFIX_XYZ}{i} = ").unwrap();
-        if write_expr_xyz(&mut wgsl, value, name_to_index).is_none() {
+        if write_expr_xyz(&mut wgsl, expr, name_to_index).is_none() {
             write!(&mut wgsl, "vec3(0.0)").unwrap();
         }
         writeln!(wgsl, ";").unwrap();
@@ -446,22 +447,42 @@ fn write_value(
             // TODO: share code with xyz since only the channel is different?
             match p.name.as_str() {
                 "U_Mate" => {
-                    write_parameter(wgsl, "per_material.u_mate", &p.field, p.index, p.channel);
+                    write_parameter(
+                        wgsl,
+                        "per_material.u_mate",
+                        &p.field,
+                        p.index,
+                        p.index2,
+                        p.channel,
+                    );
                 }
                 "U_Static" => match p.field.as_str() {
-                    "gmView" => write_parameter(wgsl, "camera", "view", p.index, p.channel),
-                    "gmProj" => write_parameter(wgsl, "camera", "projection", p.index, p.channel),
-                    "gmViewProj" => {
-                        write_parameter(wgsl, "camera", "view_projection", p.index, p.channel)
+                    "gmView" => {
+                        write_parameter(wgsl, "camera", "view", p.index, p.index2, p.channel)
                     }
-                    "gmInvView" => write_parameter(wgsl, "camera", "view_inv", p.index, p.channel),
+                    "gmProj" => {
+                        write_parameter(wgsl, "camera", "projection", p.index, p.index2, p.channel)
+                    }
+                    "gmViewProj" => write_parameter(
+                        wgsl,
+                        "camera",
+                        "view_projection",
+                        p.index,
+                        p.index2,
+                        p.channel,
+                    ),
+                    "gmInvView" => {
+                        write_parameter(wgsl, "camera", "view_inv", p.index, p.index2, p.channel)
+                    }
                     _ => {
                         error!("Unsupported parameter {p}");
                         return None;
                     }
                 },
                 "U_Mdl" => match p.field.as_str() {
-                    "gmWorldView" => write_parameter(wgsl, "camera", "view", p.index, p.channel),
+                    "gmWorldView" => {
+                        write_parameter(wgsl, "camera", "view", p.index, p.index2, p.channel)
+                    }
                     _ => {
                         error!("Unsupported parameter {p}");
                         return None;
@@ -493,11 +514,15 @@ fn write_parameter(
     buffer: &str,
     field: &str,
     index: Option<usize>,
+    index2: Option<usize>,
     channel: Option<char>,
 ) {
     write!(wgsl, "{buffer}.{}", field.to_snake()).unwrap();
     // All fields are declared as arrays, so convert "b.f.x" to "b.f[0].x".
-    write_index(wgsl, Some(index.unwrap_or_default()));
+    write_index(wgsl, index);
+    if let Some(i) = index2 {
+        write_index(wgsl, Some(i));
+    }
     write_channel(wgsl, channel);
 }
 
@@ -523,7 +548,10 @@ fn write_texture_coordinates(wgsl: &mut String, coords: &[usize]) {
 
 fn write_index(wgsl: &mut String, i: Option<usize>) {
     if let Some(i) = i {
-        write!(wgsl, "[{i}]").unwrap();
+        write!(wgsl, "[u32({VAR_PREFIX}{i})]").unwrap();
+    } else {
+        // All fields are declared as arrays, so convert "b.f.x" to "b.f[0].x".
+        write!(wgsl, "[0]").unwrap();
     }
 }
 
@@ -535,10 +563,10 @@ fn write_channel(wgsl: &mut String, c: Option<char>) {
 
 fn write_expr_xyz(
     wgsl: &mut String,
-    value: &OutputExprXyz,
+    expr: &OutputExprXyz,
     name_to_index: &mut IndexMap<SmolStr, usize>,
 ) -> Option<()> {
-    match value {
+    match expr {
         OutputExprXyz::Func { op, args, channel } => write_func_xyz(wgsl, op, args, *channel),
         OutputExprXyz::Value(v) => write_value_xyz(wgsl, v, name_to_index),
     }
@@ -689,7 +717,10 @@ fn write_value_xyz(
                     // TODO: support other uniform buffers for all games
                     write!(wgsl, "per_material.u_mate.{}", p.field.to_snake()).unwrap();
                     // All fields are declared as arrays, so convert "b.f.x" to "b.f[0].x".
-                    write_index(wgsl, Some(p.index.unwrap_or_default()));
+                    write_index(wgsl, p.index);
+                    if let Some(i) = p.index2 {
+                        write_index(wgsl, Some(i));
+                    }
                     let channels = channel_xyz_wgsl(p.channel);
                     write!(wgsl, "{channels}").unwrap();
                     Some(())
