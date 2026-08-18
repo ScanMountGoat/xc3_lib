@@ -7,6 +7,7 @@ use glsl_lang::{
         DeclarationData, ExprData, FunIdentifierData, InitializerData, JumpStatementData,
         LayoutQualifierSpecData, SelectionRestStatementData, SelectionStatement, SingleDeclaration,
         Statement, StatementData, StorageQualifierData, TranslationUnit, TypeQualifierSpecData,
+        TypeSpecifierNonArrayData,
     },
     lexer::{HasLexerError, LangLexer},
     parse::{DefaultLexer, DefaultParse},
@@ -69,26 +70,25 @@ impl AssignmentVisitor {
                 let previous_value = self.exprs.insert_full(previous_value).0;
 
                 // If the if condition is true, use the new value.
-                self.exprs
-                    .insert_full(Expr::Ternary(condition, new_value, previous_value))
-                    .0
+                Expr::Ternary(condition, new_value, previous_value)
             } else {
-                self.exprs.insert_full(input).0
+                input
             };
 
-            let assignment = AssignmentValue {
-                output: Output {
-                    name: output_name.clone(),
-                    channel: channels.next(),
-                },
-                input,
-            };
-            // The visitor doesn't track line numbers.
-            // We only need to look up the assignments, so use the index instead.
-            self.last_assignment_index
-                .insert(assignment.output.clone(), self.assignments.len());
-            self.assignments.push(assignment);
+            self.add_assignment_inner(output_name.clone(), channels.next(), input);
         }
+    }
+
+    fn add_assignment_inner(&mut self, name: SmolStr, channel: Option<char>, input: Expr) {
+        let assignment = AssignmentValue {
+            output: Output { name, channel },
+            input: self.exprs.insert_full(input).0,
+        };
+        // The visitor doesn't track line numbers.
+        // We only need to look up the assignments, so use the index instead.
+        self.last_assignment_index
+            .insert(assignment.output.clone(), self.assignments.len());
+        self.assignments.push(assignment);
     }
 
     fn add_assignment_expr(
@@ -129,6 +129,54 @@ impl AssignmentVisitor {
 
         self.add_assignment(output_name, output_channels, rh, if_condition_expr);
     }
+
+    fn add_default_value_assignment(
+        &mut self,
+        l: &glsl_lang::ast::Node<glsl_lang::ast::InitDeclaratorListData>,
+    ) {
+        let output = l.head.name.as_ref().unwrap().0.clone();
+
+        // Ignore array types for now.
+        if l.head.ty.ty.array_specifier.is_none() {
+            // Initialize with the default value for that type.
+            // This avoids temp vars being detected as attributes.
+            // Repeated assignments will be removed during simplification.
+            // TODO: Support more literal types.
+            match &l.head.ty.ty.ty.content {
+                TypeSpecifierNonArrayData::Bool => {
+                    self.add_assignment_inner(output.clone(), None, Expr::Bool(false))
+                }
+                TypeSpecifierNonArrayData::Int => {
+                    self.add_assignment_inner(output.clone(), None, Expr::Int(0))
+                }
+                TypeSpecifierNonArrayData::UInt => {
+                    self.add_assignment_inner(output.clone(), None, Expr::Uint(0))
+                }
+                TypeSpecifierNonArrayData::Float => {
+                    self.add_assignment_inner(output.clone(), None, Expr::Float(0.0.into()))
+                }
+                // Processing code assumes vectors are converted to scalars.
+                TypeSpecifierNonArrayData::Vec2 => {
+                    for c in "xy".chars() {
+                        self.add_assignment_inner(output.clone(), Some(c), Expr::Float(0.0.into()))
+                    }
+                }
+                TypeSpecifierNonArrayData::Vec3 => {
+                    for c in "xyz".chars() {
+                        self.add_assignment_inner(output.clone(), Some(c), Expr::Float(0.0.into()))
+                    }
+                }
+                TypeSpecifierNonArrayData::Vec4 => {
+                    for c in "xyzw".chars() {
+                        self.add_assignment_inner(output.clone(), Some(c), Expr::Float(0.0.into()))
+                    }
+                }
+                ty => {
+                    error!("Unexpected variable type {ty:?}");
+                }
+            }
+        }
+    }
 }
 
 impl Visitor for AssignmentVisitor {
@@ -153,10 +201,9 @@ impl Visitor for AssignmentVisitor {
                         // float temp_0 = 1.0;
                         let output = l.head.name.as_ref().unwrap().0.clone();
                         self.add_assignment(output, "", init, None);
-                    } else {
-                        // float temp_0;
-                        // TODO: Initialize with the default value for that type.
-                        let _output = l.head.name.as_ref().unwrap().0.clone();
+                    } else if l.head.initializer.is_none() {
+                        // float temp_0; or vec3 temp_0;
+                        self.add_default_value_assignment(l);
                     }
                 }
 
