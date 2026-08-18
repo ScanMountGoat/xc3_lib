@@ -365,7 +365,6 @@ impl Graph {
         exprs: &mut IndexSet<Expr>,
     ) -> Expr {
         // Recursively simplify an expression.
-        // TODO: perform other simplifications?
         if let Some(expr) = simplified.get(&input) {
             expr.clone()
         } else {
@@ -409,8 +408,7 @@ impl Graph {
                     // TODO: a - -b == a + b
                     if let Expr::Float(OrderedFloat(0.0)) = a {
                         // 0.0 - b == -b
-                        let new_b = Expr::Unary(UnaryOp::Negate, exprs.insert_full(b).0);
-                        self.simplify_expr(exprs.insert_full(new_b).0, simplified, exprs)
+                        Expr::Unary(UnaryOp::Negate, exprs.insert_full(b).0)
                     } else {
                         Expr::Binary(
                             BinaryOp::Sub,
@@ -464,13 +462,11 @@ impl Graph {
                         (Expr::Float(OrderedFloat(1.0)), b) => b,
                         // a * -1.0 == -a
                         (a, Expr::Float(OrderedFloat(-1.0))) => {
-                            let new_a = Expr::Unary(UnaryOp::Negate, exprs.insert_full(a).0);
-                            self.simplify_expr(exprs.insert_full(new_a).0, simplified, exprs)
+                            Expr::Unary(UnaryOp::Negate, exprs.insert_full(a).0)
                         }
                         // -1.0 * b == b
                         (Expr::Float(OrderedFloat(-1.0)), b) => {
-                            let new_b = Expr::Unary(UnaryOp::Negate, exprs.insert_full(b).0);
-                            self.simplify_expr(exprs.insert_full(new_b).0, simplified, exprs)
+                            Expr::Unary(UnaryOp::Negate, exprs.insert_full(b).0)
                         }
                         (a, b) => Expr::Binary(
                             BinaryOp::Mul,
