@@ -405,7 +405,7 @@ fn monochrome(x: f32, y: f32, z: f32, ratio: f32) -> vec3<f32> {
     return mix(color, vec3(dot(color, vec3(0.01))), ratio);
 }
 
-fn fragment_output(in: VertexOutput) -> FragmentOutput {
+fn fragment_output(in: VertexOutput, front_facing: bool) -> FragmentOutput {
     let tangent = normalize(in.tangent.xyz);
     let vertex_normal = normalize(in.normal.xyz);
 
@@ -492,24 +492,24 @@ fn fragment_output(in: VertexOutput) -> FragmentOutput {
 }
 
 @fragment
-fn fs_alpha(in: VertexOutput) -> @location(0) vec4<f32> {
-    let output = fragment_output(in);
+fn fs_alpha(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
+    let output = fragment_output(in, front_facing);
     return output.g_color;
 }
 
 @fragment
-fn fs_main(in: VertexOutput) -> FragmentOutput {
-    return fragment_output(in);
+fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> FragmentOutput {
+    return fragment_output(in, front_facing);
 }
 
 @fragment
-fn fs_outline(in: VertexOutput) -> FragmentOutput {
+fn fs_outline(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> FragmentOutput {
     if in.vertex_color.a <= 0.0 {
         discard;
     }
 
     // TODO: Detect multiply by vertex color.
-    var output = fragment_output(in);
+    var output = fragment_output(in, front_facing);
     output.g_color = vec4(in.vertex_color.rgb, 0.0);
     return output;
 }

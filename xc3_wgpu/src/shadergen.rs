@@ -430,6 +430,7 @@ fn write_value(
                 "vTex7" => write_attribute(wgsl, "tex7", channel),
                 "vTex8" => write_attribute(wgsl, "tex8", channel),
                 "vBlend" => write_attribute(wgsl, "in.blend", channel),
+                "is_back_facing" => write!(wgsl, "!front_facing").unwrap(),
                 // The database uses "vBitan" to represent calculated bitangent attributes.
                 "vBitan" => write_attribute(wgsl, "bitangent", channel),
                 _ => {

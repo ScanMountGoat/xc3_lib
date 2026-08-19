@@ -274,6 +274,7 @@ fn color_or_param_output_expr(
     let mut current = &frag.exprs[node.input];
 
     // Remove some redundant float -> int float -> conversions found in some shaders.
+    // TODO: move this to simplication?
     if let Expr::Func { name, args, .. } = current
         && name == "intBitsToFloat"
     {
@@ -328,7 +329,10 @@ fn normal_output_expr(
             .or_else(|| {
                 calc_normal_map_w_intensity_y(frag, args[1]).map(|(n, i)| (n, Some(i), None))
             }),
-        _ => todo!(),
+        _ => {
+            // TODO: fix normal map detection for XCX WiiU
+            return None;
+        }
     }?;
 
     let value = output_expr(nom_work, frag, exprs);
@@ -428,6 +432,7 @@ impl crate::expr::Operation for Operation {
         // }
 
         if let Some(new_expr) = latte_texture_cube_coords(graph, expr)
+            .or_else(|| is_back_facing(graph, expr))
             // TODO: Detect these as operations.
             .or_else(|| fma_normalize(graph, expr))
         // .or_else(|| u_mdl_view_bitangent_xyz(graph, expr))

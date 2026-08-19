@@ -3709,3 +3709,25 @@ pub fn latte_texture_cube_coords(graph: &Graph, expr: &Expr) -> Option<Expr> {
         channel: Some(channel),
     })
 }
+
+static CALC_NORMAL_Z_ABS: LazyLock<Graph> = LazyLock::new(|| {
+    // calcNormalZAbs in pcmdo fragment shaders for XC1 and XC3.
+    // #define calcNormalZAbs( a ) if( gl_FrontFacing == false ) { a.xyz = -a.xyz; }
+    // This is just the (gl_FrontFacing == false) check.
+    let query = indoc! {"
+        temp_13 = intBitsToFloat(gl_FrontFacing ? -1 : 0);
+        temp_20 = float(floatBitsToInt(temp_13));
+        temp_25 = fma(temp_20, -2., -1.);
+        temp_29 = floatBitsToInt(temp_25) > 0;
+        temp_31 = 0 - (temp_29 ? -1 : 0);
+        temp_32 = temp_31 == 0;
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+pub fn is_back_facing<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
+    query_nodes(expr, graph, &CALC_NORMAL_Z_ABS).map(|_| Expr::Global {
+        name: "is_back_facing".into(),
+        channel: None,
+    })
+}
