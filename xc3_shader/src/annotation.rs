@@ -858,7 +858,7 @@ mod tests {
                 layout(binding = 1, std430) buffer _U_OdB {
                     uint data[];
                 }U_OdB;
-                layout(binding = 0) uniform sampler2D vp_t_tcb_E;
+                layout(binding = 0) uniform sampler2D gTSpEffVtxNoise1;
                 layout(location = 0) in vec4 vPos;
                 layout(location = 1) in vec4 nWgtIdx;
                 layout(location = 2) in vec4 vTex0;
