@@ -288,11 +288,17 @@ impl Graph {
     ///
     /// This uses substitution to eliminate assignments and other algebraic identities.
     pub fn simplify(&self) -> Self {
+        // Simplify iteratively to avoid stack overflow from recursion on node input exprs.
+        // This assumes exprs appear after their arg dependencies.
+        // This starts by simplifying "leaf" expr values and works up the tree.
+        // This builds the cache to use later when looking up simplified exprs.
         let mut simplified = BTreeMap::new();
-
         let mut exprs = self.exprs.iter().cloned().collect();
+        for i in 0..self.exprs.len() {
+            self.simplify_expr(i, &mut simplified, &mut exprs);
+        }
 
-        // Keep only output nodes (leaf nodes).
+        // Keep only output nodes that aren't referenced by other nodes.
         let referenced_node_indices: BTreeSet<_> = self
             .exprs
             .iter()
@@ -312,7 +318,7 @@ impl Graph {
             .filter_map(|(i, node)| {
                 // No Expr::Node should remain, so we can remove unused nodes.
                 if !referenced_node_indices.contains(&i) {
-                    let input = self.simplify_expr(node.input, &mut simplified, &mut exprs);
+                    let input = simplified[&node.input].clone();
                     Some(Node {
                         output: node.output.clone(),
                         input: exprs.insert_full(input).0,
@@ -324,11 +330,11 @@ impl Graph {
             .collect();
 
         let mut discard_condition = self.discard_condition.map(|i| {
-            let expr = self.simplify_expr(i, &mut simplified, &mut exprs);
+            let expr = simplified[&i].clone();
             exprs.insert_full(expr).0
         });
 
-        // Reindex to remove unused exprs.
+        // Reindex to remove unused exprs from simplifying every expr earlier.
         let mut new_exprs = IndexSet::default();
         let mut old_to_new_index = BTreeMap::new();
         for n in &mut nodes {
