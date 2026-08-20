@@ -85,25 +85,12 @@ pub enum Expr {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum UnaryOp {
+    /// `-arg0`
     Negate,
+    /// `!arg0`
     Not,
+    /// `~arg0`
     Complement,
-    /// Cast the i32 input to f32.
-    IntToFloat,
-    /// Cast the u32 input to f32.
-    UintToFloat,
-    /// Cast the f32 input to i32 using truncation.
-    FloatToInt,
-    /// Cast the f32 input to u32 using truncation.
-    FloatToUint,
-    /// Reinterpret the u32 input as f32.
-    UintBitsToFloat,
-    /// Reinterpret the f32 input as u32.
-    FloatBitsToUint,
-    /// Reinterpret the i32 input as f32.
-    IntBitsToFloat,
-    /// Reinterpret the f32 input as i32.
-    FloatBitsToInt,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -368,142 +355,155 @@ impl Graph {
         if let Some(expr) = simplified.get(&input) {
             expr.clone()
         } else {
-            // TODO: avoid clone
-            let result = match &exprs[input].clone() {
-                Expr::Node {
-                    node_index,
-                    channel,
-                } => {
-                    // TODO: This doesn't work properly for some reason?
-                    // Simplify assignments using variable substitution.
-                    let node = &self.nodes[*node_index];
-                    let mut expr = self.simplify_expr(node.input, simplified, exprs);
+            let result = self.simplify_expr_inner(input, simplified, exprs);
+            simplified.insert(input, result.clone());
+            result
+        }
+    }
 
-                    // Don't apply the channel if it's already applied to the output.
-                    // This mostly applies to latte shaders.
-                    // R3.x = result; R4.y = R3.x; -> R4.y = result;
-                    if node.output.channel != *channel {
-                        expr.set_channel(*channel);
-                    }
-                    expr
-                }
-                Expr::Unary(UnaryOp::Negate, e) => {
-                    let e = self.simplify_expr(*e, simplified, exprs);
+    fn simplify_expr_inner(
+        &self,
+        input: usize,
+        simplified: &mut BTreeMap<usize, Expr>,
+        exprs: &mut indexmap::IndexSet<Expr, ahash::RandomState>,
+    ) -> Expr {
+        // TODO: avoid clone
+        match &exprs[input].clone() {
+            Expr::Node {
+                node_index,
+                channel,
+            } => {
+                // TODO: This doesn't work properly for some reason?
+                // Simplify assignments using variable substitution.
+                let node = &self.nodes[*node_index];
+                let mut expr = self.simplify_expr(node.input, simplified, exprs);
 
-                    if let Expr::Float(f) = e {
-                        // -(f) == -f
-                        Expr::Float(-f)
-                    } else {
-                        Expr::Unary(UnaryOp::Negate, exprs.insert_full(e).0)
-                    }
+                // Don't apply the channel if it's already applied to the output.
+                // This mostly applies to latte shaders.
+                // R3.x = result; R4.y = R3.x; -> R4.y = result;
+                if node.output.channel != *channel {
+                    expr.set_channel(*channel);
                 }
-                Expr::Unary(op, e) => {
-                    let new_e = self.simplify_expr(*e, simplified, exprs);
-                    Expr::Unary(*op, exprs.insert_full(new_e).0)
-                }
-                Expr::Binary(BinaryOp::Sub, a, b) => {
-                    let a = self.simplify_expr(*a, simplified, exprs);
-                    let b = self.simplify_expr(*b, simplified, exprs);
+                expr
+            }
+            Expr::Unary(UnaryOp::Negate, e) => {
+                let e = self.simplify_expr(*e, simplified, exprs);
 
-                    // TODO: a - -b == a + b
-                    if let Expr::Float(OrderedFloat(0.0)) = a {
-                        // 0.0 - b == -b
-                        Expr::Unary(UnaryOp::Negate, exprs.insert_full(b).0)
-                    } else {
-                        Expr::Binary(
-                            BinaryOp::Sub,
-                            exprs.insert_full(a).0,
-                            exprs.insert_full(b).0,
-                        )
-                    }
+                if let Expr::Float(f) = e {
+                    // -(f) == -f
+                    Expr::Float(-f)
+                } else {
+                    Expr::Unary(UnaryOp::Negate, exprs.insert_full(e).0)
                 }
-                Expr::Binary(BinaryOp::Add, a, b) => {
-                    let a = self.simplify_expr(*a, simplified, exprs);
-                    let b = self.simplify_expr(*b, simplified, exprs);
+            }
+            Expr::Unary(op, e) => {
+                let new_e = self.simplify_expr(*e, simplified, exprs);
+                Expr::Unary(*op, exprs.insert_full(new_e).0)
+            }
+            Expr::Binary(BinaryOp::Sub, a, b) => {
+                let a = self.simplify_expr(*a, simplified, exprs);
+                let b = self.simplify_expr(*b, simplified, exprs);
 
-                    match (a, b) {
-                        // 0.0 + b == b
-                        (Expr::Float(OrderedFloat(0.0)), b) => b,
-                        // a + 0.0 == a
-                        (a, Expr::Float(OrderedFloat(0.0))) => a,
-                        // -a + b == b - a
-                        (Expr::Unary(UnaryOp::Negate, a), b) => {
-                            Expr::Binary(BinaryOp::Sub, exprs.insert_full(b).0, a)
-                        }
-                        (Expr::Float(OrderedFloat(f)), b) if f < 0.0 => Expr::Binary(
-                            BinaryOp::Sub,
-                            exprs.insert_full(b).0,
-                            exprs.insert_full(Expr::Float(f.abs().into())).0,
-                        ),
-                        // a + -b == a - b
-                        (a, Expr::Unary(UnaryOp::Negate, b)) => {
-                            Expr::Binary(BinaryOp::Sub, exprs.insert_full(a).0, b)
-                        }
-                        (a, Expr::Float(OrderedFloat(f))) if f < 0.0 => Expr::Binary(
-                            BinaryOp::Sub,
-                            exprs.insert_full(a).0,
-                            exprs.insert_full(Expr::Float(f.abs().into())).0,
-                        ),
-                        (a, b) => Expr::Binary(
-                            BinaryOp::Add,
-                            exprs.insert_full(a).0,
-                            exprs.insert_full(b).0,
-                        ),
-                    }
-                }
-                Expr::Binary(BinaryOp::Mul, a, b) => {
-                    let a = self.simplify_expr(*a, simplified, exprs);
-                    let b = self.simplify_expr(*b, simplified, exprs);
-
-                    match (a, b) {
-                        // a * 1.0 == a
-                        (a, Expr::Float(OrderedFloat(1.0))) => a,
-                        // 1.0 * b == b
-                        (Expr::Float(OrderedFloat(1.0)), b) => b,
-                        // a * -1.0 == -a
-                        (a, Expr::Float(OrderedFloat(-1.0))) => {
-                            Expr::Unary(UnaryOp::Negate, exprs.insert_full(a).0)
-                        }
-                        // -1.0 * b == b
-                        (Expr::Float(OrderedFloat(-1.0)), b) => {
-                            Expr::Unary(UnaryOp::Negate, exprs.insert_full(b).0)
-                        }
-                        (a, b) => Expr::Binary(
-                            BinaryOp::Mul,
-                            exprs.insert_full(a).0,
-                            exprs.insert_full(b).0,
-                        ),
-                    }
-                }
-                Expr::Binary(op, a, b) => {
-                    let new_a = self.simplify_expr(*a, simplified, exprs);
-                    let new_b = self.simplify_expr(*b, simplified, exprs);
-                    Expr::Binary(*op, exprs.insert_full(new_a).0, exprs.insert_full(new_b).0)
-                }
-                Expr::Ternary(a, b, c) => {
-                    let new_a = self.simplify_expr(*a, simplified, exprs);
-                    let new_b = self.simplify_expr(*b, simplified, exprs);
-                    let new_c = self.simplify_expr(*c, simplified, exprs);
-                    Expr::Ternary(
-                        exprs.insert_full(new_a).0,
-                        exprs.insert_full(new_b).0,
-                        exprs.insert_full(new_c).0,
+                // TODO: a - -b == a + b
+                if let Expr::Float(OrderedFloat(0.0)) = a {
+                    // 0.0 - b == -b
+                    Expr::Unary(UnaryOp::Negate, exprs.insert_full(b).0)
+                } else {
+                    Expr::Binary(
+                        BinaryOp::Sub,
+                        exprs.insert_full(a).0,
+                        exprs.insert_full(b).0,
                     )
                 }
-                Expr::Func {
-                    name,
-                    args,
-                    channel,
-                } => {
-                    let args: Vec<_> = args
-                        .iter()
-                        .map(|arg| {
-                            let new_arg = self.simplify_expr(*arg, simplified, exprs);
-                            exprs.insert_full(new_arg).0
-                        })
-                        .collect();
+            }
+            Expr::Binary(BinaryOp::Add, a, b) => {
+                let a = self.simplify_expr(*a, simplified, exprs);
+                let b = self.simplify_expr(*b, simplified, exprs);
 
-                    if name == "fma" {
+                match (a, b) {
+                    // 0.0 + b == b
+                    (Expr::Float(OrderedFloat(0.0)), b) => b,
+                    // a + 0.0 == a
+                    (a, Expr::Float(OrderedFloat(0.0))) => a,
+                    // -a + b == b - a
+                    (Expr::Unary(UnaryOp::Negate, a), b) => {
+                        Expr::Binary(BinaryOp::Sub, exprs.insert_full(b).0, a)
+                    }
+                    (Expr::Float(OrderedFloat(f)), b) if f < 0.0 => Expr::Binary(
+                        BinaryOp::Sub,
+                        exprs.insert_full(b).0,
+                        exprs.insert_full(Expr::Float(f.abs().into())).0,
+                    ),
+                    // a + -b == a - b
+                    (a, Expr::Unary(UnaryOp::Negate, b)) => {
+                        Expr::Binary(BinaryOp::Sub, exprs.insert_full(a).0, b)
+                    }
+                    (a, Expr::Float(OrderedFloat(f))) if f < 0.0 => Expr::Binary(
+                        BinaryOp::Sub,
+                        exprs.insert_full(a).0,
+                        exprs.insert_full(Expr::Float(f.abs().into())).0,
+                    ),
+                    (a, b) => Expr::Binary(
+                        BinaryOp::Add,
+                        exprs.insert_full(a).0,
+                        exprs.insert_full(b).0,
+                    ),
+                }
+            }
+            Expr::Binary(BinaryOp::Mul, a, b) => {
+                let a = self.simplify_expr(*a, simplified, exprs);
+                let b = self.simplify_expr(*b, simplified, exprs);
+
+                match (a, b) {
+                    // a * 1.0 == a
+                    (a, Expr::Float(OrderedFloat(1.0))) => a,
+                    // 1.0 * b == b
+                    (Expr::Float(OrderedFloat(1.0)), b) => b,
+                    // a * -1.0 == -a
+                    (a, Expr::Float(OrderedFloat(-1.0))) => {
+                        Expr::Unary(UnaryOp::Negate, exprs.insert_full(a).0)
+                    }
+                    // -1.0 * b == b
+                    (Expr::Float(OrderedFloat(-1.0)), b) => {
+                        Expr::Unary(UnaryOp::Negate, exprs.insert_full(b).0)
+                    }
+                    (a, b) => Expr::Binary(
+                        BinaryOp::Mul,
+                        exprs.insert_full(a).0,
+                        exprs.insert_full(b).0,
+                    ),
+                }
+            }
+            Expr::Binary(op, a, b) => {
+                let new_a = self.simplify_expr(*a, simplified, exprs);
+                let new_b = self.simplify_expr(*b, simplified, exprs);
+                Expr::Binary(*op, exprs.insert_full(new_a).0, exprs.insert_full(new_b).0)
+            }
+            Expr::Ternary(a, b, c) => {
+                let new_a = self.simplify_expr(*a, simplified, exprs);
+                let new_b = self.simplify_expr(*b, simplified, exprs);
+                let new_c = self.simplify_expr(*c, simplified, exprs);
+                Expr::Ternary(
+                    exprs.insert_full(new_a).0,
+                    exprs.insert_full(new_b).0,
+                    exprs.insert_full(new_c).0,
+                )
+            }
+            Expr::Func {
+                name,
+                args,
+                channel,
+            } => {
+                let args: Vec<_> = args
+                    .iter()
+                    .map(|arg| {
+                        let new_arg = self.simplify_expr(*arg, simplified, exprs);
+                        exprs.insert_full(new_arg).0
+                    })
+                    .collect();
+
+                match name.as_str() {
+                    "fma" => {
                         // TODO: reuse the logic for multiplication and addition simplification?
                         if exprs[args[2]] == Expr::Float(0.0.into()) {
                             Expr::Binary(BinaryOp::Mul, args[0], args[1])
@@ -518,37 +518,72 @@ impl Graph {
                                 channel: *channel,
                             }
                         }
-                    } else {
-                        Expr::Func {
-                            name: name.clone(),
-                            args,
-                            channel: *channel,
-                        }
                     }
+                    // Simplify redundant type conversions.
+                    // TODO: Simplify type conversions involving literals.
+                    "intBitsToFloat" => {
+                        simplify_unary_func(name, "floatBitsToInt", channel, args, exprs)
+                    }
+                    "uintBitsToFloat" => {
+                        simplify_unary_func(name, "floatBitsToUint", channel, args, exprs)
+                    }
+                    "floatBitsToInt" => {
+                        simplify_unary_func(name, "intBitsToFloat", channel, args, exprs)
+                    }
+                    "floatBitsToUint" => {
+                        simplify_unary_func(name, "uintBitsToFloat", channel, args, exprs)
+                    }
+                    _ => Expr::Func {
+                        name: name.clone(),
+                        args,
+                        channel: *channel,
+                    },
                 }
-                Expr::Parameter {
-                    name,
-                    field,
-                    index,
-                    index2,
-                    channel,
-                } => Expr::Parameter {
-                    name: name.clone(),
-                    field: field.clone(),
-                    index: index.map(|i| {
-                        let new_index = self.simplify_expr(i, simplified, exprs);
-                        exprs.insert_full(new_index).0
-                    }),
-                    index2: index2.map(|i| {
-                        let new_index = self.simplify_expr(i, simplified, exprs);
-                        exprs.insert_full(new_index).0
-                    }),
-                    channel: *channel,
-                },
-                i => i.clone(),
-            };
-            simplified.insert(input, result.clone());
-            result
+            }
+            Expr::Parameter {
+                name,
+                field,
+                index,
+                index2,
+                channel,
+            } => Expr::Parameter {
+                name: name.clone(),
+                field: field.clone(),
+                index: index.map(|i| {
+                    let new_index = self.simplify_expr(i, simplified, exprs);
+                    exprs.insert_full(new_index).0
+                }),
+                index2: index2.map(|i| {
+                    let new_index = self.simplify_expr(i, simplified, exprs);
+                    exprs.insert_full(new_index).0
+                }),
+                channel: *channel,
+            },
+            i => i.clone(),
+        }
+    }
+}
+
+fn simplify_unary_func(
+    name: &str,
+    inner_name: &str,
+    channel: &Option<char>,
+    args: Vec<usize>,
+    exprs: &mut IndexSet<Expr>,
+) -> Expr {
+    if let Expr::Func {
+        name: name2,
+        args: args2,
+        ..
+    } = &exprs[args[0]]
+        && name2 == inner_name
+    {
+        exprs[args2[0]].clone()
+    } else {
+        Expr::Func {
+            name: name.into(),
+            args,
+            channel: *channel,
         }
     }
 }
@@ -808,6 +843,37 @@ mod tests {
                 if (x < 0.0) {
                     discard;
                 }
+            "},
+            graph.simplify().to_glsl()
+        );
+    }
+
+    #[test]
+    fn simplify_type_conversions() {
+        let glsl = indoc! {"
+            void main() {       
+                a1 = floatBitsToInt(1.0);
+                a2 = intBitsToFloat(a1);
+
+                b1 = intBitsToFloat(-1);
+                b2 = floatBitsToInt(b1);
+
+                c1 = floatBitsToUint(2.0);
+                c2 = uintBitsToFloat(c1);
+
+                d1 = uintBitsToFloat(3);
+                d2 = floatBitsToUint(d1);
+
+            }
+        "};
+        let graph = Graph::parse_glsl(glsl).unwrap();
+
+        assert_eq!(
+            indoc! {"
+                a2 = 1.0;
+                b2 = -1;
+                c2 = 2.0;
+                d2 = 3;
             "},
             graph.simplify().to_glsl()
         );

@@ -979,8 +979,8 @@ impl Nodes {
     ) -> usize {
         let input = Expr::Ternary(
             self.binary_expr(op, scalar.sources[0].clone(), scalar.sources[1].clone()),
-            self.unary_expr(UnaryOp::IntBitsToFloat, Expr::Int(-1)),
-            self.unary_expr(UnaryOp::IntBitsToFloat, Expr::Int(0)),
+            self.float_to_int_expr(Expr::Int(-1)),
+            self.float_to_int_expr(Expr::Int(0)),
         );
         let node = Node {
             output,
@@ -994,8 +994,8 @@ impl Nodes {
         let src1 = self.float_to_int_expr(scalar.sources[1].clone());
         let input = Expr::Ternary(
             self.expr(Expr::Binary(op, src0, src1)),
-            self.unary_expr(UnaryOp::IntBitsToFloat, Expr::Int(-1)),
-            self.unary_expr(UnaryOp::IntBitsToFloat, Expr::Int(0)),
+            self.float_to_int_expr(Expr::Int(-1)),
+            self.float_to_int_expr(Expr::Int(0)),
         );
         let node = Node {
             output,
@@ -1056,19 +1056,8 @@ impl Nodes {
         self.node(node)
     }
 
-    fn unary_node(&mut self, op: UnaryOp, e: Expr, output: Output) -> usize {
-        let input = self.unary_expr(op, e);
-        let node = Node { output, input };
-        self.node(node)
-    }
-
     fn expr(&mut self, expr: Expr) -> usize {
         self.exprs.insert_full(expr).0
-    }
-
-    fn unary_expr(&mut self, op: UnaryOp, e: Expr) -> usize {
-        let result = Expr::Unary(op, self.expr(e));
-        self.expr(result)
     }
 
     fn binary_expr(&mut self, op: BinaryOp, lh: Expr, rh: Expr) -> usize {
@@ -1076,22 +1065,48 @@ impl Nodes {
         self.expr(result)
     }
 
+    fn int_to_float_expr(&mut self, expr: Expr) -> usize {
+        // Convert literals directly.
+        match expr {
+            Expr::Int(i) => self.expr(Expr::Float(f32::from_bits(i as u32).into())),
+            e => {
+                let arg0 = self.expr(e);
+                self.func_expr("intBitsToFloat", vec![arg0])
+            }
+        }
+    }
+
+    fn uint_to_float_expr(&mut self, expr: Expr) -> usize {
+        // Convert literals directly.
+        match expr {
+            Expr::Uint(u) => self.expr(Expr::Float(f32::from_bits(u).into())),
+            e => {
+                let arg0 = self.expr(e);
+                self.func_expr("uintBitsToFloat", vec![arg0])
+            }
+        }
+    }
+
     fn float_to_int_expr(&mut self, expr: Expr) -> usize {
-        // Convert float literals directly to integers.
-        let result = match expr {
-            Expr::Float(f) => Expr::Int(f.to_bits() as i32),
-            e => Expr::Unary(UnaryOp::FloatBitsToInt, self.expr(e)),
-        };
-        self.expr(result)
+        // Convert literals directly.
+        match expr {
+            Expr::Float(f) => self.expr(Expr::Int(f.to_bits() as i32)),
+            e => {
+                let arg0 = self.expr(e);
+                self.func_expr("floatBitsToInt", vec![arg0])
+            }
+        }
     }
 
     fn float_to_uint_expr(&mut self, expr: Expr) -> usize {
-        // Convert float literals directly to integers.
-        let result = match expr {
-            Expr::Float(f) => Expr::Uint(f.to_bits()),
-            e => Expr::Unary(UnaryOp::FloatBitsToUint, self.expr(e)),
-        };
-        self.expr(result)
+        // Convert literals directly.
+        match expr {
+            Expr::Float(f) => self.expr(Expr::Uint(f.to_bits())),
+            e => {
+                let arg0 = self.expr(e);
+                self.func_expr("floatBitsToUint", vec![arg0])
+            }
+        }
     }
 
     fn clamp_expr(&mut self, e: Expr) -> usize {
@@ -1656,7 +1671,7 @@ fn add_scalar(scalar: &AluScalarData, nodes: &mut Nodes) -> Option<usize> {
                 nodes.float_to_int_expr(scalar.sources[0].clone()),
                 nodes.float_to_int_expr(scalar.sources[1].clone()),
             );
-            let input = nodes.unary_expr(UnaryOp::IntBitsToFloat, result);
+            let input = nodes.int_to_float_expr(result);
             let node = Node { output, input };
             Some(nodes.node(node))
         }
@@ -1680,7 +1695,7 @@ fn add_scalar(scalar: &AluScalarData, nodes: &mut Nodes) -> Option<usize> {
                 nodes.float_to_uint_expr(scalar.sources[0].clone()),
                 nodes.float_to_uint_expr(scalar.sources[1].clone()),
             );
-            let input = nodes.unary_expr(UnaryOp::UintBitsToFloat, result);
+            let input = nodes.uint_to_float_expr(result);
             let node = Node { output, input };
             Some(nodes.node(node))
         }
@@ -1691,7 +1706,7 @@ fn add_scalar(scalar: &AluScalarData, nodes: &mut Nodes) -> Option<usize> {
                 nodes.float_to_int_expr(scalar.sources[0].clone()),
                 nodes.float_to_int_expr(scalar.sources[1].clone()),
             );
-            let input = nodes.unary_expr(UnaryOp::IntBitsToFloat, result);
+            let input = nodes.int_to_float_expr(result);
             let node = Node { output, input };
             Some(nodes.node(node))
         }
@@ -1746,18 +1761,10 @@ fn add_scalar(scalar: &AluScalarData, nodes: &mut Nodes) -> Option<usize> {
             ))
         }
         "NOP" => None,
-        "FLT_TO_INT" => {
-            Some(nodes.unary_node(UnaryOp::FloatToInt, scalar.sources[0].clone(), output))
-        }
-        "FLT_TO_UINT" => {
-            Some(nodes.unary_node(UnaryOp::FloatToUint, scalar.sources[0].clone(), output))
-        }
-        "INT_TO_FLT" => {
-            Some(nodes.unary_node(UnaryOp::IntToFloat, scalar.sources[0].clone(), output))
-        }
-        "UINT_TO_FLT" => {
-            Some(nodes.unary_node(UnaryOp::UintToFloat, scalar.sources[0].clone(), output))
-        }
+        "FLT_TO_INT" => Some(nodes.func_node("int", 1, scalar, output)),
+        "FLT_TO_UINT" => Some(nodes.func_node("uint", 1, scalar, output)),
+        "INT_TO_FLT" => Some(nodes.func_node("float", 1, scalar, output)),
+        "UINT_TO_FLT" => Some(nodes.func_node("float", 1, scalar, output)),
         "SIN" => Some(nodes.func_node("sin", 1, scalar, output)),
         "COS" => Some(nodes.func_node("cos", 1, scalar, output)),
         "FRACT" => Some(nodes.func_node("fract", 1, scalar, output)),

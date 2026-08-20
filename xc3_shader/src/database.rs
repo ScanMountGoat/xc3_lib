@@ -273,20 +273,6 @@ fn color_or_param_output_expr(
     // matCol.xyz in pcmdo shaders.
     let mut current = &frag.exprs[node.input];
 
-    // Remove some redundant float -> int float -> conversions found in some shaders.
-    // TODO: move this to simplication?
-    if let Expr::Func { name, args, .. } = current
-        && name == "intBitsToFloat"
-    {
-        let new_current = &frag.exprs[args[0]];
-
-        if let Expr::Func { name, args, .. } = new_current
-            && name == "floatBitsToInt"
-        {
-            current = &frag.exprs[args[0]];
-        }
-    }
-
     if let Some(new_current) = geometric_specular_aa(frag, current) {
         current = new_current;
     }

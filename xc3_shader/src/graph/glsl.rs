@@ -413,46 +413,6 @@ impl Graph {
                 self.write_expr_glsl(output, a);
                 write!(output, ")").unwrap();
             }
-            UnaryOp::IntBitsToFloat => {
-                write!(output, "intBitsToFloat(").unwrap();
-                self.write_expr_glsl(output, a);
-                write!(output, ")").unwrap();
-            }
-            UnaryOp::FloatBitsToInt => {
-                write!(output, "floatBitsToInt(").unwrap();
-                self.write_expr_glsl(output, a);
-                write!(output, ")").unwrap();
-            }
-            UnaryOp::UintBitsToFloat => {
-                write!(output, "uintBitsToFloat(").unwrap();
-                self.write_expr_glsl(output, a);
-                write!(output, ")").unwrap();
-            }
-            UnaryOp::FloatBitsToUint => {
-                write!(output, "floatBitsToUint(").unwrap();
-                self.write_expr_glsl(output, a);
-                write!(output, ")").unwrap();
-            }
-            UnaryOp::IntToFloat => {
-                write!(output, "float(").unwrap();
-                self.write_expr_glsl(output, a);
-                write!(output, ")").unwrap();
-            }
-            UnaryOp::UintToFloat => {
-                write!(output, "float(").unwrap();
-                self.write_expr_glsl(output, a);
-                write!(output, ")").unwrap();
-            }
-            UnaryOp::FloatToInt => {
-                write!(output, "int(").unwrap();
-                self.write_expr_glsl(output, a);
-                write!(output, ")").unwrap();
-            }
-            UnaryOp::FloatToUint => {
-                write!(output, "uint(").unwrap();
-                self.write_expr_glsl(output, a);
-                write!(output, ")").unwrap();
-            }
         }
     }
 
