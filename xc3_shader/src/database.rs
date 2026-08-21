@@ -295,10 +295,13 @@ fn normal_output_expr(
         view_normal = new_view_normal;
     }
 
+    // TODO: Preserve the normal flip for double-sided lighting.
+    if let Some(new_view_normal) = flip_backfacing(frag, view_normal) {
+        view_normal = new_view_normal;
+    }
+
     // The normal map result is always normalized, so we can infer the channel here.
     let (op, args) = op_normalize(frag, view_normal)?;
-
-    // TODO: front facing in calcNormalZAbs in pcmdo?
 
     // nomWork input for getCalcNormalMap in pcmdo shaders.
     // TODO: Find a cleaner way to detect separate normal map channels.
@@ -406,7 +409,9 @@ impl crate::expr::Operation for Operation {
     fn preprocess_expr<'a>(graph: &'a Graph, expr: &'a Expr) -> Cow<'a, Expr> {
         // Simplify any expressions that would interfere with queries.
         let mut expr = expr;
-        if let Some(new_expr) = normal_map_fma(graph, expr) {
+        // TODO: Preserve the normal flip for double-sided lighting.
+        if let Some(new_expr) = normal_map_fma(graph, expr).or_else(|| flip_backfacing(graph, expr))
+        {
             // TODO: Only check for normal map fma for normal maps?
             expr = new_expr;
         }
@@ -418,7 +423,6 @@ impl crate::expr::Operation for Operation {
         // }
 
         if let Some(new_expr) = latte_texture_cube_coords(graph, expr)
-            .or_else(|| is_back_facing(graph, expr))
             // TODO: Detect these as operations.
             .or_else(|| fma_normalize(graph, expr))
         // .or_else(|| u_mdl_view_bitangent_xyz(graph, expr))

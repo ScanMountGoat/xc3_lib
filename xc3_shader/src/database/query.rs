@@ -3711,9 +3711,7 @@ pub fn latte_texture_cube_coords(graph: &Graph, expr: &Expr) -> Option<Expr> {
 }
 
 static CALC_NORMAL_Z_ABS: LazyLock<Graph> = LazyLock::new(|| {
-    // calcNormalZAbs in pcmdo fragment shaders for XC1 and XC3.
-    // #define calcNormalZAbs( a ) if( gl_FrontFacing == false ) { a.xyz = -a.xyz; }
-    // This is just the (gl_FrontFacing == false) check.
+    // xeno1, np040401, shd0003.frag
     let query = indoc! {"
         temp_13 = intBitsToFloat(gl_FrontFacing ? -1 : 0);
         temp_20 = float(floatBitsToInt(temp_13));
@@ -3721,13 +3719,42 @@ static CALC_NORMAL_Z_ABS: LazyLock<Graph> = LazyLock::new(|| {
         temp_29 = floatBitsToInt(temp_25) > 0;
         temp_31 = 0 - (temp_29 ? -1 : 0);
         temp_32 = temp_31 == 0;
+
+        temp_38 = result;
+        if (temp_32) {
+            temp_41 = 0. - result;
+            temp_42 = temp_41 + -0.;
+            temp_38 = temp_42;
+        }
+        temp_43 = temp_38;
     "};
     Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
-pub fn is_back_facing<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
-    query_nodes(expr, graph, &CALC_NORMAL_Z_ABS).map(|_| Expr::Global {
-        name: "is_back_facing".into(),
-        channel: None,
-    })
+static CALC_NORMAL_Z_ABS2: LazyLock<Graph> = LazyLock::new(|| {
+    // xeno3, ch11021013, shd0028.frag
+    let query = indoc! {"
+        temp_119 = intBitsToFloat(gl_FrontFacing ? -1 : 0);
+        temp_124 = float(floatBitsToInt(temp_119));
+        temp_139 = fma(temp_124, -2.0, -1.0);
+        temp_141 = floatBitsToInt(temp_139) <= 0;
+
+        temp_146 = result;
+        if (temp_141) {
+            temp_149 = 0. - result;
+            temp_150 = temp_149 + -0.;
+            temp_146 = temp_150;
+        }
+        temp_151 = temp_146;
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+// TODO: make this an op instead to properly handle double-sided lighting?
+pub fn flip_backfacing<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    // calcNormalZAbs in pcmdo fragment shaders for XC1 and XC3.
+    // #define calcNormalZAbs( a ) if( gl_FrontFacing == false ) { a.xyz = -a.xyz; }
+    query_nodes(expr, graph, &CALC_NORMAL_Z_ABS)
+        .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_Z_ABS2))
+        .and_then(|r| r.get("result").copied())
 }
