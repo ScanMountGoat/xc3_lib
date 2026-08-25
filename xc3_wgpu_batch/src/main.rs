@@ -10,7 +10,7 @@ use glam::{Mat4, Vec3, vec3};
 use rayon::prelude::*;
 use tracing::{level_filters::LevelFilter, trace_span};
 use xc3_model::{load_animations, shader_database::ShaderDatabase};
-use xc3_wgpu::{CameraData, MonolibShaderTextures, Renderer};
+use xc3_wgpu::{CameraData, MonolibShaderTextures, RenderOptions, Renderer};
 
 use tracing_subscriber::prelude::*;
 
@@ -188,8 +188,6 @@ fn main() {
                 &device,
                 &queue,
                 monolib_shader,
-                size,
-                &output,
                 &output_view,
                 renderer.clone(),
                 database.as_ref(),
@@ -203,8 +201,6 @@ fn main() {
                 &device,
                 &queue,
                 monolib_shader,
-                size,
-                &output,
                 &output_view,
                 renderer.clone(),
                 database.as_ref(),
@@ -221,8 +217,6 @@ fn render_model(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     monolib_shader: &MonolibShaderTextures,
-    size: wgpu::Extent3d,
-    output: &wgpu::Texture,
     output_view: &wgpu::TextureView,
     renderer: Arc<Mutex<Renderer>>,
     database: Option<&ShaderDatabase>,
@@ -280,17 +274,19 @@ fn render_model(
                                 &mut encoder,
                                 groups,
                                 &[],
-                                false,
-                                cli.bones,
-                                cli.normals,
-                                Some(models_index),
-                                Some(model_index),
+                                &RenderOptions {
+                                    draw_bounds: false,
+                                    draw_bones: cli.bones,
+                                    draw_vectors: cli.normals,
+                                    models_index: Some(models_index),
+                                    model_index: Some(model_index),
+                                },
                             );
 
                             encoder.copy_texture_to_buffer(
                                 wgpu::TexelCopyTextureInfo {
                                     aspect: wgpu::TextureAspect::All,
-                                    texture: output,
+                                    texture: output_view.texture(),
                                     mip_level: 0,
                                     origin: wgpu::Origin3d::ZERO,
                                 },
@@ -302,7 +298,7 @@ fn render_model(
                                         rows_per_image: Some(HEIGHT),
                                     },
                                 },
-                                size,
+                                output_view.texture().size(),
                             );
 
                             let output_path = if cli.extension == FileExtension::Wismhd {

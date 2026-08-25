@@ -877,7 +877,7 @@ fn extract_bmn_textures(bmn: Bmn) -> anyhow::Result<Vec<Dds>> {
     Ok(result)
 }
 
-fn extract_caavp_to_folder(mtxts: Vec<Mtxt>, input: &Path) -> Result<(), anyhow::Error> {
+fn extract_caavp_to_folder(mtxts: Vec<Mtxt>, input: &Path) -> anyhow::Result<()> {
     let file_name = input.file_name().unwrap();
     let output_folder = input.parent().unwrap();
     let dds_textures = extract_caavp_textures(mtxts)?;
@@ -885,7 +885,7 @@ fn extract_caavp_to_folder(mtxts: Vec<Mtxt>, input: &Path) -> Result<(), anyhow:
     Ok(())
 }
 
-fn extract_caavp_textures(mtxts: Vec<Mtxt>) -> Result<Vec<Dds>, anyhow::Error> {
+fn extract_caavp_textures(mtxts: Vec<Mtxt>) -> anyhow::Result<Vec<Dds>> {
     let dds_textures = mtxts
         .iter()
         .map(|t| t.to_dds())
@@ -898,7 +898,7 @@ fn extract_caavp_images_to_folder(
     input: &Path,
     output_folder: &Path,
     ext: &str,
-) -> Result<(), anyhow::Error> {
+) -> anyhow::Result<()> {
     let textures = extract_caavp_textures(mtxts)?;
     let file_name = input.file_name().unwrap();
     save_unnamed_dds_images(&textures, output_folder, file_name, ext)?;
@@ -1062,7 +1062,7 @@ fn save_named_dds(
     textures: &[(String, Dds)],
     output_folder: &Path,
     file_name: &std::ffi::OsStr,
-) -> Result<(), anyhow::Error> {
+) -> anyhow::Result<()> {
     for (i, (name, dds)) in textures.iter().enumerate() {
         let path = output_folder
             .join(file_name)
@@ -1077,7 +1077,7 @@ fn save_named_dds_images(
     output_folder: &Path,
     file_name: &std::ffi::OsStr,
     ext: &str,
-) -> Result<(), anyhow::Error> {
+) -> anyhow::Result<()> {
     for (i, (name, dds)) in textures.iter().enumerate() {
         let path = output_folder
             .join(file_name)
@@ -1091,7 +1091,7 @@ fn save_unnamed_dds(
     dds_textures: &[Dds],
     output_folder: &Path,
     file_name: &std::ffi::OsStr,
-) -> Result<(), anyhow::Error> {
+) -> anyhow::Result<()> {
     for (i, dds) in dds_textures.iter().enumerate() {
         let path = output_folder
             .join(file_name)
@@ -1106,7 +1106,7 @@ fn save_unnamed_dds_images(
     output_folder: &Path,
     file_name: &std::ffi::OsStr,
     ext: &str,
-) -> Result<(), anyhow::Error> {
+) -> anyhow::Result<()> {
     for (i, dds) in textures.iter().enumerate() {
         let path = output_folder
             .join(file_name)

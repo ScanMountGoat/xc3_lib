@@ -54,7 +54,7 @@ mod vector;
 pub use collision::{Collision, load_collisions};
 pub use model::{Mesh, Model, ModelGroup, Models, load_map, load_model};
 pub use monolib::MonolibShaderTextures;
-pub use renderer::{CameraData, RenderMode, Renderer};
+pub use renderer::{CameraData, RenderMode, RenderOptions, Renderer};
 
 use encase::{ShaderSize, ShaderType, StorageBuffer, UniformBuffer, internal::WriteInto};
 use wgpu::util::DeviceExt;

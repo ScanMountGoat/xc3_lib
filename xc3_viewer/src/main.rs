@@ -21,7 +21,9 @@ use xc3_model::{
     MapRoot, ModelRoot, animation::Animation, collision::CollisionMeshes, load_animations,
     shader_database::ShaderDatabase,
 };
-use xc3_wgpu::{CameraData, Collision, ModelGroup, MonolibShaderTextures, RenderMode, Renderer};
+use xc3_wgpu::{
+    CameraData, Collision, ModelGroup, MonolibShaderTextures, RenderMode, RenderOptions, Renderer,
+};
 
 use tracing::{info, level_filters::LevelFilter};
 use tracing_subscriber::prelude::*;
@@ -58,9 +60,7 @@ struct State {
 
     collisions: Vec<Collision>,
 
-    draw_bones: bool,
-    draw_bounds: bool,
-    draw_vectors: bool,
+    render_options: RenderOptions,
 
     root_index: Option<usize>,
     group_index: Option<usize>,
@@ -291,9 +291,13 @@ impl State {
             current_time_seconds: 0.0,
             input_state: Default::default(),
             previous_frame_start: Instant::now(),
-            draw_bones: cli.bones,
-            draw_bounds: cli.bounds,
-            draw_vectors: cli.normals,
+            render_options: RenderOptions {
+                draw_bounds: cli.bounds,
+                draw_bones: cli.bones,
+                draw_vectors: cli.normals,
+                models_index: cli.models,
+                model_index: cli.model,
+            },
             root_index: cli.root,
             group_index: cli.group,
             models_index: cli.models,
@@ -396,11 +400,7 @@ impl State {
             &mut encoder,
             &self.groups,
             &self.collisions,
-            self.draw_bounds,
-            self.draw_bones,
-            self.draw_vectors,
-            self.models_index,
-            self.model_index,
+            &self.render_options,
         );
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -595,16 +595,13 @@ impl State {
     }
 }
 
-fn load_files(
-    cli: &Cli,
-) -> Result<
-    (
-        Vec<xc3_model::ModelRoot>,
-        Vec<xc3_model::MapRoot>,
-        Vec<xc3_model::collision::CollisionMeshes>,
-    ),
-    anyhow::Error,
-> {
+struct Files {
+    model_roots: Vec<xc3_model::ModelRoot>,
+    map_roots: Vec<xc3_model::MapRoot>,
+    collision_meshes: Vec<xc3_model::collision::CollisionMeshes>,
+}
+
+fn load_files(cli: &Cli) -> anyhow::Result<Files> {
     let start = std::time::Instant::now();
     let database = match &cli.database {
         Some(p) => Some(
@@ -617,7 +614,7 @@ fn load_files(
 
     let start = std::time::Instant::now();
 
-    let mut collisions = Vec::new();
+    let mut collision_meshes = Vec::new();
     let mut model_roots = Vec::new();
     let mut map_roots = Vec::new();
 
@@ -640,9 +637,9 @@ fn load_files(
                 map_roots.extend(roots);
             }
             "wiidcm" | "idcm" => {
-                let collision_meshes = xc3_model::load_collisions(file)
+                let meshes = xc3_model::load_collisions(file)
                     .with_context(|| format!("failed to load collisions from {file:?}"))?;
-                collisions.push(collision_meshes);
+                collision_meshes.push(meshes);
             }
             ext => return Err(anyhow!(format!("unrecognized file extension {ext}"))),
         }
@@ -665,14 +662,18 @@ fn load_files(
             start.elapsed()
         );
     }
-    if !collisions.is_empty() {
+    if !collision_meshes.is_empty() {
         info!(
             "Load {} collisions: {:?}",
-            collisions.len(),
+            collision_meshes.len(),
             start.elapsed()
         );
     }
-    Ok((model_roots, map_roots, collisions))
+    Ok(Files {
+        model_roots,
+        map_roots,
+        collision_meshes,
+    })
 }
 
 // TODO: Move to xc3_wgpu?
@@ -902,7 +903,11 @@ fn main() -> anyhow::Result<()> {
         tracing::subscriber::set_global_default(subscriber).unwrap();
     }
 
-    let (model_roots, map_roots, collision_meshes) = load_files(&cli)?;
+    let Files {
+        model_roots,
+        map_roots,
+        collision_meshes,
+    } = load_files(&cli)?;
 
     let event_loop = EventLoop::new().unwrap();
     let mut app = App {

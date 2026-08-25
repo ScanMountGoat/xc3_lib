@@ -72,8 +72,23 @@ pub enum RenderMode {
     GBuffer6 = 7,
 }
 
+/// Options for configuring the rendering of models.
+#[derive(Debug, PartialEq, Default, Clone)]
+pub struct RenderOptions {
+    /// Draw wireframe boxes for each model's axis-aligned bounding boxes (AABB) if `true`.
+    pub draw_bounds: bool,
+    /// Draw axes vectors for each bone if `true`.
+    pub draw_bones: bool,
+    /// Draw axes vectors the tangent, bitangent, normal, and vValInf vectors if `true`.
+    pub draw_vectors: bool,
+    /// Render only the [Models](crate::Models) at the given index if not [None],
+    pub models_index: Option<usize>,
+    /// Render only the [Model](crate::Model) at the given index if not [None],
+    pub model_index: Option<usize>,
+}
+
 // Group resizable resources to avoid duplicating this logic.
-pub struct Textures {
+struct Textures {
     depth_stencil: wgpu::TextureView,
     mat_id_depth: wgpu::TextureView,
     deferred_output: wgpu::TextureView,
@@ -334,11 +349,7 @@ impl Renderer {
         encoder: &mut wgpu::CommandEncoder,
         models: &[ModelGroup],
         collisions: &[Collision],
-        draw_bounds: bool,
-        draw_bones: bool,
-        draw_vectors: bool,
-        models_index: Option<usize>,
-        model_index: Option<usize>,
+        options: &RenderOptions,
     ) {
         // The passes and their ordering only loosely matches in game.
         // This enables better performance, portability, etc.
@@ -346,43 +357,23 @@ impl Renderer {
 
         // TODO: changing the texture for output5 requires a new render pass?
         // TODO: does the in game rendering group these in any meaningful way?
-        self.opaque_pass(encoder, models, models_index, model_index);
-        self.alpha1_pass(encoder, models, models_index, model_index);
-        self.alpha2_pass(encoder, models, models_index, model_index);
+        self.opaque_pass(encoder, models, options.models_index, options.model_index);
+        self.alpha1_pass(encoder, models, options.models_index, options.model_index);
+        self.alpha2_pass(encoder, models, options.models_index, options.model_index);
         self.unbranch_to_depth_pass(encoder);
         if self.render_mode == RenderMode::Shaded {
             self.deferred_pass(encoder);
             // TODO: pass for technique type unk5?
-            self.alpha3_pass(
-                encoder,
-                models,
-                &self.textures.deferred_output,
-                models_index,
-                model_index,
-            );
+            self.alpha3_pass(encoder, models, &self.textures.deferred_output, options);
             self.snn_filter_pass(encoder);
         } else {
             // Move forward passes earlier to show all meshes in debug modes.
             // TODO: pass for technique type unk5?
 
-            self.alpha3_pass(
-                encoder,
-                models,
-                &self.textures.gbuffer.color,
-                models_index,
-                model_index,
-            );
+            self.alpha3_pass(encoder, models, &self.textures.gbuffer.color, options);
             self.deferred_debug_pass(encoder);
         }
-        self.final_pass(
-            encoder,
-            output_view,
-            models,
-            collisions,
-            draw_bounds,
-            draw_bones,
-            draw_vectors,
-        );
+        self.final_pass(encoder, output_view, models, collisions, options);
     }
 
     pub fn update_camera(&mut self, queue: &wgpu::Queue, camera_data: &CameraData) {
@@ -734,8 +725,7 @@ impl Renderer {
         encoder: &mut wgpu::CommandEncoder,
         models: &[ModelGroup],
         output_view: &wgpu::TextureView,
-        models_index: Option<usize>,
-        model_index: Option<usize>,
+        options: &RenderOptions,
     ) {
         // Deferred rendering requires a second forward pass for transparent meshes.
         // The transparent pass only writes to the color output.
@@ -781,8 +771,8 @@ impl Renderer {
                 MeshRenderPass::Unk2,
                 &self.camera,
                 None,
-                models_index,
-                model_index,
+                options.models_index,
+                options.model_index,
             );
             // TODO: 0x21 is single output after deferred in xcx?
             // TODO: Test how this actually works in game.
@@ -792,8 +782,8 @@ impl Renderer {
                 MeshRenderPass::Unk1,
                 &self.camera,
                 None,
-                models_index,
-                model_index,
+                options.models_index,
+                options.model_index,
             );
         }
     }
@@ -952,9 +942,7 @@ impl Renderer {
         output_view: &wgpu::TextureView,
         groups: &[ModelGroup],
         collisions: &[Collision],
-        draw_bounds: bool,
-        draw_bones: bool,
-        draw_vectors: bool,
+        options: &RenderOptions,
     ) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Final Pass"),
@@ -991,7 +979,7 @@ impl Renderer {
         // TODO: Some eye meshes draw in this pass?
 
         // TODO: Create a BoundsRenderer to store this data?
-        if draw_bounds {
+        if options.draw_bounds {
             render_pass.set_pipeline(&self.bounds_pipeline);
             self.solid_bind_group0.set(&mut render_pass);
 
@@ -1005,7 +993,7 @@ impl Renderer {
             }
         }
 
-        if draw_bones {
+        if options.draw_bones {
             for group in groups {
                 self.bone_renderer.draw_bones(
                     &mut render_pass,
@@ -1017,7 +1005,7 @@ impl Renderer {
 
         // TODO: draw vectors for tbn and valinf
         // TODO: move this to models.rs?
-        if draw_vectors {
+        if options.draw_vectors {
             for group in groups {
                 for models in &group.models {
                     for model in &models.models {
