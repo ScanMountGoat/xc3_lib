@@ -661,8 +661,13 @@ pub fn shader_str(s: &ShaderProgram) -> String {
         writeln!(&mut output).unwrap();
     }
     if let Some(v) = &s.outline_width {
-        // TODO: Fix formatting standalone values
-        writeln!(&mut output, "outline_width = {v};").unwrap();
+        let mut visited = IndexSet::default();
+        writeln!(
+            &mut output,
+            "outline_width = {};",
+            arg_inlined_value_inner(v, s, &mut visited)
+        )
+        .unwrap();
         writeln!(&mut output).unwrap();
     }
     if let Some(i) = s.normal_intensity {
@@ -774,37 +779,47 @@ fn arg_inlined_value(
     old_to_new_index: &mut IndexSet<usize>,
 ) -> String {
     match &s.exprs[i] {
-        xc3_model::shader_database::OutputExpr::Value(v) => match v {
-            Value::Parameter(p) => {
-                format!(
-                    "{}{}{}{}{}",
-                    p.name,
-                    if !p.field.is_empty() {
-                        format!(".{}", p.field)
-                    } else {
-                        String::new()
-                    },
-                    p.index
-                        .map(|i| format!("[{}]", arg_inlined_value(s, i, old_to_new_index)))
-                        .unwrap_or_default(),
-                    p.index2
-                        .map(|i| format!("[{}]", arg_inlined_value(s, i, old_to_new_index)))
-                        .unwrap_or_default(),
-                    p.channel.map(|c| format!(".{c}")).unwrap_or_default()
-                )
-            }
-            Value::Texture(t) => {
-                let coords: Vec<_> = args_inlined_values(s, &t.texcoords, old_to_new_index);
-                format!(
-                    "Texture({}, {}){}",
-                    t.name,
-                    coords.join(", "),
-                    t.channel.map(|c| format!(".{c}")).unwrap_or_default()
-                )
-            }
-            v => v.to_string(),
-        },
+        xc3_model::shader_database::OutputExpr::Value(v) => {
+            arg_inlined_value_inner(v, s, old_to_new_index)
+        }
         _ => format!("var{}", old_to_new_index.insert_full(i).0),
+    }
+}
+
+fn arg_inlined_value_inner(
+    v: &Value,
+    s: &ShaderProgram,
+    old_to_new_index: &mut indexmap::IndexSet<usize, ahash::RandomState>,
+) -> String {
+    match v {
+        Value::Parameter(p) => {
+            format!(
+                "{}{}{}{}{}",
+                p.name,
+                if !p.field.is_empty() {
+                    format!(".{}", p.field)
+                } else {
+                    String::new()
+                },
+                p.index
+                    .map(|i| format!("[{}]", arg_inlined_value(s, i, old_to_new_index)))
+                    .unwrap_or_default(),
+                p.index2
+                    .map(|i| format!("[{}]", arg_inlined_value(s, i, old_to_new_index)))
+                    .unwrap_or_default(),
+                p.channel.map(|c| format!(".{c}")).unwrap_or_default()
+            )
+        }
+        Value::Texture(t) => {
+            let coords: Vec<_> = args_inlined_values(s, &t.texcoords, old_to_new_index);
+            format!(
+                "Texture({}, {}){}",
+                t.name,
+                coords.join(", "),
+                t.channel.map(|c| format!(".{c}")).unwrap_or_default()
+            )
+        }
+        v => v.to_string(),
     }
 }
 
