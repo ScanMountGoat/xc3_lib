@@ -33,6 +33,7 @@ pub enum OutputExprXyz<Op> {
         op: Op,
         /// Indices for the [OutputExprXyz] for the function argument list `[arg0, arg1, ...]`.
         args: Vec<usize>,
+        /// The accessed channels or [None] if all channels are accessed.
         channel: Option<ChannelXyz>,
     },
 }
@@ -45,40 +46,54 @@ pub enum ValueXyz {
     Float([OrderedFloat<f32>; 3]),
 }
 
+/// A single texture access like `texture(s0, tex0.xy).xyz` in GLSL.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct TextureXyz {
-    /// The name of the texture like `s0` or `gTResidentTex09`.
+    /// The name of the texture like `s0` in `texture(s0, tex0.xy).xyz`.
     pub name: SmolStr,
-    /// Indices into scalar [OutputExpr] for the texture coordinates.
+    /// Indices for scalar [OutputExpr] for the texture coordinates.
     pub texcoords: Vec<usize>,
+    /// The accessed channels or [None] if all channels are accessed.
     pub channel: Option<ChannelXyz>,
 }
 
+/// A single input attribute like `vPos.xyz` in GLSL.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct AttributeXyz {
+    /// The name of the attribute like `vPos` in `vPos.xyz`.
     pub name: SmolStr,
+    /// The accessed channels or [None] if all channels are accessed.
     pub channel: Option<ChannelXyz>,
 }
 
+/// A single buffer access like `UniformBuffer.field[0][1].xyz` or `UniformBuffer.field.y` in GLSL.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct ParameterXyz {
     pub name: SmolStr,
     pub field: SmolStr,
+    /// Index for the scalar [OutputExpr] for the first array index like `UniformBuffer.field[index]`.
     pub index: Option<usize>,
+    /// Index for the scalar [OutputExpr] for the second array index like `UniformBuffer.field[index][index2]`.
     pub index2: Option<usize>,
+    /// The accessed channels or [None] if all channels are accessed.
     pub channel: Option<ChannelXyz>,
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChannelXyz {
+    /// `var.xyz`
     Xyz,
+    /// `var.xxx`
     X,
+    /// `var.yyy`
     Y,
+    /// `var.zzz`
     Z,
+    /// `var.www`
     W,
 }
 

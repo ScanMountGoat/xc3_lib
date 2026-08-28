@@ -45,27 +45,34 @@ pub enum Value {
 pub struct Parameter {
     pub name: SmolStr,
     pub field: SmolStr,
+    /// Index for the [OutputExpr] for the first array index like `UniformBuffer.field[index]`.
     pub index: Option<usize>,
+    /// Index for the [OutputExpr] for the second array index like `UniformBuffer.field[index][index2]`.
     pub index2: Option<usize>,
+    /// The single accessed channel accessed or [None] if all channels are accessed.
     pub channel: Option<char>,
 }
 
-/// A single texture access like `texture(s0, tex0.xy).rgb` in GLSL.
+/// A single texture access like `texture(s0, tex0.xy).x` in GLSL.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Texture {
+    /// The name of the texture like `s0` in `texture(s0, tex0.xy).x`.
     pub name: SmolStr,
-    pub channel: Option<char>,
     /// Indices into [exprs](struct.ProgramOutputs.html#structfield.exprs)
     /// for texture coordinate values used for the texture function call.
     pub texcoords: Vec<usize>,
+    /// The single accessed channel accessed or [None] if all channels are accessed.
+    pub channel: Option<char>,
 }
 
-/// A single input attribute like `in_attr0.x` in GLSL.
+/// A single input attribute like `vPos.x` in GLSL.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Attribute {
+    /// The name of the attribute like `vPos` in `vPos.x`.
     pub name: SmolStr,
+    /// The single accessed channel accessed or [None] if all channels are accessed.
     pub channel: Option<char>,
 }
 

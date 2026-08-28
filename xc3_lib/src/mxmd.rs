@@ -388,19 +388,19 @@ pub struct MaterialParameter {
 #[brw(repr(u16))]
 pub enum TechniqueGlobalTexture {
     // TODO: add remaining textures
-    /// `texDep` texture in the [Spch](crate::spch::Spch).
+    /// `texDep` texture in the [Spch].
     TexDep = 3,
 
-    /// `gTAmbBRDF` texture in the [Spch](crate::spch::Spch).
+    /// `gTAmbBRDF` texture in the [Spch].
     GTAmbBrdf = 17,
 
-    /// `texDither` texture in the [Spch](crate::spch::Spch).
+    /// `texDither` texture in the [Spch].
     TexDither = 22,
 
-    /// `volTex0` texture in the [Spch](crate::spch::Spch).
+    /// `volTex0` texture in the [Spch].
     VolTex0 = 24,
 
-    /// `gTLightShaft` texture in the [Spch](crate::spch::Spch).
+    /// `gTLightShaft` texture in the [Spch].
     GTLightShaft = 47,
 }
 
