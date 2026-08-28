@@ -407,11 +407,13 @@ impl Graph {
                 write!(output, "-").unwrap();
                 self.write_expr_glsl(output, a);
             }
-            UnaryOp::Not => write!(output, "!").unwrap(),
+            UnaryOp::Not => {
+                write!(output, "!").unwrap();
+                self.write_expr_glsl(output, a);
+            }
             UnaryOp::Complement => {
                 write!(output, "~").unwrap();
                 self.write_expr_glsl(output, a);
-                write!(output, ")").unwrap();
             }
         }
     }

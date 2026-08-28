@@ -13,13 +13,13 @@
 //! In each frame, render the [ModelGroup] using [Renderer::render_models].
 //!
 //! ```rust no_run
-//! use xc3_wgpu::{MonolibShaderTextures, Renderer};
+//! use xc3_wgpu::{SharedData, Renderer};
 //! use xc3_model::shader_database::ShaderDatabase;
 //!
 //! # fn test() -> (wgpu::Device, wgpu::Queue) { todo!() }
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # let (device, queue) = test();
-//! let monolib_shader = MonolibShaderTextures::from_file(&device, &queue, "monolib/shader");
+//! let monolib_shader = SharedData::new(&device, &queue, "monolib/shader");
 //! let renderer = Renderer::new(&device, &queue, 1920, 1080, wgpu::TextureFormat::Bgra8Unorm, &monolib_shader);
 //!
 //! let database = ShaderDatabase::from_file("xc3.bin")?;
