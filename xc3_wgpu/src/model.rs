@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::path::Path;
 
 use glam::{Mat4, Vec3, Vec4, uvec4};
 use rayon::prelude::*;
@@ -11,10 +12,11 @@ mod bounds;
 mod vertex;
 
 use crate::{
-    CameraData, DeviceBufferExt, MonolibShaderTextures, QueueBufferExt,
+    CameraData, DeviceBufferExt, QueueBufferExt,
     culling::is_within_frustum,
     material::{DefaultTextures, Material, create_material},
     model::{bounds::Bounds, vertex::ModelBuffers},
+    monolib::MonolibShaderTextures,
     pipeline::{ModelPipelineData, Output5Type, PipelineKey, model_pipeline},
     sampler::create_sampler,
     shader,
@@ -72,8 +74,31 @@ struct Instances {
     count: u32,
 }
 
+pub struct SharedData {
+    pub(crate) pipeline_data: ModelPipelineData,
+    pub(crate) default_textures: DefaultTextures,
+    pub(crate) monolib_shader: MonolibShaderTextures,
+}
+
+impl SharedData {
+    pub fn new<P: AsRef<Path>>(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        monolib_shader_folder: P,
+    ) -> Self {
+        // Compile shaders only once to improve loading times.
+        let pipeline_data = ModelPipelineData::new(device);
+        let default_textures = DefaultTextures::new(device, queue);
+        let monolib_shader = MonolibShaderTextures::from_file(device, queue, monolib_shader_folder);
+        Self {
+            pipeline_data,
+            default_textures,
+            monolib_shader,
+        }
+    }
+}
+
 impl Models {
-    #[allow(clippy::too_many_arguments)]
     #[tracing::instrument(skip_all)]
     fn from_models(
         device: &wgpu::Device,
@@ -82,14 +107,8 @@ impl Models {
         pipelines: &mut HashSet<PipelineKey>,
         textures: &[wgpu::Texture],
         image_textures: &[ImageTexture],
-        monolib_shader: &MonolibShaderTextures,
-        default_textures: &DefaultTextures,
+        shared_data: &SharedData,
     ) -> Self {
-        // In practice, weights are only used for wimdo files with one Models and one Model.
-        // TODO: How to enforce this assumption?
-        // Reindex to match the ordering defined in the current skeleton.
-        let weights = buffers.first().and_then(|b| b.weights.as_ref());
-
         let morph_controller_names = models.morph_controller_names.clone();
         let animation_morph_names = models.animation_morph_names.clone();
 
@@ -112,15 +131,13 @@ impl Models {
                     model,
                     models,
                     buffers,
-                    weights,
                     &models.materials,
                     &mut index_to_materials,
-                    image_textures,
-                    monolib_shader,
                     pipelines,
+                    image_textures,
                     textures,
                     &samplers,
-                    default_textures,
+                    shared_data,
                 )
             })
             .collect();
@@ -454,15 +471,9 @@ pub fn load_model(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     roots: &[xc3_model::ModelRoot],
-    monolib_shader: &MonolibShaderTextures,
+    shared_data: &SharedData,
 ) -> Vec<ModelGroup> {
     let start = std::time::Instant::now();
-
-    // Compile shaders only once to improve loading times.
-    let pipeline_data = ModelPipelineData::new(device);
-
-    // TODO: group with pipelinedata for shared data type?
-    let default_textures = DefaultTextures::new(device, queue);
 
     let mut groups = Vec::new();
     for (i, root) in roots.iter().enumerate() {
@@ -479,10 +490,8 @@ pub fn load_model(
             "root", // TODO: root label?
             &textures,
             &root.image_textures,
-            &pipeline_data,
             root.skeleton.as_ref(),
-            monolib_shader,
-            &default_textures,
+            shared_data,
         );
         groups.push(group);
     }
@@ -497,15 +506,9 @@ pub fn load_map(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     roots: &[xc3_model::MapRoot],
-    monolib_shader: &MonolibShaderTextures,
+    shared_data: &SharedData,
 ) -> Vec<ModelGroup> {
     let start = std::time::Instant::now();
-
-    // Compile shaders only once to improve loading times.
-    let pipeline_data = ModelPipelineData::new(device);
-
-    // TODO: group with pipelinedata for shared data type?
-    let default_textures = DefaultTextures::new(device, queue);
 
     let mut groups = Vec::new();
     for (root_index, root) in roots.iter().enumerate() {
@@ -523,10 +526,8 @@ pub fn load_map(
                         &root.label,
                         &textures,
                         &root.image_textures,
-                        &pipeline_data,
                         None,
-                        monolib_shader,
-                        &default_textures,
+                        shared_data,
                     )
                 }),
         );
@@ -550,7 +551,6 @@ fn load_textures(
 }
 
 // TODO: Make this a method?
-#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(skip_all)]
 fn create_model_group(
     device: &wgpu::Device,
@@ -560,10 +560,8 @@ fn create_model_group(
     root_label: &str,
     textures: &[wgpu::Texture],
     image_textures: &[ImageTexture],
-    pipeline_data: &ModelPipelineData,
     skeleton: Option<&xc3_model::Skeleton>,
-    monolib_shader: &MonolibShaderTextures,
-    default_textures: &DefaultTextures,
+    shared_data: &SharedData,
 ) -> ModelGroup {
     // Disable vertex skinning if the model does not have bones or weights.
     let enable_skinning = matches!(skeleton, Some(skeleton) if !skeleton.bones.is_empty())
@@ -626,8 +624,7 @@ fn create_model_group(
                 &mut pipeline_keys,
                 textures,
                 image_textures,
-                monolib_shader,
-                default_textures,
+                shared_data,
             )
         })
         .collect();
@@ -649,7 +646,8 @@ fn create_model_group(
                         group = group_index,
                         technique = key.technique_index
                     );
-                    let pipeline = span.in_scope(|| model_pipeline(device, pipeline_data, &key));
+                    let pipeline =
+                        span.in_scope(|| model_pipeline(device, &shared_data.pipeline_data, &key));
                     (key, pipeline)
                 })
                 .collect();
@@ -677,21 +675,20 @@ fn create_model_group(
     }
 }
 
+// TODO: reduce parameters by grouping into types?
 #[tracing::instrument(skip_all)]
 fn create_model(
     device: &wgpu::Device,
     model: &xc3_model::Model,
     models: &xc3_model::Models,
     buffers: &[xc3_model::vertex::ModelBuffers],
-    weights: Option<&xc3_model::skinning::Weights>,
     materials: &[xc3_model::material::Material],
     index_to_material: &mut BTreeMap<usize, Material>,
-    image_textures: &[ImageTexture],
-    monolib_shader: &MonolibShaderTextures,
     pipelines: &mut HashSet<PipelineKey>,
+    image_textures: &[ImageTexture],
     textures: &[wgpu::Texture],
     samplers: &[wgpu::Sampler],
-    default_textures: &DefaultTextures,
+    shared_data: &SharedData,
 ) -> Model {
     let model_buffers = &buffers[model.model_buffers_index];
 
@@ -704,6 +701,10 @@ fn create_model(
         transforms,
         count: model.instances.len() as u32,
     };
+
+    // In practice, weights are only used for wimdo files with one Models and one Model.
+    // TODO: How to enforce this assumption?
+    let weights = model_buffers.weights.as_ref();
 
     let meshes = model
         .meshes
@@ -724,8 +725,7 @@ fn create_model(
                         textures,
                         samplers,
                         image_textures,
-                        monolib_shader,
-                        default_textures,
+                        shared_data,
                     )
                 });
 

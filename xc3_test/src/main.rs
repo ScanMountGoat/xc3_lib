@@ -1493,16 +1493,22 @@ fn check_wimdo_model(path: &Path, check_read_write: bool, database: Option<&Shad
             }
             xc3_lib::mxmd::MxmdInner::V112(mxmd) => {
                 match ModelFilesV112::from_files(&mxmd, &wismt_path, chr.as_deref(), false) {
-                    Ok(files) => match ModelRoot::from_mxmd_v112(&files, skel, database) {
-                        Ok(root) => {
-                            check_shader_dependencies(&root, path);
+                    Ok(files) => {
+                        // TODO: print mesh/material flags for shaders that reference gbuffer textures
+                        // TODO: what are the gbuffer texture names?
+                        // TODO: is the naming convention always clustered: gTName, model: texName?
 
-                            if check_read_write {
-                                check_wimdo_v112_export(root, &mxmd, &files.vertex, path);
+                        match ModelRoot::from_mxmd_v112(&files, skel, database) {
+                            Ok(root) => {
+                                check_shader_dependencies(&root, path);
+
+                                if check_read_write {
+                                    check_wimdo_v112_export(root, &mxmd, &files.vertex, path);
+                                }
                             }
+                            Err(e) => println!("Error loading {path:?}: {e}"),
                         }
-                        Err(e) => println!("Error loading {path:?}: {e}"),
-                    },
+                    }
                     Err(e) => println!("Error loading files from {path:?}: {e}"),
                 }
             }
@@ -1546,20 +1552,20 @@ fn check_wimdo_v40_export(
     vertex: &xc3_lib::mxmd::legacy::VertexData,
     path: &Path,
 ) {
-    let (new_mxmd, new_vertex, _) = root.to_mxmd_v40_model_files(mxmd).unwrap();
-    if &new_vertex != vertex {
+    let files = root.to_mxmd_v40_model_files(mxmd).unwrap();
+    if &files.vertex != vertex {
         println!("VertexData not 1:1 for {path:?}");
     }
 
     // TODO: How many of these fields should be preserved?
-    if new_mxmd.models.models != mxmd.models.models {
+    if files.mxmd.models.models != mxmd.models.models {
         println!("Model list not 1:1 for {path:?}");
     }
 
-    if new_mxmd.materials.materials != mxmd.materials.materials {
+    if files.mxmd.materials.materials != mxmd.materials.materials {
         println!("Materials not 1:1 for {path:?}");
     }
-    if new_mxmd.materials.alpha_test_textures != mxmd.materials.alpha_test_textures {
+    if files.mxmd.materials.alpha_test_textures != mxmd.materials.alpha_test_textures {
         println!("Material alpha test textures not 1:1 for {path:?}");
     }
 }
@@ -1570,34 +1576,34 @@ fn check_wimdo_v112_export(
     vertex: &xc3_lib::vertex::VertexData,
     path: &Path,
 ) {
-    let (new_mxmd, new_vertex, _) = root.to_mxmd_v112_model_files(mxmd).unwrap();
-    if new_vertex.buffer != vertex.buffer {
+    let files = root.to_mxmd_v112_model_files(mxmd).unwrap();
+    if files.vertex.buffer != vertex.buffer {
         println!("VertexData buffer not 1:1 for {path:?}");
-    } else if &new_vertex != vertex {
+    } else if &files.vertex != vertex {
         println!("VertexData not 1:1 for {path:?}");
     }
 
     // TODO: How many of these fields should be preserved?
-    if new_mxmd.models.alpha_table != mxmd.models.alpha_table {
+    if files.mxmd.models.alpha_table != mxmd.models.alpha_table {
         println!("Alpha table not 1:1 for {path:?}");
     }
-    if new_mxmd.models.models != mxmd.models.models {
+    if files.mxmd.models.models != mxmd.models.models {
         println!("Model list not 1:1 for {path:?}");
     }
-    if new_mxmd.models.lod_data != mxmd.models.lod_data {
+    if files.mxmd.models.lod_data != mxmd.models.lod_data {
         println!("Model LODs not 1:1 for {path:?}");
     }
-    if new_mxmd.materials.materials != mxmd.materials.materials {
+    if files.mxmd.materials.materials != mxmd.materials.materials {
         println!("Materials not 1:1 for {path:?}");
     }
-    if new_mxmd.materials.alpha_test_textures != mxmd.materials.alpha_test_textures {
+    if files.mxmd.materials.alpha_test_textures != mxmd.materials.alpha_test_textures {
         println!("Material alpha test textures not 1:1 for {path:?}");
     }
-    if new_mxmd.materials.samplers != mxmd.materials.samplers {
+    if files.mxmd.materials.samplers != mxmd.materials.samplers {
         println!("Material samplers not 1:1 for {path:?}");
     }
     if let Some(skinning) = &mxmd.models.skinning
-        && let Some(new_skinning) = &new_mxmd.models.skinning
+        && let Some(new_skinning) = &files.mxmd.models.skinning
     {
         if new_skinning.bones != skinning.bones {
             println!("Skinning bones not 1:1 for {path:?}");

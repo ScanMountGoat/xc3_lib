@@ -22,7 +22,7 @@ use xc3_model::{
     shader_database::ShaderDatabase,
 };
 use xc3_wgpu::{
-    CameraData, Collision, ModelGroup, MonolibShaderTextures, RenderMode, RenderOptions, Renderer,
+    CameraData, Collision, ModelGroup, RenderMode, RenderOptions, Renderer, SharedData,
 };
 
 use tracing::{info, level_filters::LevelFilter};
@@ -170,15 +170,14 @@ impl State {
                 root_folder = parent;
             }
         }
-        let monolib_shader =
-            MonolibShaderTextures::from_file(&device, &queue, root_folder.join("monolib/shader"));
+        let shared_data = SharedData::new(&device, &queue, root_folder.join("monolib/shader"));
         let mut renderer = Renderer::new(
             &device,
             &queue,
             size.width,
             size.height,
             config.format,
-            &monolib_shader,
+            &shared_data,
         );
 
         // Initialize the camera transform.
@@ -205,16 +204,11 @@ impl State {
                 &device,
                 &queue,
                 model_roots,
-                &monolib_shader,
+                &shared_data,
             ));
         }
         if !map_roots.is_empty() {
-            groups.extend(xc3_wgpu::load_map(
-                &device,
-                &queue,
-                map_roots,
-                &monolib_shader,
-            ));
+            groups.extend(xc3_wgpu::load_map(&device, &queue, map_roots, &shared_data));
         }
 
         let mesh_count: usize = groups

@@ -517,7 +517,6 @@ impl GlbFile {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn add_models(
     models: &crate::Models,
     group_buffers: &[crate::vertex::ModelBuffers],

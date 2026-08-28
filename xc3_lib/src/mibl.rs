@@ -494,7 +494,7 @@ impl TryFrom<image_dds::ImageFormat> for ImageFormat {
 }
 
 fn swap_red_blue_unorm4(data: &mut [u8]) {
-    data.chunks_exact_mut(2).for_each(|c| {
+    data.as_chunks_mut::<2>().0.iter_mut().for_each(|c| {
         // Swap 4-bit red and blue channels.
         let r = c[1] & 0xF;
         let b = c[0] & 0xF;

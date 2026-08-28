@@ -9,7 +9,8 @@ use xc3_model::{
 };
 
 use crate::{
-    DeviceBufferExt, MonolibShaderTextures,
+    DeviceBufferExt, SharedData,
+    monolib::MonolibShaderTextures,
     pipeline::{Output5Type, PipelineKey},
     shader::model::TEXTURE_SAMPLER_COUNT,
     shadergen::ShaderWgsl,
@@ -62,7 +63,6 @@ impl DefaultTextures {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(skip_all)]
 pub fn create_material(
     device: &wgpu::Device,
@@ -71,8 +71,7 @@ pub fn create_material(
     textures: &[wgpu::Texture],
     samplers: &[wgpu::Sampler],
     image_textures: &[ImageTexture],
-    monolib_shader: &MonolibShaderTextures,
-    default_textures: &DefaultTextures,
+    shared_data: &SharedData,
 ) -> Material {
     let default_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         address_mode_u: wgpu::AddressMode::Repeat,
@@ -122,7 +121,9 @@ pub fn create_material(
             {
                 *material_texture = Some(texture);
             }
-        } else if let Some(texture) = assign_texture(material, textures, monolib_shader, name) {
+        } else if let Some(texture) =
+            assign_texture(material, textures, &shared_data.monolib_shader, name)
+        {
             if let Some(material_texture) = material_textures.get_mut(*i) {
                 *material_texture = Some(texture);
             }
@@ -195,19 +196,19 @@ pub fn create_material(
         &material_textures,
         &texture_views,
         |t| t.dimension() == wgpu::TextureDimension::D2 && t.depth_or_array_layers() == 1,
-        &default_textures.default_2d,
+        &shared_data.default_textures.default_2d,
     );
     let texture_array_3d = texture_view_array(
         &material_textures,
         &texture_views,
         |t| t.dimension() == wgpu::TextureDimension::D3,
-        &default_textures.default_3d,
+        &shared_data.default_textures.default_3d,
     );
     let texture_array_cube = texture_view_array(
         &material_textures,
         &texture_views,
         |t| t.dimension() == wgpu::TextureDimension::D2 && t.depth_or_array_layers() == 6,
-        &default_textures.default_cube,
+        &shared_data.default_textures.default_cube,
     );
 
     let mut sampler_array = std::array::from_fn(|i| {

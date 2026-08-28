@@ -18,6 +18,20 @@ use crate::{
     vertex::{AttributeData, ModelBuffers},
 };
 
+#[derive(Debug)]
+pub struct ModelFilesV40 {
+    pub mxmd: MxmdV40,
+    pub vertex: mxmd::legacy::VertexData,
+    pub textures: Vec<ExtractedTexture<Mibl, TextureUsage>>,
+}
+
+#[derive(Debug)]
+pub struct ModelFilesV112 {
+    pub mxmd: MxmdV112,
+    pub vertex: VertexData,
+    pub textures: Vec<ExtractedTexture<Mibl, TextureUsage>>,
+}
+
 /// Apply the values from this model onto the original `mxmd` and `msrd`.
 ///
 /// Some of the original values will be retained due to exporting limitations.
@@ -35,7 +49,11 @@ impl ModelRoot {
             xc3_lib::mxmd::MxmdInner::V40(inner) => {
                 // TODO: Does this need to even extract vertex/textures?
                 let spco = msrd.extract_files_legacy(None)?.shader;
-                let (mut new_mxmd, vertex, textures) = self.to_mxmd_v40_model_files(inner)?;
+                let ModelFilesV40 {
+                    mxmd: mut new_mxmd,
+                    vertex,
+                    textures,
+                } = self.to_mxmd_v40_model_files(inner)?;
 
                 let use_chr_textures = inner
                     .streaming
@@ -61,7 +79,11 @@ impl ModelRoot {
             xc3_lib::mxmd::MxmdInner::V112(inner) => {
                 // TODO: Does this need to even extract vertex/textures?
                 let spch = msrd.extract_files(None)?.shader;
-                let (mut new_mxmd, vertex, textures) = self.to_mxmd_v112_model_files(inner)?;
+                let ModelFilesV112 {
+                    mxmd: mut new_mxmd,
+                    vertex,
+                    textures,
+                } = self.to_mxmd_v112_model_files(inner)?;
 
                 let use_chr_textures = inner
                     .streaming
@@ -88,14 +110,7 @@ impl ModelRoot {
     pub fn to_mxmd_v112_model_files(
         &self,
         mxmd: &MxmdV112,
-    ) -> Result<
-        (
-            MxmdV112,
-            VertexData,
-            Vec<ExtractedTexture<Mibl, TextureUsage>>,
-        ),
-        CreateModelError,
-    > {
+    ) -> Result<ModelFilesV112, CreateModelError> {
         let textures: Vec<_> = self
             .image_textures
             .iter()
@@ -272,7 +287,11 @@ impl ModelRoot {
         // This should be updated later.
         new_mxmd.streaming = None;
 
-        Ok((new_mxmd, new_vertex, textures))
+        Ok(ModelFilesV112 {
+            mxmd: new_mxmd,
+            vertex: new_vertex,
+            textures,
+        })
     }
 
     fn apply_materials_v112(&self, mxmd: &mut MxmdV112) {
@@ -627,14 +646,7 @@ impl ModelRoot {
     pub fn to_mxmd_v40_model_files(
         &self,
         mxmd: &MxmdV40,
-    ) -> Result<
-        (
-            MxmdV40,
-            mxmd::legacy::VertexData,
-            Vec<ExtractedTexture<Mibl, TextureUsage>>,
-        ),
-        CreateModelError,
-    > {
+    ) -> Result<ModelFilesV40, CreateModelError> {
         let textures: Vec<_> = self
             .image_textures
             .iter()
@@ -712,7 +724,11 @@ impl ModelRoot {
         // This should be updated later.
         new_mxmd.streaming = None;
 
-        Ok((new_mxmd, new_vertex, textures))
+        Ok(ModelFilesV40 {
+            mxmd: new_mxmd,
+            vertex: new_vertex,
+            textures,
+        })
     }
 }
 

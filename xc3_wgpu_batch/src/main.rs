@@ -10,7 +10,7 @@ use glam::{Mat4, Vec3, vec3};
 use rayon::prelude::*;
 use tracing::{level_filters::LevelFilter, trace_span};
 use xc3_model::{load_animations, shader_database::ShaderDatabase};
-use xc3_wgpu::{CameraData, MonolibShaderTextures, RenderOptions, Renderer};
+use xc3_wgpu::{CameraData, RenderOptions, Renderer, SharedData};
 
 use tracing_subscriber::prelude::*;
 
@@ -135,8 +135,7 @@ fn main() {
             monolib = parent;
         }
     }
-    let monolib_shader =
-        &MonolibShaderTextures::from_file(&device, &queue, monolib.join("monolib/shader"));
+    let shared_data = &SharedData::new(&device, &queue, monolib.join("monolib/shader"));
 
     let size = wgpu::Extent3d {
         width: WIDTH,
@@ -162,7 +161,7 @@ fn main() {
         WIDTH,
         HEIGHT,
         texture_desc.format,
-        monolib_shader,
+        shared_data,
     )));
 
     // Initialize the camera transform.
@@ -187,7 +186,7 @@ fn main() {
             render_model(
                 &device,
                 &queue,
-                monolib_shader,
+                shared_data,
                 &output_view,
                 renderer.clone(),
                 database.as_ref(),
@@ -200,7 +199,7 @@ fn main() {
             render_model(
                 &device,
                 &queue,
-                monolib_shader,
+                shared_data,
                 &output_view,
                 renderer.clone(),
                 database.as_ref(),
@@ -216,7 +215,7 @@ fn main() {
 fn render_model(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    monolib_shader: &MonolibShaderTextures,
+    shared_data: &SharedData,
     output_view: &wgpu::TextureView,
     renderer: Arc<Mutex<Renderer>>,
     database: Option<&ShaderDatabase>,
@@ -230,7 +229,7 @@ fn render_model(
         queue,
         &model_path,
         cli.extension,
-        monolib_shader,
+        shared_data,
         database,
     );
 
@@ -359,13 +358,13 @@ fn load_groups(
     queue: &wgpu::Queue,
     model_path: &str,
     ext: FileExtension,
-    monolib_shader: &MonolibShaderTextures,
+    shared_data: &SharedData,
     database: Option<&ShaderDatabase>,
 ) -> anyhow::Result<Vec<xc3_wgpu::ModelGroup>> {
     match ext {
         FileExtension::Wimdo | FileExtension::Pcmdo => {
             let root = xc3_model::load_model(model_path, database)?;
-            Ok(xc3_wgpu::load_model(device, queue, &[root], monolib_shader))
+            Ok(xc3_wgpu::load_model(device, queue, &[root], shared_data))
         }
         FileExtension::Wismhd => {
             let mut roots = xc3_model::load_map(model_path, database)?;
@@ -381,11 +380,11 @@ fn load_groups(
                 }
             }
 
-            Ok(xc3_wgpu::load_map(device, queue, &roots, monolib_shader))
+            Ok(xc3_wgpu::load_map(device, queue, &roots, shared_data))
         }
         FileExtension::Camdo => {
             let root = xc3_model::load_model_legacy(model_path, database)?;
-            Ok(xc3_wgpu::load_model(device, queue, &[root], monolib_shader))
+            Ok(xc3_wgpu::load_model(device, queue, &[root], shared_data))
         }
     }
 }

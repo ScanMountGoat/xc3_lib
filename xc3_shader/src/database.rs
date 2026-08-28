@@ -452,7 +452,7 @@ pub fn modify_attributes(graph: &Graph, expr: &Expr) -> Expr {
     // TODO: preserve the space for attributes like clip or view?
 
     // TODO: Finish converting these into operations.
-    let mut expr = assign_x_recursive(graph, expr);
+    let expr = assign_x_recursive(graph, expr);
     // if let Some(new_expr) = skin_attribute_xyzw(graph, expr)
     //     .or_else(|| skin_attribute_xyz(graph, expr))
     //     .or_else(|| skin_attribute_clip_space_xyzw(graph, expr))

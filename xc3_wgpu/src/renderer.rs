@@ -4,8 +4,8 @@ use xc3_model::MeshRenderPass;
 
 use crate::{
     COLOR_FORMAT, Collision, DeviceBufferExt, GBUFFER_COLOR_FORMAT, GBUFFER_NORMAL_FORMAT,
-    MonolibShaderTextures, QueueBufferExt, model::ModelGroup, pipeline::Output5Type,
-    skeleton::BoneRenderer, vector::VectorRenderer,
+    QueueBufferExt, SharedData, model::ModelGroup, pipeline::Output5Type, skeleton::BoneRenderer,
+    vector::VectorRenderer,
 };
 
 const DEPTH_STENCIL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24PlusStencil8;
@@ -174,7 +174,7 @@ impl Renderer {
         width: u32,
         height: u32,
         surface_format: wgpu::TextureFormat,
-        monolib_shader: &MonolibShaderTextures,
+        shared_data: &SharedData,
     ) -> Self {
         let camera = CameraData {
             view: Mat4::IDENTITY,
@@ -219,7 +219,8 @@ impl Renderer {
             device,
             crate::shader::deferred::bind_groups::BindGroupLayout0 {
                 debug_settings: debug_settings_buffer.as_entire_buffer_binding(),
-                g_toon_grad: &monolib_shader
+                g_toon_grad: &shared_data
+                    .monolib_shader
                     .global_texture("gTToonGrad")
                     .map(|t| {
                         t.create_view(&wgpu::TextureViewDescriptor {
