@@ -180,8 +180,13 @@ impl Graph {
                     }
                 }
             }
-            Expr::Parameter { index: Some(i), .. } => {
-                self.add_dependencies(*i, dependent_lines);
+            Expr::Parameter { index, index2, .. } => {
+                if let Some(i) = index {
+                    self.add_dependencies(*i, dependent_lines);
+                }
+                if let Some(i) = index2 {
+                    self.add_dependencies(*i, dependent_lines);
+                }
             }
             Expr::Global { .. } => (),
             Expr::Unary(.., a) => {
@@ -311,6 +316,7 @@ impl Graph {
             })
             .collect();
 
+        // TODO: Simplify repeated assignments like a = 0; a = ...
         let mut nodes: Vec<_> = self
             .nodes
             .iter()
