@@ -51,18 +51,10 @@ pub fn shader_from_glsl(
     // This effectively moves all shader logic to the fragment shader.
     // This simplifies generating shader code or material nodes in 3D applications.
     let graph = if let Some(vert) = vertex {
-        // TODO: How much does it cost to simplify the vertex shader before and after merging?
-        merge_vertex_fragment(
-            &GlslGraph {
-                graph: vert.graph.simplify(),
-                attributes: vert.attributes.clone(),
-            },
-            &fragment,
-        )
+        merge_vertex_fragment(&vert, &fragment).simplify()
     } else {
-        fragment.graph
+        fragment.graph.simplify()
     };
-    let graph = graph.simplify();
 
     let mut output_dependencies = IndexMap::default();
     let mut normal_intensity = None;

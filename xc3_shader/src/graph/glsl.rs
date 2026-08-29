@@ -840,23 +840,19 @@ fn fragment_input_to_vertex_output(
     frag_expr: &Expr,
 ) -> Option<usize> {
     if let Expr::Global { name, channel } = frag_expr {
-        // Convert a fragment input like "in_attr4" to its vertex output like "out_attr4".
-        if let Some(fragment_location) = frag.attributes.input_locations.get_by_left(name.as_str())
-            && let Some(vertex_output_name) = vert
-                .attributes
-                .output_locations
-                .get_by_right(fragment_location)
-            && let Some(node) = vert
-                .graph
-                .nodes
-                .iter()
-                .find(|n| &n.output.name == vertex_output_name && n.output.channel == *channel)
-            {
-                return Some(node.input);
+        // Convert a fragment input like "in_attr4.x" to its vertex output like "out_attr4.x".
+        let location = frag.attributes.input_locations.get_by_left(name.as_str())?;
+        let output_name = vert.attributes.output_locations.get_by_right(location)?;
+        vert.graph.nodes.iter().find_map(|n| {
+            if &n.output.name == output_name && n.output.channel == *channel {
+                Some(n.input)
+            } else {
+                None
             }
+        })
+    } else {
+        None
     }
-
-    None
 }
 
 fn reindex_node_expr(
