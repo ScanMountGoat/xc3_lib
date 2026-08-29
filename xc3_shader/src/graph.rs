@@ -645,6 +645,7 @@ fn reindex_expr(
                         channel: *channel,
                     }
                 }
+                // Preserve node indices and values.
                 e => e.clone(),
             };
             let index = new_exprs.insert_full(result).0;

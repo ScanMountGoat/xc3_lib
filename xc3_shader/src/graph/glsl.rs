@@ -783,69 +783,77 @@ pub fn find_attribute_locations(translation_unit: &TranslationUnit) -> Attribute
     visitor.attributes
 }
 
-pub fn merge_vertex_fragment<F>(vert: GlslGraph, frag: GlslGraph, modify_attribute: F) -> Graph
-where
-    F: Fn(&Graph, &Expr) -> Expr + Clone,
-{
-    let mut exprs: IndexSet<_> = vert.graph.exprs.iter().cloned().collect();
-    let mut graph = vert.graph;
+pub fn merge_vertex_fragment(vert: &GlslGraph, frag: &GlslGraph) -> Graph {
+    let mut exprs = IndexSet::default();
+    let mut nodes = Vec::new();
+    let mut old_to_new_index_vert = BTreeMap::default();
+    let mut old_to_new_index_frag = BTreeMap::default();
 
-    // Use an offset to make sure fragment node references are preserved properly.
-    let start = graph.nodes.len();
+    // Convert fragment input attributes to the vertex output expr.
+    // Assume exprs appear after their dependencies to limit recursion.
+    for (i, e) in frag.graph.exprs.iter().enumerate() {
+        let new_index = fragment_input_to_vertex_output(vert, frag, e)
+            .map(|e| {
+                reindex_node_expr(
+                    &vert.graph,
+                    &mut exprs,
+                    &mut nodes,
+                    &mut old_to_new_index_vert,
+                    e,
+                )
+            })
+            .unwrap_or_else(|| {
+                reindex_node_expr(
+                    &frag.graph,
+                    &mut exprs,
+                    &mut nodes,
+                    &mut old_to_new_index_frag,
+                    i,
+                )
+            });
+        old_to_new_index_frag.insert(i, new_index);
+    }
+
     for n in &frag.graph.nodes {
-        let input = fragment_input_to_vertex_output(
-            &graph,
-            &vert.attributes,
-            &frag.graph,
-            &frag.attributes,
-            n,
-            modify_attribute.clone(),
-        )
-        .map(|e| exprs.insert_full(e).0)
-        .unwrap_or_else(|| reindex_node_expr(&frag.graph, &mut exprs, n.input, start));
-
-        graph.nodes.push(Node {
+        nodes.push(Node {
             output: n.output.clone(),
-            input,
+            input: old_to_new_index_frag[&n.input],
         });
     }
 
     // Assume the vertex shader has no discard statements.
-    graph.discard_condition = frag
+    let discard_condition = frag
         .graph
         .discard_condition
-        .map(|i| reindex_node_expr(&frag.graph, &mut exprs, i, start));
+        .map(|i| old_to_new_index_frag[&i]);
 
-    graph.exprs = exprs.into_iter().collect();
-
-    graph
+    Graph {
+        nodes,
+        exprs: exprs.into_iter().collect(),
+        discard_condition,
+    }
 }
 
-fn fragment_input_to_vertex_output<F: Fn(&Graph, &Expr) -> Expr>(
-    vert: &Graph,
-    vert_attributes: &Attributes,
-    frag: &Graph,
-    frag_attributes: &Attributes,
-    new_node: &Node,
-    modify_attribute: F,
-) -> Option<Expr> {
-    if let Expr::Global { name, channel } = &frag.exprs[new_node.input] {
+fn fragment_input_to_vertex_output(
+    vert: &GlslGraph,
+    frag: &GlslGraph,
+    frag_expr: &Expr,
+) -> Option<usize> {
+    if let Expr::Global { name, channel } = frag_expr {
         // Convert a fragment input like "in_attr4" to its vertex output like "out_attr4".
-        if let Some(fragment_location) = frag_attributes.input_locations.get_by_left(name.as_str())
-            && let Some(vertex_output_name) = vert_attributes
+        if let Some(fragment_location) = frag.attributes.input_locations.get_by_left(name.as_str())
+            && let Some(vertex_output_name) = vert
+                .attributes
                 .output_locations
                 .get_by_right(fragment_location)
-        {
-            // This will search vertex nodes first even if a fragment output has the same name.
-            if let Some(node) = vert
+            && let Some(node) = vert
+                .graph
                 .nodes
                 .iter()
                 .find(|n| &n.output.name == vertex_output_name && n.output.channel == *channel)
             {
-                let expr = modify_attribute(vert, &vert.exprs[node.input]);
-                return Some(expr);
+                return Some(node.input);
             }
-        }
     }
 
     None
@@ -854,59 +862,92 @@ fn fragment_input_to_vertex_output<F: Fn(&Graph, &Expr) -> Expr>(
 fn reindex_node_expr(
     old_graph: &Graph,
     exprs: &mut IndexSet<Expr>,
+    nodes: &mut Vec<Node>,
+    old_to_new_indices: &mut BTreeMap<usize, usize>,
     input: usize,
-    start_index: usize,
 ) -> usize {
-    // Recursively shift node indices to match their new position.
-    let new_expr = match &old_graph.exprs[input] {
-        Expr::Node {
-            node_index,
-            channel,
-        } => Expr::Node {
-            node_index: *node_index + start_index,
-            channel: *channel,
-        },
-        Expr::Parameter {
-            name,
-            field,
-            index,
-            index2,
-            channel,
-        } => Expr::Parameter {
-            name: name.clone(),
-            field: field.clone(),
-            index: index.map(|i| reindex_node_expr(old_graph, exprs, i, start_index)),
-            index2: index2.map(|i| reindex_node_expr(old_graph, exprs, i, start_index)),
-            channel: *channel,
-        },
-        Expr::Unary(op, a) => {
-            Expr::Unary(*op, reindex_node_expr(old_graph, exprs, *a, start_index))
+    match old_to_new_indices.get(&input) {
+        Some(i) => *i,
+        None => {
+            let new_expr = match &old_graph.exprs[input] {
+                Expr::Node {
+                    node_index,
+                    channel,
+                } => {
+                    // Recursively create new nodes to update node references.
+                    let old_node = &old_graph.nodes[*node_index];
+                    let new_node = Node {
+                        output: old_node.output.clone(),
+                        input: reindex_node_expr(
+                            old_graph,
+                            exprs,
+                            nodes,
+                            old_to_new_indices,
+                            old_node.input,
+                        ),
+                    };
+                    let new_node_index =
+                        nodes
+                            .iter()
+                            .position(|n| n == &new_node)
+                            .unwrap_or_else(|| {
+                                let index = nodes.len();
+                                nodes.push(new_node);
+                                index
+                            });
+                    Expr::Node {
+                        node_index: new_node_index,
+                        channel: *channel,
+                    }
+                }
+                Expr::Parameter {
+                    name,
+                    field,
+                    index,
+                    index2,
+                    channel,
+                } => Expr::Parameter {
+                    name: name.clone(),
+                    field: field.clone(),
+                    index: index
+                        .map(|i| reindex_node_expr(old_graph, exprs, nodes, old_to_new_indices, i)),
+                    index2: index2
+                        .map(|i| reindex_node_expr(old_graph, exprs, nodes, old_to_new_indices, i)),
+                    channel: *channel,
+                },
+                Expr::Unary(op, a) => Expr::Unary(
+                    *op,
+                    reindex_node_expr(old_graph, exprs, nodes, old_to_new_indices, *a),
+                ),
+                Expr::Binary(op, lh, rh) => Expr::Binary(
+                    *op,
+                    reindex_node_expr(old_graph, exprs, nodes, old_to_new_indices, *lh),
+                    reindex_node_expr(old_graph, exprs, nodes, old_to_new_indices, *rh),
+                ),
+                Expr::Ternary(a, b, c) => Expr::Ternary(
+                    reindex_node_expr(old_graph, exprs, nodes, old_to_new_indices, *a),
+                    reindex_node_expr(old_graph, exprs, nodes, old_to_new_indices, *b),
+                    reindex_node_expr(old_graph, exprs, nodes, old_to_new_indices, *c),
+                ),
+                Expr::Func {
+                    name,
+                    args,
+                    channel,
+                } => Expr::Func {
+                    name: name.clone(),
+                    args: args
+                        .iter()
+                        .map(|a| reindex_node_expr(old_graph, exprs, nodes, old_to_new_indices, *a))
+                        .collect(),
+                    channel: *channel,
+                },
+                e => e.clone(),
+            };
+            let new_index = exprs.insert_full(new_expr).0;
+            old_to_new_indices.insert(input, new_index);
+            new_index
         }
-        Expr::Binary(op, lh, rh) => Expr::Binary(
-            *op,
-            reindex_node_expr(old_graph, exprs, *lh, start_index),
-            reindex_node_expr(old_graph, exprs, *rh, start_index),
-        ),
-        Expr::Ternary(a, b, c) => Expr::Ternary(
-            reindex_node_expr(old_graph, exprs, *a, start_index),
-            reindex_node_expr(old_graph, exprs, *b, start_index),
-            reindex_node_expr(old_graph, exprs, *c, start_index),
-        ),
-        Expr::Func {
-            name,
-            args,
-            channel,
-        } => Expr::Func {
-            name: name.clone(),
-            args: args
-                .iter()
-                .map(|a| reindex_node_expr(old_graph, exprs, *a, start_index))
-                .collect(),
-            channel: *channel,
-        },
-        e => e.clone(),
-    };
-    exprs.insert_full(new_expr).0
+    }
 }
 
 #[cfg(test)]
@@ -1655,6 +1696,63 @@ mod tests {
                 .collect(),
             },
             find_attribute_locations(&tu)
+        );
+    }
+
+    #[test]
+    fn merge_vertex_fragment_simple() {
+        let vert_glsl = indoc! {"
+            void main() 
+            {
+                OUT_uv.x = vTex0.x * 5.0;
+                OUT_uv.y = vTex0.y * 6.0;
+                OUT_uv.z = 0.0;
+                OUT_uv.w = 0.0;
+                OUT_color.x = 0.125;
+                OUT_color.y = 0.25;
+                OUT_color.z = 0.5;
+                OUT_color.w = 0.75;
+            }
+        "};
+        let vert = GlslGraph {
+            graph: Graph::parse_glsl(vert_glsl).unwrap(),
+            attributes: Attributes {
+                input_locations: BiBTreeMap::from_iter([("vTex0".to_smolstr(), 0)]),
+                output_locations: BiBTreeMap::from_iter([
+                    ("OUT_uv".to_smolstr(), 1),
+                    ("OUT_color".to_smolstr(), 2),
+                ]),
+            },
+        };
+
+        let frag_glsl = indoc! {"
+            void main() 
+            {
+                OUT_color.x = texture(s0, vec2(IN_uv.x, IN_uv.y)).x;                
+                OUT_color.y = texture(s0, vec2(IN_uv.x, IN_uv.y)).y;
+                OUT_color.z = texture(s0, vec2(IN_uv.x, IN_uv.y)).z;
+                OUT_color.w = IN_color.w;
+            }
+        "};
+        let frag = GlslGraph {
+            graph: Graph::parse_glsl(frag_glsl).unwrap(),
+            attributes: Attributes {
+                input_locations: BiBTreeMap::from_iter([
+                    ("IN_color".to_smolstr(), 2),
+                    ("IN_uv".to_smolstr(), 1),
+                ]),
+                output_locations: BiBTreeMap::from_iter([("OUT_color".to_smolstr(), 0)]),
+            },
+        };
+
+        assert_eq!(
+            indoc! {"
+                OUT_color.x = texture(s0, vec2(vTex0.x * 5.0, vTex0.y * 6.0)).x;
+                OUT_color.y = texture(s0, vec2(vTex0.x * 5.0, vTex0.y * 6.0)).y;
+                OUT_color.z = texture(s0, vec2(vTex0.x * 5.0, vTex0.y * 6.0)).z;
+                OUT_color.w = 0.75;
+            "},
+            merge_vertex_fragment(&vert, &frag).to_glsl()
         );
     }
 }

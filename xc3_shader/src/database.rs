@@ -53,12 +53,11 @@ pub fn shader_from_glsl(
     let graph = if let Some(vert) = vertex {
         // TODO: How much does it cost to simplify the vertex shader before and after merging?
         merge_vertex_fragment(
-            GlslGraph {
+            &GlslGraph {
                 graph: vert.graph.simplify(),
                 attributes: vert.attributes.clone(),
             },
-            fragment,
-            modify_attributes,
+            &fragment,
         )
     } else {
         fragment.graph
@@ -425,6 +424,7 @@ impl crate::expr::Operation for Operation {
         if let Some(new_expr) = latte_texture_cube_coords(graph, expr)
             // TODO: Detect these as operations.
             .or_else(|| fma_normalize(graph, expr))
+            .or_else(|| skin_attribute_bitangent(graph, expr))
         // .or_else(|| u_mdl_view_bitangent_xyz(graph, expr))
         // .or_else(|| gm_cal_u_bill_attribute_xyzw(graph, expr))
         // .or_else(|| gm_cal_u_nam_attribute_xyzw(graph, expr))
@@ -447,7 +447,8 @@ impl crate::expr::Operation for Operation {
     }
 }
 
-pub fn modify_attributes(graph: &Graph, expr: &Expr) -> Expr {
+// TODO: Move this to preprocessing
+fn modify_attributes(graph: &Graph, expr: &Expr) -> Expr {
     // Remove attribute skinning if present, so queries can detect globals like "vNormal.x".
     // TODO: preserve the space for attributes like clip or view?
 
