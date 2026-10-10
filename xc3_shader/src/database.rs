@@ -32,6 +32,7 @@ use query::*;
 type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
 type IndexSet<T> = indexmap::IndexSet<T, ahash::RandomState>;
 
+#[tracing::instrument(skip_all)]
 pub fn shader_from_glsl(
     vertex: Option<GlslGraph>,
     fragment: GlslGraph,

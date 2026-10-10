@@ -33,7 +33,7 @@ pub struct Graph {
 }
 
 /// A single assignment statement of the form `output = operation(inputs);`.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Node {
     pub output: Output,
     /// Index into [exprs](struct.Graph.html#structfield.exprs) for the value assigned in this assignment statement.
@@ -114,7 +114,7 @@ pub enum BinaryOp {
     And,
 }
 
-#[derive(Debug, PartialEq, Clone, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Clone, Eq, Hash, PartialOrd, Ord)]
 pub struct Output {
     /// The name of the output variable like `out` in `out.x = in`
     pub name: SmolStr,

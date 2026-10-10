@@ -290,11 +290,13 @@ impl Graph {
     }
 
     /// Convert GLSL into a graph representation.
+    #[tracing::instrument(skip_all)]
     pub fn parse_glsl(glsl: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let tu = TranslationUnit::parse(glsl)?;
         Ok(Graph::from_glsl(&tu))
     }
 
+    #[tracing::instrument(skip_all)]
     pub(crate) fn parse_glsl_query(glsl: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let glsl = format!("void main() {{ {glsl} }}");
         let tu = TranslationUnit::parse(&glsl)?;
@@ -769,6 +771,7 @@ pub type ParseError<'a> = glsl_lang::parse::ParseError<
 
 impl GlslGraph {
     /// Convert GLSL into a graph representation with additional GLSL data.
+    #[tracing::instrument(skip_all)]
     pub fn parse_glsl(glsl: &str) -> Result<GlslGraph, ParseError<'_>> {
         let tu = TranslationUnit::parse(glsl)?;
         let graph = Graph::from_glsl(&tu);
@@ -785,7 +788,7 @@ pub fn find_attribute_locations(translation_unit: &TranslationUnit) -> Attribute
 
 pub fn merge_vertex_fragment(vert: &GlslGraph, frag: &GlslGraph) -> Graph {
     let mut exprs = IndexSet::default();
-    let mut nodes = Vec::new();
+    let mut nodes = IndexSet::default();
     let mut old_to_new_index_vert = BTreeMap::default();
     let mut old_to_new_index_frag = BTreeMap::default();
 
@@ -815,7 +818,7 @@ pub fn merge_vertex_fragment(vert: &GlslGraph, frag: &GlslGraph) -> Graph {
     }
 
     for n in &frag.graph.nodes {
-        nodes.push(Node {
+        nodes.insert(Node {
             output: n.output.clone(),
             input: old_to_new_index_frag[&n.input],
         });
@@ -828,7 +831,7 @@ pub fn merge_vertex_fragment(vert: &GlslGraph, frag: &GlslGraph) -> Graph {
         .map(|i| old_to_new_index_frag[&i]);
 
     Graph {
-        nodes,
+        nodes: nodes.into_iter().collect(),
         exprs: exprs.into_iter().collect(),
         discard_condition,
     }
@@ -858,7 +861,7 @@ fn fragment_input_to_vertex_output(
 fn reindex_node_expr(
     old_graph: &Graph,
     exprs: &mut IndexSet<Expr>,
-    nodes: &mut Vec<Node>,
+    nodes: &mut IndexSet<Node>,
     old_to_new_indices: &mut BTreeMap<usize, usize>,
     input: usize,
 ) -> usize {
@@ -882,15 +885,7 @@ fn reindex_node_expr(
                             old_node.input,
                         ),
                     };
-                    let new_node_index =
-                        nodes
-                            .iter()
-                            .position(|n| n == &new_node)
-                            .unwrap_or_else(|| {
-                                let index = nodes.len();
-                                nodes.push(new_node);
-                                index
-                            });
+                    let new_node_index = nodes.insert_full(new_node).0;
                     Expr::Node {
                         node_index: new_node_index,
                         channel: *channel,
