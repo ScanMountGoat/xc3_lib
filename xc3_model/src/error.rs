@@ -99,6 +99,9 @@ pub enum LoadMapError {
     #[error("error reading wismhd file")]
     Wismhd(#[source] ReadFileError),
 
+    #[error("error reading casmhd file")]
+    Casmhd(#[source] ReadFileError),
+
     #[error("error reading data")]
     Binrw(#[from] binrw::Error),
 

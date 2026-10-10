@@ -770,6 +770,7 @@ file_read_impl!(
     Endian::Big,
     mtxt::Mtxt,
     mxmd::legacy::MxmdLegacy,
+    msmd::legacy::MsmdLegacy,
     bmn::Bmn,
     hkt::Hkt,
     mths::Mths,

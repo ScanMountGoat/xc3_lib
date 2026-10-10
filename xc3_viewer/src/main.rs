@@ -630,6 +630,11 @@ fn load_files(cli: &Cli) -> anyhow::Result<Files> {
                     .with_context(|| format!("failed to load .wismhd map from {file:?}"))?;
                 map_roots.extend(roots);
             }
+            "casmhd" => {
+                let roots = xc3_model::load_map_legacy(file, database.as_ref())
+                    .with_context(|| format!("failed to load .casmhd map from {file:?}"))?;
+                map_roots.extend(roots);
+            }
             "wiidcm" | "idcm" => {
                 let meshes = xc3_model::load_collisions(file)
                     .with_context(|| format!("failed to load collisions from {file:?}"))?;

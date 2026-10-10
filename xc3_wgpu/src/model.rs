@@ -692,9 +692,15 @@ fn create_model(
 ) -> Model {
     let model_buffers = &buffers[model.model_buffers_index];
 
+    // TODO: Find a better way to handle empty instances causing empty buffers.
+    let instances = if model.instances.is_empty() {
+        &[Mat4::ZERO]
+    } else {
+        &model.instances[..]
+    };
     let transforms = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("instance transforms"),
-        contents: bytemuck::cast_slice(&model.instances),
+        contents: bytemuck::cast_slice(instances),
         usage: wgpu::BufferUsages::STORAGE,
     });
     let instances = Instances {

@@ -9,7 +9,11 @@ use xc3_lib::{
     error::DecompressStreamError,
     map::{FoliageMaterials, PropInstance, PropLod, PropModelLod, PropPositions},
     mibl::Mibl,
-    msmd::{ChannelType, MapParts, Msmd, MsmdV112, StreamEntry, legacy::MsmdV11},
+    msmd::{
+        ChannelType, MapParts, Msmd, MsmdV112, StreamEntry,
+        legacy::{MsmdLegacy, MsmdV11, MsmdV11Legacy},
+    },
+    mtxt::Mtxt,
     mxmd::{StateFlags, TextureUsage},
 };
 
@@ -63,6 +67,30 @@ pub fn load_map<P: AsRef<Path>>(
             MapRoot::from_msmd_v112(msmd, &wismda, shader_database, wismhd_path)
         }
     }
+}
+
+/// Load a map from a `.casmhd` file.
+/// The corresponding `.casmda` should be in the same directory.
+///
+/// # Examples
+/// ``` rust no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use xc3_model::{load_map_legacy, shader_database::ShaderDatabase};
+///
+/// let database = ShaderDatabase::from_file("xcx.bin")?;
+/// let roots = load_map_legacy("xenox/map/ma9990.casmhd", Some(&database))?;
+/// # Ok(())
+/// # }
+/// ```
+#[tracing::instrument(skip_all)]
+pub fn load_map_legacy<P: AsRef<Path>>(
+    casmhd_path: P,
+    shader_database: Option<&ShaderDatabase>,
+) -> Result<Vec<MapRoot>, LoadMapError> {
+    let casmhd_path = casmhd_path.as_ref();
+    let msmd = MsmdLegacy::from_file(casmhd_path).map_err(LoadMapError::Casmhd)?;
+    let casmda = std::fs::read(casmhd_path.with_extension("casmda"))?;
+    MapRoot::from_msmd_legacy(&msmd.inner, &casmda, shader_database)
 }
 
 impl MapRoot {
@@ -170,6 +198,52 @@ impl MapRoot {
 
         Ok(roots)
     }
+
+    #[tracing::instrument(skip_all)]
+    pub fn from_msmd_legacy(
+        msmd: &MsmdV11Legacy,
+        casmda: &[u8],
+        shader_database: Option<&ShaderDatabase>,
+    ) -> Result<Vec<Self>, LoadMapError> {
+        // Loading is CPU intensive due to decompression and decoding.
+        // The .casmda is loaded into memory as &[u8].
+        // Extracting can be parallelized without locks by creating multiple readers.
+
+        // TODO: Better way to combine models?
+        let mut roots = Vec::new();
+
+        let texture_indices: Vec<_> = (0..msmd.low_textures.len() as u16).collect();
+        let texture_cache = TextureCache::from_msmd_legacy(msmd, casmda)?;
+        let texture_cache = Mutex::new(texture_cache);
+
+        // TODO: load sky/env models first to match ordering for switch?
+
+        let map_model_group = map_models_group_legacy2(
+            msmd,
+            casmda,
+            &texture_indices,
+            &texture_cache,
+            shader_database,
+        )?;
+
+        let prop_model_group = props_group_legacy2(
+            msmd,
+            casmda,
+            &texture_indices,
+            &texture_cache,
+            shader_database,
+        )?;
+
+        let image_textures = texture_cache.into_inner().unwrap().image_textures()?;
+
+        roots.push(MapRoot {
+            groups: vec![map_model_group, prop_model_group],
+            image_textures,
+            label: "maps props".to_string(),
+        });
+
+        Ok(roots)
+    }
 }
 
 // TODO: Is there a better way of doing this?
@@ -232,6 +306,28 @@ impl TextureCache {
             .textures
             .par_iter()
             .map(|texture| load_high_texture(wismda, compressed, texture))
+            .collect::<Result<Vec<_>, LoadMapError>>()?;
+
+        Ok(Self {
+            texture_to_image_texture_index: IndexMap::new(),
+            low_textures,
+            high_textures,
+        })
+    }
+
+    #[tracing::instrument(skip_all)]
+    fn from_msmd_legacy(msmd: &MsmdV11Legacy, casmda: &[u8]) -> Result<Self, LoadMapError> {
+        // Low textures are grouped into multiple collections.
+        let low_textures = msmd
+            .low_textures
+            .par_iter()
+            .map(|e| load_low_textures_legacy(msmd, casmda, e))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let high_textures = msmd
+            .textures
+            .par_iter()
+            .map(|texture| load_high_texture_legacy(casmda, texture))
             .collect::<Result<Vec<_>, LoadMapError>>()?;
 
         Ok(Self {
@@ -349,6 +445,57 @@ fn load_low_textures(
             ))
         })
         .collect::<Result<Vec<_>, LoadMapError>>()
+}
+
+#[tracing::instrument(skip_all)]
+fn load_low_textures_legacy(
+    msmd: &MsmdV11Legacy,
+    casmda: &[u8],
+    e: &StreamEntry<xc3_lib::msmd::legacy::LowTexturesLegacy>,
+) -> Result<Vec<(TextureUsage, Surface<Vec<u8>>)>, LoadMapError> {
+    let textures = e.extract_legacy(&mut Cursor::new(&casmda))?;
+    textures
+        .textures
+        .iter()
+        .map(|t| {
+            let usage = xc3_lib::mxmd::TextureUsage::Unk4; // TODO: keep the legacy texture usage;
+
+            // TODO: investigate how this index is used.
+            // TODO: avoid unwrap.
+            let mtxt = if let Ok(i) = usize::try_from(t.unk2) {
+                // TODO: Are these ever reused?
+                let mut reader = Cursor::new(casmda);
+                msmd.terrain_streaming_textures[i]
+                    .extract_legacy(&mut reader)
+                    .unwrap()
+            } else {
+                Mtxt::from_bytes(&t.mtxt_data).unwrap()
+            };
+
+            Ok((usage, mtxt.to_surface().unwrap()))
+        })
+        .collect::<Result<Vec<_>, LoadMapError>>()
+}
+
+#[tracing::instrument(skip_all)]
+fn load_high_texture_legacy(
+    casmda: &[u8],
+    texture: &xc3_lib::msmd::legacy::TextureLegacy,
+) -> Result<Surface<Vec<u8>>, LoadMapError> {
+    let mut casmda = Cursor::new(&casmda);
+    let mtxt_m = texture.mid.extract_legacy(&mut casmda)?;
+
+    // TODO: load base mip level for mtxt
+    // if texture.base_mip.decompressed_size > 0 {
+    //     let base_mip_level = texture
+    //         .base_mip
+    //         .decompress_legacy(&mut casmda, compressed)?;
+
+    //     // TODO: Avoid unwrap.
+    //     Ok(mtxt_m.to_surface_with_base_mip(&base_mip_level).unwrap())
+    // } else {
+    Ok(mtxt_m.to_surface().unwrap())
+    // }
 }
 
 #[tracing::instrument(skip_all)]
@@ -993,6 +1140,51 @@ fn map_models_group_legacy(
     Ok(ModelGroup { models, buffers })
 }
 
+// TODO: come up with a better name
+#[tracing::instrument(skip_all)]
+fn map_models_group_legacy2(
+    msmd: &MsmdV11Legacy,
+    casmda: &[u8],
+    texture_indices: &[u16],
+    texture_cache: &Mutex<TextureCache>,
+    shader_database: Option<&ShaderDatabase>,
+) -> Result<ModelGroup, LoadMapError> {
+    let buffers = create_buffers_legacy2(&msmd.map_vertex_data, casmda)?;
+
+    // TODO: does par_iter matter if this is never compressed?
+    let map_model_data = msmd
+        .map_models
+        .par_iter()
+        .map(|m| m.entry.extract_legacy(&mut Cursor::new(casmda)))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let models = map_model_data
+        .par_iter()
+        .map(|model_data| {
+            // Remove one layer of indirection from texture lookups.
+            let material_root_texture_indices: Vec<_> = model_data
+                .textures
+                .iter()
+                .map(|t| {
+                    texture_cache
+                        .lock()
+                        .unwrap()
+                        .insert(t, &model_data.low_texture_indices)
+                })
+                .collect();
+
+            load_map_model_group_legacy(
+                model_data,
+                texture_indices,
+                &material_root_texture_indices,
+                shader_database,
+            )
+        })
+        .collect();
+
+    Ok(ModelGroup { models, buffers })
+}
+
 #[tracing::instrument(skip_all)]
 fn load_map_model_group_legacy(
     model_data: &xc3_lib::map::legacy::MapModelData,
@@ -1067,6 +1259,58 @@ fn props_group_legacy(
         .prop_models
         .par_iter()
         .map(|m| m.entry.extract(&mut Cursor::new(wismda), compressed))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let models = prop_model_data
+        .par_iter()
+        .map(|model_data| {
+            // Remove layers of indirection from texture lookups.
+            let material_root_texture_indices: Vec<_> = model_data
+                .textures
+                .iter()
+                .map(|t| {
+                    texture_cache
+                        .lock()
+                        .unwrap()
+                        .insert(t, &model_data.low_texture_entry_indices)
+                })
+                .collect();
+
+            load_prop_model_group_legacy(
+                model_data,
+                &prop_positions,
+                texture_indices,
+                &material_root_texture_indices,
+                shader_database,
+            )
+        })
+        .collect();
+
+    Ok(ModelGroup { models, buffers })
+}
+
+// TODO: come up with a better name
+#[tracing::instrument(skip_all)]
+fn props_group_legacy2(
+    msmd: &MsmdV11Legacy,
+    casmda: &[u8],
+    texture_indices: &[u16],
+    texture_cache: &Mutex<TextureCache>,
+    shader_database: Option<&ShaderDatabase>,
+) -> Result<ModelGroup, LoadMapError> {
+    let buffers = create_buffers_legacy2(&msmd.prop_vertex_data, casmda)?;
+
+    // TODO: does par_iter matter if this is never compressed?
+    let prop_positions: Vec<_> = msmd
+        .prop_positions
+        .par_iter()
+        .map(|p| p.extract_legacy(&mut Cursor::new(casmda)))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let prop_model_data: Vec<_> = msmd
+        .prop_models
+        .par_iter()
+        .map(|m| m.entry.extract_legacy(&mut Cursor::new(casmda)))
         .collect::<Result<Vec<_>, _>>()?;
 
     let models = prop_model_data
@@ -1197,6 +1441,24 @@ fn create_buffers_legacy(
         .par_iter()
         .map(|e| {
             let vertex_data = e.extract(&mut Cursor::new(wismda), compressed)?;
+            ModelBuffers::from_vertex_data_legacy(&vertex_data, binrw::Endian::Little)
+                .map_err(Into::into)
+        })
+        .collect()
+}
+
+// TODO: share code for xcx de and xcx
+#[tracing::instrument(skip_all)]
+fn create_buffers_legacy2(
+    vertex_data: &[StreamEntry<xc3_lib::mxmd::legacy::VertexData>],
+    casmda: &[u8],
+) -> Result<Vec<ModelBuffers>, DecompressStreamError> {
+    // Process vertex data ahead of time in parallel.
+    // This gives better CPU utilization and avoids redundant processing.
+    vertex_data
+        .par_iter()
+        .map(|e| {
+            let vertex_data = e.extract_legacy(&mut Cursor::new(casmda))?;
             ModelBuffers::from_vertex_data_legacy(&vertex_data, binrw::Endian::Little)
                 .map_err(Into::into)
         })

@@ -34,6 +34,7 @@ use binrw::{BinRead, BinReaderExt};
 use error::{LoadModelError, LoadModelLegacyError};
 use glam::{Mat4, Vec3};
 use indexmap::IndexMap;
+use material::{Material, Texture};
 use material::{create_materials, create_materials_samplers_legacy};
 use shader_database::ShaderDatabase;
 use skinning::Skinning;
@@ -51,8 +52,7 @@ use xc3_lib::{
 };
 
 pub use collision::load_collisions;
-pub use map::load_map;
-use material::{Material, Texture};
+pub use map::{load_map, load_map_legacy};
 pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
 pub use texture::{ExtractedTextures, ImageFormat, ImageTexture, ViewDimension};

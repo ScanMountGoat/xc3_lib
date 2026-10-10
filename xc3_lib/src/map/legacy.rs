@@ -17,6 +17,8 @@ use crate::{
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MapModelData {
+    // TODO: offsets relative to base offset.
+
     // TODO: flags?
     pub unks_1: u32,
     pub unks_2: u32,
@@ -42,6 +44,8 @@ pub struct MapModelData {
     pub unk4: u32,
     pub unk5: u32,
 
+    // TODO: not spco for wiiu?
+    // TODO: container for spchs for wii u?
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32), align(4096))]
     pub spco: Spco,

@@ -305,6 +305,7 @@ pub struct Nerd {
 
 // TODO: This contains a Nerd?
 
+// TODO: magic depends on endianess
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(magic(b"SMEC"))]
@@ -314,6 +315,7 @@ pub struct Cems {
     pub offset: u32,
 }
 
+// TODO: magic depends on endianness
 // TODO: cloud data?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
@@ -323,6 +325,7 @@ pub struct Cmld {
     pub version: u32,
 }
 
+// TODO: magic can be big or little endian.
 // TODO: Lighting data?
 // TODO: .wilgt files?
 #[binread]
@@ -762,6 +765,7 @@ pub struct Doce {
     pub count: u32,
 }
 
+// TODO: make this generic over the legacy vs modern or just create two types?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct LowTextures {
@@ -1042,6 +1046,19 @@ where
     ) -> Result<T, DecompressStreamError> {
         let bytes = self.decompress(wismda, is_compressed)?;
         T::read_le(&mut Cursor::new(bytes)).map_err(Into::into)
+    }
+
+    /// Decompress and read the data from a reader for a `.casmda` file.
+    #[tracing::instrument(skip_all)]
+    pub fn extract_legacy<R: Read + Seek>(
+        &self,
+        casmda: &mut R,
+    ) -> Result<T, DecompressStreamError> {
+        let mut bytes = vec![0u8; self.decompressed_size as usize];
+        casmda.seek(SeekFrom::Start(self.offset as u64))?;
+        casmda.read_exact(&mut bytes)?;
+
+        T::read_be(&mut Cursor::new(bytes)).map_err(Into::into)
     }
 }
 
