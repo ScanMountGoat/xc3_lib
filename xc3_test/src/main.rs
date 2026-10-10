@@ -531,7 +531,7 @@ impl CheckFile for Msmd {
                 for (i, model) in msmd.prop_models.iter().enumerate() {
                     match model.entry.extract(&mut reader, compressed) {
                         Ok(model) => {
-                            for item in model.spco.items {
+                            for item in model.shaders.items {
                                 item.spch.check_file(path, &[], &[], false);
                             }
                         }

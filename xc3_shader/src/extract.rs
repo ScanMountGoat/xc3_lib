@@ -172,7 +172,7 @@ fn extract_and_decompile_msmd_shaders(
                 let model_folder = output_folder.join("prop").join(i.to_string());
                 std::fs::create_dir_all(&model_folder).unwrap();
 
-                if let Some(spch) = data.spco.items.first().map(|i| &i.spch) {
+                if let Some(spch) = data.shaders.items.first().map(|i| &i.spch) {
                     extract_shaders(spch, &model_folder, shader_tools, false);
                 }
             }

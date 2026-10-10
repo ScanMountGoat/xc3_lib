@@ -190,6 +190,54 @@ impl Mtxt {
         })
     }
 
+    /// Similar to [Self::to_surface] but adds the swizzled `base_mip_level` with the existing mipmaps.
+    /// The base mip should have twice current width and height.
+    pub fn to_surface_with_base_mip(
+        &self,
+        base_mip_level: &[u8],
+    ) -> Result<Surface<Vec<u8>>, SwizzleError> {
+        let mid = self.to_surface()?;
+
+        let width = mid.width.saturating_mul(2);
+        let height = mid.height.saturating_mul(2);
+
+        // Combine deswizzled data so we don't have to worry about alignment.
+        // TODO: How does this work for 3D or array layers?
+        // TODO: validate dimensions.
+        let mut data = wiiu_swizzle::Gx2Surface {
+            dim: self.footer.surface_dim.into(),
+            width,
+            height,
+            depth_or_array_layers: self.footer.depth_or_array_layers,
+            mipmap_count: 1,
+            format: self.footer.surface_format.into(),
+            aa: wiiu_swizzle::AaMode::X1,
+            usage: 0,
+            image_data: base_mip_level,
+            mipmap_data: &[],
+            tile_mode: self.footer.tile_mode.into(),
+            swizzle: self.footer.swizzle,
+            alignment: self.footer.swizzle,
+            pitch: self.footer.pitch,
+            mipmap_offsets: self.footer.mipmap_offsets,
+        }
+        .deswizzle()?;
+
+        data.extend_from_slice(&mid.data);
+
+        // TODO: Error if invalid dimensions?
+        // TODO: Mipmaps shouldn't be more than 32 for 32-bit dimensions.
+        Ok(Surface {
+            width,
+            height,
+            depth: mid.depth,
+            layers: mid.layers,
+            mipmaps: mid.mipmaps.saturating_add(1),
+            image_format: mid.image_format,
+            data,
+        })
+    }
+
     /// Swizzles all layers and mipmaps in `surface` to an equivalent [Mtxt].
     ///
     /// Returns an error if the conversion fails or the image format is not supported.

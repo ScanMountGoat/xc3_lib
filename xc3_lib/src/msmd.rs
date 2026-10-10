@@ -1054,6 +1054,7 @@ where
         &self,
         casmda: &mut R,
     ) -> Result<T, DecompressStreamError> {
+        // TODO: modify parsers to set a base offset to avoid a temporary buffer.
         let mut bytes = vec![0u8; self.decompressed_size as usize];
         casmda.seek(SeekFrom::Start(self.offset as u64))?;
         casmda.read_exact(&mut bytes)?;

@@ -10,6 +10,7 @@ use crate::{
     mxmd::legacy::VertexData,
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32,
+    spco::Spco,
 };
 
 use super::{BoundingBox, Cems, Dlgt, StreamEntry, Texture};
@@ -37,11 +38,11 @@ pub struct MsmdLegacy {
 pub struct MsmdV11 {
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub map_models: Vec<MapModel>,
+    pub map_models: Vec<MapModel<Spco>>,
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub prop_models: Vec<PropModel>,
+    pub prop_models: Vec<PropModel<Spco>>,
 
     // TODO: collisions?
     #[br(parse_with = parse_count32_offset32)]
@@ -153,11 +154,11 @@ pub struct MsmdV11 {
 pub struct MsmdV11Legacy {
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub map_models: Vec<MapModel>,
+    pub map_models: Vec<MapModel<crate::mxmd::legacy::Shaders>>,
 
     #[br(parse_with = parse_count32_offset32)]
     #[xc3(count_offset(u32, u32))]
-    pub prop_models: Vec<PropModel>,
+    pub prop_models: Vec<PropModel<crate::mxmd::legacy::Shaders>>,
 
     // TODO: collisions?
     #[br(parse_with = parse_count32_offset32)]
@@ -334,14 +335,19 @@ pub struct CsvbBlockItem {
 // TODO: how many of these structs are shared with switch?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct MapModel {
+pub struct MapModel<S>
+where
+    S: Xc3Write + 'static,
+    for<'a> S: BinRead<Args<'a> = ()>,
+    for<'a> S::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
+{
     pub bounds: BoundingBox,
     pub unk1: u16,
     pub map_part_id: u16,
     pub unk2: u32,
     pub unk3: u32,
     pub bounds_radius: f32,
-    pub entry: StreamEntry<MapModelData>,
+    pub entry: StreamEntry<MapModelData<S>>,
     // TODO: padding?
     pub unk4: [u32; 4],
 }
@@ -350,8 +356,8 @@ pub struct MapModel {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct Collision {
     pub bounds: BoundingBox,
-    pub unk1: [f32; 4],                   // TODO: bounding sphere?
-    pub entry: StreamEntry<MapModelData>, // TODO: is this really the same type?
+    pub unk1: [f32; 4],                         // TODO: bounding sphere?
+    pub entry: StreamEntry<MapModelData<Spco>>, // TODO: is this really the same type?
     pub unk2: [u32; 3],
     pub unk3: u32,
     pub unk4: [u32; 3],
@@ -359,12 +365,17 @@ pub struct Collision {
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct PropModel {
+pub struct PropModel<S>
+where
+    S: Xc3Write + 'static,
+    for<'a> S: BinRead<Args<'a> = ()>,
+    for<'a> S::Offsets<'a>: Xc3WriteOffsets<Args = ()>,
+{
     pub bounds: BoundingBox,
     pub unk1: u16,
     pub map_part_id: u16,
     pub unk2: [f32; 3],
-    pub entry: StreamEntry<PropModelData>,
+    pub entry: StreamEntry<PropModelData<S>>,
     pub unk3: u32,
 }
 
