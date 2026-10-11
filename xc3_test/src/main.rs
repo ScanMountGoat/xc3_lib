@@ -520,7 +520,7 @@ impl CheckFile for Msmd {
                 for (i, model) in msmd.map_models.iter().enumerate() {
                     match model.entry.extract(&mut reader, compressed) {
                         Ok(model) => {
-                            for item in model.spco.items {
+                            for item in model.shaders.items {
                                 item.spch.check_file(path, &[], &[], false);
                             }
                         }
@@ -1393,14 +1393,21 @@ fn check_all_gltf(root: &Path) {
         .par_iter()
         .for_each(|path| match xc3_model::load_model(path, None) {
             Ok(root) => {
+                // TODO: Improve pattern for finding matching animation files.
+                // TODO: error if animations fail to load.
+                let animations = xc3_model::load_animations(path.with_extension("mot"));
+
                 if let Err(e) = xc3_model::gltf::GltfFile::from_model(
                     "model",
                     &[root],
-                    &[],
+                    animations
+                        .as_ref()
+                        .map(|a| a.as_slice())
+                        .unwrap_or_default(),
                     &shader_textures,
                     false,
                 ) {
-                    println!("Error converting {path:?}: {e}");
+                    println!("Error converting {path:?} to glTF: {e}");
                 }
             }
             Err(e) => println!("Error loading {path:?}: {e}"),
