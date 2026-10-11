@@ -1,5 +1,5 @@
 sampler, description
-gTAmbBRDF,
+gTAmbBRDF, monolib/shader/ambientbrdf.witex
 gTBackFaceDepth,
 gTDiffuseIBL,
 gTPREM,
