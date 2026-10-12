@@ -1956,7 +1956,7 @@ pub struct ModelUnk1 {
 pub struct ModelUnk1Extra {
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk_inner: Option<ModelUnk1Inner>,
+    pub unk_inner: Option<ModelUnk1ExtraInner>,
 
     // TODO: only 12 bytes for chr/ch/ch01022012.wimdo?
     pub unk: [u32; 4],
@@ -1968,7 +1968,7 @@ pub struct ModelUnk1Extra {
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
-pub struct ModelUnk1Inner {
+pub struct ModelUnk1ExtraInner {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
@@ -1995,6 +1995,7 @@ pub struct ModelUnk1Inner {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(import_raw(base_offset: u64))]
 pub struct ModelUnk1Item1 {
+    // TODO: name of a float animation item or morph controller?
     #[br(parse_with = parse_string_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
     pub name: String,
@@ -2006,11 +2007,11 @@ pub struct ModelUnk1Item1 {
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct ModelUnk1Item2 {
     pub unk1: u16,
-    pub unk2: u16,
-    pub unk3: u32,
-    pub unk4: u32,
-    pub unk5: u32,
-    pub unk6: u32,
+    pub unk2: u16, // TODO: index into items1?
+    pub unk3: u32, // TODO: index into items1?
+    pub unk4: u32, // 0, 1, 2
+    pub unk5: f32,
+    pub unk6: u32, // 0
 }
 
 #[binread]

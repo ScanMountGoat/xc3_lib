@@ -2,7 +2,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Bound::*;
 
-use glam::{Mat4, Quat, Vec3, Vec4, Vec4Swizzles, vec3, vec4};
+use glam::{FloatExt, Mat4, Quat, Vec3, Vec4, Vec4Swizzles, vec3, vec4};
 use ordered_float::OrderedFloat;
 use tracing::error;
 pub use xc3_lib::bc::anim::{BlendMode, PlayMode, SpaceMode};
@@ -269,10 +269,12 @@ impl Animation {
         let mut weights = vec![0.0f32; morph_controller_names.len()];
 
         if let Some(morphs) = &self.morph_tracks {
+            // TODO: zip track indices and animation morph names to make this clearer
             for (i, track_index) in morphs.track_indices.iter().enumerate() {
                 // TODO: The counts and indices match up but don't select the right names?
                 let name = &animation_morph_names[i];
 
+                // TODO: morph controllers have the target index already in unk2?
                 // TODO: This part isn't correct?
                 if let Some(target_index) = morph_target_controller_indices
                     .iter()
@@ -284,21 +286,24 @@ impl Animation {
                     if let Some(weight) = weights.get_mut(target_index % len)
                         && let Ok(track_index) = usize::try_from(*track_index)
                     {
-                        // TODO: Is this how to handle multiple frames?
-                        let frame_value = morphs.track_values.get(track_index * frame_index);
-
-                        let next_frame_value =
-                            morphs.track_values.get(track_index * next_frame_index);
-                        if let Some(value) = frame_value {
-                            *weight = match next_frame_value {
-                                Some(next_value) => *value * (1.0 - factor) + *next_value * factor,
+                        // The morph track values are indexed as weights[controller][frame].
+                        let frame_index = self.frame_count as usize * frame_index + track_index;
+                        if let Some(value) = morphs.track_values.get(frame_index) {
+                            // TODO: Is linear interpolation correct for morph weights?
+                            let next_frame_index =
+                                self.frame_count as usize * next_frame_index + track_index;
+                            *weight = match morphs.track_values.get(next_frame_index) {
+                                Some(next_value) => value.lerp(*next_value, factor),
                                 None => *value,
                             }
                         }
+                    } else {
+                        // TODO: log error
                     }
                 }
             }
         }
+
         weights
     }
 
