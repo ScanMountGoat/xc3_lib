@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Changed shader assignments inferred from textures to merge XYZ channels for color and specular color.
 * Renamed the "tracing" feature for xc3_viewer and xc3_shader to "tracy".
 * Improved accuracy of material assignments for ambient occlusion for Xenoblade Chronicles X Definitive Edition.
+* Improved the model viewport framing for xc3_wgpu_batch.
 
 ### Fixed
 * Fixed an issue where map models would use the wrong alpha testing texture in some cases.

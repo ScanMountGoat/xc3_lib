@@ -10,7 +10,7 @@ use glam::{Mat4, Vec3, vec3};
 use rayon::prelude::*;
 use tracing::{level_filters::LevelFilter, trace_span};
 use xc3_model::{load_animations, shader_database::ShaderDatabase};
-use xc3_wgpu::{CameraData, RenderOptions, Renderer, SharedData};
+use xc3_wgpu::{CameraData, RenderOptions, Renderer, SharedData, camera::frame_bounds_translation};
 
 use tracing_subscriber::prelude::*;
 
@@ -418,22 +418,9 @@ fn apply_anim(
 }
 
 fn frame_bounds(queue: &wgpu::Queue, renderer: &mut Renderer, min_xyz: Vec3, max_xyz: Vec3) {
-    let center = (min_xyz + max_xyz) / 2.0;
-    let bounds_size = max_xyz - min_xyz;
-
-    // Find the base of the triangle based on vertical FOV and model height.
-    // The aspect ratio is 1.0, so FOV_X is also FOV_Y.
-    // Take the max to frame both horizontally and vertically.
-    // Add a small offset to better frame the entire model.
-    let distance = bounds_size.y.max(bounds_size.x) / FOV_Y.tan() + 2.0;
-
-    let rotation = vec3(0.0, -20f32.to_radians(), 0.0);
-    let camera_data = calculate_camera_data(
-        WIDTH,
-        HEIGHT,
-        vec3(center.x, -center.y, -distance),
-        rotation,
-    );
+    let translation = frame_bounds_translation(min_xyz, max_xyz, FOV_Y, 1.0);
+    let rotation = Vec3::ZERO;
+    let camera_data = calculate_camera_data(WIDTH, HEIGHT, translation, rotation);
     renderer.update_camera(queue, &camera_data);
 }
 
