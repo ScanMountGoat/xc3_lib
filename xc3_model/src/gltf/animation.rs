@@ -58,6 +58,7 @@ pub fn add_animations(
                     skeleton.bones.iter().position(|b| &b.name == name)
                 }
             })
+            .filter(|i| *i < skeleton.bones.len())
             .collect();
 
         for bone in animated_bone_indices {
