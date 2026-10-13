@@ -629,6 +629,7 @@ fn load_prop_model_group(
         lod_data: model_data.models.lod_data.as_ref().map(lod_data),
         morph_controller_names: Vec::new(),
         animation_morph_names: Vec::new(),
+        material_animations: None, // TODO: material anims for props?
         min_xyz: model_data.models.min_xyz.into(),
         max_xyz: model_data.models.max_xyz.into(),
     };
@@ -818,6 +819,7 @@ fn load_map_model_group(
         lod_data: model_data.models.lod_data.as_ref().map(lod_data),
         morph_controller_names: Vec::new(),
         animation_morph_names: Vec::new(),
+        material_animations: None, // TODO: material anims for map models?
         min_xyz: model_data.models.min_xyz.into(),
         max_xyz: model_data.models.max_xyz.into(),
     }
@@ -848,6 +850,7 @@ fn load_env_model(
             models: vec![Models::from_models_v112(
                 &model_data.models,
                 &model_data.materials,
+                None,
                 None,
                 &model_data.spch,
                 shader_database,
@@ -907,6 +910,7 @@ fn load_foliage_model(
                 lod_data: model_data.models.lod_data.as_ref().map(lod_data),
                 morph_controller_names: Vec::new(),
                 animation_morph_names: Vec::new(),
+                material_animations: None, // TODO: material anims for foliage models?
                 min_xyz: model_data.models.min_xyz.into(),
                 max_xyz: model_data.models.max_xyz.into(),
             }],

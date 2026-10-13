@@ -196,6 +196,7 @@ fn load_map_model_group_legacy_inner<S: GetProgramHash>(
         lod_data: None,
         morph_controller_names: Vec::new(),
         animation_morph_names: Vec::new(),
+        material_animations: None, // TODO: material anims for map models?
         min_xyz: map_models.min_xyz.into(),
         max_xyz: map_models.max_xyz.into(),
     }
@@ -387,6 +388,7 @@ fn load_prop_model_group_legacy_inner<S: GetProgramHash>(
         lod_data: None,
         morph_controller_names: Vec::new(),
         animation_morph_names: Vec::new(),
+        material_animations: None, // TODO: material anims for prop models?
         min_xyz: map_models.min_xyz.into(),
         max_xyz: map_models.max_xyz.into(),
     };

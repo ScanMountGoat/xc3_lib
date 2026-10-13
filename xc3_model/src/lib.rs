@@ -57,7 +57,7 @@ pub use sampler::{AddressMode, FilterMode, Sampler};
 pub use skeleton::{Bone, Skeleton};
 pub use texture::{ExtractedTextures, ImageFormat, ImageTexture, ViewDimension};
 pub use transform::Transform;
-pub use xc3_lib::mxmd::{MeshRenderFlags2, MeshRenderPass};
+pub use xc3_lib::mxmd::{MaterialAnimTrackType, MeshRenderFlags2, MeshRenderPass};
 
 #[cfg(feature = "gltf")]
 pub mod gltf;
@@ -119,7 +119,7 @@ pub struct ModelGroup {
 
 // TODO: Should samplers be optional?
 // TODO: Come up with a better name?
-/// See [ModelsV112](xc3_lib::mxmd::ModelsV112).
+/// See [ModelsV112](xc3_lib::mxmd::ModelsV112) and [MxmdV112](xc3_lib::mxmd::MxmdV112).
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Models {
@@ -137,8 +137,10 @@ pub struct Models {
     /// The name of the controller for each morph target like "mouth_shout".
     pub morph_controller_names: Vec<String>,
 
-    /// The the morph controller names used for animations.
+    /// The morph controller names used for animations.
     pub animation_morph_names: Vec<String>,
+
+    pub material_animations: Option<MaterialAnimations>,
 
     // TODO: make this a function instead to avoid dependencies?
     /// The minimum XYZ coordinates of the bounding volume.
@@ -213,6 +215,44 @@ impl LodData {
             None => true,
         }
     }
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct MaterialAnimations {
+    pub groups: Vec<MaterialAnimGroup>,
+    // TODO: extra data for xcx?
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct MaterialAnimGroup {
+    pub entries: Vec<MaterialAnimEntry>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct MaterialAnimEntry {
+    pub tracks: Vec<MaterialAnimTrack>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct MaterialAnimTrack {
+    // TODO: flags
+    pub track_type: MaterialAnimTrackType,
+    // TODO: keys don't overlap when ignoring tracks with empty frames?
+    pub keys: Vec<MaterialAnimKey>,
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub struct MaterialAnimKey {
+    pub out_tangent: f32,
+    pub in_tangent: f32,
+    pub value: f32,
+    pub frame: usize, // TODO: frame index?
+                      // TODO: flags
 }
 
 // TODO: Take an iterator for wimdo paths and merge to support xc1?

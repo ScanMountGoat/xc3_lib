@@ -2586,12 +2586,13 @@ pub struct MaterialAnimTrack {
 #[br(map = u32::into)]
 #[bw(map = |&x| u32::from(x))]
 pub struct MaterialAnimTrackFlags {
-    pub unk: u29,
+    /// Index into [keys](struct.MaterialAnimations.html#structfield.keys).
+    pub key_start_index: u29,
     /// Invert and clamp to `0.0` to `1.0` when `true`
     pub invert_clamp: bool,
     /// Use game parameter value instead of keys when `true`
-    pub external_param: bool,
-    pub unk1: bool, // time of day?
+    pub external_param: bool, // TODO: should use key_start_index of 0?
+    pub unk1: bool, // TODO: use unk list when true instead of keys?
 }
 
 // TODO: check each of these variants in game

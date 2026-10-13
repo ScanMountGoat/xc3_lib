@@ -12,8 +12,9 @@ use xc3_lib::{
 };
 
 use crate::{
-    ExtractedTextures, LodData, LodGroup, LodItem, Mesh, Model, ModelRoot, Models, Sampler,
-    Skeleton, create_materials, create_materials_samplers_legacy,
+    ExtractedTextures, LodData, LodGroup, LodItem, MaterialAnimEntry, MaterialAnimGroup,
+    MaterialAnimKey, MaterialAnimTrack, MaterialAnimations, Mesh, Model, ModelRoot, Models,
+    Sampler, Skeleton, create_materials, create_materials_samplers_legacy,
     error::{LoadModelError, LoadModelLegacyError},
     material::GetProgramHash,
     shader_database::ShaderDatabase,
@@ -27,6 +28,7 @@ use crate::{
 pub struct ModelFilesV40<'a> {
     pub models: &'a xc3_lib::mxmd::legacy::Models,
     pub materials: &'a xc3_lib::mxmd::legacy::Materials,
+    pub material_animations: Option<&'a xc3_lib::mxmd::MaterialAnimations>,
     pub vertex: Cow<'a, xc3_lib::mxmd::legacy::VertexData>,
     pub spch: Cow<'a, xc3_lib::spch::Spch>,
     pub textures: ExtractedTextures,
@@ -36,6 +38,7 @@ pub struct ModelFilesV40<'a> {
 pub struct ModelFilesV111<'a> {
     pub models: &'a xc3_lib::mxmd::ModelsV111,
     pub materials: &'a xc3_lib::mxmd::Materials,
+    pub material_animations: Option<&'a xc3_lib::mxmd::MaterialAnimations>,
     pub vertex: Cow<'a, xc3_lib::vertex::VertexData>,
     pub spch: Cow<'a, xc3_lib::spch::Spch>,
     pub textures: ExtractedTextures,
@@ -46,6 +49,7 @@ pub struct ModelFilesV111<'a> {
 pub struct ModelFilesV112<'a> {
     pub models: &'a xc3_lib::mxmd::ModelsV112,
     pub materials: &'a xc3_lib::mxmd::Materials,
+    pub material_animations: Option<&'a xc3_lib::mxmd::MaterialAnimations>,
     pub vertex: Cow<'a, xc3_lib::vertex::VertexData>,
     pub spch: Cow<'a, xc3_lib::spch::Spch>,
     pub textures: ExtractedTextures,
@@ -104,6 +108,7 @@ impl<'a> ModelFilesV40<'a> {
         Ok(ModelFilesV40 {
             models: &mxmd.models,
             materials: &mxmd.materials,
+            material_animations: mxmd.material_animations.as_ref(),
             vertex,
             spch,
             textures,
@@ -194,6 +199,7 @@ impl<'a> ModelFilesV111<'a> {
         Ok(ModelFilesV111 {
             models: &mxmd.models,
             materials: &mxmd.materials,
+            material_animations: mxmd.material_animations.as_ref(),
             vertex,
             spch,
             textures,
@@ -285,6 +291,7 @@ impl<'a> ModelFilesV112<'a> {
         Ok(ModelFilesV112 {
             models: &mxmd.models,
             materials: &mxmd.materials,
+            material_animations: mxmd.material_animations.as_ref(),
             vertex,
             spch,
             textures,
@@ -336,6 +343,7 @@ impl ModelRoot {
         let models = Models::from_models_v112(
             files.models,
             files.materials,
+            files.material_animations,
             files.texture_indices.as_deref(),
             &files.spch,
             shader_database,
@@ -374,6 +382,7 @@ impl ModelRoot {
         let models = Models::from_models_legacy(
             files.models,
             files.materials,
+            files.material_animations,
             Some(files.spch.as_ref()),
             shader_database,
             &texture_indices,
@@ -405,6 +414,7 @@ impl ModelRoot {
         let models = Models::from_models_v111(
             files.models,
             files.materials,
+            files.material_animations,
             files.texture_indices.as_deref(),
             &files.spch,
             shader_database,
@@ -437,6 +447,7 @@ impl ModelRoot {
         let models = Models::from_models_legacy(
             &mxmd.models,
             &mxmd.materials,
+            mxmd.material_animations.as_ref(),
             Some(&mxmd.shaders),
             shader_database,
             &texture_indices,
@@ -455,6 +466,7 @@ impl Models {
     pub fn from_models_v112(
         models: &xc3_lib::mxmd::ModelsV112,
         materials: &xc3_lib::mxmd::Materials,
+        material_animations: Option<&xc3_lib::mxmd::MaterialAnimations>,
         texture_indices: Option<&[u16]>,
         spch: &xc3_lib::spch::Spch,
         shader_database: Option<&ShaderDatabase>,
@@ -486,6 +498,7 @@ impl Models {
                 .as_ref()
                 .map(|u| u.items1.iter().map(|i| i.name.clone()).collect())
                 .unwrap_or_default(),
+            material_animations: material_animations.map(create_material_animations),
             min_xyz: models.min_xyz.into(),
             max_xyz: models.max_xyz.into(),
         }
@@ -494,6 +507,7 @@ impl Models {
     pub fn from_models_v111(
         models: &xc3_lib::mxmd::ModelsV111,
         materials: &xc3_lib::mxmd::Materials,
+        material_animations: Option<&xc3_lib::mxmd::MaterialAnimations>,
         texture_indices: Option<&[u16]>,
         spch: &xc3_lib::spch::Spch,
         shader_database: Option<&ShaderDatabase>,
@@ -510,6 +524,7 @@ impl Models {
             lod_data: None,
             morph_controller_names: Vec::new(),
             animation_morph_names: Vec::new(),
+            material_animations: material_animations.map(create_material_animations),
             min_xyz: models.min_xyz.into(),
             max_xyz: models.max_xyz.into(),
         }
@@ -518,6 +533,7 @@ impl Models {
     pub fn from_models_legacy<S>(
         models: &xc3_lib::mxmd::legacy::Models,
         materials: &xc3_lib::mxmd::legacy::Materials,
+        material_animations: Option<&xc3_lib::mxmd::MaterialAnimations>,
         shaders: Option<&S>,
         shader_database: Option<&ShaderDatabase>,
         texture_indices: &[u16],
@@ -555,6 +571,7 @@ impl Models {
             },
             morph_controller_names: Vec::new(),
             animation_morph_names: Vec::new(),
+            material_animations: material_animations.map(create_material_animations),
             max_xyz: models.max_xyz.into(),
             min_xyz: models.min_xyz.into(),
         }
@@ -747,4 +764,51 @@ fn create_skeleton(
     // Merge both skeletons since the bone lists may be different.
     // TODO: Create a skeleton even without the chr?
     Some(Skeleton::from_skeleton(&skel?.skeleton, skinning))
+}
+
+fn create_material_animations(anims: &xc3_lib::mxmd::MaterialAnimations) -> MaterialAnimations {
+    // TODO: avoid panic for out of range indices.
+    MaterialAnimations {
+        groups: anims
+            .groups
+            .iter()
+            .map(|g| MaterialAnimGroup {
+                entries: anims.entries[g.entry_start_index as usize
+                    ..g.entry_start_index as usize + g.entry_count as usize]
+                    .iter()
+                    .map(|e| MaterialAnimEntry {
+                        tracks: anims.tracks[e.track_start_index as usize
+                            ..e.track_start_index as usize + e.track_count as usize]
+                            .iter()
+                            .map(|t| {
+                                // TODO: Not all tracks use keys
+                                // TODO: should keys be empty or none if not used?
+                                let start_index = u32::from(t.flags.key_start_index()) as usize;
+                                MaterialAnimTrack {
+                                    track_type: t.track_type,
+                                    keys: anims
+                                        .keys
+                                        .get(
+                                            start_index
+                                                ..start_index as usize + t.key_count as usize,
+                                        )
+                                        .map(|keys| {
+                                            keys.iter()
+                                                .map(|k| MaterialAnimKey {
+                                                    out_tangent: k.out_tangent,
+                                                    in_tangent: k.in_tangent,
+                                                    value: k.value,
+                                                    frame: k.frame as usize,
+                                                })
+                                                .collect()
+                                        })
+                                        .unwrap_or_default(),
+                                }
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            })
+            .collect(),
+    }
 }

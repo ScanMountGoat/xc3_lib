@@ -269,6 +269,8 @@ impl ModelRoot {
 
         self.apply_materials_v112(&mut new_mxmd);
 
+        // TODO: material animations
+
         new_mxmd.models.min_xyz = new_mxmd
             .models
             .models
@@ -660,6 +662,8 @@ impl ModelRoot {
         let mut new_mxmd = mxmd.clone();
 
         self.apply_materials_v40(&mut new_mxmd);
+
+        // TODO: material animations
 
         new_mxmd.models.models = self
             .models
