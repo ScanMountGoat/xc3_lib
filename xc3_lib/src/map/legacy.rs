@@ -5,8 +5,8 @@ use xc3_write::{Xc3Write, Xc3WriteOffsets};
 use crate::{
     map::Texture,
     mxmd::{
-        PackedTextures,
-        legacy::{Materials, Models, Unk1, VertexData},
+        MaterialAnimations, PackedTextures,
+        legacy::{Materials, Models, VertexData},
     },
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     spco::Spco,
@@ -290,7 +290,7 @@ pub struct SkyModelData {
 
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
-    pub unk1: Option<Unk1>,
+    pub material_animations: Option<MaterialAnimations>,
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32), align(4096))]

@@ -44,10 +44,10 @@ pub struct Material {
     pub alpha_test_ref: f32,
 
     // TODO: group indices for animations?
-    pub m_unks1_1: u32,
-    pub m_unks1_2: u32,
-    pub m_unks1_3: u32,
-    pub m_unks1_4: u32,
+    pub texture_anim_group_index: u32,
+    pub color_anim_group_index: u32,
+    pub variable_anim_group_index: u32,
+    pub plane_matrix_anim_group_index: u32,
 
     /// Precomputed metadata from the decompiled shader source
     /// used to assign G-Buffer outputs
@@ -392,10 +392,10 @@ pub(crate) fn create_materials(
                     .to_vec(),
                 techniques,
                 parameters,
-                m_unks1_1: material.m_unks1_1,
-                m_unks1_2: material.m_unks1_2,
-                m_unks1_3: material.m_unks1_3,
-                m_unks1_4: material.m_unks1_4,
+                texture_anim_group_index: material.texture_anim_group_index,
+                color_anim_group_index: material.color_anim_group_index,
+                variable_anim_group_index: material.variable_anim_group_index,
+                plane_matrix_anim_group_index: material.plane_matrix_anim_group_index,
                 m_unks2: material.m_unks2,
                 gbuffer_flags: material.gbuffer_flags,
                 unk4_legacy: [0; 2],
@@ -530,10 +530,10 @@ where
                     .and_then(|c| c.work_callbacks.get(callback_start..callback_end))
                     .unwrap_or_default()
                     .to_vec(),
-                m_unks1_1: m.m_unks1_1,
-                m_unks1_2: m.m_unks1_2,
-                m_unks1_3: m.m_unks1_3,
-                m_unks1_4: m.m_unks1_4,
+                texture_anim_group_index: m.texture_anim_group_index,
+                color_anim_group_index: m.color_anim_group_index,
+                variable_anim_group_index: m.variable_anim_group_index,
+                plane_matrix_anim_group_index: m.plane_matrix_anim_group_index,
                 m_unks2: 0,
                 unk4_legacy: m.unk4,
                 gbuffer_flags: 0,

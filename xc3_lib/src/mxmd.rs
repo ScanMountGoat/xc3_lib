@@ -74,7 +74,7 @@ pub struct MxmdV40 {
 
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32), align(16))]
-    pub unk1: Option<legacy::Unk1>,
+    pub material_animations: Option<MaterialAnimations>,
 
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32), align(4096))]
@@ -116,7 +116,7 @@ pub struct MxmdV111 {
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32))]
-    pub unk1: Option<Unk1>,
+    pub material_animations: Option<MaterialAnimations>,
 
     // TODO: This type is slightly different than for mxmd 112
     /// Embedded vertex data for .wimdo only models with no .wismt.
@@ -169,7 +169,7 @@ pub struct MxmdV112 {
 
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
     #[xc3(offset(u32), align(16))]
-    pub unk1: Option<Unk1>,
+    pub material_animations: Option<MaterialAnimations>,
 
     /// Embedded vertex data for .wimdo only models with no .wismt.
     #[br(parse_with = parse_opt_ptr32, offset = base_offset)]
@@ -226,9 +226,8 @@ pub struct Materials {
     #[xc3(offset_count(u32, u32), align(4))]
     pub materials: Vec<Material>,
 
-    // offset?
-    pub unk1: u32,
-    pub unk2: u32,
+    pub unk1: u32, // TODO: shader param count?
+    pub unk2: u32, // TODO: material anim channel count?
 
     // TODO: Materials have offsets into these arrays for parameter values?
     // material body has a uniform at shader offset 64 but offset 48 in this floats buffer
@@ -673,11 +672,12 @@ pub struct Material {
     // TODO: rename to pipeline state?
     pub state_flags: StateFlags,
 
-    // TODO: group indices for animations?
-    pub m_unks1_1: u32,
-    pub m_unks1_2: u32,
-    pub m_unks1_3: u32,
-    pub m_unks1_4: u32,
+    // TODO: indices into the groups in the material anim struct
+    // TODO: 0 if no animation?
+    pub texture_anim_group_index: u32,
+    pub color_anim_group_index: u32,
+    pub variable_anim_group_index: u32,
+    pub plane_matrix_anim_group_index: u32,
 
     // TODO: each material has its own unique range of values?
     /// Index into [work_values](struct.Materials.html#structfield.work_values).
@@ -1135,7 +1135,7 @@ pub struct ModelsV112 {
     #[xc3(offset(u32), align(4))]
     pub alpha_table: Option<AlphaTable>,
 
-    pub unk_field2: u32,
+    pub unk_field2: u32, // TODO: flags?
 
     #[br(parse_with = parse_opt_ptr32)]
     #[br(args { offset: base_offset, inner: base_offset})]
@@ -1723,13 +1723,20 @@ pub struct ModelUnk6 {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
-    // TODO: What type is this?
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub items: Vec<[u32; 2]>,
+    pub items: Vec<ModelUnk6Item>,
 
     // TODO: padding?
     pub unks: [u32; 4],
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
+pub struct ModelUnk6Item {
+    pub unk1: u16, // TODO: index?
+    pub unk2: u16, // TODO: index?
+    pub unk3: f32,
 }
 
 #[binread]
@@ -2505,72 +2512,129 @@ pub struct AsBoneTransform {
 }
 
 // TODO: pointer to decl_gbl_cac in ch001011011.wimdo?
+/// `ml::DrMdoAnim` in the Xenoblade 2 binary.
 #[binread]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, Xc3Write, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
-pub struct Unk1 {
+pub struct MaterialAnimations {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub unk1: Vec<Unk1Unk1>,
+    pub groups: Vec<MaterialAnimGroup>,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub unk2: Vec<Unk1Unk2>,
+    pub entries: Vec<MaterialAnimEntry>,
 
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub unk3: Vec<Unk1Unk3>,
+    pub tracks: Vec<MaterialAnimTrack>,
 
-    // angle values?
     #[br(parse_with = parse_count32_offset32, offset = base_offset)]
     #[xc3(count_offset(u32, u32))]
-    pub unk4: Vec<Unk1Unk4>,
+    pub keys: Vec<MaterialAnimKey>,
 
     // TODO: padding?
-    pub unk: [u32; 4],
+    pub unk: [u32; 2],
+
+    // TODO: what does this do?
+    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
+    #[xc3(count_offset(u32, u32))]
+    pub unk1: Vec<[u16; 2]>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct Unk1Unk1 {
-    pub index: u16,
-    pub unk2: u16, // 1
+pub struct MaterialAnimGroup {
+    /// Index into [entries](struct.MaterialAnimations.html#structfield.entries).
+    pub entry_start_index: u16,
+    pub entry_count: u16,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct Unk1Unk2 {
+pub struct MaterialAnimEntry {
     pub unk1: u16, // 0
-    pub index: u16,
-    pub unk3: u16,
-    pub unk4: u16,
+    /// Index into [tracks](struct.MaterialAnimations.html#structfield.tracks).
+    pub track_start_index: u16,
+    pub track_count: u16,
+    // TODO: what does "reset in memory each frame" mean?
+    /// Index into [work_values](struct.Materials.html#structfield.work_values) to reset each frame.
+    pub work_value_index: u16,
     pub unk5: u32, // 0
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct Unk1Unk3 {
-    pub unk1: u16,
-    pub unk2: u16,
-    pub unk3: u32,
-    pub unk4: u16,
-    pub unk5: u16,
-    pub unk6: u16,
-    pub unk7: u16,
+pub struct MaterialAnimTrack {
+    pub flags: MaterialAnimTrackFlags,
+    pub key_count: u32,
+    pub track_type: MaterialAnimTrackType,
+    /// Index into [work_values](struct.Materials.html#structfield.work_values) to update each frame.
+    pub work_value_index: u16,
+    pub frame_start: u16, // TODO: frame index?
+    pub frame_end: u16,   // TODO: frame index?
 }
 
+#[bitsize(32)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
+#[br(map = u32::into)]
+#[bw(map = |&x| u32::from(x))]
+pub struct MaterialAnimTrackFlags {
+    pub unk: u29,
+    /// Invert and clamp to `0.0` to `1.0` when `true`
+    pub invert_clamp: bool,
+    /// Use game parameter value instead of keys when `true`
+    pub external_param: bool,
+    pub unk1: bool, // time of day?
+}
+
+// TODO: check each of these variants in game
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, BinRead, BinWrite, Clone, Copy, PartialEq, Eq, Hash)]
+#[brw(repr(u16))]
+pub enum MaterialAnimTrackType {
+    ScaleU = 0,
+    ScaleV = 1,
+    TranslateU = 2,
+    TranslateV = 3,
+    RotateDeg = 4,
+    WorkFloat = 5,
+    //vvvv unused by core crystals
+    MatRecord0 = 6,
+    MatRecord1 = 7,
+    MatRecord2 = 8,
+    MatRecord3 = 9,
+    MatRecord4 = 10,
+    MatRecord5 = 11,
+    Unk12 = 12, // XCXDE
+    Unk13 = 13, // XCXDE
+}
+
+// TODO: what interpolation type is this using?
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct Unk1Unk4 {
-    pub unk1: f32,
-    pub unk2: f32,
-    pub unk3: f32,
-    pub unk4: u32,
+pub struct MaterialAnimKey {
+    pub out_tangent: f32,
+    pub in_tangent: f32,
+    pub value: f32,
+    pub frame: u16, // TODO: frame index?
+    pub flags: MaterialAnimKeyFlags,
+}
+
+#[bitsize(16)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(DebugBits, FromBits, BinRead, BinWrite, PartialEq, Clone, Copy)]
+#[br(map = u16::into)]
+#[bw(map = |&x| u16::from(x))]
+pub struct MaterialAnimKeyFlags {
+    pub unk: u15,
+    pub step: bool, // TODO: some form of interpolation control
 }
 
 fn alt_textures_count(
@@ -2599,7 +2663,10 @@ xc3_write_binwrite_impl!(
     MaterialRenderFlags,
     BoneFlags,
     MaterialTechniqueFlags,
-    WorkCallbackType
+    WorkCallbackType,
+    MaterialAnimTrackType,
+    MaterialAnimTrackFlags,
+    MaterialAnimKeyFlags
 );
 
 impl Xc3WriteOffsets for SkinningOffsets<'_> {
@@ -2891,7 +2958,7 @@ impl Xc3WriteOffsets for MxmdV40Offsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.streaming
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk1
+        self.material_animations
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         // TODO: sometimes aligned to 16 like with msrd?
         Ok(())
@@ -2926,7 +2993,7 @@ impl Xc3WriteOffsets for MxmdV112Offsets<'_> {
         *data_ptr = (*data_ptr).max(writer.stream_position()?);
 
         // TODO: Some files have 16 more bytes of padding?
-        self.unk1
+        self.material_animations
             .write_full(writer, base_offset, data_ptr, endian, ())?;
 
         self.vertex_data
@@ -2943,7 +3010,7 @@ impl Xc3WriteOffsets for MxmdV112Offsets<'_> {
 }
 
 // TODO: Add derive attribute for skipping empty vecs?
-impl Xc3WriteOffsets for Unk1Offsets<'_> {
+impl Xc3WriteOffsets for MaterialAnimationsOffsets<'_> {
     type Args = ();
 
     fn write_offsets<W: std::io::Write + std::io::Seek>(
@@ -2955,14 +3022,18 @@ impl Xc3WriteOffsets for Unk1Offsets<'_> {
         _args: Self::Args,
     ) -> xc3_write::Xc3Result<()> {
         let base_offset = self.base_offset;
-        self.unk1
+        self.groups
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk2
+        self.entries
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk3
+        self.tracks
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        if !self.unk4.data.is_empty() {
-            self.unk4
+        if !self.keys.data.is_empty() {
+            self.keys
+                .write_full(writer, base_offset, data_ptr, endian, ())?;
+        }
+        if !self.unk1.data.is_empty() {
+            self.unk1
                 .write_full(writer, base_offset, data_ptr, endian, ())?;
         }
         Ok(())

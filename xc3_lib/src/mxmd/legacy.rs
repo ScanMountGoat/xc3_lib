@@ -4,7 +4,7 @@ use std::io::SeekFrom;
 use crate::{
     StringOffset32,
     msrd::StreamingDataLegacyInner,
-    mxmd::{MeshRenderFlags2, WorkCallback},
+    mxmd::{MaterialAnimations, MeshRenderFlags2, WorkCallback},
     parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32, parse_ptr32,
     parse_string_ptr32,
     vertex::VertexAttribute,
@@ -38,7 +38,7 @@ pub struct MxmdLegacy {
 
     #[br(parse_with = parse_opt_ptr32)]
     #[xc3(offset(u32))]
-    pub unk1: Option<Unk1>,
+    pub material_animations: Option<MaterialAnimations>,
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32))]
@@ -571,10 +571,10 @@ pub struct Material {
 
     pub state_flags: StateFlags,
 
-    pub m_unks1_1: u32,
-    pub m_unks1_2: u32,
-    pub m_unks1_3: u32,
-    pub m_unks1_4: u32,
+    pub texture_anim_group_index: u32,
+    pub color_anim_group_index: u32,
+    pub variable_anim_group_index: u32,
+    pub plane_matrix_anim_group_index: u32,
 
     pub work_value_start_index: u32,
 
@@ -821,38 +821,6 @@ pub enum ParamType {
     Unk18 = 18,
     /// `gMdlParm` uniform in the [Spch](crate::spch::Spch).
     ModelParam = 19,
-}
-
-#[binread]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, Xc3Write, PartialEq, Clone)]
-#[br(stream = r)]
-#[xc3(base_offset)]
-pub struct Unk1 {
-    #[br(temp, try_calc = r.stream_position())]
-    base_offset: u64,
-
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub unk1: Vec<u32>,
-
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub unk2: Vec<[u32; 3]>,
-
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub unk3: Vec<[u32; 4]>,
-
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub unk4: Vec<[f32; 4]>,
-
-    pub unk5: [u32; 2],
-
-    #[br(parse_with = parse_count32_offset32, offset = base_offset)]
-    #[xc3(count_offset(u32, u32))]
-    pub unk6: Vec<u32>,
 }
 
 #[binread]
@@ -1228,34 +1196,6 @@ impl Xc3WriteOffsets for TechniqueOffsets<'_> {
             .write_full(writer, base_offset, data_ptr, endian, ())?;
         self.parameters
             .write_full(writer, base_offset, data_ptr, endian, ())?;
-        Ok(())
-    }
-}
-
-impl Xc3WriteOffsets for Unk1Offsets<'_> {
-    type Args = ();
-
-    fn write_offsets<W: std::io::Write + std::io::Seek>(
-        &self,
-        writer: &mut W,
-        _base_offset: u64,
-        data_ptr: &mut u64,
-        endian: xc3_write::Endian,
-        _args: Self::Args,
-    ) -> xc3_write::Xc3Result<()> {
-        let base_offset = self.base_offset;
-        self.unk1
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk2
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk3
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
-        self.unk4
-            .write_full(writer, base_offset, data_ptr, endian, ())?;
-        if !self.unk6.data.is_empty() {
-            self.unk6
-                .write_full(writer, base_offset, data_ptr, endian, ())?;
-        }
         Ok(())
     }
 }
