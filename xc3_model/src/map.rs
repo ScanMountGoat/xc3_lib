@@ -647,6 +647,7 @@ fn load_prop_model_group(
         None,
         &model_data.spch,
         shader_database,
+        None,
     );
     apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
@@ -811,7 +812,7 @@ fn load_map_model_group(
     spch: &xc3_lib::spch::Spch,
     shader_database: Option<&ShaderDatabase>,
 ) -> Models {
-    let mut materials = create_materials(&model_data.materials, None, spch, shader_database);
+    let mut materials = create_materials(&model_data.materials, None, spch, shader_database, None);
     apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
     let samplers = create_samplers(&model_data.materials);
