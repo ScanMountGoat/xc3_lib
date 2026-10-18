@@ -367,7 +367,7 @@ fn load_groups(
             Ok(xc3_wgpu::load_model(device, queue, &[root], shared_data))
         }
         FileExtension::Wismhd => {
-            let mut roots = xc3_model::load_map(model_path, database)?;
+            let mut roots = xc3_model::load_map(model_path, database, None)?;
 
             // Disable instancing since we only want to frame and render a single model.
             for root in &mut roots {

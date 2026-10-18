@@ -1437,7 +1437,7 @@ fn check_all_gltf(root: &Path) {
         .unwrap()
         .for_each(|entry| {
             let path = entry.as_ref().unwrap().path();
-            match xc3_model::load_map(path, None) {
+            match xc3_model::load_map(path, None, None) {
                 Ok(roots) => {
                     if let Err(e) = xc3_model::gltf::GltfFile::from_map(
                         "model",

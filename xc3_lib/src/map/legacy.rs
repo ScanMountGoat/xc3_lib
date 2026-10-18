@@ -13,7 +13,6 @@ use crate::{
 };
 
 // TODO: How many of these types are shared with the switch formats?
-// TODO: make this work with wii u and not just xcx de.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 pub struct MapModelData<S>
@@ -59,7 +58,7 @@ where
 
     #[br(parse_with = parse_ptr32)]
     #[xc3(offset(u32), align(4096))]
-    pub unk8: TerrainModelDataUnk8,
+    pub groups: MapModelGroups,
 
     // TODO: padding?
     pub unks: [u32; 7],
@@ -71,35 +70,26 @@ where
 #[derive(Debug, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
 #[br(stream = r)]
 #[xc3(base_offset)]
-pub struct TerrainModelDataUnk8 {
+pub struct MapModelGroups {
     #[br(temp, try_calc = r.stream_position())]
     base_offset: u64,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub items1: Vec<TerrainModelDataUnk8Item1>,
+    pub groups: Vec<MapModelGroup>,
 
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub items2: Vec<u16>,
+    pub model_group_indices: Vec<u16>,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct TerrainModelDataUnk8Item1 {
+pub struct MapModelGroup {
     pub max_xyz: [f32; 3],
     pub min_xyz: [f32; 3],
     pub unk1: [u32; 2], // TODO: vertex data index for each lod?
     pub unk3: u32,
-}
-
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Debug, BinRead, Xc3Write, Xc3WriteOffsets, PartialEq, Clone)]
-pub struct TerrainModelDataUnk8Item2 {
-    pub unk1: u16, // TODO: counts up?
-    pub unk2: u16,
-    pub unk3: u16,
-    pub unk4: u16,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]

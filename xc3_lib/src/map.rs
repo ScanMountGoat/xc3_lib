@@ -281,7 +281,7 @@ pub struct MapModelGroups {
     /// for each of the models in [models](struct.MapModelData.html#structfield.models).
     #[br(parse_with = parse_offset32_count32, offset = base_offset)]
     #[xc3(offset_count(u32, u32))]
-    pub model_group_index: Vec<u16>,
+    pub model_group_indices: Vec<u16>,
 }
 
 // Groups?

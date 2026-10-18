@@ -64,6 +64,7 @@ pub struct MsmdV11 {
     pub textures: Vec<Texture>,
 
     // TODO: string section for map regions like ma00a?
+    // TODO: Are these the map part names?
     #[br(parse_with = parse_string_ptr32)]
     #[xc3(offset(u32))]
     pub unk_name: String,
@@ -314,13 +315,12 @@ pub struct LowTextureLegacy {
 pub struct CsvbBlock {
     pub hash: u32,
 
-    // #[br(parse_with = parse_offset32_count32)]
-    // #[xc3(offset_count(u32, u32))]
-    // pub items: [Vec<CsvbBlockItem>],
-    pub items: [u32; 2],
+    #[br(parse_with = parse_offset32_count32)]
+    #[xc3(offset_count(u32, u32))]
+    pub items: Vec<CsvbBlockItem>,
 
-    pub unk2: u32,
-    pub unk3: u32,
+    pub unk2: u32, // TODO: offset to CSVB section
+    pub unk3: u32, // TODO: CSVB section length
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -328,6 +328,7 @@ pub struct CsvbBlock {
 pub struct CsvbBlockItem {
     pub unk1: u32,
     pub unk2: u32,
+    pub unk3: u32,
     // TODO: padding?
     pub unks: [u32; 4],
 }

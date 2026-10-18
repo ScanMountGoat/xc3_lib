@@ -6,8 +6,8 @@ use rayon::prelude::*;
 use xc3_lib::{
     error::DecompressStreamError,
     map::legacy::{
-        MapModelData, PropInstance, PropLod, PropLods, PropModelData, PropModelLod, PropPositions,
-        TerrainModelDataUnk8,
+        MapModelData, MapModelGroups, PropInstance, PropLod, PropLods, PropModelData, PropModelLod,
+        PropPositions,
     },
     msmd::{
         StreamEntry,
@@ -34,6 +34,7 @@ pub fn map_models_group_legacy(
     texture_indices: &[u16],
     texture_cache: &Mutex<TextureCache>,
     shader_database: Option<&ShaderDatabase>,
+    part_id: Option<u16>,
 ) -> Result<ModelGroup, LoadMapError> {
     let buffers = create_buffers_legacy(&msmd.map_vertex_data, wismda, compressed)?;
 
@@ -41,7 +42,13 @@ pub fn map_models_group_legacy(
     let map_model_data = msmd
         .map_models
         .par_iter()
-        .map(|m| m.entry.extract(&mut Cursor::new(wismda), compressed))
+        .filter_map(|m| {
+            if part_id.map(|i| m.map_part_id == i).unwrap_or(true) {
+                Some(m.entry.extract(&mut Cursor::new(wismda), compressed))
+            } else {
+                None
+            }
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     let models = map_model_data
@@ -126,7 +133,7 @@ fn load_map_model_group_legacy(
     load_map_model_group_legacy_inner(
         &model_data.models,
         &model_data.materials,
-        &model_data.unk8,
+        &model_data.groups,
         model_data.shaders.items.first().map(|i| &i.spch),
         texture_indices,
         material_root_texture_indices,
@@ -144,7 +151,7 @@ fn load_map_model_group_legacy2(
     load_map_model_group_legacy_inner(
         &model_data.models,
         &model_data.materials,
-        &model_data.unk8,
+        &model_data.groups,
         Some(&model_data.shaders),
         texture_indices,
         material_root_texture_indices,
@@ -155,7 +162,7 @@ fn load_map_model_group_legacy2(
 fn load_map_model_group_legacy_inner<S: GetProgramHash>(
     map_models: &xc3_lib::mxmd::legacy::Models,
     materials: &xc3_lib::mxmd::legacy::Materials,
-    unk8: &TerrainModelDataUnk8,
+    unk8: &MapModelGroups,
     shader: Option<&S>,
     texture_indices: &[u16],
     material_root_texture_indices: &[usize],
@@ -166,14 +173,14 @@ fn load_map_model_group_legacy_inner<S: GetProgramHash>(
     apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
     let models = unk8
-        .items2
+        .model_group_indices
         .iter()
         .zip(map_models.models.iter())
         .filter_map(|(group_index, model)| {
             // TODO: Does switch use the same lookup for lods?
-            let item1_index = *group_index as usize % unk8.items1.len();
-            let lod_index = *group_index as usize / unk8.items1.len();
-            let item1 = &unk8.items1[item1_index];
+            let item1_index = *group_index as usize % unk8.groups.len();
+            let lod_index = *group_index as usize / unk8.groups.len();
+            let item1 = &unk8.groups[item1_index];
             let vertex_data_index = item1.unk1[lod_index] as usize;
             // Only load the high quality base LOD terrain for now.
             if lod_index == 0 {
@@ -210,6 +217,7 @@ pub fn props_group_legacy(
     texture_indices: &[u16],
     texture_cache: &Mutex<TextureCache>,
     shader_database: Option<&ShaderDatabase>,
+    part_id: Option<u16>,
 ) -> Result<ModelGroup, LoadMapError> {
     let buffers = create_buffers_legacy(&msmd.prop_vertex_data, wismda, compressed)?;
 
@@ -223,7 +231,13 @@ pub fn props_group_legacy(
     let prop_model_data: Vec<_> = msmd
         .prop_models
         .par_iter()
-        .map(|m| m.entry.extract(&mut Cursor::new(wismda), compressed))
+        .filter_map(|m| {
+            if part_id.map(|i| m.map_part_id == i).unwrap_or(true) {
+                Some(m.entry.extract(&mut Cursor::new(wismda), compressed))
+            } else {
+                None
+            }
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     let models = prop_model_data

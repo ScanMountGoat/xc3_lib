@@ -2575,7 +2575,7 @@ pub struct MaterialAnimTrack {
     pub key_count: u32,
     pub track_type: MaterialAnimTrackType,
     /// Index into [work_values](struct.Materials.html#structfield.work_values) to update each frame.
-    pub work_value_index: u16,
+    pub work_value_index: u16, // TODO: 0 for some track types?
     pub frame_start: u16, // TODO: frame index?
     pub frame_end: u16,   // TODO: frame index?
 }

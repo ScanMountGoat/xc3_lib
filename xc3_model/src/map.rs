@@ -56,6 +56,7 @@ mod legacy;
 pub fn load_map<P: AsRef<Path>>(
     wismhd_path: P,
     shader_database: Option<&ShaderDatabase>,
+    part_id: Option<u16>,
 ) -> Result<Vec<MapRoot>, LoadMapError> {
     let wismhd_path = wismhd_path.as_ref();
     let msmd = Msmd::from_file(wismhd_path).map_err(LoadMapError::Wismhd)?;
@@ -63,10 +64,10 @@ pub fn load_map<P: AsRef<Path>>(
 
     match &msmd.inner {
         xc3_lib::msmd::MsmdInner::V11(msmd) => {
-            MapRoot::from_msmd_v11(msmd, &wismda, shader_database)
+            MapRoot::from_msmd_v11(msmd, &wismda, shader_database, part_id)
         }
         xc3_lib::msmd::MsmdInner::V112(msmd) => {
-            MapRoot::from_msmd_v112(msmd, &wismda, shader_database, wismhd_path)
+            MapRoot::from_msmd_v112(msmd, &wismda, shader_database, wismhd_path, part_id)
         }
     }
 }
@@ -101,6 +102,7 @@ impl MapRoot {
         msmd: &MsmdV11,
         wismda: &[u8],
         shader_database: Option<&ShaderDatabase>,
+        part_id: Option<u16>,
     ) -> Result<Vec<Self>, LoadMapError> {
         // Loading is CPU intensive due to decompression and decoding.
         // The .wismda is loaded into memory as &[u8].
@@ -125,6 +127,7 @@ impl MapRoot {
             &texture_indices,
             &texture_cache,
             shader_database,
+            part_id,
         )?;
 
         let prop_model_group = props_group_legacy(
@@ -134,6 +137,7 @@ impl MapRoot {
             &texture_indices,
             &texture_cache,
             shader_database,
+            part_id,
         )?;
 
         let image_textures = texture_cache.into_inner().unwrap().image_textures()?;
@@ -152,6 +156,7 @@ impl MapRoot {
         wismda: &[u8],
         shader_database: Option<&ShaderDatabase>,
         wismhd_path: &Path,
+        part_id: Option<u16>,
     ) -> Result<Vec<Self>, LoadMapError> {
         // Loading is CPU intensive due to decompression and decoding.
         // The .wismda is loaded into memory as &[u8].
@@ -178,11 +183,23 @@ impl MapRoot {
         let texture_cache = TextureCache::from_msmd_v112(msmd, wismda, compressed)?;
         let texture_cache = Mutex::new(texture_cache);
 
-        let map_model_group =
-            map_models_group(msmd, wismda, compressed, &texture_cache, shader_database)?;
+        let map_model_group = map_models_group(
+            msmd,
+            wismda,
+            compressed,
+            &texture_cache,
+            shader_database,
+            part_id,
+        )?;
 
-        let prop_model_group =
-            props_group(msmd, wismda, compressed, &texture_cache, shader_database)?;
+        let prop_model_group = props_group(
+            msmd,
+            wismda,
+            compressed,
+            &texture_cache,
+            shader_database,
+            part_id,
+        )?;
 
         let image_textures = texture_cache.into_inner().unwrap().image_textures()?;
         roots.push(MapRoot {
@@ -456,6 +473,7 @@ fn map_models_group(
     compressed: bool,
     texture_cache: &Mutex<TextureCache>,
     shader_database: Option<&ShaderDatabase>,
+    part_id: Option<u16>,
 ) -> Result<ModelGroup, LoadMapError> {
     let buffers = create_buffers(&msmd.map_vertex_data, wismda, compressed)?;
 
@@ -463,7 +481,13 @@ fn map_models_group(
     let map_model_data = msmd
         .map_models
         .par_iter()
-        .map(|m| m.entry.extract(&mut Cursor::new(wismda), compressed))
+        .filter_map(|m| {
+            if part_id.map(|i| m.map_part_id == i).unwrap_or(true) {
+                Some(m.entry.extract(&mut Cursor::new(wismda), compressed))
+            } else {
+                None
+            }
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     let models = map_model_data
@@ -500,6 +524,7 @@ fn props_group(
     compressed: bool,
     texture_cache: &Mutex<TextureCache>,
     shader_database: Option<&ShaderDatabase>,
+    part_id: Option<u16>,
 ) -> Result<ModelGroup, LoadMapError> {
     let buffers = create_buffers(&msmd.prop_vertex_data, wismda, compressed)?;
 
@@ -513,7 +538,13 @@ fn props_group(
     let prop_model_data: Vec<_> = msmd
         .prop_models
         .par_iter()
-        .map(|m| m.entry.extract(&mut Cursor::new(wismda), compressed))
+        .filter_map(|m| {
+            if part_id.map(|i| m.map_part_id == i as u32).unwrap_or(true) {
+                Some(m.entry.extract(&mut Cursor::new(wismda), compressed))
+            } else {
+                None
+            }
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     let models = prop_model_data
@@ -790,7 +821,7 @@ fn load_map_model_group(
     // Find all the base detail models for each group.
     let models = model_data
         .groups
-        .model_group_index
+        .model_group_indices
         .iter()
         .zip(model_data.models.models.iter())
         .filter_map(|(group_index, model)| {

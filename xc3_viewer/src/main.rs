@@ -626,7 +626,7 @@ fn load_files(cli: &Cli) -> anyhow::Result<Files> {
                 model_roots.push(root);
             }
             "wismhd" => {
-                let roots = xc3_model::load_map(file, database.as_ref())
+                let roots = xc3_model::load_map(file, database.as_ref(), cli.map_part_id)
                     .with_context(|| format!("failed to load .wismhd map from {file:?}"))?;
                 map_roots.extend(roots);
             }
@@ -788,6 +788,10 @@ struct Cli {
     /// If not specified, all models will be rendered.
     #[arg(long)]
     model: Option<usize>,
+
+    /// ID for the part of the map to load.
+    #[arg(long)]
+    map_part_id: Option<u16>,
 
     /// Enable freecam: W/S = forward/back, A/D = strafe, Q/E = down/up.
     /// Left-drag to look around, right-drag to pan, scroll to dolly.
