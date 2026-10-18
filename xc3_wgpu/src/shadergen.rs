@@ -252,16 +252,16 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
         Operation::Sin => write!(wgsl, "sin({a}{})", arg0?).unwrap(),
         Operation::Cos => write!(wgsl, "cos({a}{})", arg0?).unwrap(),        
         Operation::NormalizeX => write!(wgsl,
-            "normalize({a}{}, {a}{}, {a}{}, {a}{}).x",
-            arg0?, arg1?, arg2?, arg3?
+            "normalize(vec3({a}{}, {a}{}, {a}{})).x",
+            arg0?, arg1?, arg2?
         ).unwrap(),
         Operation::NormalizeY => write!(wgsl,
-            "normalize({a}{}, {a}{}, {a}{}, {a}{}).y",
-            arg0?, arg1?, arg2?, arg3?
+            "normalize(vec3({a}{}, {a}{}, {a}{})).y",
+            arg0?, arg1?, arg2?
         ).unwrap(),
         Operation::NormalizeZ => write!(wgsl,
-            "normalize({a}{}, {a}{}, {a}{}, {a}{}).z",
-            arg0?, arg1?, arg2?, arg3?
+            "normalize(vec3({a}{}, {a}{}, {a}{})).z",
+            arg0?, arg1?, arg2?
         ).unwrap(),
         Operation::MatMulPointProjX => write!(wgsl,
             "(camera.projection * vec4({a}{}, {a}{}, {a}{}, 1.0)).x",
