@@ -639,6 +639,8 @@ fn load_prop_model_group(
         );
     }
 
+    let techniques = crate::Techniques::Modern(model_data.materials.techniques.clone());
+
     // TODO: Group by vertex data index?
     // TODO: empty groups?
 
@@ -647,7 +649,6 @@ fn load_prop_model_group(
         None,
         &model_data.spch,
         shader_database,
-        None,
     );
     apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
@@ -664,6 +665,7 @@ fn load_prop_model_group(
         material_animations: None, // TODO: material anims for props?
         min_xyz: model_data.models.min_xyz.into(),
         max_xyz: model_data.models.max_xyz.into(),
+        techniques,
     };
 
     let base_lods: BTreeSet<_> = model_data
@@ -812,10 +814,12 @@ fn load_map_model_group(
     spch: &xc3_lib::spch::Spch,
     shader_database: Option<&ShaderDatabase>,
 ) -> Models {
-    let mut materials = create_materials(&model_data.materials, None, spch, shader_database, None);
+    let mut materials = create_materials(&model_data.materials, None, spch, shader_database);
     apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
     let samplers = create_samplers(&model_data.materials);
+
+    let techniques = crate::Techniques::Modern(model_data.materials.techniques.clone());
 
     // Each group has a base and low detail vertex data index.
     // Each model has an assigned vertex data index.
@@ -854,6 +858,7 @@ fn load_map_model_group(
         material_animations: None, // TODO: material anims for map models?
         min_xyz: model_data.models.min_xyz.into(),
         max_xyz: model_data.models.max_xyz.into(),
+        techniques,
     }
 }
 
@@ -911,6 +916,9 @@ fn load_foliage_model(
         .map(ImageTexture::from_packed_texture)
         .collect::<Result<Vec<_>, _>>()?;
 
+    // TODO: foliage techniques?
+    let techniques = crate::Techniques::Modern(Vec::new());
+
     let materials = foliage_materials(&model_data.materials);
 
     // TODO: foliage models are instanced somehow for grass clumps?
@@ -945,6 +953,7 @@ fn load_foliage_model(
                 material_animations: None, // TODO: material anims for foliage models?
                 min_xyz: model_data.models.min_xyz.into(),
                 max_xyz: model_data.models.max_xyz.into(),
+                techniques,
             }],
             buffers: vec![buffers],
         }],
@@ -999,7 +1008,6 @@ fn foliage_materials(materials: &FoliageMaterials) -> Vec<Material> {
                     flags: MaterialTechniqueFlags::new(true, 0u16.into()),
                     material_texture_count: 0,
                 }],
-                parameters: Default::default(),
                 work_values: Vec::new(),
                 variables: Vec::new(),
                 work_callbacks: Vec::new(),

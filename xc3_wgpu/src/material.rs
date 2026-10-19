@@ -3,13 +3,13 @@ use std::collections::HashSet;
 use glam::{Vec3, Vec4, uvec4, vec3, vec4};
 use indexmap::IndexMap;
 use smol_str::format_smolstr;
-use tracing::{error, warn};
+use tracing::{Level, error, span, warn};
 use xc3_model::{
     ImageTexture, IndexMapExt, material::assignments::OutputAssignments, shader_database::Value,
 };
 
 use crate::{
-    DeviceBufferExt, SharedData,
+    DeviceBufferExt, QueueBufferExt, SharedData,
     monolib::MonolibShaderTextures,
     pipeline::{Output5Type, PipelineKey},
     shader::model::TEXTURE_SAMPLER_COUNT,
@@ -20,7 +20,9 @@ use crate::{
 #[derive(Debug)]
 pub(crate) struct Material {
     pub name: String,
+
     pub bind_group2: crate::shader::model::bind_groups::BindGroup2,
+    pub u_mate_buffer: wgpu::Buffer,
 
     // The material flags may require a separate pipeline per material.
     // We only store a key here to allow caching.
@@ -29,6 +31,18 @@ pub(crate) struct Material {
     pub prepass_pipeline_key: Option<PipelineKey>,
 
     pub fur_shell_instance_count: Option<u32>,
+
+    // TODO: is there a way to avoid this field for material animations?
+    material: xc3_model::material::Material,
+}
+
+impl Material {
+    pub fn update_per_material(&self, queue: &wgpu::Queue, models: &xc3_model::Models, frame: f32) {
+        queue.write_storage_data(
+            &self.u_mate_buffer,
+            &[material_u_mate(&self.material, models, frame)],
+        );
+    }
 }
 
 pub(crate) const ALPHA_TEST_TEXTURE: &str = "ALPHA_TEST_TEXTURE";
@@ -68,6 +82,7 @@ pub fn create_material(
     device: &wgpu::Device,
     pipelines: &mut HashSet<PipelineKey>,
     material: &xc3_model::material::Material,
+    models: &xc3_model::Models,
     textures: &[wgpu::Texture],
     samplers: &[wgpu::Sampler],
     image_textures: &[ImageTexture],
@@ -95,19 +110,23 @@ pub fn create_material(
         .map(|i| (format_smolstr!("s{i}"), i))
         .collect();
 
-    let material_assignments = material.output_assignments(image_textures);
+    let material_assignments = material.output_assignments(models, image_textures, 0.0);
     let assignments = output_assignments(&material_assignments);
 
     if material.alpha_test.is_some() {
         name_to_index.entry_index(ALPHA_TEST_TEXTURE.into());
     }
 
-    let wgsl = ShaderWgsl::new(
-        &material_assignments,
-        material.alpha_test.as_ref(),
-        material.alpha_texture_channel_index(),
-        &mut name_to_index,
-    );
+    // TODO: add technique index to log info?
+    let span = span!(Level::ERROR, "material", name = material.name);
+    let wgsl = span.in_scope(|| {
+        ShaderWgsl::new(
+            &material_assignments,
+            material.alpha_test.as_ref(),
+            material.alpha_texture_channel_index(),
+            &mut name_to_index,
+        )
+    });
 
     let mut material_textures: [Option<_>; TEXTURE_SAMPLER_COUNT as usize] =
         std::array::from_fn(|_| None);
@@ -153,13 +172,11 @@ pub fn create_material(
     let outline_width =
         value_channel_assignment(material_assignments.outline_width.as_ref()).unwrap_or(0.005);
 
-    let u_mate = material_u_mate(material);
-
     // TODO: Error if no techniques?
     let technique = material.techniques.last().unwrap();
 
     // Use a storage buffer since wgpu doesn't allow binding arrays and uniform buffers in a bind group.
-    let per_material = device.create_storage_buffer(
+    let per_material_buffer = device.create_storage_buffer(
         // TODO: include model name?
         &format!(
             "PerMaterial {:?} shd{:04}",
@@ -169,9 +186,18 @@ pub fn create_material(
             assignments,
             outline_width,
             fur_params,
-            u_mate,
             alpha_test_ref: material.alpha_test_ref,
         }],
+    );
+
+    let u_mate = material_u_mate(material, models, 0.0);
+    let u_mate_buffer = device.create_storage_buffer(
+        // TODO: include model name?
+        &format!(
+            "U_Mate {:?} shd{:04}",
+            material.name, technique.technique_index
+        ),
+        &[u_mate],
     );
 
     let texture_views = material_textures.map(|t| {
@@ -236,7 +262,8 @@ pub fn create_material(
                 .map(|a| a.sampler_index)
                 .and_then(|i| samplers.get(i))
                 .unwrap_or(&default_sampler),
-            per_material: per_material.as_entire_buffer_binding(),
+            per_material: per_material_buffer.as_entire_buffer_binding(),
+            u_mate: u_mate_buffer.as_entire_buffer_binding(),
         },
     );
 
@@ -309,9 +336,11 @@ pub fn create_material(
     Material {
         name: material.name.clone(),
         bind_group2,
+        u_mate_buffer,
         pipeline_key,
         prepass_pipeline_key,
         fur_shell_instance_count: material.fur_params.as_ref().map(|p| p.instance_count),
+        material: material.clone(),
     }
 }
 
@@ -462,32 +491,35 @@ fn material_sampler<'a>(
         .and_then(|texture| samplers.get(texture.sampler_index))
 }
 
-fn material_u_mate(material: &xc3_model::material::Material) -> crate::shader::model::UMate {
+fn material_u_mate(
+    material: &xc3_model::material::Material,
+    models: &xc3_model::Models,
+    current_frame: f32,
+) -> crate::shader::model::UMate {
     // TODO: should this use reasonable defaults?
     // TODO: log warnings if these can't be assigned?
     // TODO: Some xcxde materials have no work values but still have values set?
     // TODO: these default values aren't always the same?
+    let parameters = material.parameters(
+        models.material_animations.as_ref(),
+        &models.techniques,
+        current_frame,
+    );
     crate::shader::model::UMate {
-        g_al_inf: [material.parameters.alpha_info.into()],
-        g_dp_rat: array_parameter(&material.parameters.dp_rat, Vec4::ZERO),
-        g_d_t_wrk: array_parameter(&material.parameters.dt_work, Vec4::ZERO),
-        g_mat_amb: array_parameter(
-            &material.parameters.material_ambient,
-            vec4(0.231, 0.26895, 0.3, 1.0),
-        ),
+        g_al_inf: [parameters.alpha_info.into()],
+        g_dp_rat: array_parameter(&parameters.dp_rat, Vec4::ZERO),
+        g_d_t_wrk: array_parameter(&parameters.dt_work, Vec4::ZERO),
+        g_mat_amb: array_parameter(&parameters.material_ambient, vec4(0.231, 0.26895, 0.3, 1.0)),
         g_mat_col: [material.color.into()],
-        g_mat_spec: array_parameter(
-            &material.parameters.material_specular,
-            vec4(0.0, 0.0, 0.0, 0.02),
-        ),
-        g_mdl_parm: array_parameter(&material.parameters.model_param, Vec4::ZERO),
+        g_mat_spec: array_parameter(&parameters.material_specular, vec4(0.0, 0.0, 0.0, 0.02)),
+        g_mdl_parm: array_parameter(&parameters.model_param, Vec4::ZERO),
         g_pj_mat: [Vec4::ZERO; 3],
-        g_proj_tex_mat: array_parameter(&material.parameters.projection_tex_matrix, Vec4::ZERO),
-        g_tex_mat: array_parameter(&material.parameters.tex_matrix, Vec4::ZERO),
+        g_proj_tex_mat: array_parameter(&parameters.projection_tex_matrix, Vec4::ZERO),
+        g_tex_mat: array_parameter(&parameters.tex_matrix, Vec4::ZERO),
         g_toon_head_mat: [Vec4::ZERO; 3],
-        g_wrk_col: array_parameter(&material.parameters.work_color, Vec4::ZERO),
-        g_wrk_fl4: array_parameter(&material.parameters.work_float4, Vec4::ZERO),
-        g_aa_map: array_parameter(&material.parameters.aa_map, Vec4::ZERO),
+        g_wrk_col: array_parameter(&parameters.work_color, Vec4::ZERO),
+        g_wrk_fl4: array_parameter(&parameters.work_float4, Vec4::ZERO),
+        g_aa_map: array_parameter(&parameters.aa_map, Vec4::ZERO),
     }
 }
 

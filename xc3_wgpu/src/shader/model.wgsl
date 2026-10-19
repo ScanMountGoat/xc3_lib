@@ -55,7 +55,6 @@ struct PerMaterial {
     // Shader database information.
     assignments: array<OutputAssignment, 6>,
     fur_params: FurShellParams,
-    u_mate: UMate,
 
     // Assume outline width is always set via a parameter or constant.
     outline_width: f32,
@@ -89,10 +88,13 @@ struct UMate {
     g_aa_map: array<vec4<f32>, 3>,
 }
 
-// This needs to be storage instead of uniform to work with the texture binding arrays.
+// These need to be storage instead of uniform to work with the texture binding arrays.
 // Add the [[single]] attribute to the format in RenderDoc to display like a uniform buffer.
 @group(2) @binding(5)
 var<storage, read> per_material: PerMaterial;
+
+@group(2) @binding(6)
+var<storage, read> u_mate: UMate;
 
 // PerMesh values.
 struct PerMesh {
@@ -428,6 +430,7 @@ fn fragment_output(in: VertexOutput, front_facing: bool) -> FragmentOutput {
     _unused = textureSample(textures_cube[0], samplers[0], vec3(0.0));
     _unused = textureSample(textures[0], alpha_test_sampler, vec2(0.0));
     _unused = camera.projection[0];
+    _unused = u_mate.g_mat_col[0];
     let REMOVE_END = 0.0;
 
     // The layout of G-Buffer textures is mostly fixed but assignments are not.

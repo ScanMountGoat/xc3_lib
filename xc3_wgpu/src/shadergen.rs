@@ -448,14 +448,7 @@ fn write_value(
             // TODO: share code with xyz since only the channel is different?
             match p.name.as_str() {
                 "U_Mate" => {
-                    write_parameter(
-                        wgsl,
-                        "per_material.u_mate",
-                        &p.field,
-                        p.index,
-                        p.index2,
-                        p.channel,
-                    );
+                    write_parameter(wgsl, "u_mate", &p.field, p.index, p.index2, p.channel);
                 }
                 "U_Static" => match p.field.as_str() {
                     "gmView" => {
@@ -716,7 +709,7 @@ fn write_value_xyz(
             match p.name.as_str() {
                 "U_Mate" => {
                     // TODO: support other uniform buffers for all games
-                    write!(wgsl, "per_material.u_mate.{}", p.field.to_snake()).unwrap();
+                    write!(wgsl, "u_mate.{}", p.field.to_snake()).unwrap();
                     // All fields are declared as arrays, so convert "b.f.x" to "b.f[0].x".
                     write_index(wgsl, p.index);
                     if let Some(i) = p.index2 {

@@ -737,9 +737,9 @@ pub struct Material {
 pub struct MaterialFlags {
     pub unk1: bool,
     pub unk2: bool,
-    /// Enables alpha testing from a texture in a prepass when `true`.
+    /// Enable alpha testing from a texture in a prepass when `true`.
     pub alpha_mask: bool,
-    /// Samples `texture.x` from a dedicated mask texture when `true`.
+    /// Sample `texture.x` from a dedicated mask texture when `true`.
     /// Otherwise, the alpha channel is used.
     pub separate_mask: bool,
     pub unk5: bool,

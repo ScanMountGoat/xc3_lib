@@ -610,6 +610,7 @@ fn add_models(
                 // We lazy load meshes, so also lazy load materials to save space.
                 let material_index = data.material_cache.insert(
                     material,
+                    models,
                     &mut data.texture_cache,
                     image_textures,
                     MaterialKey {

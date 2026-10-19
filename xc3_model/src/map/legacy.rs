@@ -168,6 +168,8 @@ fn load_map_model_group_legacy_inner<S: GetProgramHash>(
     material_root_texture_indices: &[usize],
     shader_database: Option<&ShaderDatabase>,
 ) -> Models {
+    let techniques = crate::Techniques::Legacy(materials.techniques.clone());
+
     let (mut materials, samplers) =
         create_materials_samplers_legacy(&materials, texture_indices, shader, shader_database);
     apply_material_texture_indices(&mut materials, material_root_texture_indices);
@@ -206,6 +208,7 @@ fn load_map_model_group_legacy_inner<S: GetProgramHash>(
         material_animations: None, // TODO: material anims for map models?
         min_xyz: map_models.min_xyz.into(),
         max_xyz: map_models.max_xyz.into(),
+        techniques,
     }
 }
 
@@ -373,6 +376,8 @@ fn load_prop_model_group_legacy_inner<S: GetProgramHash>(
     material_root_texture_indices: &[usize],
     shader_database: Option<&ShaderDatabase>,
 ) -> Models {
+    let techniques = crate::Techniques::Legacy(materials.techniques.clone());
+
     // Calculate instances separately from models.
     // This allows us to avoid loading unused models later.
     let mut model_instances = vec![Vec::new(); map_models.models.len()];
@@ -405,6 +410,7 @@ fn load_prop_model_group_legacy_inner<S: GetProgramHash>(
         material_animations: None, // TODO: material anims for prop models?
         min_xyz: map_models.min_xyz.into(),
         max_xyz: map_models.max_xyz.into(),
+        techniques,
     };
 
     let base_lods: BTreeSet<_> = lods.props.iter().map(|p| p.base_lod_index).collect();

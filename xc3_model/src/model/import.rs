@@ -471,6 +471,7 @@ impl Models {
         spch: &xc3_lib::spch::Spch,
         shader_database: Option<&ShaderDatabase>,
     ) -> Self {
+        let techniques = crate::Techniques::Modern(materials.techniques.clone());
         Self {
             models: models
                 .models
@@ -501,6 +502,7 @@ impl Models {
             material_animations: material_animations.map(create_material_animations),
             min_xyz: models.min_xyz.into(),
             max_xyz: models.max_xyz.into(),
+            techniques,
         }
     }
 
@@ -512,6 +514,7 @@ impl Models {
         spch: &xc3_lib::spch::Spch,
         shader_database: Option<&ShaderDatabase>,
     ) -> Self {
+        let techniques = crate::Techniques::Modern(materials.techniques.clone());
         Self {
             models: models
                 .models
@@ -527,6 +530,7 @@ impl Models {
             material_animations: material_animations.map(create_material_animations),
             min_xyz: models.min_xyz.into(),
             max_xyz: models.max_xyz.into(),
+            techniques,
         }
     }
 
@@ -541,6 +545,7 @@ impl Models {
     where
         S: GetProgramHash,
     {
+        let techniques = crate::Techniques::Legacy(materials.techniques.clone());
         // TODO: Preserve legacy skinning data for eventual export support.
         let (materials, samplers) =
             create_materials_samplers_legacy(materials, texture_indices, shaders, shader_database);
@@ -574,6 +579,7 @@ impl Models {
             material_animations: material_animations.map(create_material_animations),
             max_xyz: models.max_xyz.into(),
             min_xyz: models.min_xyz.into(),
+            techniques,
         }
     }
 }
@@ -786,6 +792,7 @@ fn create_material_animations(anims: &xc3_lib::mxmd::MaterialAnimations) -> Mate
                                 let start_index = u32::from(t.flags.key_start_index()) as usize;
                                 MaterialAnimTrack {
                                     track_type: t.track_type,
+                                    work_value_index: t.work_value_index as usize,
                                     keys: anims
                                         .keys
                                         .get(
@@ -803,6 +810,8 @@ fn create_material_animations(anims: &xc3_lib::mxmd::MaterialAnimations) -> Mate
                                                 .collect()
                                         })
                                         .unwrap_or_default(),
+                                    frame_start: t.frame_start as usize,
+                                    frame_end: t.frame_end as usize,
                                 }
                             })
                             .collect(),

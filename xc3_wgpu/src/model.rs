@@ -51,6 +51,9 @@ pub struct Models {
     // TODO: skinning?
     morph_controller_names: Vec<String>,
     animation_morph_names: Vec<String>,
+
+    // TODO: is there a way to avoid this field for material animations?
+    original_models: xc3_model::Models,
 }
 
 pub struct Model {
@@ -109,6 +112,8 @@ impl Models {
         image_textures: &[ImageTexture],
         shared_data: &SharedData,
     ) -> Self {
+        let original_models = models.clone();
+
         let morph_controller_names = models.morph_controller_names.clone();
         let animation_morph_names = models.animation_morph_names.clone();
 
@@ -149,6 +154,7 @@ impl Models {
             morph_controller_names,
             animation_morph_names,
             bounds,
+            original_models,
         }
     }
 
@@ -456,6 +462,17 @@ impl ModelGroup {
             }
         }
     }
+
+    /// Update material animations for all materials.
+    pub fn update_material_animations(&self, queue: &wgpu::Queue, current_time_seconds: f32) {
+        // TODO: don't assume 30 fps
+        let current_frame = current_time_seconds * 30.0;
+        for models in &self.models {
+            for material in models.index_to_materials.values() {
+                material.update_per_material(queue, &models.original_models, current_frame);
+            }
+        }
+    }
 }
 
 fn should_render_lod(lod: Option<usize>, models: &xc3_model::Models) -> bool {
@@ -728,6 +745,7 @@ fn create_model(
                         device,
                         pipelines,
                         &materials[mesh.material_index],
+                        models,
                         textures,
                         samplers,
                         image_textures,

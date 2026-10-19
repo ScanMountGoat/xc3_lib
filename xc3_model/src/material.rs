@@ -1,4 +1,5 @@
 use assignments::{OutputAssignments, infer_assignment_from_textures, output_assignments};
+use glam::FloatExt;
 use tracing::warn;
 
 use xc3_lib::mxmd::WorkCallbackType;
@@ -9,7 +10,7 @@ pub use xc3_lib::mxmd::{
 };
 
 use crate::{
-    ImageTexture, Sampler,
+    ImageTexture, MaterialAnimations, Models, Sampler, Techniques,
     shader_database::{
         ChannelXyz, Parameter, ParameterXyz, ProgramHash, ShaderDatabase, ShaderProgram,
     },
@@ -55,10 +56,6 @@ pub struct Material {
     pub shader: Option<ShaderProgram>,
 
     pub techniques: Vec<MaterialTechnique>,
-
-    // TODO: keep these as views over the work values?
-    // TODO: is there another way to preserve the work value buffer?
-    pub parameters: MaterialParameters,
 
     // TODO: Is this the same as a modern field?
     pub unk4_legacy: [u16; 2],
@@ -345,9 +342,6 @@ pub(crate) fn create_materials(
             let callback_start = material.callback_start_index as usize;
             let callback_end = callback_start + material.callback_count as usize;
 
-            // TODO: Error for invalid parameters?
-            let parameters = assign_parameters(materials, material, &work_values);
-
             let fur_params = fur_shell_params(materials.fur_shells.as_ref(), i, material.flags);
 
             let techniques = material
@@ -391,7 +385,6 @@ pub(crate) fn create_materials(
                     .unwrap_or_default()
                     .to_vec(),
                 techniques,
-                parameters,
                 texture_anim_group_index: material.texture_anim_group_index,
                 color_anim_group_index: material.color_anim_group_index,
                 variable_anim_group_index: material.variable_anim_group_index,
@@ -474,10 +467,6 @@ where
             let alpha_test =
                 find_alpha_test_texture_legacy(materials, m, &mut samplers, texture_indices);
 
-            // TODO: Error for invalid parameters?
-            let parameters =
-                assign_parameters_legacy(materials, m, &work_values).unwrap_or_default();
-
             let fur_params = fur_shell_params(materials.fur_shells.as_ref(), i, m.flags);
 
             let techniques = m
@@ -517,7 +506,6 @@ where
                 alpha_test_ref: m.alpha_test_ref,
                 shader: get_shader_legacy(m, shaders, shader_database),
                 techniques,
-                parameters,
                 work_values,
                 variables: materials
                     .variables
@@ -697,7 +685,7 @@ impl GetProgramHash for xc3_lib::mxmd::legacy::Shaders {
 }
 
 fn get_technique<'a>(
-    material: &xc3_lib::mxmd::Material,
+    material: &Material,
     techniques: &'a [xc3_lib::mxmd::Technique],
 ) -> Option<&'a xc3_lib::mxmd::Technique> {
     // TODO: Don't assume a single technique?
@@ -706,7 +694,7 @@ fn get_technique<'a>(
 }
 
 fn get_technique_legacy<'a>(
-    material: &xc3_lib::mxmd::legacy::Material,
+    material: &Material,
     techniques: &'a [xc3_lib::mxmd::legacy::Technique],
 ) -> Option<&'a xc3_lib::mxmd::legacy::Technique> {
     // TODO: Don't assume a single technique?
@@ -759,23 +747,71 @@ fn find_alpha_test_texture_legacy(
 
 // TODO: Some elements get set by values not in the floats array?
 // TODO: How to test this?
+// TODO: animations that can update each frame
 fn assign_parameters(
-    materials: &xc3_lib::mxmd::Materials,
-    material: &xc3_lib::mxmd::Material,
-    work_values: &[f32],
+    material: &Material,
+    material_animations: Option<&MaterialAnimations>,
+    techniques: &Techniques,
+    current_frame: f32,
 ) -> MaterialParameters {
-    let callback_start = material.callback_start_index as usize;
-    let callbacks = materials
-        .callbacks
-        .as_ref()
-        .and_then(|c| {
-            c.work_callbacks
-                .get(callback_start..callback_start + material.callback_count as usize)
-        })
-        .unwrap_or_default();
+    // TODO: do callbacks apply before or after material animations
+    let mut work_values = apply_callbacks(&material.work_values, &material.work_callbacks);
 
-    let work_values = apply_callbacks(work_values, callbacks);
+    // TODO: texture coordinates are not being calculated properly?
 
+    // TODO: what group index should this use?
+    // TODO: figure out how to detect if material animations are used.
+    if let Some(animations) = material_animations
+        && material.variable_anim_group_index > 0
+        && let Some(group) = animations
+            .groups
+            .get(material.variable_anim_group_index as usize)
+    {
+        for entry in &group.entries {
+            for track in &entry.tracks {
+                // TODO: don't assume keys are in order.
+                // Get the first key value for now and assume this is the first frame.
+                let keys = &track.keys;
+                match track.track_type {
+                    xc3_lib::mxmd::MaterialAnimTrackType::ScaleU => todo!(),
+                    xc3_lib::mxmd::MaterialAnimTrackType::ScaleV => todo!(),
+                    xc3_lib::mxmd::MaterialAnimTrackType::TranslateU => {
+                        // TODO: Apply animations to parameters directly?
+                    }
+                    xc3_lib::mxmd::MaterialAnimTrackType::TranslateV => {
+                        // TODO: Apply animations to parameters directly?
+                    }
+                    xc3_lib::mxmd::MaterialAnimTrackType::RotateDeg => (),
+                    xc3_lib::mxmd::MaterialAnimTrackType::WorkFloat => {
+                        // Interpolate between two keys.
+                        // TODO: are there always at least two keys?
+                        // TODO: create a material::animation submodule with tests?
+                        // TODO: handle the cases where frame < first frame and > final frame.
+                        if let Some(key1) = keys.iter().find(|k| k.frame as f32 <= current_frame) {
+                            // TODO: don't assume keys are in sorted order by using btreemap keyed by frame.
+                            if let Some(key2) = keys.iter().find(|k| k.frame > key1.frame) {
+                                let factor = (key1.frame as f32 - current_frame)
+                                    / (key2.frame as f32 - key1.frame as f32);
+                                let value = key2.value.lerp(key1.value, factor);
+                                dbg!(value);
+                                work_values[track.work_value_index as usize] = value;
+                            }
+                        }
+                    }
+                    xc3_lib::mxmd::MaterialAnimTrackType::MatRecord0 => (),
+                    xc3_lib::mxmd::MaterialAnimTrackType::MatRecord1 => (),
+                    xc3_lib::mxmd::MaterialAnimTrackType::MatRecord2 => (),
+                    xc3_lib::mxmd::MaterialAnimTrackType::MatRecord3 => (),
+                    xc3_lib::mxmd::MaterialAnimTrackType::MatRecord4 => (),
+                    xc3_lib::mxmd::MaterialAnimTrackType::MatRecord5 => (),
+                    xc3_lib::mxmd::MaterialAnimTrackType::Unk12 => (),
+                    xc3_lib::mxmd::MaterialAnimTrackType::Unk13 => (),
+                }
+            }
+        }
+    }
+
+    // TODO: fill in ava_skin for xcx de
     let mut parameters = MaterialParameters {
         material_color: material.color,
         // TODO: Where do the other gAlInf values come from?
@@ -784,44 +820,116 @@ fn assign_parameters(
     };
 
     // TODO: Some parameters always have count 0 and aren't part of the work values?
-    if let Some(technique) = get_technique(material, &materials.techniques) {
-        for param in &technique.parameters {
-            match param.param_type {
-                xc3_lib::mxmd::ParamType::DpRat => {
-                    parameters.dp_rat = read_param(param, &work_values);
-                }
-                xc3_lib::mxmd::ParamType::TexMatrix => {
-                    // TODO: Is there a better way of handling tex matrix counts?
-                    let param = xc3_lib::mxmd::MaterialParameter {
-                        count: param.count * 2,
-                        ..param.clone()
-                    };
-                    parameters.tex_matrix = read_param(&param, &work_values);
-                }
-                xc3_lib::mxmd::ParamType::WorkFloat4 => {
-                    parameters.work_float4 = read_param(param, &work_values);
-                }
-                xc3_lib::mxmd::ParamType::WorkColor => {
-                    parameters.work_color = read_param(param, &work_values);
-                }
-                xc3_lib::mxmd::ParamType::ProjectionTexMatrix => {
-                    // TODO: Is there a better way of handling tex matrix counts?
-                    let param = xc3_lib::mxmd::MaterialParameter {
-                        count: param.count * 2,
-                        ..param.clone()
-                    };
-                    parameters.projection_tex_matrix = read_param(&param, &work_values);
-                }
-                // TODO: Do these parameters ever have values assigned?
-                xc3_lib::mxmd::ParamType::AlphaInfo => (),
-                xc3_lib::mxmd::ParamType::MaterialColor => (),
-                xc3_lib::mxmd::ParamType::Unk7 => (),
-                xc3_lib::mxmd::ParamType::ToonHeadMatrix => (),
+    match techniques {
+        Techniques::Legacy(techniques) => {
+            if let Some(technique) = get_technique_legacy(material, techniques) {
+                apply_legacy_technique_parameters(&mut parameters, &work_values, technique);
+            }
+        }
+        Techniques::Modern(techniques) => {
+            if let Some(technique) = get_technique(material, techniques) {
+                apply_technique_parameters(&mut parameters, &work_values, technique);
             }
         }
     }
 
     parameters
+}
+
+fn apply_technique_parameters(
+    parameters: &mut MaterialParameters,
+    work_values: &[f32],
+    technique: &xc3_lib::mxmd::Technique,
+) {
+    for param in &technique.parameters {
+        match param.param_type {
+            xc3_lib::mxmd::ParamType::DpRat => {
+                parameters.dp_rat = read_param(param, &work_values);
+            }
+            xc3_lib::mxmd::ParamType::TexMatrix => {
+                // TODO: Is there a better way of handling tex matrix counts?
+                let param = xc3_lib::mxmd::MaterialParameter {
+                    count: param.count * 2,
+                    ..param.clone()
+                };
+                parameters.tex_matrix = read_param(&param, &work_values);
+            }
+            xc3_lib::mxmd::ParamType::WorkFloat4 => {
+                parameters.work_float4 = read_param(param, &work_values);
+            }
+            xc3_lib::mxmd::ParamType::WorkColor => {
+                parameters.work_color = read_param(param, &work_values);
+            }
+            xc3_lib::mxmd::ParamType::ProjectionTexMatrix => {
+                // TODO: Is there a better way of handling tex matrix counts?
+                let param = xc3_lib::mxmd::MaterialParameter {
+                    count: param.count * 2,
+                    ..param.clone()
+                };
+                parameters.projection_tex_matrix = read_param(&param, &work_values);
+            }
+            // TODO: Do these parameters ever have values assigned?
+            xc3_lib::mxmd::ParamType::AlphaInfo => (),
+            xc3_lib::mxmd::ParamType::MaterialColor => (),
+            xc3_lib::mxmd::ParamType::Unk7 => (),
+            xc3_lib::mxmd::ParamType::ToonHeadMatrix => (),
+        }
+    }
+}
+
+fn apply_legacy_technique_parameters(
+    parameters: &mut MaterialParameters,
+    work_values: &[f32],
+    technique: &xc3_lib::mxmd::legacy::Technique,
+) {
+    for param in &technique.parameters {
+        match param.param_type {
+            xc3_lib::mxmd::legacy::ParamType::MaterialAmbient => {
+                parameters.material_ambient = read_param_legacy(param, work_values);
+            }
+            xc3_lib::mxmd::legacy::ParamType::MaterialSpecular => {
+                // TODO: Is this always handled separately like MaterialColor?
+                parameters.material_specular = read_param_legacy(param, work_values);
+            }
+            xc3_lib::mxmd::legacy::ParamType::DpRat => {
+                parameters.dp_rat = read_param_legacy(param, work_values);
+            }
+            xc3_lib::mxmd::legacy::ParamType::TexMatrix => {
+                // TODO: Is there a better way of handling tex matrix counts?
+                let param = xc3_lib::mxmd::legacy::MaterialParameter {
+                    count: param.count * 2,
+                    ..param.clone()
+                };
+                parameters.tex_matrix = read_param_legacy(&param, work_values);
+            }
+            xc3_lib::mxmd::legacy::ParamType::WorkFloat4 => {
+                parameters.work_float4 = read_param_legacy(param, work_values);
+            }
+            xc3_lib::mxmd::legacy::ParamType::WorkColor => {
+                parameters.work_color = read_param_legacy(param, work_values);
+            }
+            xc3_lib::mxmd::legacy::ParamType::ProjectionTexMatrix => {
+                // TODO: Is there a better way of handling tex matrix counts?
+                let param = xc3_lib::mxmd::legacy::MaterialParameter {
+                    count: param.count * 2,
+                    ..param.clone()
+                };
+                parameters.projection_tex_matrix = read_param_legacy(&param, work_values);
+            }
+            // TODO: Do these parameters ever have values assigned?
+            xc3_lib::mxmd::legacy::ParamType::AlphaInfo => {}
+            xc3_lib::mxmd::legacy::ParamType::MaterialColor => {}
+            xc3_lib::mxmd::legacy::ParamType::Unk16 => {}
+
+            xc3_lib::mxmd::legacy::ParamType::DtWork => {
+                parameters.dt_work = read_param_legacy(param, work_values);
+            }
+            xc3_lib::mxmd::legacy::ParamType::Unk18 => {}
+            xc3_lib::mxmd::legacy::ParamType::ModelParam => {
+                parameters.model_param = read_param_legacy(param, work_values);
+            }
+        }
+    }
 }
 
 fn apply_callbacks(work_values: &[f32], callbacks: &[WorkCallback]) -> Vec<f32> {
@@ -908,73 +1016,6 @@ fn read_param_legacy<const N: usize>(
     }
 }
 
-fn assign_parameters_legacy(
-    materials: &xc3_lib::mxmd::legacy::Materials,
-    material: &xc3_lib::mxmd::legacy::Material,
-    work_values: &[f32],
-) -> Option<MaterialParameters> {
-    let mut parameters = MaterialParameters {
-        material_color: material.color,
-        alpha_info: [1.0, material.alpha_test_ref, 1.0, 1.0], // TODO: is this accurate for xcx de?
-        ava_skin: materials.unks1_2_3.map(|v| [v[0], v[1], v[2], v[3]]),
-        ..Default::default()
-    };
-
-    // TODO: Some parameters always have count 0 and aren't part of the work values?
-    if let Some(technique) = get_technique_legacy(material, &materials.techniques) {
-        for param in &technique.parameters {
-            match param.param_type {
-                xc3_lib::mxmd::legacy::ParamType::MaterialAmbient => {
-                    parameters.material_ambient = read_param_legacy(param, work_values);
-                }
-                xc3_lib::mxmd::legacy::ParamType::MaterialSpecular => {
-                    // TODO: Is this always handled separately like MaterialColor?
-                    parameters.material_specular = read_param_legacy(param, work_values);
-                }
-                xc3_lib::mxmd::legacy::ParamType::DpRat => {
-                    parameters.dp_rat = read_param_legacy(param, work_values);
-                }
-                xc3_lib::mxmd::legacy::ParamType::TexMatrix => {
-                    // TODO: Is there a better way of handling tex matrix counts?
-                    let param = xc3_lib::mxmd::legacy::MaterialParameter {
-                        count: param.count * 2,
-                        ..param.clone()
-                    };
-                    parameters.tex_matrix = read_param_legacy(&param, work_values);
-                }
-                xc3_lib::mxmd::legacy::ParamType::WorkFloat4 => {
-                    parameters.work_float4 = read_param_legacy(param, work_values);
-                }
-                xc3_lib::mxmd::legacy::ParamType::WorkColor => {
-                    parameters.work_color = read_param_legacy(param, work_values);
-                }
-                xc3_lib::mxmd::legacy::ParamType::ProjectionTexMatrix => {
-                    // TODO: Is there a better way of handling tex matrix counts?
-                    let param = xc3_lib::mxmd::legacy::MaterialParameter {
-                        count: param.count * 2,
-                        ..param.clone()
-                    };
-                    parameters.projection_tex_matrix = read_param_legacy(&param, work_values);
-                }
-                // TODO: Do these parameters ever have values assigned?
-                xc3_lib::mxmd::legacy::ParamType::AlphaInfo => {}
-                xc3_lib::mxmd::legacy::ParamType::MaterialColor => {}
-                xc3_lib::mxmd::legacy::ParamType::Unk16 => {}
-
-                xc3_lib::mxmd::legacy::ParamType::DtWork => {
-                    parameters.dt_work = read_param_legacy(param, work_values);
-                }
-                xc3_lib::mxmd::legacy::ParamType::Unk18 => {}
-                xc3_lib::mxmd::legacy::ParamType::ModelParam => {
-                    parameters.model_param = read_param_legacy(param, work_values);
-                }
-            }
-        }
-    }
-
-    Some(parameters)
-}
-
 // TODO: Test cases for this?
 impl Material {
     /// Get the texture or value assigned to each shader output texture and channel.
@@ -983,10 +1024,15 @@ impl Material {
     /// If no shader is assigned from the database, assignments are inferred from the usage hints in `textures`.
     /// This heuristic works well for detecting color and normal maps but cannot detect temp texture channels
     /// or material parameter values like texture tiling.
-    pub fn output_assignments(&self, textures: &[ImageTexture]) -> OutputAssignments {
+    pub fn output_assignments(
+        &self,
+        models: &Models,
+        textures: &[ImageTexture],
+        current_frame: f32,
+    ) -> OutputAssignments {
         self.shader
             .as_ref()
-            .map(|s| output_assignments(s, &self.parameters))
+            .map(|s| output_assignments(s, &self.parameters(models.material_animations.as_ref(), &models.techniques, current_frame)))
             .unwrap_or_else(|| {
                 warn!(
                     "Inferring assignments from texture names and usage types for {:?} due to unrecognized shader",
@@ -1000,6 +1046,15 @@ impl Material {
     pub fn alpha_texture_channel_index(&self) -> usize {
         // Some materials use the red channel of a dedicated mask instead of alpha.
         if self.flags.separate_mask() { 0 } else { 3 }
+    }
+
+    pub fn parameters(
+        &self,
+        material_animations: Option<&MaterialAnimations>,
+        techniques: &Techniques,
+        current_frame: f32,
+    ) -> MaterialParameters {
+        assign_parameters(self, material_animations, techniques, current_frame)
     }
 }
 

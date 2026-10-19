@@ -148,6 +148,9 @@ pub struct Models {
 
     /// The maximum XYZ coordinates of the bounding volume.
     pub min_xyz: Vec3,
+
+    // TODO: find a better way to preserve techniques for assigning shader parameters.
+    pub techniques: Techniques,
 }
 
 /// See [ModelV112](xc3_lib::mxmd::ModelV112).
@@ -241,8 +244,10 @@ pub struct MaterialAnimEntry {
 pub struct MaterialAnimTrack {
     // TODO: flags
     pub track_type: MaterialAnimTrackType,
-    // TODO: keys don't overlap when ignoring tracks with empty frames?
+    pub work_value_index: usize,
     pub keys: Vec<MaterialAnimKey>,
+    pub frame_start: usize,
+    pub frame_end: usize,
 }
 
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -253,6 +258,13 @@ pub struct MaterialAnimKey {
     pub value: f32,
     pub frame: usize, // TODO: frame index?
                       // TODO: flags
+}
+
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[derive(Debug, PartialEq, Clone)]
+pub enum Techniques {
+    Legacy(Vec<xc3_lib::mxmd::legacy::Technique>),
+    Modern(Vec<xc3_lib::mxmd::Technique>),
 }
 
 // TODO: Take an iterator for wimdo paths and merge to support xc1?

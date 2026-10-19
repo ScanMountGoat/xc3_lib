@@ -59,6 +59,7 @@ impl MaterialCache {
     pub fn insert(
         &mut self,
         material: &crate::Material,
+        models: &crate::Models,
         texture_cache: &mut TextureCache,
         image_textures: &[ImageTexture],
         key: MaterialKey,
@@ -78,6 +79,7 @@ impl MaterialCache {
 
                 let material = create_material(
                     material,
+                    models,
                     texture_cache,
                     &mut self.textures,
                     key.root_index,
@@ -120,13 +122,14 @@ fn wrapping_mode(address_mode: AddressMode) -> gltf::json::texture::WrappingMode
 
 fn create_material(
     material: &crate::Material,
+    models: &crate::Models,
     texture_cache: &mut TextureCache,
     textures: &mut Vec<gltf::json::Texture>,
     root_index: usize,
     sampler_base_index: usize,
     image_textures: &[ImageTexture],
 ) -> gltf::json::Material {
-    let assignments = material.output_assignments(image_textures);
+    let assignments = material.output_assignments(models, image_textures, 0.0);
 
     let albedo_key = albedo_generated_key(material, &assignments, root_index);
     let albedo_index = texture_cache.insert(albedo_key.clone());
