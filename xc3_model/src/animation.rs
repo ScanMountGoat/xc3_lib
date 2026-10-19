@@ -844,7 +844,7 @@ fn keyframe_position(
 ) -> Option<(&Keyframe, f32)> {
     // Find the keyframe range containing the desired frame.
     // Use a workaround for tree lower/upper bound not being stable.
-    let key = OrderedFloat::<f32>::from(frame);
+    let key = OrderedFloat::from(frame);
     let mut before = keyframes.range((Unbounded, Included(key)));
     let mut after = keyframes.range((Excluded(key), Unbounded));
 

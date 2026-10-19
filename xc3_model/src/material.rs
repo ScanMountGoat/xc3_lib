@@ -1,5 +1,11 @@
+use std::{
+    collections::BTreeMap,
+    ops::Bound::{Excluded, Included, Unbounded},
+};
+
 use assignments::{OutputAssignments, infer_assignment_from_textures, output_assignments};
 use glam::FloatExt;
+use ordered_float::OrderedFloat;
 use tracing::warn;
 
 use xc3_lib::mxmd::WorkCallbackType;
@@ -10,7 +16,8 @@ pub use xc3_lib::mxmd::{
 };
 
 use crate::{
-    ImageTexture, MaterialAnimKey, MaterialAnimations, Models, Sampler, Techniques,
+    ImageTexture, MaterialAnimKey, MaterialAnimTrack, MaterialAnimations, Models, Sampler,
+    Techniques,
     shader_database::{
         ChannelXyz, Parameter, ParameterXyz, ProgramHash, ShaderDatabase, ShaderProgram,
     },
@@ -747,7 +754,6 @@ fn find_alpha_test_texture_legacy(
 
 // TODO: Some elements get set by values not in the floats array?
 // TODO: How to test this?
-// TODO: animations that can update each frame
 fn assign_parameters(
     material: &Material,
     material_animations: Option<&MaterialAnimations>,
@@ -773,7 +779,7 @@ fn assign_parameters(
                 let keys = &track.keys;
                 match track.track_type {
                     xc3_lib::mxmd::MaterialAnimTrackType::WorkFloat => {
-                        if let Some(value) = sample_material_anim_keys(keys, current_frame) {
+                        if let Some(value) = sample_material_anim_keys(track, keys, current_frame) {
                             work_values[track.work_value_index] = value;
                         }
                     }
@@ -805,11 +811,13 @@ fn assign_parameters(
         }
     }
 
+    // TODO: what group index should this use?
+    // TODO: figure out how to detect if material animations are used.
     if let Some(animations) = material_animations
         && material.variable_anim_group_index > 0
         && let Some(group) = animations
             .groups
-            .get(material.variable_anim_group_index as usize)
+            .get(material.texture_anim_group_index as usize)
     {
         for entry in &group.entries {
             for track in &entry.tracks {
@@ -817,7 +825,7 @@ fn assign_parameters(
                 let keys = &track.keys;
                 match track.track_type {
                     xc3_lib::mxmd::MaterialAnimTrackType::TranslateU => {
-                        if let Some(value) = sample_material_anim_keys(keys, current_frame) {
+                        if let Some(value) = sample_material_anim_keys(track, keys, current_frame) {
                             if let Some(values) = &mut parameters.tex_matrix {
                                 // TODO: how to animate multiple matrices?
                                 values[0][3] = value;
@@ -825,7 +833,7 @@ fn assign_parameters(
                         }
                     }
                     xc3_lib::mxmd::MaterialAnimTrackType::TranslateV => {
-                        if let Some(value) = sample_material_anim_keys(keys, current_frame) {
+                        if let Some(value) = sample_material_anim_keys(track, keys, current_frame) {
                             if let Some(values) = &mut parameters.tex_matrix {
                                 // TODO: how to animate multiple matrices?
                                 values[1][3] = value;
@@ -841,18 +849,80 @@ fn assign_parameters(
     parameters
 }
 
-fn sample_material_anim_keys(keys: &[MaterialAnimKey], current_frame: f32) -> Option<f32> {
-    // Interpolate between two keys.
+fn hermite_spline(t: f32, p0: f32, m0: f32, p1: f32, m1: f32) -> f32 {
+    // Hermite splines use the points p0, p1 and derivatives m0, m1.
+    let t2 = t * t;
+    let t3 = t2 * t;
+
+    (2.0 * t3 - 3.0 * t2 + 1.0) * p0
+        + (t3 - 2.0 * t2 + t) * m0
+        + (-2.0 * t3 + 3.0 * t2) * p1
+        + (t3 - t2) * m1
+}
+
+// TODO: create a material::animation submodule with tests?
+fn sample_material_anim_keys(
+    track: &MaterialAnimTrack,
+    keys: &[MaterialAnimKey],
+    current_frame: f32,
+) -> Option<f32> {
+    // TODO: investigate these edge cases.
+    if keys.is_empty() {
+        return Some(0.0);
+    }
     // TODO: are there always at least two keys?
-    // TODO: create a material::animation submodule with tests?
-    // TODO: handle the cases where frame < first frame and > final frame.
-    // TODO: use the tangents
-    let key1 = keys.iter().find(|k| k.frame as f32 <= current_frame)?;
-    // TODO: don't assume keys are in sorted order by using btreemap keyed by frame.
-    let key2 = keys.iter().find(|k| k.frame > key1.frame)?;
-    let factor = (key1.frame as f32 - current_frame) / (key2.frame as f32 - key1.frame as f32);
-    let value = key2.value.lerp(key1.value, factor);
-    Some(value)
+    if keys.len() == 1 {
+        return Some(keys[0].value);
+    }
+    // TODO: Store keys in sorted order.
+    let mut sorted_keys: Vec<_> = keys.to_vec();
+    sorted_keys.sort_by_key(|k| k.frame);
+
+    // Assume these values are the frames for the first and last key.
+    let start_frame = track.frame_start as f32;
+    let end_frame = track.frame_end as f32;
+    let duration = end_frame - start_frame;
+    if duration <= 0.0 {
+        return Some(keys.first()?.value);
+    }
+
+    // TODO: Do animations always loop?
+    // TODO: make this loop properly for k1 -> k2 -> k3 -> k1
+    let frame_local = start_frame + (current_frame - start_frame).rem_euclid(duration);
+
+    // The final frame persists for the end of the animation.
+    // TODO: Does this happen in practice if frame local uses rem_euclid?
+    if frame_local >= end_frame {
+        return Some(keys.last()?.value);
+    }
+
+    // Find the segment containing the current frame.
+    let mut key1 = keys.first()?;
+    let mut key2 = keys.last()?;
+    for i in 0..keys.len() - 1 {
+        if keys[i].frame as f32 <= frame_local && keys[i + 1].frame as f32 >= frame_local {
+            key1 = &keys[i];
+            key2 = &keys[i + 1];
+            break;
+        }
+    }
+
+    // Normalize the frame to find t.
+    let dt = key2.frame as f32 - key1.frame as f32;
+    if dt <= 0.0 {
+        return Some(key1.value);
+    }
+    let t = (frame_local - key1.frame as f32) / dt;
+
+    // This is probably using hermite interpolation based on the Xenoblade 2 binary symbol names.
+    // TODO: should the tangents be scaled by the interval?
+    Some(hermite_spline(
+        t,
+        key1.value,
+        key1.out_tangent,
+        key2.value,
+        key2.in_tangent,
+    ))
 }
 
 fn apply_technique_parameters(
