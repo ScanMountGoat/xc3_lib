@@ -171,7 +171,7 @@ fn load_map_model_group_legacy_inner<S: GetProgramHash>(
     let techniques = crate::Techniques::Legacy(materials.techniques.clone());
 
     let (mut materials, samplers) =
-        create_materials_samplers_legacy(&materials, texture_indices, shader, shader_database);
+        create_materials_samplers_legacy(materials, texture_indices, shader, shader_database);
     apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
     let models = unk8
@@ -396,7 +396,7 @@ fn load_prop_model_group_legacy_inner<S: GetProgramHash>(
     // TODO: Prop info and prop positions?
 
     let (mut materials, samplers) =
-        create_materials_samplers_legacy(&materials, texture_indices, shader, shader_database);
+        create_materials_samplers_legacy(materials, texture_indices, shader, shader_database);
     apply_material_texture_indices(&mut materials, material_root_texture_indices);
 
     let mut models = Models {
@@ -419,7 +419,7 @@ fn load_prop_model_group_legacy_inner<S: GetProgramHash>(
         .models
         .iter()
         .zip(model_vertex_data_indices.iter())
-        .zip(model_instances.into_iter())
+        .zip(model_instances)
         .enumerate()
     {
         // Only keep the base LOD.

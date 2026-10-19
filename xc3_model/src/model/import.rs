@@ -797,7 +797,7 @@ fn create_material_animations(anims: &xc3_lib::mxmd::MaterialAnimations) -> Mate
                                         .keys
                                         .get(
                                             start_index
-                                                ..start_index as usize + t.key_count as usize,
+                                                ..start_index + t.key_count as usize,
                                         )
                                         .map(|keys| {
                                             keys.iter()

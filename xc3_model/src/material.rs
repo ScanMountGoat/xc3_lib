@@ -1,11 +1,4 @@
-use std::{
-    collections::BTreeMap,
-    ops::Bound::{Excluded, Included, Unbounded},
-};
-
 use assignments::{OutputAssignments, infer_assignment_from_textures, output_assignments};
-use glam::FloatExt;
-use ordered_float::OrderedFloat;
 use tracing::warn;
 
 use xc3_lib::mxmd::WorkCallbackType;
@@ -760,34 +753,7 @@ fn assign_parameters(
     techniques: &Techniques,
     current_frame: f32,
 ) -> MaterialParameters {
-    // TODO: do callbacks apply before or after material animations
-    let mut work_values = apply_callbacks(&material.work_values, &material.work_callbacks);
-
-    // TODO: texture coordinates are not being calculated properly?
-
-    // TODO: what group index should this use?
-    // TODO: figure out how to detect if material animations are used.
-    if let Some(animations) = material_animations
-        && material.variable_anim_group_index > 0
-        && let Some(group) = animations
-            .groups
-            .get(material.variable_anim_group_index as usize)
-    {
-        for entry in &group.entries {
-            for track in &entry.tracks {
-                // TODO: don't assume keys are in order.
-                let keys = &track.keys;
-                match track.track_type {
-                    xc3_lib::mxmd::MaterialAnimTrackType::WorkFloat => {
-                        if let Some(value) = sample_material_anim_keys(track, keys, current_frame) {
-                            work_values[track.work_value_index] = value;
-                        }
-                    }
-                    _ => (),
-                }
-            }
-        }
-    }
+    let work_values = calculate_work_values(material, material_animations, current_frame);
 
     // TODO: fill in ava_skin for xcx de
     let mut parameters = MaterialParameters {
@@ -811,33 +777,39 @@ fn assign_parameters(
         }
     }
 
+    parameters
+}
+
+fn calculate_work_values(
+    material: &Material,
+    material_animations: Option<&MaterialAnimations>,
+    current_frame: f32,
+) -> Vec<f32> {
+    // TODO: do callbacks apply before or after material animations
+    let mut work_values = apply_callbacks(&material.work_values, &material.work_callbacks);
+
     // TODO: what group index should this use?
     // TODO: figure out how to detect if material animations are used.
     if let Some(animations) = material_animations
         && material.variable_anim_group_index > 0
         && let Some(group) = animations
             .groups
-            .get(material.texture_anim_group_index as usize)
+            .get(material.variable_anim_group_index as usize)
     {
         for entry in &group.entries {
             for track in &entry.tracks {
                 // TODO: don't assume keys are in order.
                 let keys = &track.keys;
+                // TODO: does the track type matter?
+                // TODO: do all track types update work values?
                 match track.track_type {
-                    xc3_lib::mxmd::MaterialAnimTrackType::TranslateU => {
+                    xc3_lib::mxmd::MaterialAnimTrackType::WorkFloat
+                    | xc3_lib::mxmd::MaterialAnimTrackType::ScaleU
+                    | xc3_lib::mxmd::MaterialAnimTrackType::ScaleV
+                    | xc3_lib::mxmd::MaterialAnimTrackType::TranslateU
+                    | xc3_lib::mxmd::MaterialAnimTrackType::TranslateV => {
                         if let Some(value) = sample_material_anim_keys(track, keys, current_frame) {
-                            if let Some(values) = &mut parameters.tex_matrix {
-                                // TODO: how to animate multiple matrices?
-                                values[0][3] = value;
-                            }
-                        }
-                    }
-                    xc3_lib::mxmd::MaterialAnimTrackType::TranslateV => {
-                        if let Some(value) = sample_material_anim_keys(track, keys, current_frame) {
-                            if let Some(values) = &mut parameters.tex_matrix {
-                                // TODO: how to animate multiple matrices?
-                                values[1][3] = value;
-                            }
+                            work_values[track.work_value_index] = value;
                         }
                     }
                     _ => (),
@@ -845,8 +817,7 @@ fn assign_parameters(
             }
         }
     }
-
-    parameters
+    work_values
 }
 
 fn hermite_spline(t: f32, p0: f32, m0: f32, p1: f32, m1: f32) -> f32 {
@@ -933,7 +904,7 @@ fn apply_technique_parameters(
     for param in &technique.parameters {
         match param.param_type {
             xc3_lib::mxmd::ParamType::DpRat => {
-                parameters.dp_rat = read_param(param, &work_values);
+                parameters.dp_rat = read_param(param, work_values);
             }
             xc3_lib::mxmd::ParamType::TexMatrix => {
                 // TODO: Is there a better way of handling tex matrix counts?
@@ -941,13 +912,13 @@ fn apply_technique_parameters(
                     count: param.count * 2,
                     ..param.clone()
                 };
-                parameters.tex_matrix = read_param(&param, &work_values);
+                parameters.tex_matrix = read_param(&param, work_values);
             }
             xc3_lib::mxmd::ParamType::WorkFloat4 => {
-                parameters.work_float4 = read_param(param, &work_values);
+                parameters.work_float4 = read_param(param, work_values);
             }
             xc3_lib::mxmd::ParamType::WorkColor => {
-                parameters.work_color = read_param(param, &work_values);
+                parameters.work_color = read_param(param, work_values);
             }
             xc3_lib::mxmd::ParamType::ProjectionTexMatrix => {
                 // TODO: Is there a better way of handling tex matrix counts?
@@ -955,7 +926,7 @@ fn apply_technique_parameters(
                     count: param.count * 2,
                     ..param.clone()
                 };
-                parameters.projection_tex_matrix = read_param(&param, &work_values);
+                parameters.projection_tex_matrix = read_param(&param, work_values);
             }
             // TODO: Do these parameters ever have values assigned?
             xc3_lib::mxmd::ParamType::AlphaInfo => (),
