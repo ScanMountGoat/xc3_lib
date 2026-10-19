@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added rendering and shader database support for model fragment shader alpha testing.
 * Added the `--game` arg to xc3_shader `shader-database` and `glsl-output-dependencies` to handle differences in shader outputs between games.
 * Added the `--map-part-id` arg to xc3_viewer and xc3_gltf to load only a portion of a map file.
+* Added support for rendering material animations.
 
 ### Changed
 * Reworked xc3_model and xc3_shader database and material assignment types.

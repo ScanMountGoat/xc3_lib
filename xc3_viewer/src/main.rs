@@ -368,15 +368,19 @@ impl State {
             }
         }
 
-        if let Some(anim) = self.animations.get(self.animation_index) {
-            // Framerate independent animation timing.
-            // This relies on interpolation or frame skipping.
-            self.current_time_seconds += delta_t;
+        // Framerate independent animation timing.
+        // This relies on interpolation or frame skipping.
+        self.current_time_seconds += delta_t;
 
+        if let Some(anim) = self.animations.get(self.animation_index) {
             for group in &self.groups {
                 group.update_bone_transforms(&self.queue, anim, self.current_time_seconds);
                 group.update_morph_weights(&self.queue, anim, self.current_time_seconds);
             }
+        }
+
+        for group in &self.groups {
+            group.update_material_animations(&self.queue, self.current_time_seconds);
         }
 
         let output_view = output

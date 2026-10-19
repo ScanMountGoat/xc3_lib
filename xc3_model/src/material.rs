@@ -10,7 +10,7 @@ pub use xc3_lib::mxmd::{
 };
 
 use crate::{
-    ImageTexture, MaterialAnimations, Models, Sampler, Techniques,
+    ImageTexture, MaterialAnimKey, MaterialAnimations, Models, Sampler, Techniques,
     shader_database::{
         ChannelXyz, Parameter, ParameterXyz, ProgramHash, ShaderDatabase, ShaderProgram,
     },
@@ -770,42 +770,14 @@ fn assign_parameters(
         for entry in &group.entries {
             for track in &entry.tracks {
                 // TODO: don't assume keys are in order.
-                // Get the first key value for now and assume this is the first frame.
                 let keys = &track.keys;
                 match track.track_type {
-                    xc3_lib::mxmd::MaterialAnimTrackType::ScaleU => todo!(),
-                    xc3_lib::mxmd::MaterialAnimTrackType::ScaleV => todo!(),
-                    xc3_lib::mxmd::MaterialAnimTrackType::TranslateU => {
-                        // TODO: Apply animations to parameters directly?
-                    }
-                    xc3_lib::mxmd::MaterialAnimTrackType::TranslateV => {
-                        // TODO: Apply animations to parameters directly?
-                    }
-                    xc3_lib::mxmd::MaterialAnimTrackType::RotateDeg => (),
                     xc3_lib::mxmd::MaterialAnimTrackType::WorkFloat => {
-                        // Interpolate between two keys.
-                        // TODO: are there always at least two keys?
-                        // TODO: create a material::animation submodule with tests?
-                        // TODO: handle the cases where frame < first frame and > final frame.
-                        if let Some(key1) = keys.iter().find(|k| k.frame as f32 <= current_frame) {
-                            // TODO: don't assume keys are in sorted order by using btreemap keyed by frame.
-                            if let Some(key2) = keys.iter().find(|k| k.frame > key1.frame) {
-                                let factor = (key1.frame as f32 - current_frame)
-                                    / (key2.frame as f32 - key1.frame as f32);
-                                let value = key2.value.lerp(key1.value, factor);
-                                dbg!(value);
-                                work_values[track.work_value_index as usize] = value;
-                            }
+                        if let Some(value) = sample_material_anim_keys(keys, current_frame) {
+                            work_values[track.work_value_index] = value;
                         }
                     }
-                    xc3_lib::mxmd::MaterialAnimTrackType::MatRecord0 => (),
-                    xc3_lib::mxmd::MaterialAnimTrackType::MatRecord1 => (),
-                    xc3_lib::mxmd::MaterialAnimTrackType::MatRecord2 => (),
-                    xc3_lib::mxmd::MaterialAnimTrackType::MatRecord3 => (),
-                    xc3_lib::mxmd::MaterialAnimTrackType::MatRecord4 => (),
-                    xc3_lib::mxmd::MaterialAnimTrackType::MatRecord5 => (),
-                    xc3_lib::mxmd::MaterialAnimTrackType::Unk12 => (),
-                    xc3_lib::mxmd::MaterialAnimTrackType::Unk13 => (),
+                    _ => (),
                 }
             }
         }
@@ -833,7 +805,54 @@ fn assign_parameters(
         }
     }
 
+    if let Some(animations) = material_animations
+        && material.variable_anim_group_index > 0
+        && let Some(group) = animations
+            .groups
+            .get(material.variable_anim_group_index as usize)
+    {
+        for entry in &group.entries {
+            for track in &entry.tracks {
+                // TODO: don't assume keys are in order.
+                let keys = &track.keys;
+                match track.track_type {
+                    xc3_lib::mxmd::MaterialAnimTrackType::TranslateU => {
+                        if let Some(value) = sample_material_anim_keys(keys, current_frame) {
+                            if let Some(values) = &mut parameters.tex_matrix {
+                                // TODO: how to animate multiple matrices?
+                                values[0][3] = value;
+                            }
+                        }
+                    }
+                    xc3_lib::mxmd::MaterialAnimTrackType::TranslateV => {
+                        if let Some(value) = sample_material_anim_keys(keys, current_frame) {
+                            if let Some(values) = &mut parameters.tex_matrix {
+                                // TODO: how to animate multiple matrices?
+                                values[1][3] = value;
+                            }
+                        }
+                    }
+                    _ => (),
+                }
+            }
+        }
+    }
+
     parameters
+}
+
+fn sample_material_anim_keys(keys: &[MaterialAnimKey], current_frame: f32) -> Option<f32> {
+    // Interpolate between two keys.
+    // TODO: are there always at least two keys?
+    // TODO: create a material::animation submodule with tests?
+    // TODO: handle the cases where frame < first frame and > final frame.
+    // TODO: use the tangents
+    let key1 = keys.iter().find(|k| k.frame as f32 <= current_frame)?;
+    // TODO: don't assume keys are in sorted order by using btreemap keyed by frame.
+    let key2 = keys.iter().find(|k| k.frame > key1.frame)?;
+    let factor = (key1.frame as f32 - current_frame) / (key2.frame as f32 - key1.frame as f32);
+    let value = key2.value.lerp(key1.value, factor);
+    Some(value)
 }
 
 fn apply_technique_parameters(
