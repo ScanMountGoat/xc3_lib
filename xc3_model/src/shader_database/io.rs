@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, io::Cursor, path::Path};
+use std::{
+    collections::BTreeMap,
+    io::{Cursor, Read, Seek, Write},
+    path::Path,
+};
 
 use binrw::{BinRead, BinReaderExt, BinResult, BinWrite, BinWriterExt, NullString, binrw};
 use ordered_float::OrderedFloat;
@@ -310,9 +314,18 @@ impl From<Option<crate::shader_database::ChannelXyz>> for ChannelXyz {
 }
 
 impl ShaderDatabaseIndexed {
+    pub fn read<R: Read + Seek>(reader: &mut R) -> BinResult<Self> {
+        reader.read_le()
+    }
+
     pub fn from_file<P: AsRef<Path>>(path: P) -> BinResult<Self> {
         let mut reader = Cursor::new(std::fs::read(path)?);
         reader.read_le()
+    }
+
+    pub fn write<W: Write + Seek>(&self, writer: &mut W) -> BinResult<()> {
+        self.write_le(writer)?;
+        Ok(())
     }
 
     pub fn save<P: AsRef<Path>>(&self, path: P) -> BinResult<()> {
@@ -322,10 +335,17 @@ impl ShaderDatabaseIndexed {
         Ok(())
     }
 
-    pub fn shader_program(&self, hash: ProgramHash) -> Option<ShaderProgram> {
+    pub fn get(&self, hash: ProgramHash) -> Option<ShaderProgram> {
         self.programs
             .get(&hash.0)
             .map(|p| self.program_from_indexed(p))
+    }
+
+    pub fn shader_programs(&self) -> BTreeMap<ProgramHash, ShaderProgram> {
+        self.programs
+            .iter()
+            .map(|(h, p)| (ProgramHash(*h), self.program_from_indexed(p)))
+            .collect()
     }
 
     pub fn from_programs(programs: BTreeMap<ProgramHash, ShaderProgram>) -> Self {

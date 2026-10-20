@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fmt::Write;
+use std::io::Cursor;
 use std::path::PathBuf;
 use std::{collections::BTreeMap, sync::LazyLock};
 
@@ -145,6 +146,7 @@ pub fn shader_from_glsl(
         }
     }
 
+    // TODO: reindex to remove unused exprs.
     let exprs: Vec<_> = exprs
         .into_iter()
         .map(|e| match e {
@@ -157,6 +159,7 @@ pub fn shader_from_glsl(
         })
         .collect();
 
+    // TODO: reindex to remove unused exprs.
     let exprs_xyz: Vec<_> = exprs_xyz
         .into_exprs()
         .into_iter()
@@ -173,6 +176,8 @@ pub fn shader_from_glsl(
             }
         })
         .collect();
+
+    // TODO: reindex exprs
 
     ShaderProgram {
         output_dependencies,
@@ -489,7 +494,7 @@ pub enum GameVersion {
     Xcx,
 }
 
-pub fn create_shader_database(input: &str, version: GameVersion) -> ShaderDatabase {
+pub fn create_shader_database(input: &str, version: GameVersion, validate: bool) -> ShaderDatabase {
     // Collect unique programs.
     let mut programs = BTreeMap::new();
 
@@ -504,7 +509,7 @@ pub fn create_shader_database(input: &str, version: GameVersion) -> ShaderDataba
     }
 
     // Process programs in parallel since this is CPU heavy.
-    let programs = programs
+    let programs: BTreeMap<_, _> = programs
         .into_par_iter()
         .map(|(hash, p)| {
             let vertex = p.vertex_source.and_then(|s| {
@@ -545,7 +550,35 @@ pub fn create_shader_database(input: &str, version: GameVersion) -> ShaderDataba
         })
         .collect();
 
-    ShaderDatabase::from_programs(programs)
+    if validate {
+        let database = ShaderDatabase::from_programs(programs.clone());
+        validate_shader_database_io(&programs, &database);
+        database
+    } else {
+        ShaderDatabase::from_programs(programs)
+    }
+}
+
+fn validate_shader_database_io(
+    programs: &BTreeMap<ProgramHash, ShaderProgram>,
+    database: &ShaderDatabase,
+) {
+    let mut writer = Cursor::new(Vec::new());
+    database.write(&mut writer).unwrap();
+
+    let mut reader = Cursor::new(writer.into_inner());
+    let database2 = ShaderDatabase::read(&mut reader).unwrap();
+
+    // Test binary read/write.
+    if database != &database2 {
+        error!("Shader database not 1:1 after roundtrip.");
+    }
+
+    // Use the original non indexed programs to test that data is preserved.
+    let new_programs = database2.shader_programs();
+    if new_programs != *programs {
+        error!("Shader database programs not 1:1 after roundtrip.");
+    }
 }
 
 fn add_programs(programs: &mut BTreeMap<ProgramHash, SpchProgram>, spch_path: std::path::PathBuf) {
@@ -579,7 +612,7 @@ fn add_programs(programs: &mut BTreeMap<ProgramHash, SpchProgram>, spch_path: st
     }
 }
 
-pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
+pub fn create_shader_database_legacy(input: &str, validate: bool) -> ShaderDatabase {
     let mut programs = BTreeMap::new();
 
     for path in globwalk::GlobWalkerBuilder::from_patterns(input, &["*.cashd"])
@@ -591,7 +624,7 @@ pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
     }
 
     // Process programs in parallel since this is CPU heavy.
-    let programs = programs
+    let programs: BTreeMap<_, _> = programs
         .into_par_iter()
         .map(|(hash, shader)| {
             let vertex = match GlslGraph::parse_glsl(&shader.vertex_source) {
@@ -618,7 +651,13 @@ pub fn create_shader_database_legacy(input: &str) -> ShaderDatabase {
         })
         .collect();
 
-    ShaderDatabase::from_programs(programs)
+    if validate {
+        let database = ShaderDatabase::from_programs(programs.clone());
+        validate_shader_database_io(&programs, &database);
+        database
+    } else {
+        ShaderDatabase::from_programs(programs)
+    }
 }
 
 struct LegacyProgram {

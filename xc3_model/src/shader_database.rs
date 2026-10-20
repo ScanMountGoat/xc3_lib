@@ -8,7 +8,11 @@
 //! Applications can parse the data with [ShaderDatabase::from_file]
 //! to avoid needing to generate this data at runtime.
 
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    io::{Read, Seek, Write},
+    path::Path,
+};
 
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
@@ -26,6 +30,12 @@ type IndexMap<K, V> = indexmap::IndexMap<K, V, ahash::RandomState>;
 pub struct ShaderDatabase(io::ShaderDatabaseIndexed);
 
 impl ShaderDatabase {
+    /// Read the database from `reader`.
+    pub fn read<R: Read + Seek>(reader: &mut R) -> Result<Self, LoadShaderDatabaseError> {
+        let indexed = io::ShaderDatabaseIndexed::read(reader)?;
+        Ok(Self(indexed))
+    }
+
     /// Load the database data from `path`.
     #[tracing::instrument(skip_all)]
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, LoadShaderDatabaseError> {
@@ -36,14 +46,26 @@ impl ShaderDatabase {
     }
 
     /// Serialize and save the database data to `path`.
+    pub fn write<W: Write + Seek>(&self, writer: &mut W) -> Result<(), SaveShaderDatabaseError> {
+        self.0.write(writer)?;
+        Ok(())
+    }
+
+    /// Serialize and save the database data to `path`.
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), SaveShaderDatabaseError> {
         self.0.save(path)?;
         Ok(())
     }
 
-    /// The shader information for the specified shader program.
-    pub fn shader_program(&self, hash: ProgramHash) -> Option<ShaderProgram> {
-        self.0.shader_program(hash)
+    /// Get the shader information for the specified shader program.
+    pub fn get(&self, hash: ProgramHash) -> Option<ShaderProgram> {
+        self.0.get(hash)
+    }
+
+    /// Return all the programs in the database.
+    /// Consider calling [Self::get] instead when not using all programs.
+    pub fn shader_programs(&self) -> BTreeMap<ProgramHash, ShaderProgram> {
+        self.0.shader_programs()
     }
 
     /// Create the internal database representation from non indexed data.

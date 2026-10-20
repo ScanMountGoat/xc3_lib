@@ -571,7 +571,7 @@ fn get_shader(
     // TODO: How to handle multiple techniques?
     let program_index = material.techniques.last()?.technique_index as usize;
     let hash = spch.get_program_hash(program_index)?;
-    shader_database?.shader_program(hash)
+    shader_database?.get(hash)
 }
 
 fn get_shader_legacy<S: GetProgramHash>(
@@ -582,7 +582,7 @@ fn get_shader_legacy<S: GetProgramHash>(
     // TODO: How to handle multiple techniques?
     let program_index = material.techniques.last()?.technique_index as usize;
     let hash = shaders?.get_program_hash(program_index)?;
-    let program = shader_database?.shader_program(hash)?;
+    let program = shader_database?.get(hash)?;
 
     let is_single_output = program
         .output_dependencies

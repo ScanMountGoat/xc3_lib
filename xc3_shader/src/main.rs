@@ -63,6 +63,9 @@ enum Commands {
         /// The game version.
         #[arg(long)]
         game: GameVersion,
+        /// Validate the database file format.
+        #[arg(long)]
+        validate: bool,
     },
     /// Create a database of decompiled shader data for Xenoblade X.
     ShaderDatabaseLegacy {
@@ -70,6 +73,9 @@ enum Commands {
         input_folder: String,
         /// The output database file.
         output_file: String,
+        /// Validate the database file format.
+        #[arg(long)]
+        validate: bool,
     },
     /// Create a combined database of decompiled shader data.
     MergeDatabases {
@@ -154,15 +160,17 @@ fn main() {
             input_folder,
             output_file,
             game,
+            validate,
         } => {
-            let database = create_shader_database(&input_folder, game);
+            let database = create_shader_database(&input_folder, game, validate);
             database.save(output_file).unwrap();
         }
         Commands::ShaderDatabaseLegacy {
             input_folder,
             output_file,
+            validate,
         } => {
-            let database = create_shader_database_legacy(&input_folder);
+            let database = create_shader_database_legacy(&input_folder, validate);
             database.save(output_file).unwrap();
         }
         Commands::GlslDependencies { input, output, var } => {

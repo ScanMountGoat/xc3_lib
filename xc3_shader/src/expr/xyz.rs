@@ -98,7 +98,7 @@ pub enum ChannelXyz {
 }
 
 // Cache graph expr -> output expr index to visit nodes only once.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ExprCacheXyz<Op> {
     exprs: IndexSet<OutputExprXyz<Op>>,
     expr_xyz_index: IndexMap<(usize, usize, usize), usize>,
