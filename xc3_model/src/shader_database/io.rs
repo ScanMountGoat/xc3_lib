@@ -669,7 +669,9 @@ impl ShaderDatabaseIndexed {
             Value::Uint(u) => ValueIndexed::Uint(u),
             Value::Float(c) => ValueIndexed::Float(c),
             Value::Bool(b) => ValueIndexed::Bool(b as u8),
-            Value::Parameter(p) => ValueIndexed::Parameter(self.parameter_indexed(p)),
+            Value::Parameter(p) => {
+                ValueIndexed::Parameter(self.parameter_indexed(p, exprs, expr_indices))
+            }
             Value::Texture(t) => ValueIndexed::Texture(TextureIndexed {
                 name: add_string(&mut self.texture_names, t.name),
                 channel: t.channel.into(),
@@ -707,12 +709,23 @@ impl ShaderDatabaseIndexed {
         }
     }
 
-    fn parameter_indexed(&mut self, p: Parameter) -> ParameterIndexed {
+    fn parameter_indexed(
+        &mut self,
+        p: Parameter,
+        exprs: &[OutputExpr],
+        expr_indices: &mut IndexMap<usize, VarInt>,
+    ) -> ParameterIndexed {
         ParameterIndexed {
             name: add_string(&mut self.buffer_names, p.name),
             field: add_string(&mut self.buffer_field_names, p.field),
-            index: OptVarInt(p.index),
-            index2: OptVarInt(p.index2),
+            index: OptVarInt(
+                p.index
+                    .map(|i| self.add_output_expr(i, exprs, expr_indices).0),
+            ),
+            index2: OptVarInt(
+                p.index2
+                    .map(|i| self.add_output_expr(i, exprs, expr_indices).0),
+            ),
             channel: p.channel.into(),
         }
     }
