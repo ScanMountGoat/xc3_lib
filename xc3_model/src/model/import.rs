@@ -795,10 +795,7 @@ fn create_material_animations(anims: &xc3_lib::mxmd::MaterialAnimations) -> Mate
                                     work_value_index: t.work_value_index as usize,
                                     keys: anims
                                         .keys
-                                        .get(
-                                            start_index
-                                                ..start_index + t.key_count as usize,
-                                        )
+                                        .get(start_index..start_index + t.key_count as usize)
                                         .map(|keys| {
                                             keys.iter()
                                                 .map(|k| MaterialAnimKey {

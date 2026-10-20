@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use binrw::{BinRead, BinReaderExt, BinResult, BinWrite, BinWriterExt, NullString, binrw};
+use binrw::{BinRead, BinResult, BinWrite, BinWriterExt, NullString, binrw};
 use ordered_float::OrderedFloat;
 use smol_str::{SmolStr, ToSmolStr};
 use varint_rs::{VarintReader, VarintWriter};
@@ -315,12 +315,12 @@ impl From<Option<crate::shader_database::ChannelXyz>> for ChannelXyz {
 
 impl ShaderDatabaseIndexed {
     pub fn read<R: Read + Seek>(reader: &mut R) -> BinResult<Self> {
-        reader.read_le()
+        Self::read_le(reader)
     }
 
     pub fn from_file<P: AsRef<Path>>(path: P) -> BinResult<Self> {
         let mut reader = Cursor::new(std::fs::read(path)?);
-        reader.read_le()
+        Self::read_le(&mut reader)
     }
 
     pub fn write<W: Write + Seek>(&self, writer: &mut W) -> BinResult<()> {

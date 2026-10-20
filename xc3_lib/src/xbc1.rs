@@ -12,7 +12,7 @@ use std::{
     path::Path,
 };
 
-use binrw::{BinRead, BinReaderExt, BinWrite, NullString};
+use binrw::{BinRead, BinWrite, NullString};
 use flate2::{Compression, bufread::ZlibEncoder};
 use zune_inflate::{DeflateDecoder, DeflateOptions};
 
@@ -190,13 +190,13 @@ where
     for<'a> T: BinRead<Args<'a> = ()>,
 {
     pub fn read<R: Read + Seek>(reader: &mut R) -> binrw::BinResult<Self> {
-        reader.read_le()
+        Self::read_le(reader)
     }
 
     /// Read from `path` using a fully buffered reader for performance.
     pub fn from_file<P: AsRef<Path>>(path: P) -> binrw::BinResult<Self> {
         let mut reader = Cursor::new(std::fs::read(path)?);
-        reader.read_le()
+        Self::read_le(&mut reader)
     }
 
     /// Read from `bytes` using a fully buffered reader for performance.

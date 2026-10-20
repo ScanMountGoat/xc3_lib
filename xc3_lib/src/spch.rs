@@ -13,7 +13,7 @@ use crate::{
     StringOffset32, get_bytes, parse_count32_offset32, parse_offset32_count32, parse_opt_ptr32,
     parse_string_ptr32, xc3_write_binwrite_impl,
 };
-use binrw::{BinRead, BinReaderExt, BinResult, BinWrite, args, binread};
+use binrw::{BinRead, BinResult, BinWrite, args, binread};
 use xc3_write::{Xc3Write, Xc3WriteOffsets};
 
 // TODO: Add example code for extracting shaders.
@@ -361,7 +361,7 @@ impl SlctOffset {
         // Select the bytes first to avoid needing base offsets.
         let bytes = get_bytes(slct_section, self.offset, None)?;
         let mut reader = Cursor::new(bytes);
-        reader.read_le()
+        Slct::read_le(&mut reader)
     }
 }
 
@@ -369,20 +369,20 @@ impl Slct {
     pub fn read_unk_item(&self, unk_section: &[u8]) -> BinResult<UnkItem> {
         let bytes = get_bytes(unk_section, self.unk_item_offset, None)?;
         let mut reader = Cursor::new(bytes);
-        reader.read_le()
+        UnkItem::read_le(&mut reader)
     }
 }
 
 impl ShaderProgram {
     pub fn read_nvsd(&self) -> BinResult<Nvsd> {
         let mut reader = Cursor::new(&self.program_data);
-        reader.read_le()
+        Nvsd::read_le(&mut reader)
     }
 
     // TODO: just for pc?
     pub fn read_nvsp(&self) -> BinResult<Nvsp> {
         let mut reader = Cursor::new(&self.program_data);
-        reader.read_le()
+        Nvsp::read_le(&mut reader)
     }
 }
 
@@ -413,7 +413,7 @@ impl Nvsd {
         reader.seek(SeekFrom::Current(shaders.vertex_unk_item_size as i64))?;
 
         let fragment_unk = if shaders.fragment_unk_item_size > 0 {
-            Some(reader.read_le()?)
+            Some(UnkItem::read_le(reader)?)
         } else {
             None
         };
