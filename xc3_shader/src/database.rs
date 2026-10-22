@@ -22,7 +22,7 @@ use crate::extract::nvsd_glsl_name;
 use crate::graph::{
     BinaryOp, Expr, Graph, UnaryOp,
     glsl::{GlslGraph, merge_vertex_fragment, shader_source_no_extensions},
-    query::{assign_x_recursive, fma_half_half, fma_normalize, query_nodes},
+    query::{fma_half_half, fma_normalize, query_nodes},
 };
 
 mod query;
@@ -337,7 +337,9 @@ impl crate::expr::Operation for Operation {
         op_add_normal(graph, expr)
             .or_else(|| op_calc_normal_map(graph, expr))
             .or_else(|| op_matmul_proj(graph, expr))
+            .or_else(|| op_gm_cal_point_xyz(graph, expr))
             .or_else(|| op_gm_cal_point(graph, expr))
+            .or_else(|| op_gm_cal_vector(graph, expr))
             .or_else(|| op_skin_point_xyzw(graph, expr))
             .or_else(|| op_skin_xyz(graph, expr))
             .or_else(|| op_normalize(graph, expr))
@@ -413,22 +415,10 @@ impl crate::expr::Operation for Operation {
             // TODO: Only check for normal map fma for normal maps?
             expr = new_expr;
         }
-        // TODO: Detect these as operations.
-        // if let Some(new_expr) = attribute_gm_cal_xyz(graph, expr)
-        //     .or_else(|| gm_cal_u_bill_color_attribute_w(graph, expr))
-        // {
-        //     expr = new_expr;
-        // }
 
         if let Some(new_expr) = latte_texture_cube_coords(graph, expr)
-            // TODO: Detect these as operations.
             .or_else(|| fma_normalize(graph, expr))
             .or_else(|| skin_attribute_bitangent(graph, expr))
-        // .or_else(|| u_mdl_view_bitangent_xyz(graph, expr))
-        // .or_else(|| gm_cal_u_bill_attribute_xyzw(graph, expr))
-        // .or_else(|| gm_cal_u_nam_attribute_xyzw(graph, expr))
-        // .or_else(|| gm_cal_u_nam2_attribute_xyzw(graph, expr))
-        // .or_else(|| gm_cal_clip_attribute_xyzw(graph, expr))
         {
             Cow::Owned(new_expr)
         } else {
@@ -444,40 +434,6 @@ impl crate::expr::Operation for Operation {
 
         Cow::Borrowed(expr)
     }
-}
-
-// TODO: Move this to preprocessing
-fn modify_attributes(graph: &Graph, expr: &Expr) -> Expr {
-    // Remove attribute skinning if present, so queries can detect globals like "vNormal.x".
-    // TODO: preserve the space for attributes like clip or view?
-
-    // TODO: Finish converting these into operations.
-    let expr = assign_x_recursive(graph, expr);
-    // if let Some(new_expr) = skin_attribute_xyzw(graph, expr)
-    //     .or_else(|| skin_attribute_xyz(graph, expr))
-    //     .or_else(|| skin_attribute_clip_space_xyzw(graph, expr))
-    //     .or_else(|| u_mdl_clip_attribute_xyzw(graph, expr))
-    //     .or_else(|| u_mdl_view_attribute_xyzw(graph, expr))
-    //     .or_else(|| u_mdl_attribute_xyz(graph, expr))
-    //     .or_else(|| attribute_gm_cal_xyz(graph, expr))
-    //     .or_else(|| gm_cal_u_bill_color_attribute_w(graph, expr))
-    // {
-    //     expr = new_expr;
-    // }
-
-    let mut expr = expr.clone();
-    if let Some(new_expr) = skin_attribute_bitangent(graph, &expr)
-    //     .or_else(|| u_mdl_view_bitangent_xyz(graph, &expr))
-    //     .or_else(|| bitangent_gm_cal_xyz(graph, &expr))
-    //     .or_else(|| gm_cal_u_bill_attribute_xyzw(graph, &expr))
-    //     .or_else(|| gm_cal_u_nam_attribute_xyzw(graph, &expr))
-    //     .or_else(|| gm_cal_u_nam2_attribute_xyzw(graph, &expr))
-    //     .or_else(|| gm_cal_clip_attribute_xyzw(graph, &expr))
-    {
-        expr = new_expr;
-    }
-
-    expr
 }
 
 struct SpchProgram {

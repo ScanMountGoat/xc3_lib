@@ -351,6 +351,12 @@ pub enum Operation {
     MatMulPointInstanceY,
     /// `(instance_transform * vec4(arg0, arg1, arg2, arg3)).z`
     MatMulPointInstanceZ,
+    /// `(instance_transform * vec4(arg0, arg1, arg2, 0.0)).x`
+    MatMulVectorInstanceX,
+    /// `(instance_transform * vec4(arg0, arg1, arg2, 0.0)).y`
+    MatMulVectorInstanceY,
+    /// `(instance_transform * vec4(arg0, arg1, arg2, 0.0)).z`
+    MatMulVectorInstanceZ,
     // TODO: Separate operations for skin point vs vector?
     SkinVectorX,
     SkinVectorY,

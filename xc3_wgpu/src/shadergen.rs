@@ -283,6 +283,9 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
         Operation::MatMulPointInstanceX => write!(wgsl, "{a}{}", arg0?).unwrap(),
         Operation::MatMulPointInstanceY => write!(wgsl, "{a}{}", arg1?).unwrap(),
         Operation::MatMulPointInstanceZ => write!(wgsl, "{a}{}", arg2?).unwrap(),
+        Operation::MatMulVectorInstanceX => write!(wgsl, "{a}{}", arg0?).unwrap(),
+        Operation::MatMulVectorInstanceY => write!(wgsl, "{a}{}", arg1?).unwrap(),
+        Operation::MatMulVectorInstanceZ => write!(wgsl, "{a}{}", arg2?).unwrap(),
         // TODO: Should skinning always be included in the shader?
         Operation::SkinVectorX => write!(wgsl, "{a}{}", arg0?).unwrap(),
         Operation::SkinVectorY => write!(wgsl, "{a}{}", arg1?).unwrap(),
