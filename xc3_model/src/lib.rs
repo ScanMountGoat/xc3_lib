@@ -21,7 +21,7 @@
 //! let root = xc3_model::load_model("ch01011013.wimdo", Some(&database))?;
 //! println!("{}", root.image_textures.len());
 //!
-//! let roots = xc3_model::load_map("ma59a.wismhd", Some(&database))?;
+//! let roots = xc3_model::load_map("ma59a.wismhd", Some(&database), None)?;
 //! println!("{}", roots[0].image_textures.len());
 //! # Ok(())
 //! # }

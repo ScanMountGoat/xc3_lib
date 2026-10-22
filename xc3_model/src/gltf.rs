@@ -22,7 +22,7 @@
 //! gltf.save("tatsu.gltf")?;
 //!
 //! // Maps have multiple roots.
-//! let roots = xc3_model::load_map("xeno3/map/ma59a.wismhd", Some(&database))?;
+//! let roots = xc3_model::load_map("xeno3/map/ma59a.wismhd", Some(&database), None)?;
 //! let shader_textures = ShaderTextures::from_folder("xeno3/monolib/shader");
 //! let gltf = GltfFile::from_map("map", &roots, &shader_textures, false)?;
 //! gltf.save("map.gltf")?;
