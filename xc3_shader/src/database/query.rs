@@ -1505,168 +1505,12 @@ pub fn bitangent_gm_cal_xyz(graph: &Graph, expr: &Expr) -> Option<Expr> {
     })
 }
 
-// TODO: Detect gmProj separately.
-static GM_CAL_CLIP_ATTRIBUTE_XYZW_X: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        temp_3 = vGmCal1.x;
-        temp_4 = result_x;
-        temp_5 = vGmCal2.x;
-        temp_6 = vGmCal3.x;
-        temp_9 = vGmCal3.y;
-        temp_12 = vGmCal1.y;
-        temp_13 = result_y;
-        temp_14 = vGmCal2.y;
-        temp_16 = result_z;
-        temp_17 = vGmCal2.z;
-        temp_20 = vGmCal1.z;
-        temp_22 = vGmCal3.z;
-        temp_23 = temp_3 * temp_4;
-        temp_25 = vGmCal1.w;
-        temp_26 = result_w;
-        temp_27 = vGmCal2.w;
-        temp_28 = vGmCal3.w;
-        temp_33 = temp_4 * temp_6;
-        temp_34 = temp_4 * temp_5;
-        temp_42 = fma(temp_12, temp_13, temp_23);
-        temp_43 = fma(temp_13, temp_9, temp_33);
-        temp_45 = fma(temp_13, temp_14, temp_34);
-        temp_51 = fma(temp_16, temp_17, temp_45);
-        temp_57 = fma(temp_20, temp_16, temp_42);
-        temp_61 = fma(temp_25, temp_26, temp_57);
-        temp_68 = fma(temp_16, temp_22, temp_43);
-        temp_69 = fma(temp_26, temp_27, temp_51);
-        temp_74 = fma(temp_26, temp_28, temp_68);
-        temp_82 = temp_61 * U_Static.gmProj[0].x;
-        temp_89 = fma(temp_69, U_Static.gmProj[0].y, temp_82);
-        temp_95 = fma(temp_74, U_Static.gmProj[0].z, temp_89);
-        temp_105 = temp_95 + U_Static.gmProj[0].w;
-    "};
-    Graph::parse_glsl_query(query).unwrap().simplify()
-});
-
-static GM_CAL_CLIP_ATTRIBUTE_XYZW_Y: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        temp_3 = vGmCal1.x;
-        temp_4 = result_x;
-        temp_5 = vGmCal2.x;
-        temp_6 = vGmCal3.x;
-        temp_9 = vGmCal3.y;
-        temp_12 = vGmCal1.y;
-        temp_13 = result_y;
-        temp_14 = vGmCal2.y;
-        temp_16 = result_z;
-        temp_17 = vGmCal2.z;
-        temp_20 = vGmCal1.z;
-        temp_22 = vGmCal3.z;
-        temp_23 = temp_3 * temp_4;
-        temp_25 = vGmCal1.w;
-        temp_26 = result_w;
-        temp_27 = vGmCal2.w;
-        temp_28 = vGmCal3.w;
-        temp_33 = temp_4 * temp_6;
-        temp_34 = temp_4 * temp_5;
-        temp_42 = fma(temp_12, temp_13, temp_23);
-        temp_43 = fma(temp_13, temp_9, temp_33);
-        temp_45 = fma(temp_13, temp_14, temp_34);
-        temp_51 = fma(temp_16, temp_17, temp_45);
-        temp_57 = fma(temp_20, temp_16, temp_42);
-        temp_61 = fma(temp_25, temp_26, temp_57);
-        temp_68 = fma(temp_16, temp_22, temp_43);
-        temp_69 = fma(temp_26, temp_27, temp_51);
-        temp_73 = temp_61 * U_Static.gmProj[1].x;
-        temp_74 = fma(temp_26, temp_28, temp_68);
-        temp_75 = fma(temp_69, U_Static.gmProj[1].y, temp_73);
-        temp_77 = fma(temp_74, U_Static.gmProj[1].z, temp_75);
-        temp_106 = temp_77 + U_Static.gmProj[1].w;
-    "};
-    Graph::parse_glsl_query(query).unwrap().simplify()
-});
-
-static GM_CAL_CLIP_ATTRIBUTE_XYZW_Z: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        temp_3 = vGmCal1.x;
-        temp_4 = result_x;
-        temp_5 = vGmCal2.x;
-        temp_6 = vGmCal3.x;
-        temp_9 = vGmCal3.y;
-        temp_12 = vGmCal1.y;
-        temp_13 = result_y;
-        temp_14 = vGmCal2.y;
-        temp_16 = result_z;
-        temp_17 = vGmCal2.z;
-        temp_20 = vGmCal1.z;
-        temp_22 = vGmCal3.z;
-        temp_23 = temp_3 * temp_4;
-        temp_25 = vGmCal1.w;
-        temp_26 = result_w;
-        temp_27 = vGmCal2.w;
-        temp_28 = vGmCal3.w;
-        temp_33 = temp_4 * temp_6;
-        temp_34 = temp_4 * temp_5;
-        temp_42 = fma(temp_12, temp_13, temp_23);
-        temp_43 = fma(temp_13, temp_9, temp_33);
-        temp_45 = fma(temp_13, temp_14, temp_34);
-        temp_51 = fma(temp_16, temp_17, temp_45);
-        temp_57 = fma(temp_20, temp_16, temp_42);
-        temp_61 = fma(temp_25, temp_26, temp_57);
-        temp_68 = fma(temp_16, temp_22, temp_43);
-        temp_69 = fma(temp_26, temp_27, temp_51);
-        temp_74 = fma(temp_26, temp_28, temp_68);
-        temp_78 = temp_61 * U_Static.gmProj[2].x;
-        temp_81 = fma(temp_69, U_Static.gmProj[2].y, temp_78);
-        temp_87 = fma(temp_74, U_Static.gmProj[2].z, temp_81);
-        temp_93 = temp_87 + U_Static.gmProj[2].w;
-        temp_100 = 0.0 - U_Static.gCDep.y;
-        temp_101 = temp_93 + temp_100;
-        temp_111 = temp_101 * U_Static.gCDep.z;
-    "};
-    Graph::parse_glsl_query(query).unwrap().simplify()
-});
-
-static GM_CAL_CLIP_ATTRIBUTE_XYZW_W: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        temp_3 = vGmCal1.x;
-        temp_4 = result_x;
-        temp_5 = vGmCal2.x;
-        temp_6 = vGmCal3.x;
-        temp_9 = vGmCal3.y;
-        temp_12 = vGmCal1.y;
-        temp_13 = result_y;
-        temp_14 = vGmCal2.y;
-        temp_16 = result_z;
-        temp_17 = vGmCal2.z;
-        temp_20 = vGmCal1.z;
-        temp_22 = vGmCal3.z;
-        temp_23 = temp_3 * temp_4;
-        temp_25 = vGmCal1.w;
-        temp_26 = result_w;
-        temp_27 = vGmCal2.w;
-        temp_28 = vGmCal3.w;
-        temp_33 = temp_4 * temp_6;
-        temp_34 = temp_4 * temp_5;
-        temp_42 = fma(temp_12, temp_13, temp_23);
-        temp_43 = fma(temp_13, temp_9, temp_33);
-        temp_45 = fma(temp_13, temp_14, temp_34);
-        temp_51 = fma(temp_16, temp_17, temp_45);
-        temp_57 = fma(temp_20, temp_16, temp_42);
-        temp_61 = fma(temp_25, temp_26, temp_57);
-        temp_68 = fma(temp_16, temp_22, temp_43);
-        temp_69 = fma(temp_26, temp_27, temp_51);
-        temp_74 = fma(temp_26, temp_28, temp_68);
-        temp_76 = temp_61 * U_Static.gmProj[3].x;
-        temp_79 = fma(temp_69, U_Static.gmProj[3].y, temp_76);
-        temp_88 = fma(temp_74, U_Static.gmProj[3].z, temp_79);
-        temp_94 = temp_88 + U_Static.gmProj[3].w;
-    "};
-    Graph::parse_glsl_query(query).unwrap().simplify()
-});
-
 static GM_CAL_CLIP_ATTRIBUTE_XYZW: LazyLock<Graph> = LazyLock::new(|| {
     let query = indoc! {"
-        temp_5 = result.x;
-        temp_9 = result.y;
-        temp_13 = result.z;
-        temp_17 = result.w;
+        temp_5 = result_x;
+        temp_9 = result_y;
+        temp_13 = result_z;
+        temp_17 = result_w;
         temp_26 = vGmCal.x;
         temp_27 = vGmCal.y;
         temp_28 = vGmCal.z;
@@ -1679,69 +1523,41 @@ static GM_CAL_CLIP_ATTRIBUTE_XYZW: LazyLock<Graph> = LazyLock::new(|| {
     Graph::parse_glsl_query(query).unwrap().simplify()
 });
 
-pub fn gm_cal_clip_attribute_xyzw<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<Expr> {
-    // TODO: This should match the attribute names exactly to be able to return &Expr?
-    // TODO: Don't assume vPos?
-    query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW)
-        .and_then(|result| {
-            // TODO: Detect names in the query itself to make this simpler.
-            let gm_cal = result.get("vGmCal")?;
-            let pos = result.get("result")?;
-            if let Expr::Global { name, .. } = gm_cal {
-                gm_cal_position(name).or_else(|| {
-                    if let Expr::Global { name, .. } = pos {
-                        gm_cal_position(name)
-                    } else {
-                        None
-                    }
-                })
-            } else {
-                None
-            }
-        })
-        .or_else(|| {
-            query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_X)
-                .map(|_| Expr::Global {
-                    name: "vPos".into(),
-                    channel: Some('x'),
-                })
-                .or_else(|| {
-                    query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_Y).map(|_| Expr::Global {
-                        name: "vPos".into(),
-                        channel: Some('y'),
-                    })
-                })
-                .or_else(|| {
-                    query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_Z).map(|_| Expr::Global {
-                        name: "vPos".into(),
-                        channel: Some('z'),
-                    })
-                })
-                .or_else(|| {
-                    query_nodes(expr, graph, &GM_CAL_CLIP_ATTRIBUTE_XYZW_W).map(|_| Expr::Global {
-                        name: "vPos".into(),
-                        channel: Some('w'),
-                    })
-                })
-        })
-}
+pub fn op_gm_cal_point<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let (op, result) = query_nodes_vars(
+        expr,
+        graph,
+        &GM_CAL_CLIP_ATTRIBUTE_XYZW,
+        &[("vGmCal".into(), "vGmCal1".into())].into(),
+    )
+    .map(|r| (Operation::MatMulPointInstanceX, r))
+    .or_else(|| {
+        query_nodes_vars(
+            expr,
+            graph,
+            &GM_CAL_CLIP_ATTRIBUTE_XYZW,
+            &[("vGmCal".into(), "vGmCal2".into())].into(),
+        )
+        .map(|r| (Operation::MatMulPointInstanceY, r))
+    })
+    .or_else(|| {
+        query_nodes_vars(
+            expr,
+            graph,
+            &GM_CAL_CLIP_ATTRIBUTE_XYZW,
+            &[("vGmCal".into(), "vGmCal3".into())].into(),
+        )
+        .map(|r| (Operation::MatMulPointInstanceZ, r))
+    })?;
 
-fn gm_cal_position(name: &str) -> Option<Expr> {
-    match name {
-        "vGmCal1" => Some(Expr::Global {
-            name: "vPos".into(),
-            channel: Some('x'),
-        }),
-        "vGmCal2" => Some(Expr::Global {
-            name: "vPos".into(),
-            channel: Some('y'),
-        }),
-        "vGmCal3" => Some(Expr::Global {
-            name: "vPos".into(),
-            channel: Some('z'),
-        }),
-        _ => None,
-    }
+    let args = vec![
+        *result.get("result_x")?,
+        *result.get("result_y")?,
+        *result.get("result_z")?,
+        *result.get("result_w")?,
+    ];
+
+    Some((op, args))
 }
 
 // TODO: Detect gmProj separately.
@@ -3441,6 +3257,7 @@ pub fn tex_parallax<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, 
     let expr = assign_x_recursive(graph, expr);
 
     // Some eye shaders use some form of parallax mapping.
+    // TODO: the normals can use the normal map and should be an argument?
     let (op, result) = query_nodes(expr, graph, &TEX_PARALLAX_X)
         .map(|r| (Operation::TexParallaxX, r))
         .or_else(|| {

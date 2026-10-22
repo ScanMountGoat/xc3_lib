@@ -279,6 +279,10 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
             "(camera.projection * vec4({a}{}, {a}{}, {a}{}, 1.0)).w",
             arg0?, arg1?, arg2?
         ).unwrap(),
+        // TODO: should the instance transform always be included in the shader?
+        Operation::MatMulPointInstanceX => write!(wgsl, "{a}{}", arg0?).unwrap(),
+        Operation::MatMulPointInstanceY => write!(wgsl, "{a}{}", arg1?).unwrap(),
+        Operation::MatMulPointInstanceZ => write!(wgsl, "{a}{}", arg2?).unwrap(),
         // TODO: Should skinning always be included in the shader?
         Operation::SkinVectorX => write!(wgsl, "{a}{}", arg0?).unwrap(),
         Operation::SkinVectorY => write!(wgsl, "{a}{}", arg1?).unwrap(),

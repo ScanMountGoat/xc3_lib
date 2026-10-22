@@ -337,6 +337,7 @@ impl crate::expr::Operation for Operation {
         op_add_normal(graph, expr)
             .or_else(|| op_calc_normal_map(graph, expr))
             .or_else(|| op_matmul_proj(graph, expr))
+            .or_else(|| op_gm_cal_point(graph, expr))
             .or_else(|| op_skin_point_xyzw(graph, expr))
             .or_else(|| op_skin_xyz(graph, expr))
             .or_else(|| op_normalize(graph, expr))
