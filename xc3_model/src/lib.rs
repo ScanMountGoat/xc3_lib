@@ -149,6 +149,9 @@ pub struct Models {
     /// The maximum XYZ coordinates of the bounding volume.
     pub min_xyz: Vec3,
 
+    // TODO: better name for preserving gAvaSkin parameter
+    pub unks1_2_3: Option<[f32; 8]>,
+
     // TODO: find a better way to preserve techniques for assigning shader parameters.
     pub techniques: Techniques,
 }

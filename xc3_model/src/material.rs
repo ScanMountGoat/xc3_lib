@@ -747,19 +747,21 @@ fn find_alpha_test_texture_legacy(
 
 // TODO: Some elements get set by values not in the floats array?
 // TODO: How to test this?
+// TODO: create a Materials struct instead?
 fn assign_parameters(
     material: &Material,
     material_animations: Option<&MaterialAnimations>,
+    unks1_2_3: Option<[f32; 8]>,
     techniques: &Techniques,
     current_frame: f32,
 ) -> MaterialParameters {
     let work_values = calculate_work_values(material, material_animations, current_frame);
 
-    // TODO: fill in ava_skin for xcx de
     let mut parameters = MaterialParameters {
         material_color: material.color,
         // TODO: Where do the other gAlInf values come from?
         alpha_info: [1.0, material.alpha_test_ref, 1.0, 1.0],
+        ava_skin: unks1_2_3.map(|v| [v[0], v[1], v[2], v[3]]),
         ..Default::default()
     };
 
@@ -1092,7 +1094,15 @@ impl Material {
     ) -> OutputAssignments {
         self.shader
             .as_ref()
-            .map(|s| output_assignments(s, &self.parameters(models.material_animations.as_ref(), &models.techniques, current_frame)))
+            .map(|s| {
+                let parameters = self.parameters(
+                    models.material_animations.as_ref(),
+                    models.unks1_2_3,
+                    &models.techniques,
+                    current_frame,
+                );
+                output_assignments(s, &parameters)
+            })
             .unwrap_or_else(|| {
                 warn!(
                     "Inferring assignments from texture names and usage types for {:?} due to unrecognized shader",
@@ -1108,13 +1118,21 @@ impl Material {
         if self.flags.separate_mask() { 0 } else { 3 }
     }
 
+    // TODO: take a materials type instead
     pub fn parameters(
         &self,
         material_animations: Option<&MaterialAnimations>,
+        unks1_2_3: Option<[f32; 8]>,
         techniques: &Techniques,
         current_frame: f32,
     ) -> MaterialParameters {
-        assign_parameters(self, material_animations, techniques, current_frame)
+        assign_parameters(
+            self,
+            material_animations,
+            unks1_2_3,
+            techniques,
+            current_frame,
+        )
     }
 }
 

@@ -502,6 +502,7 @@ fn material_u_mate(
     // TODO: these default values aren't always the same?
     let parameters = material.parameters(
         models.material_animations.as_ref(),
+        models.unks1_2_3,
         &models.techniques,
         current_frame,
     );

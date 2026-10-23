@@ -208,6 +208,7 @@ fn load_map_model_group_legacy_inner<S: GetProgramHash>(
         material_animations: None, // TODO: material anims for map models?
         min_xyz: map_models.min_xyz.into(),
         max_xyz: map_models.max_xyz.into(),
+        unks1_2_3: None,
         techniques,
     }
 }
@@ -410,6 +411,7 @@ fn load_prop_model_group_legacy_inner<S: GetProgramHash>(
         material_animations: None, // TODO: material anims for prop models?
         min_xyz: map_models.min_xyz.into(),
         max_xyz: map_models.max_xyz.into(),
+        unks1_2_3: None,
         techniques,
     };
 

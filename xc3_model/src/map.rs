@@ -665,6 +665,7 @@ fn load_prop_model_group(
         material_animations: None, // TODO: material anims for props?
         min_xyz: model_data.models.min_xyz.into(),
         max_xyz: model_data.models.max_xyz.into(),
+        unks1_2_3: None,
         techniques,
     };
 
@@ -858,6 +859,7 @@ fn load_map_model_group(
         material_animations: None, // TODO: material anims for map models?
         min_xyz: model_data.models.min_xyz.into(),
         max_xyz: model_data.models.max_xyz.into(),
+        unks1_2_3: None,
         techniques,
     }
 }
@@ -953,6 +955,7 @@ fn load_foliage_model(
                 material_animations: None, // TODO: material anims for foliage models?
                 min_xyz: model_data.models.min_xyz.into(),
                 max_xyz: model_data.models.max_xyz.into(),
+                unks1_2_3: None,
                 techniques,
             }],
             buffers: vec![buffers],

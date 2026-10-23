@@ -502,6 +502,7 @@ impl Models {
             material_animations: material_animations.map(create_material_animations),
             min_xyz: models.min_xyz.into(),
             max_xyz: models.max_xyz.into(),
+            unks1_2_3: None,
             techniques,
         }
     }
@@ -530,6 +531,7 @@ impl Models {
             material_animations: material_animations.map(create_material_animations),
             min_xyz: models.min_xyz.into(),
             max_xyz: models.max_xyz.into(),
+            unks1_2_3: None,
             techniques,
         }
     }
@@ -545,6 +547,7 @@ impl Models {
     where
         S: GetProgramHash,
     {
+        let unks1_2_3 = materials.unks1_2_3;
         let techniques = crate::Techniques::Legacy(materials.techniques.clone());
         // TODO: Preserve legacy skinning data for eventual export support.
         let (materials, samplers) =
@@ -579,6 +582,7 @@ impl Models {
             material_animations: material_animations.map(create_material_animations),
             max_xyz: models.max_xyz.into(),
             min_xyz: models.min_xyz.into(),
+            unks1_2_3,
             techniques,
         }
     }
