@@ -117,8 +117,14 @@ pub fn create_material(
         name_to_index.entry_index(ALPHA_TEST_TEXTURE.into());
     }
 
-    // TODO: add technique index to log info?
-    let span = span!(Level::ERROR, "material", name = material.name);
+    // TODO: Error if no techniques?
+    let technique = material.techniques.last().unwrap();
+    let span = span!(
+        Level::ERROR,
+        "material",
+        name = material.name,
+        technique = technique.technique_index
+    );
     let wgsl = span.in_scope(|| {
         ShaderWgsl::new(
             &material_assignments,

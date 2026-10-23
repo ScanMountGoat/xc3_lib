@@ -67,7 +67,7 @@ pub struct OutputAssignment {
     pub xyz: Option<usize>,
 }
 
-fn assignment_value(v: &Value, parameters: &MaterialParameters) -> Value {
+fn assignment_value(v: &Value, exprs: &[OutputExpr], parameters: &MaterialParameters) -> Value {
     match v {
         Value::Int(i) => Value::Int(*i),
         Value::Uint(u) => Value::Uint(*u),
@@ -75,7 +75,7 @@ fn assignment_value(v: &Value, parameters: &MaterialParameters) -> Value {
         Value::Parameter(p) => {
             if p.name != "U_Mate" {
                 parameters
-                    .get_parameter(p)
+                    .get_parameter(p, exprs)
                     .map(|f| Value::Float(f.into()))
                     .unwrap_or_else(|| Value::Parameter(p.clone()))
             } else {
@@ -88,13 +88,17 @@ fn assignment_value(v: &Value, parameters: &MaterialParameters) -> Value {
     }
 }
 
-fn assignment_value_xyz(v: &ValueXyz, parameters: &MaterialParameters) -> ValueXyz {
+fn assignment_value_xyz(
+    v: &ValueXyz,
+    exprs: &[OutputExpr],
+    parameters: &MaterialParameters,
+) -> ValueXyz {
     match v {
         ValueXyz::Float(f) => ValueXyz::Float(*f),
         ValueXyz::Parameter(p) => {
             if p.name != "U_Mate" {
                 parameters
-                    .get_parameter_xyz(p)
+                    .get_parameter_xyz(p, exprs)
                     .map(|f| ValueXyz::Float(f.map(Into::into)))
                     .unwrap_or_else(|| ValueXyz::Parameter(p.clone()))
             } else {
@@ -111,16 +115,16 @@ pub(crate) fn output_assignments(
     parameters: &MaterialParameters,
 ) -> OutputAssignments {
     // Use the existing indices to avoid costly caching or recursion.
-    let exprs = shader
+    let exprs: Vec<_> = shader
         .exprs
         .iter()
-        .map(|e| expr_with_parameter_values(parameters, e))
+        .map(|e| expr_with_parameter_values(parameters, &shader.exprs, e))
         .collect();
 
     let exprs_xyz = shader
         .exprs_xyz
         .iter()
-        .map(|e| expr_xyz_with_parameter_values(parameters, e))
+        .map(|e| expr_xyz_with_parameter_values(parameters, &shader.exprs, e))
         .collect();
 
     OutputAssignments {
@@ -128,7 +132,7 @@ pub(crate) fn output_assignments(
         outline_width: shader
             .outline_width
             .as_ref()
-            .map(|d| assignment_value(d, parameters)),
+            .map(|d| assignment_value(d, &exprs, parameters)),
         normal_intensity: shader.normal_intensity,
         val_inf_intensity: shader.val_inf_intensity,
         discard_condition: shader.discard_condition,
@@ -161,9 +165,13 @@ fn output_channel_assignment(
         .copied()
 }
 
-fn expr_with_parameter_values(parameters: &MaterialParameters, expr: &OutputExpr) -> OutputExpr {
+fn expr_with_parameter_values(
+    parameters: &MaterialParameters,
+    exprs: &[OutputExpr],
+    expr: &OutputExpr,
+) -> OutputExpr {
     match expr {
-        OutputExpr::Value(d) => OutputExpr::Value(assignment_value(d, parameters)),
+        OutputExpr::Value(d) => OutputExpr::Value(assignment_value(d, exprs, parameters)),
         OutputExpr::Func { op, args } => OutputExpr::Func {
             op: *op,
             args: args.clone(),
@@ -173,10 +181,11 @@ fn expr_with_parameter_values(parameters: &MaterialParameters, expr: &OutputExpr
 
 fn expr_xyz_with_parameter_values(
     parameters: &MaterialParameters,
+    exprs: &[OutputExpr],
     expr: &OutputExprXyz,
 ) -> OutputExprXyz {
     match expr {
-        OutputExprXyz::Value(d) => OutputExprXyz::Value(assignment_value_xyz(d, parameters)),
+        OutputExprXyz::Value(d) => OutputExprXyz::Value(assignment_value_xyz(d, exprs, parameters)),
         OutputExprXyz::Func { op, args, channel } => OutputExprXyz::Func {
             op: *op,
             args: args.clone(),

@@ -12,7 +12,8 @@ use crate::{
     ImageTexture, MaterialAnimKey, MaterialAnimTrack, MaterialAnimations, Models, Sampler,
     Techniques,
     shader_database::{
-        ChannelXyz, Parameter, ParameterXyz, ProgramHash, ShaderDatabase, ShaderProgram,
+        ChannelXyz, OutputExpr, Parameter, ParameterXyz, ProgramHash, ShaderDatabase,
+        ShaderProgram, Value,
     },
 };
 
@@ -127,33 +128,47 @@ pub struct MaterialParameters {
 
 impl MaterialParameters {
     // TODO: include default values
-    pub fn get_parameter(&self, p: &Parameter) -> Option<f32> {
+    pub fn get_parameter(&self, p: &Parameter, exprs: &[OutputExpr]) -> Option<f32> {
         // TODO: camera parameters like U_Mdl.gmWorldView and U_Mdl.gmWVP?
 
         // TODO: How to handle the case where the input has no channels?
         let c = "xyzw".find(p.channel?).unwrap();
-        let index = p.index.unwrap_or_default();
+
+        let index = if let Some(index) = p.index {
+            // TODO: support non constant indices?
+            let index_expr = exprs.get(index)?;
+            match index_expr {
+                OutputExpr::Value(Value::Int(i)) => (*i).try_into().ok(),
+                OutputExpr::Value(Value::Uint(i)) => Some(*i as usize),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
         let value = match (p.name.as_str(), p.field.as_str()) {
             // U_Mate uniform buffer from material parameters.
             ("U_Mate", "gMatCol") => self.material_color.get(c),
-            ("U_Mate", "gWrkFl4") => self.work_float4.as_ref()?.get(index)?.get(c),
-            ("U_Mate", "gWrkCol") => self.work_color.as_ref()?.get(index)?.get(c),
-            ("U_Mate", "gTexMat") => self.tex_matrix.as_ref()?.get(index)?.get(c),
+            ("U_Mate", "gWrkFl4") => self.work_float4.as_ref()?.get(index?)?.get(c),
+            ("U_Mate", "gWrkCol") => self.work_color.as_ref()?.get(index?)?.get(c),
+            ("U_Mate", "gTexMat") => self.tex_matrix.as_ref()?.get(index?)?.get(c),
             ("U_Mate", "gAlInf") => self.alpha_info.get(c),
             ("U_Mate", "gDpRat") => self
                 .dp_rat
                 .as_ref()?
-                .get(index)
+                .get(index?)
                 .unwrap_or(&[1.0, 1.0, 1.0, 0.0])
                 .get(c),
-            ("U_Mate", "gProjTexMat") => self.projection_tex_matrix.as_ref()?.get(index)?.get(c),
+            ("U_Mate", "gProjTexMat") => self.projection_tex_matrix.as_ref()?.get(index?)?.get(c),
             // U_Static uniform buffer values taken from XC3 in RenderDoc.
             // These appear to be constant across models.
             // TODO: Compare with other games.
             ("U_Static", "gEtcParm") => [37.68019, -0.00031, 1.376, 1.0].get(c),
             ("U_Static", "gCDep") => [-1.0, -0.2, 1.0, 2.2].get(c),
             ("U_Static", "gLightShaft") => [0.0; 4].get(c),
-            ("U_Static", "gDitVal") => [[452.0, 1080.0 / 8.0, 1.0 / 64.0, 64.0]].get(index)?.get(c),
+            ("U_Static", "gDitVal") => [[452.0, 1080.0 / 8.0, 1.0 / 64.0, 64.0]]
+                .get(index?)?
+                .get(c),
             // U_Toon2 uniform buffer values taken from XC3 in RenderDoc.
             // These appear to be constant across models.
             // TODO: Compare with other games.
@@ -163,7 +178,7 @@ impl MaterialParameters {
                 [-0.64923, 0.40759, 0.64216, 0.50],
                 [0.30, 2.00, 0.00, 0.00],
             ]
-            .get(index)?
+            .get(index?)?
             .get(c),
             // Xenoblade X DE
             // TODO: Some materials have no work values but still have values set?
@@ -171,31 +186,31 @@ impl MaterialParameters {
             ("U_Mate", "gMatAmb") => self
                 .material_ambient
                 .as_ref()?
-                .get(index)
+                .get(index?)
                 .unwrap_or(&[1.0; 4])
                 .get(c),
             ("U_Mate", "gMatSpec") => self
                 .material_specular
                 .as_ref()?
-                .get(index)
+                .get(index?)
                 .unwrap_or(&[0.0, 0.0, 0.0, 0.1])
                 .get(c),
-            ("U_Mate", "gDTWrk") => self.dt_work.as_ref()?.get(index)?.get(c),
-            ("U_Mate", "gMdlParm") => self.model_param.as_ref()?.get(index)?.get(c),
+            ("U_Mate", "gDTWrk") => self.dt_work.as_ref()?.get(index?)?.get(c),
+            ("U_Mate", "gMdlParm") => self.model_param.as_ref()?.get(index?)?.get(c),
             ("U_CHR", "gAvaSkin") => self.ava_skin.as_ref()?.get(c),
             // TODO: initialized somewhere else?
             ("U_CHR", "gAvaHair") => [
                 [0.40392, 0.24314, 0.16078, 1.14844],
                 [0.40392, 0.24314, 0.16078, 0.1875],
             ]
-            .get(index)?
+            .get(index?)?
             .get(c),
             // TODO: Is it worth using in game values for these?
-            ("U_Static", "gLgtPreDir") => [[0.0, 0.0, 1.0, 1.0]; 2].get(index)?.get(c),
-            ("U_Static", "gLgtPreCol") => [[1.0; 4]; 2].get(index)?.get(c),
-            ("U_Static", "gNewRimLgtPreDir") => [[0.0, 0.0, 1.0, 1.0]; 2].get(index)?.get(c),
-            ("U_Static", "gNewRimLgtPreCol") => [[1.0; 4]; 2].get(index)?.get(c),
-            ("U_Static", "gLgtPreSpe") => [[1.0; 4]; 2].get(index)?.get(c),
+            ("U_Static", "gLgtPreDir") => [[0.0, 0.0, 1.0, 1.0]; 2].get(index?)?.get(c),
+            ("U_Static", "gLgtPreCol") => [[1.0; 4]; 2].get(index?)?.get(c),
+            ("U_Static", "gNewRimLgtPreDir") => [[0.0, 0.0, 1.0, 1.0]; 2].get(index?)?.get(c),
+            ("U_Static", "gNewRimLgtPreCol") => [[1.0; 4]; 2].get(index?)?.get(c),
+            ("U_Static", "gLgtPreSpe") => [[1.0; 4]; 2].get(index?)?.get(c),
             // U_Fog uniform buffer values taken from XC3 in RenderDoc.
             // TODO: Are these values the same for all games?
             ("U_FOG", "gFogPa") => [
@@ -207,13 +222,13 @@ impl MaterialParameters {
                 [10.00, 0.0001, 0.70, 0.80],
                 [0.10, 0.09524, 0.085, 80.00],
             ]
-            .get(index)?
+            .get(index?)?
             .get(c),
             ("U_FOG", "gHeightFogParam") => [
                 [0.61906, 0.01, 150.00, 0.0003],
                 [0.21764, 0.32504, 0.73611, 0.40],
             ]
-            .get(index)?
+            .get(index?)?
             .get(c),
             _ => None,
         };
@@ -221,18 +236,18 @@ impl MaterialParameters {
         value.copied()
     }
 
-    pub fn get_parameter_xyz(&self, p: &ParameterXyz) -> Option<[f32; 3]> {
+    pub fn get_parameter_xyz(&self, p: &ParameterXyz, exprs: &[OutputExpr]) -> Option<[f32; 3]> {
         match p.channel {
-            Some(ChannelXyz::Xyz) => self.xyz_param_value(p),
-            Some(ChannelXyz::X) => self.xyz_param_channel_value(p, Some('x')),
-            Some(ChannelXyz::Y) => self.xyz_param_channel_value(p, Some('y')),
-            Some(ChannelXyz::Z) => self.xyz_param_channel_value(p, Some('z')),
-            Some(ChannelXyz::W) => self.xyz_param_channel_value(p, Some('w')),
-            None => self.xyz_param_channel_value(p, None),
+            Some(ChannelXyz::Xyz) => self.xyz_param_value(p, exprs),
+            Some(ChannelXyz::X) => self.xyz_param_channel_value(p, exprs, Some('x')),
+            Some(ChannelXyz::Y) => self.xyz_param_channel_value(p, exprs, Some('y')),
+            Some(ChannelXyz::Z) => self.xyz_param_channel_value(p, exprs, Some('z')),
+            Some(ChannelXyz::W) => self.xyz_param_channel_value(p, exprs, Some('w')),
+            None => self.xyz_param_channel_value(p, exprs, None),
         }
     }
 
-    fn xyz_param_value(&self, p: &ParameterXyz) -> Option<[f32; 3]> {
+    fn xyz_param_value(&self, p: &ParameterXyz, exprs: &[OutputExpr]) -> Option<[f32; 3]> {
         let x = Parameter {
             name: p.name.clone(),
             field: p.field.clone(),
@@ -254,10 +269,11 @@ impl MaterialParameters {
             index2: p.index2,
             channel: Some('z'),
         };
+        // Indices are always scalar exprs.
         if let (Some(fx), Some(fy), Some(fz)) = (
-            self.get_parameter(&x),
-            self.get_parameter(&y),
-            self.get_parameter(&z),
+            self.get_parameter(&x, exprs),
+            self.get_parameter(&y, exprs),
+            self.get_parameter(&z, exprs),
         ) {
             Some([fx, fy, fz])
         } else {
@@ -268,15 +284,19 @@ impl MaterialParameters {
     fn xyz_param_channel_value(
         &self,
         p: &crate::shader_database::ParameterXyz,
+        exprs: &[OutputExpr],
         channel: Option<char>,
     ) -> Option<[f32; 3]> {
-        self.get_parameter(&Parameter {
-            name: p.name.clone(),
-            field: p.field.clone(),
-            index: p.index,
-            index2: p.index2,
-            channel,
-        })
+        self.get_parameter(
+            &Parameter {
+                name: p.name.clone(),
+                field: p.field.clone(),
+                index: p.index,
+                index2: p.index2,
+                channel,
+            },
+            exprs,
+        )
         .map(|f| [f; 3])
     }
 }
