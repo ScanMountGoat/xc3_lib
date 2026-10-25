@@ -22,11 +22,13 @@
 use crate::graph::UnaryOp;
 
 use super::{BinaryOp, Expr, Graph};
-use indexmap::IndexMap;
 use indoc::indoc;
 use ordered_float::OrderedFloat;
 use smol_str::SmolStr;
-use std::{collections::BTreeMap, sync::LazyLock};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::LazyLock,
+};
 
 impl Graph {
     /// Queries the last [Node](super::Node) input expression using [query_nodes].
@@ -74,14 +76,17 @@ pub fn query_nodes<'a>(
     // Keep track of corresponding input exprs for global vars in query.
     let mut vars = BTreeMap::new();
 
+    let mut query_matches_input = HashMap::new();
+
     // TODO: Is this the right way to handle multiple query nodes?
-    let is_match = check_exprs(
-        query_graph.nodes.last()?.input,
+    let is_match = check_exprs_inner(
+        &query_graph.exprs[query_graph.nodes.last()?.input],
         input,
         query_graph,
         input_graph,
         &mut vars,
         &BTreeMap::new(),
+        &mut query_matches_input,
     );
 
     is_match.then_some(vars)
@@ -108,206 +113,271 @@ pub fn query_nodes_vars<'a>(
     // Keep track of corresponding input exprs for global vars in query.
     let mut vars = BTreeMap::new();
 
+    let mut query_matches_input = HashMap::new();
+
     // TODO: Is this the right way to handle multiple query nodes?
-    let is_match = check_exprs(
-        query_graph.nodes.last()?.input,
+    let is_match = check_exprs_inner(
+        &query_graph.exprs[query_graph.nodes.last()?.input],
         input,
         query_graph,
         input_graph,
         &mut vars,
         query_var_names,
+        &mut query_matches_input,
     );
 
     is_match.then_some(vars)
 }
 
-fn check_exprs<'a>(
+fn check_exprs<'a, 'b>(
     query: usize,
-    input: &'a Expr,
-    query_graph: &Graph,
-    input_graph: &'a Graph,
-    vars: &mut BTreeMap<SmolStr, &'a Expr>,
+    input: usize,
+    query_graph: &'a Graph,
+    input_graph: &'b Graph,
+    vars: &mut BTreeMap<SmolStr, &'b Expr>,
     query_var_names: &BTreeMap<SmolStr, SmolStr>,
-) -> bool {
-    let mut check = |a, b| check_args(a, b, query_graph, input_graph, vars, query_var_names);
+    query_matches_input: &mut HashMap<(&'a Expr, &'b Expr), bool>,
+) -> bool
+where
+    'b: 'a,
+{
+    check_exprs_inner(
+        &query_graph.exprs[query],
+        &input_graph.exprs[input],
+        query_graph,
+        input_graph,
+        vars,
+        query_var_names,
+        query_matches_input,
+    )
+}
 
-    match (&query_graph.exprs[query], input) {
-        (Expr::Binary(BinaryOp::Sub, a1, b1), Expr::Binary(BinaryOp::Add, a2, b2)) => {
-            // a - b == a + (-b) == a + (0.0 - b)
-            // TODO: Find a way to avoid repetition.
-            match &input_graph.exprs[*b2] {
-                Expr::Unary(UnaryOp::Negate, b2) => check(&[*a1, *b1], &[*a2, *b2]),
-                Expr::Binary(BinaryOp::Sub, z, b2) => {
-                    input_graph.exprs[*z] == Expr::Float(OrderedFloat(0.0))
-                        && check(&[*a1, *b1], &[*a2, *b2])
-                }
-                _ => false,
-            }
-        }
-        (Expr::Binary(BinaryOp::Add, a1, b1), Expr::Binary(BinaryOp::Sub, a2, b2)) => {
-            // a + (-b) == a + (0.0 - b) == a - b
-            match &query_graph.exprs[*b1] {
-                Expr::Unary(UnaryOp::Negate, b1) => check(&[*a1, *b1], &[*a2, *b2]),
-                Expr::Binary(BinaryOp::Sub, z, b1) => {
-                    query_graph.exprs[*z] == Expr::Float(OrderedFloat(0.0))
-                        && check(&[*a1, *b1], &[*a2, *b2])
-                }
-                _ => false,
-            }
-        }
-        (Expr::Unary(op1, a1), Expr::Unary(op2, a2)) => op1 == op2 && check(&[*a1], &[*a2]),
-        (Expr::Binary(op1, a1, b1), Expr::Binary(op2, a2, b2)) => {
-            op1 == op2
-                && if matches!(op1, BinaryOp::Add | BinaryOp::Mul) {
-                    // commutativity
-                    let q1 = &[*a1, *b1];
-                    let q2 = &[*b1, *a1];
-                    let i = &[*a2, *b2];
-                    check(q1, i) || check(q2, i)
-                } else {
-                    check(&[*a1, *b1], &[*a2, *b2])
-                }
-        }
-        (Expr::Ternary(a1, b1, c1), Expr::Ternary(a2, b2, c2)) => {
-            check(&[*a1, *b1, *c1], &[*a2, *b2, *c2])
-        }
-        (
-            Expr::Func {
-                name: name1,
-                args: args1,
-                channel: channel1,
-            },
-            Expr::Func {
-                name: name2,
-                args: args2,
-                channel: channel2,
-            },
-        ) => {
-            name1 == name2
-                && channel1 == channel2
-                && if name1 == "fma" {
-                    // commutativity of the mul part of fma
-                    let q1 = &[args1[0], args1[1], args1[2]];
-                    let q2 = &[args1[1], args1[0], args1[2]];
-                    let i = &[args2[0], args2[1], args2[2]];
-                    check(q1, i) || check(q2, i)
-                } else if name1 == "max" || name1 == "min" {
-                    // The order does not matter for max/min.
-                    let q1 = &[args1[0], args1[1]];
-                    let q2 = &[args1[1], args1[0]];
-                    let i = &[args2[0], args2[1]];
-                    check(q1, i) || check(q2, i)
-                } else {
-                    check(args1, args2)
-                }
-        }
-        (
-            Expr::Node {
-                node_index: n1,
-                channel: c1,
-            },
-            Expr::Node {
-                node_index: n2,
-                channel: c2,
-            },
-        ) => {
-            check_channels(*c1, *c2)
-                && check(
-                    &[query_graph.nodes[*n1].input],
-                    &[input_graph.nodes[*n2].input],
-                )
-        }
-        (
-            Expr::Parameter {
-                name: n1,
-                field: f1,
-                index: i1,
-                index2: i21,
-                channel: c1,
-            },
-            Expr::Parameter {
-                name: n2,
-                field: f2,
-                index: i2,
-                index2: i22,
-                channel: c2,
-            },
-        ) => {
-            // TODO: does it make sense to match buffer and field names?
-            // TODO: store the names in vars?
-            if let Some(expected) = query_var_names.get(n1)
-                && expected != n2
-            {
-                return false;
-            }
+fn check_exprs_inner<'a, 'b>(
+    query: &'a Expr,
+    input: &'b Expr,
+    query_graph: &'a Graph,
+    input_graph: &'b Graph,
+    vars: &mut BTreeMap<SmolStr, &'b Expr>,
+    query_var_names: &BTreeMap<SmolStr, SmolStr>,
+    query_matches_input: &mut HashMap<(&'a Expr, &'b Expr), bool>,
+) -> bool
+where
+    'b: 'a,
+{
+    if let Some(matches) = query_matches_input.get(&(query, input)) {
+        // Use a cache to optimize performance and prevent infinite loops for repeated query vars.
+        *matches
+    } else {
+        let mut check = |a, b| {
+            check_args(
+                a,
+                b,
+                query_graph,
+                input_graph,
+                vars,
+                query_var_names,
+                query_matches_input,
+            )
+        };
 
-            if let Some(f1) = f1
-                && let Some(expected) = query_var_names.get(f1)
-                && Some(expected) != f2.as_ref()
-            {
-                return false;
+        let matches = match (query, input) {
+            (Expr::Binary(BinaryOp::Sub, a1, b1), Expr::Binary(BinaryOp::Add, a2, b2)) => {
+                // a - b == a + (-b) == a + (0.0 - b)
+                // TODO: Find a way to avoid repetition.
+                match &input_graph.exprs[*b2] {
+                    Expr::Unary(UnaryOp::Negate, b2) => check(&[*a1, *b1], &[*a2, *b2]),
+                    Expr::Binary(BinaryOp::Sub, z, b2) => {
+                        input_graph.exprs[*z] == Expr::Float(OrderedFloat(0.0))
+                            && check(&[*a1, *b1], &[*a2, *b2])
+                    }
+                    _ => false,
+                }
             }
-
-            // TODO: find a way to use the closure here.
-            (match (i1, i2) {
-                (Some(i1), Some(i2)) => check_args(
-                    &[*i1],
-                    &[*i2],
-                    query_graph,
-                    input_graph,
-                    vars,
-                    query_var_names,
-                ),
-                (None, None) => true,
-                _ => false,
-            }) && (match (i21, i22) {
-                (Some(i21), Some(i22)) => check_args(
-                    &[*i21],
-                    &[*i22],
-                    query_graph,
-                    input_graph,
-                    vars,
-                    query_var_names,
-                ),
-                (None, None) => true,
-                _ => false,
-            }) && check_channels(*c1, *c2)
-        }
-        (
-            Expr::Global {
-                name: n1,
-                channel: c1,
-            },
-            i,
-        ) => {
-            // Check if a variable in the query matches the expected variable name.
-            // Checking here allows for differentiating cases like a*expected vs expected*a.
-            if let Some(expected) = query_var_names.get(n1)
-                && let Expr::Global {
-                    name: n2,
+            (Expr::Binary(BinaryOp::Add, a1, b1), Expr::Binary(BinaryOp::Sub, a2, b2)) => {
+                // a + (-b) == a + (0.0 - b) == a - b
+                match &query_graph.exprs[*b1] {
+                    Expr::Unary(UnaryOp::Negate, b1) => check(&[*a1, *b1], &[*a2, *b2]),
+                    Expr::Binary(BinaryOp::Sub, z, b1) => {
+                        query_graph.exprs[*z] == Expr::Float(OrderedFloat(0.0))
+                            && check(&[*a1, *b1], &[*a2, *b2])
+                    }
+                    _ => false,
+                }
+            }
+            (Expr::Unary(op1, a1), Expr::Unary(op2, a2)) => op1 == op2 && check(&[*a1], &[*a2]),
+            (Expr::Binary(op1, a1, b1), Expr::Binary(op2, a2, b2)) => {
+                op1 == op2
+                    && if matches!(op1, BinaryOp::Add | BinaryOp::Mul) {
+                        // commutativity
+                        let q1 = &[*a1, *b1];
+                        let q2 = &[*b1, *a1];
+                        let i = &[*a2, *b2];
+                        check(q1, i) || check(q2, i)
+                    } else {
+                        check(&[*a1, *b1], &[*a2, *b2])
+                    }
+            }
+            (Expr::Ternary(a1, b1, c1), Expr::Ternary(a2, b2, c2)) => {
+                check(&[*a1, *b1, *c1], &[*a2, *b2, *c2])
+            }
+            (
+                Expr::Func {
+                    name: name1,
+                    args: args1,
+                    channel: channel1,
+                },
+                Expr::Func {
+                    name: name2,
+                    args: args2,
+                    channel: channel2,
+                },
+            ) => {
+                name1 == name2
+                    && channel1 == channel2
+                    && if name1 == "fma" {
+                        // commutativity of the mul part of fma
+                        let q1 = &[args1[0], args1[1], args1[2]];
+                        let q2 = &[args1[1], args1[0], args1[2]];
+                        let i = &[args2[0], args2[1], args2[2]];
+                        check(q1, i) || check(q2, i)
+                    } else if name1 == "max" || name1 == "min" {
+                        // The order does not matter for max/min.
+                        let q1 = &[args1[0], args1[1]];
+                        let q2 = &[args1[1], args1[0]];
+                        let i = &[args2[0], args2[1]];
+                        check(q1, i) || check(q2, i)
+                    } else {
+                        check(args1, args2)
+                    }
+            }
+            (
+                Expr::Node {
+                    node_index: n1,
+                    channel: c1,
+                },
+                Expr::Node {
+                    node_index: n2,
                     channel: c2,
-                } = i
-                && (expected != n2 || !check_channels(*c1, *c2))
-            {
-                return false;
+                },
+            ) => {
+                check_channels(*c1, *c2)
+                    && check(
+                        &[query_graph.nodes[*n1].input],
+                        &[input_graph.nodes[*n2].input],
+                    )
             }
+            (
+                Expr::Parameter {
+                    name: n1,
+                    field: f1,
+                    index: i1,
+                    index2: i21,
+                    channel: c1,
+                },
+                Expr::Parameter {
+                    name: n2,
+                    field: f2,
+                    index: i2,
+                    index2: i22,
+                    channel: c2,
+                },
+            ) => {
+                // TODO: does it make sense to match buffer and field names?
+                // TODO: store the names in vars?
+                if let Some(expected) = query_var_names.get(n1)
+                    && expected != n2
+                {
+                    return false;
+                }
 
-            // TODO: What happens if the var is already in the map?
-            // TODO: Special case to check name if query and input are both Expr::Global?
-            vars.insert(n1.clone(), i);
+                if let Some(f1) = f1
+                    && let Some(expected) = query_var_names.get(f1)
+                    && Some(expected) != f2.as_ref()
+                {
+                    return false;
+                }
 
-            check_channels(*c1, i.channel())
-        }
-        // TODO: Move this to simplification instead?
-        (Expr::Unary(UnaryOp::Negate, a1), Expr::Binary(BinaryOp::Sub, a2, b2)) => {
-            // 0.0 - x == -x
-            input_graph.exprs[*a2] == Expr::Float(OrderedFloat(0.0)) && check(&[*a1], &[*b2])
-        }
-        (Expr::Binary(BinaryOp::Sub, a1, b1), Expr::Unary(UnaryOp::Negate, a2)) => {
-            // 0.0 - x == -x
-            query_graph.exprs[*a1] == Expr::Float(OrderedFloat(0.0)) && check(&[*b1], &[*a2])
-        }
-        (q, i) => q == i,
+                // TODO: find a way to use the closure here.
+                (match (i1, i2) {
+                    (Some(i1), Some(i2)) => check_args(
+                        &[*i1],
+                        &[*i2],
+                        query_graph,
+                        input_graph,
+                        vars,
+                        query_var_names,
+                        query_matches_input,
+                    ),
+                    (None, None) => true,
+                    _ => false,
+                }) && (match (i21, i22) {
+                    (Some(i21), Some(i22)) => check_args(
+                        &[*i21],
+                        &[*i22],
+                        query_graph,
+                        input_graph,
+                        vars,
+                        query_var_names,
+                        query_matches_input,
+                    ),
+                    (None, None) => true,
+                    _ => false,
+                }) && check_channels(*c1, *c2)
+            }
+            (
+                Expr::Global {
+                    name: n1,
+                    channel: c1,
+                },
+                i,
+            ) => {
+                if let Expr::Global { name: n2, .. } = i {
+                    if let Some(expected) = query_var_names.get(n1) {
+                        // Check if a variable in the query matches the expected variable name.
+                        if expected != n2 {
+                            return false;
+                        }
+                    } else if query_var_names.values().any(|n| n == n2) {
+                        // Expected variable names should only be used for the specified query variables.
+                        // This allows differentiating cases like a*expected vs expected*a.
+                        return false;
+                    }
+                }
+
+                // If a query variable matches more than once, all matches should be equivalent.
+                // fma(a, b, a) should not match fma(0.0, 1.0, 2.0).
+                // fma(a, b, c) should still match fma(1.0, 1.0, 1.0).
+                if let Some(old_expr) = vars.get(n1) {
+                    // TODO: How should this handle channels?
+                    let mut old_expr2 = (*old_expr).clone();
+                    old_expr2.set_channel(None);
+                    let mut i2 = i.clone();
+                    i2.set_channel(None);
+
+                    // TODO: Should this test if the exprs are equivalent instead of strict equality?
+                    // TODO: Does this still need to update the var to point to its deepest assignment?
+                    old_expr2 == i2
+                } else {
+                    // TODO: Should this insert the channel?
+                    vars.insert(n1.clone(), i);
+                    check_channels(*c1, i.channel())
+                }
+            }
+            // TODO: Move this to simplification instead?
+            (Expr::Unary(UnaryOp::Negate, a1), Expr::Binary(BinaryOp::Sub, a2, b2)) => {
+                // 0.0 - x == -x
+                input_graph.exprs[*a2] == Expr::Float(OrderedFloat(0.0)) && check(&[*a1], &[*b2])
+            }
+            (Expr::Binary(BinaryOp::Sub, a1, b1), Expr::Unary(UnaryOp::Negate, a2)) => {
+                // 0.0 - x == -x
+                query_graph.exprs[*a1] == Expr::Float(OrderedFloat(0.0)) && check(&[*b1], &[*a2])
+            }
+            (q, i) => q == i,
+        };
+
+        query_matches_input.insert((query, input), matches);
+
+        matches
     }
 }
 
@@ -316,35 +386,28 @@ fn check_channels(query: Option<char>, input: Option<char>) -> bool {
     query.is_none() || query == input
 }
 
-fn check_args<'a>(
+fn check_args<'a, 'b>(
     query: &[usize],
     input: &[usize],
-    query_graph: &Graph,
-    input_graph: &'a Graph,
-    vars: &mut BTreeMap<SmolStr, &'a Expr>,
+    query_graph: &'a Graph,
+    input_graph: &'b Graph,
+    vars: &mut BTreeMap<SmolStr, &'b Expr>,
     query_var_names: &BTreeMap<SmolStr, SmolStr>,
-) -> bool {
-    // Track values for query variables used in this expr.
-    // fma(a, b, a) should not match fma(0.0, 1.0, 2.0).
-    // fma(a, b, c) should still match fma(1.0, 1.0, 1.0).
-    let mut local_vars = IndexMap::new();
+    query_matches_input: &mut HashMap<(&'a Expr, &'b Expr), bool>,
+) -> bool
+where
+    'b: 'a,
+{
     query.len() == input.len()
         && query.iter().zip(input).all(|(q, i)| {
-            if let Expr::Global { name, .. } = &query_graph.exprs[*q]
-                && let Some(i_prev) = local_vars.insert(name.clone(), i)
-            {
-                // TODO: Should this check equivalent exprs?
-                if i_prev != i {
-                    return false;
-                }
-            }
             check_exprs(
                 *q,
-                &input_graph.exprs[*i],
+                *i,
                 query_graph,
                 input_graph,
                 vars,
                 query_var_names,
+                query_matches_input,
             )
         })
 }
@@ -463,6 +526,7 @@ pub fn fma_normalize(graph: &Graph, expr: &Expr) -> Option<Expr> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use indoc::indoc;
 
     fn query_glsl(graph_glsl: &str, query_glsl: &str) -> Option<BTreeMap<String, Expr>> {
@@ -540,14 +604,14 @@ mod tests {
 
     #[test]
     fn query_min() {
-        assert!(query_glsl("a = min(1.0, GLOBAL.x);", "d = min(b, GLOBAL.x);").is_some());
-        assert!(query_glsl("a = min(GLOBAL.x, 1.0);", "d = min(b, GLOBAL.x);").is_some());
+        assert!(query_glsl("a = min(1.0, GLOBAL);", "d = min(b, GLOBAL);").is_some());
+        assert!(query_glsl("a = min(GLOBAL, 1.0);", "d = min(b, GLOBAL);").is_some());
     }
 
     #[test]
     fn query_max() {
-        assert!(query_glsl("a = max(1.0, GLOBAL.x);", "d = max(b, GLOBAL.x);").is_some());
-        assert!(query_glsl("a = max(GLOBAL.x, 1.0);", "d = max(b, GLOBAL.x);").is_some());
+        assert!(query_glsl("a = max(1.0, GLOBAL);", "d = max(b, GLOBAL);").is_some());
+        assert!(query_glsl("a = max(GLOBAL, 1.0);", "d = max(b, GLOBAL);").is_some());
     }
 
     #[test]
@@ -634,6 +698,64 @@ mod tests {
                 "}
             )
             .is_none()
+        );
+    }
+
+    #[test]
+    fn query_multiple_statements_repeated_vars() {
+        // Test that query vars repeated in multiple statements have the same value.
+        assert!(
+            query_glsl(
+                indoc! {"
+                    temp_97 = 0.25;
+                    temp_110 = 0.0 - temp_97;
+                    temp_115 = fma(temp_110, 0.5, 0.5);
+                "},
+                indoc! {"
+                    neg_a = 0.0 - a;
+                    result = fma(neg_a, ratio, a);
+                "}
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn query_vars_multiple_statements_repeated_vars() {
+        // Test that query vars repeated in multiple statements have the same value.
+        assert!(
+            query_glsl_vars(
+                indoc! {"
+                    temp_3 = vGmCal1.x;
+                    temp_4 = vPos.x;
+                    temp_12 = vGmCal1.y;
+                    temp_13 = vPos.y;
+                    temp_16 = vPos.z;
+                    temp_20 = vGmCal1.z;
+                    temp_23 = temp_3 * temp_4;
+                    temp_25 = vGmCal1.w;
+                    temp_26 = vPos.w;
+                    temp_42 = fma(temp_12, temp_13, temp_23);
+                    temp_57 = fma(temp_20, temp_16, temp_42);
+                    temp_61 = fma(temp_25, temp_26, temp_57);
+                "},
+                indoc! {"
+                    temp_5 = result_x;
+                    temp_9 = result_y;
+                    temp_13 = result_z;
+                    temp_17 = result_w;
+                    temp_26 = vGmCal.x;
+                    temp_27 = vGmCal.y;
+                    temp_28 = vGmCal.z;
+                    temp_29 = vGmCal.w;
+                    temp_75 = temp_5 * temp_26;
+                    temp_80 = fma(temp_9, temp_27, temp_75);
+                    temp_86 = fma(temp_13, temp_28, temp_80);
+                    temp_92 = fma(temp_17, temp_29, temp_86);
+                "},
+                &[("vGmCal", "vGmCal1")],
+            )
+            .is_some()
         );
     }
 
