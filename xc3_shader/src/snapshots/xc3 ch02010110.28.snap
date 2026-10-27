@@ -98,12 +98,16 @@ o1.w = 0.008235293;
 var0 = TexMatrix(vTex0.x, vTex0.y, U_Mate.gTexMat[0].x, U_Mate.gTexMat[0].y, U_Mate.gTexMat[0].z, U_Mate.gTexMat[0].w);
 var1 = TexMatrix(vTex0.x, vTex0.y, U_Mate.gTexMat[1].x, U_Mate.gTexMat[1].y, U_Mate.gTexMat[1].z, U_Mate.gTexMat[1].w);
 var2 = Mix(Texture(s6, vTex0.x, vTex0.y).x, Texture(s7, var0, var1).x, Texture(s1, vTex0.x, vTex0.y).x);
-o2.x = var2;
+var3 = Mix(Texture(s6, vTex0.x, vTex0.y).y, Texture(s7, var0, var1).y, Texture(s1, vTex0.x, vTex0.y).x);
+var4 = NormalMapX(var2, var3);
+o2.x = var4;
 
 var0 = TexMatrix(vTex0.x, vTex0.y, U_Mate.gTexMat[0].x, U_Mate.gTexMat[0].y, U_Mate.gTexMat[0].z, U_Mate.gTexMat[0].w);
 var1 = TexMatrix(vTex0.x, vTex0.y, U_Mate.gTexMat[1].x, U_Mate.gTexMat[1].y, U_Mate.gTexMat[1].z, U_Mate.gTexMat[1].w);
-var2 = Mix(Texture(s6, vTex0.x, vTex0.y).y, Texture(s7, var0, var1).y, Texture(s1, vTex0.x, vTex0.y).x);
-o2.y = var2;
+var2 = Mix(Texture(s6, vTex0.x, vTex0.y).x, Texture(s7, var0, var1).x, Texture(s1, vTex0.x, vTex0.y).x);
+var3 = Mix(Texture(s6, vTex0.x, vTex0.y).y, Texture(s7, var0, var1).y, Texture(s1, vTex0.x, vTex0.y).x);
+var4 = NormalMapY(var2, var3);
+o2.y = var4;
 
 o2.z = Texture(s9, vTex0.x, vTex0.y).z;
 

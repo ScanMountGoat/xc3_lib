@@ -132,12 +132,6 @@ pub struct ShaderProgram {
     /// The parameter multiplied by vertex alpha to determine outline width.
     pub outline_width: Option<Value>,
 
-    /// Index into [exprs](#structfield.exprs) for the normal map intensity.
-    pub normal_intensity: Option<usize>,
-
-    /// Index into [exprs](#structfield.exprs) for the vValInf intensity.
-    pub val_inf_intensity: Option<usize>,
-
     /// Index into [exprs](#structfield.exprs) for the fragment discard condition.
     pub discard_condition: Option<usize>,
 
@@ -268,12 +262,18 @@ pub enum Operation {
     GreaterEqual,
     /// `dot(vec4(arg0, arg1, arg2, arg3), vec4(arg4, arg5, arg6, arg7))`
     Dot4,
-    /// `apply_normal_map(create_normal_map(arg0, arg1), tangent.xyz, bitangent.xyz, normal.xyz).x`
+    /// `apply_normal_map(create_normal_map(arg0, arg1), 1.0, tangent.xyz, bitangent.xyz, normal.xyz).x`
     NormalMapX,
-    /// `apply_normal_map(create_normal_map(arg0, arg1), tangent.xyz, bitangent.xyz, normal.xyz).y`
+    /// `apply_normal_map(create_normal_map(arg0, arg1), 1.0, tangent.xyz, bitangent.xyz, normal.xyz).y`
     NormalMapY,
-    /// `apply_normal_map(create_normal_map(arg0, arg1), tangent.xyz, bitangent.xyz, normal.xyz).z`
+    /// `apply_normal_map(create_normal_map(arg0, arg1), 1.0, tangent.xyz, bitangent.xyz, normal.xyz).z`
     NormalMapZ,
+    /// `apply_normal_map(create_normal_map(arg0, arg1), arg2, tangent.xyz, bitangent.xyz, normal.xyz).x`
+    NormalMapIntensityX,
+    /// `apply_normal_map(create_normal_map(arg0, arg1), arg2, tangent.xyz, bitangent.xyz, normal.xyz).y`
+    NormalMapIntensityY,
+    /// `apply_normal_map(create_normal_map(arg0, arg1), arg2, tangent.xyz, bitangent.xyz, normal.xyz).z`
+    NormalMapIntensityZ,
     /// `monochrome(arg0, arg1, arg2, arg3).x`
     MonochromeX,
     /// `monochrome(arg0, arg1, arg2, arg3).y`
@@ -366,6 +366,12 @@ pub enum Operation {
     SkinPointZ,
     /// `isnan(arg0)`
     IsNaN,
+    /// `apply_val_inf(arg0, arg1, arg2, arg3).x`
+    ValInfIntensityX,
+    /// `apply_val_inf(arg0, arg1, arg2, arg3).y`
+    ValInfIntensityY,
+    /// `apply_val_inf(arg0, arg1, arg2, arg3).z`
+    ValInfIntensityZ,
 }
 
 /// A tree of computations with [Value] for the leaf values.

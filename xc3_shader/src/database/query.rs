@@ -619,220 +619,126 @@ pub fn normal_map_fma<'a>(graph: &'a Graph, nom_work: &'a Expr) -> Option<&'a Ex
     }
 }
 
-// TODO: This can also have the order swapped with tan -> normal -> bitan
-// TODO: better channel detection?
-static CALC_NORMAL_MAP_X: LazyLock<Graph> = LazyLock::new(|| {
+static CALC_NORMAL_MAP_W_INTENSITY: LazyLock<Graph> = LazyLock::new(|| {
+    // normal map with normal.w as normal map intensity.
+    // TODO: Does intensity always use pow(intensity, 0.7)?
+    // TODO: add the normalize code and use this to detect the channel?
     let query = indoc! {"
-        inverse_length_tangent = inversesqrt(tangent_length);
-        normalize_tangent = tangent_x * inverse_length_tangent;
-        result = result_x * normalize_tangent;
-
-        inverse_length_bitangent = inversesqrt(bitangent_length);
-        normalize_bitangent = bitangent_x * inverse_length_bitangent;
-        result = fma(result_y, normalize_bitangent, result);
-
-        inverse_length_normal = inversesqrt(normal_length);
-        normalize_normal = normal_x * inverse_length_normal;
-        result = fma(result_z, normalize_normal, result);
-    "};
-    Graph::parse_glsl_query(query).unwrap().simplify()
-});
-
-static CALC_NORMAL_MAP_Y: LazyLock<Graph> = LazyLock::new(|| {
-    let query = indoc! {"
-        inverse_length_tangent = inversesqrt(tangent_length);
-        normalize_tangent = tangent_y * inverse_length_tangent;
-        result = result_x * normalize_tangent;
-
-        inverse_length_normal = inversesqrt(normal_length);
-        normalize_normal = normal_y * inverse_length_normal;
-        result = fma(result_z, normalize_normal, result);
-
-        inverse_length_bitangent = inversesqrt(bitangent_length);
-        normalize_bitangent = bitangent_y * inverse_length_bitangent;
-        result = fma(result_y, normalize_bitangent, result);
-    "};
-    Graph::parse_glsl_query(query).unwrap().simplify()
-});
-
-pub fn calc_normal_map_x<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
-    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_X)?;
-
-    // TODO: detect TBN vectors to properly differentiate result_xyz
-    Some(result.get("result_x")?)
-}
-
-pub fn calc_normal_map_y<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
-    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_Y)?;
-
-    // TODO: detect TBN vectors to properly differentiate result_xyz
-    Some(result.get("result_y")?)
-}
-
-fn calc_normal_map_w_intensity_query(c: char) -> String {
-    formatdoc! {"
         intensity = intensity;
         intensity = log2(intensity);
         intensity = intensity * 0.7;
         intensity = exp2(intensity);
 
         inverse_length_tangent = inversesqrt(tangent_length);
-        tangent = tangent.{c};
         normalize_tangent = tangent * inverse_length_tangent;
-        result_x = result_x;
         result_x = result_x * normalize_tangent;
         result = result_x * intensity;
 
         inverse_length_normal = inversesqrt(normal_length);
-        normal = normal.{c};
         normalize_normal = normal * inverse_length_normal;
-        result_z = result_z;
         result = fma(result_z, normalize_normal, result);
 
         inverse_length_bitangent = inversesqrt(bitangent_length);
-        bitangent = bitangent.{c};
         normalize_bitangent = bitangent * inverse_length_bitangent;
-        result_y = result_y;
         result_y = normalize_bitangent * result_y;
         result = fma(intensity, result_y, result);
-    "}
-}
-
-static CALC_NORMAL_MAP_W_INTENSITY_X: LazyLock<Graph> = LazyLock::new(|| {
-    // normal.x with normal.w as normal map intensity.
-    // TODO: Does intensity always use pow(intensity, 0.7)?
-    let query = calc_normal_map_w_intensity_query('x');
+    "};
     Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
-static CALC_NORMAL_MAP_W_INTENSITY_Y: LazyLock<Graph> = LazyLock::new(|| {
-    // normal.y with normal.w as normal map intensity.
-    // TODO: Does intensity always use pow(intensity, 0.7)?
-    let query = calc_normal_map_w_intensity_query('y');
-    Graph::parse_glsl_query(&query).unwrap().simplify()
-});
-
-pub fn calc_normal_map_w_intensity_x<'a>(
+pub fn op_calc_normal_map_intensity<'a>(
     graph: &'a Graph,
     expr: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr)> {
-    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_W_INTENSITY_X)?;
-    Some((result.get("result_x")?, result.get("intensity")?))
+) -> Option<(Operation, Vec<&'a Expr>)> {
+    let (normalize_op, normalize_args) = op_normalize(graph, expr)?;
+    let (op, result) = match normalize_op {
+        Operation::NormalizeX => {
+            query_nodes(normalize_args[0], graph, &CALC_NORMAL_MAP_W_INTENSITY)
+                .map(|r| (Operation::NormalMapIntensityX, r))
+        }
+        Operation::NormalizeY => {
+            query_nodes(normalize_args[1], graph, &CALC_NORMAL_MAP_W_INTENSITY)
+                .map(|r| (Operation::NormalMapIntensityY, r))
+        }
+        Operation::NormalizeZ => {
+            query_nodes(normalize_args[2], graph, &CALC_NORMAL_MAP_W_INTENSITY)
+                .map(|r| (Operation::NormalMapIntensityZ, r))
+        }
+        _ => todo!(),
+    }?;
+
+    let x = result.get("result_x")?;
+    let y = result.get("result_y")?;
+    let z = result.get("result_z")?;
+    let intensity = result.get("intensity")?;
+
+    Some((op, vec![x, y, z, intensity]))
 }
 
-pub fn calc_normal_map_w_intensity_y<'a>(
-    graph: &'a Graph,
-    expr: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr)> {
-    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_W_INTENSITY_Y)?;
-    Some((result.get("result_y")?, result.get("intensity")?))
-}
-
-fn calc_normal_map_val_inf_query(c: char) -> String {
+static VAL_INF_XCX: LazyLock<Graph> = LazyLock::new(|| {
     // A fix for mirrored normal map seams used for XCX, XCXDE, and XC3.
     // TODO: is this gram-schmidt process to make bump normal and view(vValInf) orthogonal?
     // TODO: neg_dot_val_inf_normal is multipled by intensity?
     // TODO: intensity is only 1.0 for seams?
     // TODO: is vValInf some sort of seam adjustment?
     // intensity = clamp(1.0 - sqrt(normal.w), 0.0, 1.0)
-    // TODO: should this be its own operation?
-    formatdoc! {"
-        inverse_length_tangent = inversesqrt(tangent_length);
-        tangent = tangent_{c};
-        normalize_tangent = tangent * inverse_length_tangent;
-        result_x = result_x;
-        result = result_x * normalize_tangent;
-
-        inverse_length_normal = inversesqrt(normal_length);
-        normal = normal_{c};
-        normalize_normal = normal * inverse_length_normal;
-        result_z = result_z;
-        result = fma(result_z, normalize_normal, result);
-
-        inverse_length_bitangent = inversesqrt(bitangent_length);
-        bitangent = bitangent_{c};
-        normalize_bitangent = bitangent * inverse_length_bitangent;
-        result_y = result_y;
-        result = fma(result_y, normalize_bitangent, result);
-
+    let query = indoc! {"
         intensity = sqrt(intensity);
         intensity = 0.0 - intensity;
         intensity = intensity + 1.0;
         intensity = clamp(intensity, 0.0, 1.0);
-        dot_val_inf_normal = dot_val_inf_normal * intensity;
-        neg_dot_val_inf_normal = 0.0 - dot_val_inf_normal;
 
-        inverse_length_normal = inversesqrt(normal_length);
-        result = result * inverse_length_normal;
-        result = fma(normalize_val_inf, neg_dot_val_inf_normal, result);
-    "}
-}
+        dot_val_inf_normal = result_x * val_inf_x;
+        dot_val_inf_normal = fma(result_y, val_inf_y, dot_val_inf_normal);
+        dot_val_inf_normal = fma(result_z, val_inf_z, dot_val_inf_normal);
+        dot_val_inf_normal_intensity = dot_val_inf_normal * intensity;
+        neg_dot_val_inf_normal_intensity = 0.0 - dot_val_inf_normal_intensity;
 
-static CALC_NORMAL_MAP_VAL_INF_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
-    let query = calc_normal_map_val_inf_query('x');
+        // inverse_length_normal = inversesqrt(normal_length);
+        // normalize_normal = normal * inverse_length_normal;
+        result = fma(normalize_val_inf, neg_dot_val_inf_normal_intensity, normal);
+    "};
     Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
-static CALC_NORMAL_MAP_VAL_INF_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
-    let query = calc_normal_map_val_inf_query('y');
-    Graph::parse_glsl_query(&query).unwrap().simplify()
-});
+pub fn op_val_inf<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<(Operation, Vec<&'a Expr>)> {
+    let result = query_nodes(expr, graph, &VAL_INF_XCX)?;
+    let nrm = result.get("normal")?;
+    let x = result.get("result_x")?;
+    let y = result.get("result_y")?;
+    let z = result.get("result_z")?;
+    let intensity = result.get("intensity")?;
 
-static CALC_NORMAL_MAP_VAL_INF_XCX_Z: LazyLock<Graph> = LazyLock::new(|| {
-    let query = calc_normal_map_val_inf_query('z');
-    Graph::parse_glsl_query(&query).unwrap().simplify()
-});
+    let operation = if nrm == x {
+        Some(Operation::ValInfIntensityX)
+    } else if nrm == y {
+        Some(Operation::ValInfIntensityY)
+    } else if nrm == z {
+        Some(Operation::ValInfIntensityZ)
+    } else {
+        None
+    }?;
 
-pub fn calc_normal_map_val_inf_x<'a>(
-    graph: &'a Graph,
-    expr: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr)> {
-    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_X)?;
-    Some((result.get("result_x")?, result.get("intensity")?))
+    Some((operation, vec![x, y, z, intensity]))
 }
 
-pub fn calc_normal_map_val_inf_y<'a>(
-    graph: &'a Graph,
-    expr: &'a Expr,
-) -> Option<(&'a Expr, &'a Expr)> {
-    let result = query_nodes(expr, graph, &CALC_NORMAL_MAP_VAL_INF_XCX_Y)?;
-    Some((result.get("result_y")?, result.get("intensity")?))
-}
-
-fn calc_normal_map_xcx_query(c: char) -> String {
-    formatdoc! {"
+static CALC_NORMAL_MAP: LazyLock<Graph> = LazyLock::new(|| {
+    // The order the TBN vectors are applied can vary.
+    // TODO: How to differentiate channels for result_xyz?
+    // TODO: TBN vectors always need to go with a specific normal map channel.
+    let query = indoc! {"
         inverse_length_tangent = inversesqrt(tangent_length);
-        tangent = tangent_{c};
         normalize_tangent = tangent * inverse_length_tangent;
-        result_x = result_x;
         result = result_x * normalize_tangent;
 
         inverse_length_normal = inversesqrt(normal_length);
-        normal = normal_{c};
         normalize_normal = normal * inverse_length_normal;
-        result_z = result_z;
         result = fma(result_z, normalize_normal, result);
 
         inverse_length_bitangent = inversesqrt(bitangent_length);
-        bitangent = bitangent_{c};
         normalize_bitangent = bitangent * inverse_length_bitangent;
-        result_y = result_y;
         result = fma(result_y, normalize_bitangent, result);
-    "}
-}
-
-static CALC_NORMAL_MAP_XCX_X: LazyLock<Graph> = LazyLock::new(|| {
-    let query = calc_normal_map_xcx_query('x');
-    Graph::parse_glsl_query(&query).unwrap().simplify()
-});
-
-static CALC_NORMAL_MAP_XCX_Y: LazyLock<Graph> = LazyLock::new(|| {
-    let query = calc_normal_map_xcx_query('y');
-    Graph::parse_glsl_query(&query).unwrap().simplify()
-});
-
-static CALC_NORMAL_MAP_XCX_Z: LazyLock<Graph> = LazyLock::new(|| {
-    let query = calc_normal_map_xcx_query('z');
+    "};
     Graph::parse_glsl_query(&query).unwrap().simplify()
 });
 
@@ -844,14 +750,11 @@ pub fn op_calc_normal_map<'a>(
     // TODO: Is the normalize op accurate for channel detection or should this check TBN vectors?
     let (normalize_op, normalize_args) = op_normalize(graph, expr)?;
     let (op, result) = match normalize_op {
-        Operation::NormalizeX => query_nodes(normalize_args[0], graph, &CALC_NORMAL_MAP_XCX_X)
-            .or_else(|| query_nodes(normalize_args[0], graph, &CALC_NORMAL_MAP_VAL_INF_XCX_X))
+        Operation::NormalizeX => query_nodes(normalize_args[0], graph, &CALC_NORMAL_MAP)
             .map(|r| (Operation::NormalMapX, r)),
-        Operation::NormalizeY => query_nodes(normalize_args[1], graph, &CALC_NORMAL_MAP_XCX_Y)
-            .or_else(|| query_nodes(normalize_args[1], graph, &CALC_NORMAL_MAP_VAL_INF_XCX_Y))
+        Operation::NormalizeY => query_nodes(normalize_args[1], graph, &CALC_NORMAL_MAP)
             .map(|r| (Operation::NormalMapY, r)),
-        Operation::NormalizeZ => query_nodes(normalize_args[2], graph, &CALC_NORMAL_MAP_XCX_Z)
-            .or_else(|| query_nodes(normalize_args[2], graph, &CALC_NORMAL_MAP_VAL_INF_XCX_Z))
+        Operation::NormalizeZ => query_nodes(normalize_args[2], graph, &CALC_NORMAL_MAP)
             .map(|r| (Operation::NormalMapZ, r)),
         _ => todo!(),
     }?;

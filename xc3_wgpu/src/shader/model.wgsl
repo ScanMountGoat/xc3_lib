@@ -280,11 +280,14 @@ fn vs_outline_main(in0: VertexInput0, in1: VertexInput1, @builtin(instance_index
 }
 
 // Adapted from xeno3/chr/ch/ch11021013.pcsmt, shd00028, getCalcNormalMap.
-fn apply_normal_map(normal_map: vec3<f32>, tangent: vec3<f32>, bitangent: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
-    // Normal mapping is a change of basis using the TBN vectors.
-    let x = normal_map.x;
-    let y = normal_map.y;
+fn apply_normal_map(normal_map: vec3<f32>, intensity: f32, tangent: vec3<f32>, bitangent: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+    // TODO: Is the intensity always using pow(intensity, 0.7)?
+    let normal_intensity = pow(intensity, 0.7);
+    let x = normal_map.x * normal_intensity;
+    let y = normal_map.y * normal_intensity;
     let z = normal_map.z;
+
+    // Normal mapping is a change of basis using the TBN vectors.
     return normalize(tangent * x + bitangent * y + normal * z);
 }
 
@@ -407,6 +410,13 @@ fn monochrome(x: f32, y: f32, z: f32, ratio: f32) -> vec3<f32> {
     return mix(color, vec3(dot(color, vec3(0.01))), ratio);
 }
 
+fn val_inf_intensity(normal: vec3<f32>, val_inf: vec3<f32>, intensity: f32) -> vec3<f32> {
+    // Gram-Schmidt orthogonalization to fix seams for mirrored normal maps.
+    // TODO: figure out how vValInf and vNormal.w are generated.
+    let val_inf_intensity = clamp(1.0 - sqrt(intensity), 0.0, 1.0);
+    return normal - val_inf_intensity * dot(normal, val_inf) * val_inf;
+}
+
 fn fragment_output(in: VertexOutput, front_facing: bool) -> FragmentOutput {
     let tangent = normalize(in.tangent.xyz);
     let vertex_normal = normalize(in.normal.xyz);
@@ -461,18 +471,7 @@ fn fragment_output(in: VertexOutput, front_facing: bool) -> FragmentOutput {
 
     // Not all materials and shaders use normal mapping.
     if assignments[2].has_channels.x != 0u || assignments[2].has_channels.y != 0u {
-        var intensity = 1.0;
-        let ASSIGN_NORMAL_INTENSITY_GENERATED = 0.0;
-        intensity = pow(intensity, 0.7);
-        let normal_map = create_normal_map(g_normal.x, g_normal.y) * vec3(intensity, intensity, 1.0);
-        normal = apply_normal_map(normal_map, tangent, bitangent, vertex_normal);
-
-        // Gram-Schmidt orthogonalization to fix seams for mirrored normal maps.
-        // TODO: figure out how vValInf and vNormal.w are generated.
-        var val_inf_intensity = 1.0;
-        let ASSIGN_VAL_INF_INTENSITY_GENERATED = 0.0;
-        val_inf_intensity = clamp(1.0 - sqrt(val_inf_intensity), 0.0, 1.0);
-        normal = normal - val_inf_intensity * dot(normal, in.val_inf.xyz) * in.val_inf.xyz;
+        normal = g_normal.xyz; // TODO: is this z channel correct?
     }
     let ao = g_normal.z;
 

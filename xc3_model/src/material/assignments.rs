@@ -22,12 +22,6 @@ pub struct OutputAssignments {
     /// The parameter multiplied by vertex alpha to determine outline width.
     pub outline_width: Option<Value>,
 
-    /// Index into [exprs](#structfield.exprs) for the intensity map for normal mapping.
-    pub normal_intensity: Option<usize>,
-
-    /// Index into [exprs](#structfield.exprs) for the intensity for vValInf normal mapping.
-    pub val_inf_intensity: Option<usize>,
-
     /// Index into [exprs](#structfield.exprs) for the fragment discard condition.
     pub discard_condition: Option<usize>,
 
@@ -133,8 +127,6 @@ pub(crate) fn output_assignments(
             .outline_width
             .as_ref()
             .map(|d| assignment_value(d, &exprs, parameters)),
-        normal_intensity: shader.normal_intensity,
-        val_inf_intensity: shader.val_inf_intensity,
         discard_condition: shader.discard_condition,
         exprs,
         exprs_xyz,
@@ -256,8 +248,6 @@ pub(crate) fn infer_assignment_from_textures(
             },
         ],
         outline_width: None,
-        normal_intensity: None,
-        val_inf_intensity: None,
         discard_condition: None,
         exprs: exprs.into_iter().collect(),
         exprs_xyz: exprs_xyz.into_iter().collect(),

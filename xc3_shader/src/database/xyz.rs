@@ -48,6 +48,9 @@ impl OperationXyzChannel for Operation {
             Operation::NormalMapX => None,
             Operation::NormalMapY => None,
             Operation::NormalMapZ => None,
+            Operation::NormalMapIntensityX => None,
+            Operation::NormalMapIntensityY => None,
+            Operation::NormalMapIntensityZ => None,
             Operation::MonochromeX => Some((OperationXyz::Monochrome, Some('x'))),
             Operation::MonochromeY => Some((OperationXyz::Monochrome, Some('y'))),
             Operation::MonochromeZ => Some((OperationXyz::Monochrome, Some('z'))),
@@ -97,6 +100,10 @@ impl OperationXyzChannel for Operation {
             Operation::SkinPointY => None,
             Operation::SkinPointZ => None,
             Operation::IsNaN => None,
+            // TODO: Combined xyz operation?
+            Operation::ValInfIntensityX => None,
+            Operation::ValInfIntensityY => None,
+            Operation::ValInfIntensityZ => None,
         }
     }
 }

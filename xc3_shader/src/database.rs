@@ -59,8 +59,6 @@ pub fn shader_from_glsl(
     };
 
     let mut output_dependencies = IndexMap::default();
-    let mut normal_intensity = None;
-    let mut val_inf_intensity = None;
 
     // Some shaders have up to 8 outputs.
     for i in frag_attributes.output_locations.right_values().copied() {
@@ -80,15 +78,7 @@ pub fn shader_from_glsl(
             let value;
             if i == 2 && (c == 'x' || c == 'y') {
                 // The normals use XY for output index 2 for all games.
-                if let Some((new_value, intensity, inf_intensity)) =
-                    normal_output_expr(&graph, node_index, &mut exprs)
-                {
-                    value = Some(new_value);
-                    normal_intensity = intensity;
-                    val_inf_intensity = inf_intensity;
-                } else {
-                    value = None;
-                }
+                value = normal_output_expr(&graph, node_index, &mut exprs);
             } else if i == 2 && c == 'z' && version == GameVersion::Xcx {
                 // XCX and XCX DE only have 2 components for this G-Buffer texture.
                 value = None
@@ -182,8 +172,6 @@ pub fn shader_from_glsl(
     ShaderProgram {
         output_dependencies,
         outline_width: outline_width.map(xc3_value),
-        normal_intensity,
-        val_inf_intensity,
         discard_condition,
         exprs,
         output_dependencies_xyz,
@@ -281,7 +269,7 @@ fn normal_output_expr(
     frag: &Graph,
     node_index: usize,
     exprs: &mut ExprCache<Operation>,
-) -> Option<(usize, Option<usize>, Option<usize>)> {
+) -> Option<usize> {
     let last_node = frag.nodes.get(node_index)?;
 
     let mut view_normal = &frag.exprs[last_node.input];
@@ -297,36 +285,7 @@ fn normal_output_expr(
         view_normal = new_view_normal;
     }
 
-    // The normal map result is always normalized, so we can infer the channel here.
-    let (op, args) = op_normalize(frag, view_normal)?;
-
-    // nomWork input for getCalcNormalMap in pcmdo shaders.
-    // TODO: Find a cleaner way to detect separate normal map channels.
-    let (nom_work, intensity, val_inf_intensity) = match op {
-        Operation::NormalizeX => calc_normal_map_x(frag, args[0])
-            .map(|n| (n, None, None))
-            .or_else(|| calc_normal_map_val_inf_x(frag, args[0]).map(|(n, i)| (n, None, Some(i))))
-            .or_else(|| {
-                calc_normal_map_w_intensity_x(frag, args[0]).map(|(n, i)| (n, Some(i), None))
-            }),
-        Operation::NormalizeY => calc_normal_map_y(frag, args[1])
-            .map(|n| (n, None, None))
-            .or_else(|| calc_normal_map_val_inf_y(frag, args[1]).map(|(n, i)| (n, None, Some(i))))
-            .or_else(|| {
-                calc_normal_map_w_intensity_y(frag, args[1]).map(|(n, i)| (n, Some(i), None))
-            }),
-        _ => {
-            // TODO: fix normal map detection for XCX WiiU
-            return None;
-        }
-    }?;
-
-    let value = output_expr(nom_work, frag, exprs);
-
-    let intensity = intensity.map(|i| output_expr(i, frag, exprs));
-    let val_inf_intensity = val_inf_intensity.map(|i| output_expr(i, frag, exprs));
-
-    Some((value, intensity, val_inf_intensity))
+    Some(output_expr(view_normal, frag, exprs))
 }
 
 impl crate::expr::Operation for Operation {
@@ -335,7 +294,9 @@ impl crate::expr::Operation for Operation {
         // This results in fewer operations in many cases.
         // TODO: should exp2 should always be part of a pow expression?
         op_add_normal(graph, expr)
+            .or_else(|| op_calc_normal_map_intensity(graph, expr))
             .or_else(|| op_calc_normal_map(graph, expr))
+            .or_else(|| op_val_inf(graph, expr))
             .or_else(|| op_matmul_proj(graph, expr))
             .or_else(|| op_gm_cal_point_xyz(graph, expr))
             .or_else(|| op_gm_cal_point(graph, expr))
@@ -658,18 +619,6 @@ pub fn shader_str(s: &ShaderProgram) -> String {
             arg_inlined_value_inner(v, s, &mut visited)
         )
         .unwrap();
-        writeln!(&mut output).unwrap();
-    }
-    if let Some(i) = s.normal_intensity {
-        let mut visited = IndexSet::default();
-        write_expr_dependencies_recursive(&mut output, s, i, &mut visited);
-        write_assignment(&mut output, s, "normal_intensity", i, &mut visited);
-        writeln!(&mut output).unwrap();
-    }
-    if let Some(i) = s.val_inf_intensity {
-        let mut visited = IndexSet::default();
-        write_expr_dependencies_recursive(&mut output, s, i, &mut visited);
-        write_assignment(&mut output, s, "val_inf_intensity", i, &mut visited);
         writeln!(&mut output).unwrap();
     }
     if let Some(i) = s.discard_condition {

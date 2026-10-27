@@ -210,9 +210,11 @@ o1.z = 0.0;
 
 o1.w = 0.0043137255;
 
-o2.x = Texture(s1, vTex0.x, vTex0.y).x;
+var0 = NormalMapX(Texture(s1, vTex0.x, vTex0.y).x, Texture(s1, vTex0.x, vTex0.y).y);
+o2.x = var0;
 
-o2.y = Texture(s1, vTex0.x, vTex0.y).y;
+var0 = NormalMapY(Texture(s1, vTex0.x, vTex0.y).x, Texture(s1, vTex0.x, vTex0.y).y);
+o2.y = var0;
 
 var0 = Mix(Texture(s2, vTex0.x, vTex0.y).z, U_Mate.gWrkFl4[0].z, U_Mate.gWrkFl4[1].z);
 var1 = Max(vColor.x, vColor.y);

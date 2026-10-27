@@ -91,8 +91,6 @@ struct ShaderProgramIndexed {
     output_dependencies: Vec<(VarInt, VarInt)>,
 
     outline_width: OptVarInt,
-    normal_intensity: OptVarInt,
-    val_inf_intensity: OptVarInt,
     discard_condition: OptVarInt,
 
     #[br(parse_with = parse_vec)]
@@ -406,8 +404,6 @@ impl ShaderDatabaseIndexed {
                 p.outline_width
                     .map(|v| self.add_value(v, &p.exprs, &mut expr_indices).0),
             ),
-            normal_intensity: OptVarInt(p.normal_intensity.map(|i| expr_indices[i].0)),
-            val_inf_intensity: OptVarInt(p.val_inf_intensity.map(|i| expr_indices[i].0)),
             discard_condition: OptVarInt(p.discard_condition.map(|i| expr_indices[i].0)),
             output_dependencies_xyz: p
                 .output_dependencies_xyz
@@ -600,14 +596,6 @@ impl ShaderDatabaseIndexed {
                 .outline_width
                 .0
                 .map(|i| self.value_from_indexed(&self.values[i], &mut exprs, &mut expr_to_index)),
-            normal_intensity: p
-                .normal_intensity
-                .0
-                .map(|i| self.output_expr_from_indexed(i, &mut exprs, &mut expr_to_index)),
-            val_inf_intensity: p
-                .val_inf_intensity
-                .0
-                .map(|i| self.output_expr_from_indexed(i, &mut exprs, &mut expr_to_index)),
             discard_condition: p
                 .discard_condition
                 .0

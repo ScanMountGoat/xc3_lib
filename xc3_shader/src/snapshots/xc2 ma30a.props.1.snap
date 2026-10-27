@@ -103,7 +103,9 @@ var9 = AddNormalY(var6, var7, Texture(s6, vTex0.x, vTex0.y).x, Texture(s6, vTex0
 var10 = Mul(vTex0.x, U_Mate.gWrkFl4[1].x);
 var11 = Mul(vTex0.y, U_Mate.gWrkFl4[1].y);
 var12 = AddNormalX(var8, var9, Texture(s7, var10, var11).x, Texture(s7, var10, var11).y, Texture(s2, vTex0.x, vTex0.y).x);
-o2.x = var12;
+var13 = AddNormalY(var8, var9, Texture(s7, var10, var11).x, Texture(s7, var10, var11).y, Texture(s2, vTex0.x, vTex0.y).x);
+var14 = NormalMapX(var12, var13);
+o2.x = var14;
 
 var0 = Mul(vTex0.x, U_Mate.gWrkFl4[0].z);
 var1 = Mul(vTex0.y, U_Mate.gWrkFl4[0].w);
@@ -117,8 +119,10 @@ var8 = AddNormalX(var6, var7, Texture(s6, vTex0.x, vTex0.y).x, Texture(s6, vTex0
 var9 = AddNormalY(var6, var7, Texture(s6, vTex0.x, vTex0.y).x, Texture(s6, vTex0.x, vTex0.y).y, U_Mate.gWrkFl4[3].x);
 var10 = Mul(vTex0.x, U_Mate.gWrkFl4[1].x);
 var11 = Mul(vTex0.y, U_Mate.gWrkFl4[1].y);
-var12 = AddNormalY(var8, var9, Texture(s7, var10, var11).x, Texture(s7, var10, var11).y, Texture(s2, vTex0.x, vTex0.y).x);
-o2.y = var12;
+var12 = AddNormalX(var8, var9, Texture(s7, var10, var11).x, Texture(s7, var10, var11).y, Texture(s2, vTex0.x, vTex0.y).x);
+var13 = AddNormalY(var8, var9, Texture(s7, var10, var11).x, Texture(s7, var10, var11).y, Texture(s2, vTex0.x, vTex0.y).x);
+var14 = NormalMapY(var12, var13);
+o2.y = var14;
 
 var0 = Max(vColor.x, vColor.y);
 var1 = Max(vColor.z, var0);

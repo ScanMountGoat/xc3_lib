@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Renamed the "tracing" feature for xc3_viewer and xc3_shader to "tracy".
 * Improved accuracy of material assignments for ambient occlusion for Xenoblade Chronicles X Definitive Edition.
 * Improved the model viewport framing for xc3_wgpu_batch.
+* Reworked shader database and material output assignments to represent normal mapping as an operation. This replaces any references to normal map intensity.
 
 ### Fixed
 * Fixed an issue where map models would use the wrong alpha testing texture in some cases.

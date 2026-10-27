@@ -28,8 +28,6 @@ static WGSL_REPLACEMENTS: LazyLock<AhoCorasick> = LazyLock::new(|| {
         "let ASSIGN_VARS = 0.0;",
         "let ALPHA_TEST_DISCARD_GENERATED = 0.0;",
         "let FRAGMENT_DISCARD_GENERATED = 0.0;",
-        "let ASSIGN_NORMAL_INTENSITY_GENERATED = 0.0;",
-        "let ASSIGN_VAL_INF_INTENSITY_GENERATED = 0.0;",
         "let ASSIGN_COLOR_GENERATED = 0.0;",
         "let ASSIGN_ETC_GENERATED = 0.0;",
         "let ASSIGN_NORMAL_GENERATED = 0.0;",
@@ -45,8 +43,6 @@ pub struct ShaderWgsl {
     outputs: Vec<String>,
     alpha_test: String,
     fragment_discard: String,
-    normal_intensity: String,
-    val_inf_intensity: String,
 }
 
 impl ShaderWgsl {
@@ -71,22 +67,10 @@ impl ShaderWgsl {
             .map(generate_discard_wgsl)
             .unwrap_or_default();
 
-        let normal_intensity = output_assignments
-            .normal_intensity
-            .map(generate_normal_intensity_wgsl)
-            .unwrap_or_default();
-
-        let val_inf_intensity = output_assignments
-            .val_inf_intensity
-            .map(generate_normal_intensity_wgsl)
-            .unwrap_or_default();
-
         Self {
             assignments,
             outputs,
             alpha_test,
-            normal_intensity,
-            val_inf_intensity,
             fragment_discard,
         }
     }
@@ -97,8 +81,6 @@ impl ShaderWgsl {
             &self.alpha_test,
             &self.fragment_discard,
             // TODO: Avoid these replace calls?
-            &self.normal_intensity.replace(OUT_VAR, "intensity"),
-            &self.val_inf_intensity.replace(OUT_VAR, "val_inf_intensity"),
             &self.outputs[0].replace(OUT_VAR, "g_color"),
             &self.outputs[1].replace(OUT_VAR, "g_etc_buffer"),
             &self.outputs[2].replace(OUT_VAR, "g_normal"),
@@ -202,16 +184,28 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
             arg0?, arg1?, arg2?, arg3?, arg4?, arg5?, arg6?, arg7?
         ).unwrap(),
         Operation::NormalMapX => write!(wgsl,
-            "apply_normal_map(create_normal_map({a}{}, {a}{}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).x",
+            "apply_normal_map(create_normal_map({a}{}, {a}{}), 1.0, in.tangent.xyz, bitangent.xyz, in.normal.xyz).x",
             arg0?, arg1?
         ).unwrap(),
         Operation::NormalMapY => write!(wgsl,
-            "apply_normal_map(create_normal_map({a}{}, {a}{}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).y",
+            "apply_normal_map(create_normal_map({a}{}, {a}{}), 1.0, in.tangent.xyz, bitangent.xyz, in.normal.xyz).y",
             arg0?, arg1?
         ).unwrap(),
         Operation::NormalMapZ => write!(wgsl,
-            "apply_normal_map(create_normal_map({a}{}, {a}{}), in.tangent.xyz, bitangent.xyz, in.normal.xyz).z",
+            "apply_normal_map(create_normal_map({a}{}, {a}{}), 1.0, in.tangent.xyz, bitangent.xyz, in.normal.xyz).z",
             arg0?, arg1?
+        ).unwrap(),
+        Operation::NormalMapIntensityX => write!(wgsl,
+            "apply_normal_map(create_normal_map({a}{}, {a}{}), {a}{}, in.tangent.xyz, bitangent.xyz, in.normal.xyz).x",
+            arg0?, arg1?, arg2?
+        ).unwrap(),
+        Operation::NormalMapIntensityY => write!(wgsl,
+            "apply_normal_map(create_normal_map({a}{}, {a}{}), {a}{}, in.tangent.xyz, bitangent.xyz, in.normal.xyz).y",
+            arg0?, arg1?, arg2?
+        ).unwrap(),
+        Operation::NormalMapIntensityZ => write!(wgsl,
+            "apply_normal_map(create_normal_map({a}{}, {a}{}), {a}{}, in.tangent.xyz, bitangent.xyz, in.normal.xyz).z",
+            arg0?, arg1?, arg2?
         ).unwrap(),
         Operation::MonochromeX => write!(wgsl,
             "monochrome({a}{}, {a}{}, {a}{}, {a}{}).x",
@@ -294,6 +288,18 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
         Operation::SkinPointY => write!(wgsl, "{a}{}", arg1?).unwrap(),
         Operation::SkinPointZ => write!(wgsl, "{a}{}", arg2?).unwrap(),
         Operation::IsNaN => write!(wgsl, "false").unwrap(), // TODO: does WGSL support isnan?
+        Operation::ValInfIntensityX => write!(wgsl,
+            "val_inf_intensity(vec3({a}{}, {a}{}, {a}{}), in.val_inf.xyz, {a}{}).x",
+            arg0?, arg1?, arg2?, arg3?
+        ).unwrap(),
+        Operation::ValInfIntensityY => write!(wgsl,
+            "val_inf_intensity(vec3({a}{}, {a}{}, {a}{}), in.val_inf.xyz, {a}{}).y",
+            arg0?, arg1?, arg2?, arg3?
+        ).unwrap(),
+        Operation::ValInfIntensityZ => write!(wgsl,
+            "val_inf_intensity(vec3({a}{}, {a}{}, {a}{}), in.val_inf.xyz, {a}{}).z",
+            arg0?, arg1?, arg2?, arg3?
+        ).unwrap(),
     }
     Some(())
 }
@@ -392,10 +398,6 @@ fn generate_outputs_wgsl(assignments: &[OutputAssignment]) -> Vec<String> {
         .collect()
 }
 
-fn generate_normal_intensity_wgsl(intensity: usize) -> String {
-    format!("{OUT_VAR} = {VAR_PREFIX}{intensity};")
-}
-
 fn write_value(
     wgsl: &mut String,
     value: &Value,
@@ -426,6 +428,7 @@ fn write_value(
                 "vColor" => write_attribute(wgsl, "in.vertex_color", channel),
                 "vPos" => write_attribute(wgsl, "in.position", channel),
                 "vNormal" => write_attribute(wgsl, "in.normal", channel),
+                "vValInf" => write_attribute(wgsl, "in.val_inf", channel),
                 "vTan" => write_attribute(wgsl, "in.tangent", channel),
                 "vTex0" => write_attribute(wgsl, "tex0", channel),
                 "vTex1" => write_attribute(wgsl, "tex1", channel),
@@ -692,6 +695,7 @@ fn write_value_xyz(
                 "vColor" => write!(wgsl, "in.vertex_color{c}").unwrap(),
                 "vPos" => write!(wgsl, "in.position{c}").unwrap(),
                 "vNormal" => write!(wgsl, "in.normal{c}").unwrap(),
+                "vValInf" => write!(wgsl, "in.val_inf{c}").unwrap(),
                 "vTan" => write!(wgsl, "in.tangent{c}").unwrap(),
                 "vTex0" => write!(wgsl, "tex0{c}").unwrap(),
                 "vTex1" => write!(wgsl, "tex1{c}").unwrap(),
