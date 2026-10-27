@@ -208,11 +208,20 @@ where
             (Expr::Binary(op1, a1, b1), Expr::Binary(op2, a2, b2)) => {
                 op1 == op2
                     && if matches!(op1, BinaryOp::Add | BinaryOp::Mul) {
-                        // commutativity
+                        // Addition and multiplication are commutative.
                         let q1 = &[*a1, *b1];
                         let q2 = &[*b1, *a1];
                         let i = &[*a2, *b2];
-                        check(q1, i) || check(q2, i)
+                        check_args_commutative(
+                            q1,
+                            q2,
+                            i,
+                            query_graph,
+                            input_graph,
+                            vars,
+                            query_var_names,
+                            query_matches_input,
+                        )
                     } else {
                         check(&[*a1, *b1], &[*a2, *b2])
                     }
@@ -235,17 +244,35 @@ where
                 name1 == name2
                     && channel1 == channel2
                     && if name1 == "fma" {
-                        // commutativity of the mul part of fma
+                        // The multiplication part of fma is commutative.
                         let q1 = &[args1[0], args1[1], args1[2]];
                         let q2 = &[args1[1], args1[0], args1[2]];
                         let i = &[args2[0], args2[1], args2[2]];
-                        check(q1, i) || check(q2, i)
+                        check_args_commutative(
+                            q1,
+                            q2,
+                            i,
+                            query_graph,
+                            input_graph,
+                            vars,
+                            query_var_names,
+                            query_matches_input,
+                        )
                     } else if name1 == "max" || name1 == "min" {
                         // The order does not matter for max/min.
                         let q1 = &[args1[0], args1[1]];
                         let q2 = &[args1[1], args1[0]];
                         let i = &[args2[0], args2[1]];
-                        check(q1, i) || check(q2, i)
+                        check_args_commutative(
+                            q1,
+                            q2,
+                            i,
+                            query_graph,
+                            input_graph,
+                            vars,
+                            query_var_names,
+                            query_matches_input,
+                        )
                     } else {
                         check(args1, args2)
                     }
@@ -379,6 +406,46 @@ where
 
         matches
     }
+}
+
+fn check_args_commutative<'a, 'b>(
+    q1: &[usize],
+    q2: &[usize],
+    i: &[usize],
+    query_graph: &'a Graph,
+    input_graph: &'b Graph,
+    vars: &mut BTreeMap<SmolStr, &'b Expr>,
+    query_var_names: &BTreeMap<SmolStr, SmolStr>,
+    query_matches_input: &mut HashMap<(&'a Expr, &'b Expr), bool>,
+) -> bool
+where
+    'b: 'a,
+{
+    let previous_vars = vars.clone();
+    let mut is_match = check_args(
+        q1,
+        i,
+        query_graph,
+        input_graph,
+        vars,
+        query_var_names,
+        query_matches_input,
+    );
+    if !is_match {
+        // Reset vars if the first check fails.
+        *vars = previous_vars;
+        is_match = check_args(
+            q2,
+            i,
+            query_graph,
+            input_graph,
+            vars,
+            query_var_names,
+            query_matches_input,
+        );
+    }
+
+    is_match
 }
 
 fn check_channels(query: Option<char>, input: Option<char>) -> bool {
@@ -837,6 +904,82 @@ mod tests {
                     a = 4.0;
                     b = a + 3.0;
                     result = fma(b, c, b);
+                "}
+            )
+            .is_some()
+        );
+    }
+
+    #[test]
+    fn query_repeated_args_commutativity() {
+        // Test that variables are reset after checking a*b vs b*a.
+        // The a var in the query matches anything but b does not.
+        assert!(
+            query_glsl(
+                indoc! {"
+                    a = 3.0;
+                    b = 4.0;
+                    result = fma(a, b, 1.0);
+                "},
+                indoc! {"
+                    b = 3.0;
+                    result = fma(a, b, 1.0);
+                "}
+            )
+            .is_some()
+        );
+        assert!(
+            query_glsl(
+                indoc! {"
+                    a = 3.0;
+                    b = 4.0;
+                    result = a + b;
+                "},
+                indoc! {"
+                    b = 3.0;
+                    result = a + b;
+                "}
+            )
+            .is_some()
+        );
+        assert!(
+            query_glsl(
+                indoc! {"
+                    a = 3.0;
+                    b = 4.0;
+                    result = a * b;
+                "},
+                indoc! {"
+                    b = 3.0;
+                    result = a * b;
+                "}
+            )
+            .is_some()
+        );
+        assert!(
+            query_glsl(
+                indoc! {"
+                    a = 3.0;
+                    b = 4.0;
+                    result = max(a, b);
+                "},
+                indoc! {"
+                    b = 3.0;
+                    result = max(a, b);
+                "}
+            )
+            .is_some()
+        );
+        assert!(
+            query_glsl(
+                indoc! {"
+                    a = 3.0;
+                    b = 4.0;
+                    result = min(a, b);
+                "},
+                indoc! {"
+                    b = 3.0;
+                    result = min(a, b);
                 "}
             )
             .is_some()

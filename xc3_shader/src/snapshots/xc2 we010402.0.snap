@@ -357,8 +357,26 @@ var70 = Select(var0, var69, 0);
 var71 = IntBitsToFloat(var70);
 o0.w = var71;
 
-var0 = Mix(Texture(s2, vTex0.x, vTex0.y).y, Texture(s5, vTex0.x, vTex0.y).x, Texture(s5, vTex0.x, vTex0.y).x);
-o1.x = var0;
+var0 = Mul(Texture(s2, vTex0.x, vTex0.y).y, Texture(s2, vTex0.x, vTex0.y).y);
+var1 = Mul(Texture(s2, vTex0.x, vTex0.y).y, var0);
+var2 = Mul(Texture(s2, vTex0.x, vTex0.y).y, var1);
+var3 = Clamp(var2, 0.0, 1.0);
+var4 = Mul(vTex0.x, U_Mate.gWrkFl4.x);
+var5 = Mul(vTex0.y, U_Mate.gWrkFl4.y);
+var6 = Fma(Texture(s2, vTex0.x, vTex0.y).y, -2.0, 2.0);
+var7 = Negate(var6);
+var8 = Fma(Texture(s4, var4, var5).y, var7, var6);
+var9 = Negate(var8);
+var10 = Fma(var3, var9, var3);
+var11 = Mul(Texture(s2, vTex0.x, vTex0.y).y, 2.0);
+var12 = Mul(var11, Texture(s4, var4, var5).y);
+var13 = Negate(var12);
+var14 = Fma(var3, var13, var12);
+var15 = Add(var10, var14);
+var16 = Negate(Texture(s5, vTex0.x, vTex0.y).x);
+var17 = Fma(Texture(s2, vTex0.x, vTex0.y).y, var16, Texture(s2, vTex0.x, vTex0.y).y);
+var18 = Fma(Texture(s5, vTex0.x, vTex0.y).x, var15, var17);
+o1.x = var18;
 
 o1.y = Texture(s2, vTex0.x, vTex0.y).x;
 
