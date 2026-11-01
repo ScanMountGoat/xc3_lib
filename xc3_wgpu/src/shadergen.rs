@@ -1,4 +1,4 @@
-use std::{fmt::Write, sync::LazyLock};
+use std::{collections::BTreeSet, fmt::Write, sync::LazyLock};
 
 use aho_corasick::AhoCorasick;
 use case::CaseExt;
@@ -339,24 +339,30 @@ fn generate_assignments_wgsl(
 ) -> String {
     let mut wgsl = String::new();
 
+    let (used_exprs, used_exprs_xyz) = find_used_exprs(assignments);
+
     // Write variables shared by all outputs.
     // Assume that values appear after values they depend on.
     for (i, expr) in assignments.exprs.iter().enumerate() {
-        write!(wgsl, "let {VAR_PREFIX}{i} = ").unwrap();
-        if write_expr(&mut wgsl, expr, name_to_index).is_none() {
-            // TODO: The default may not be a float?
-            write!(&mut wgsl, "0.0").unwrap();
+        if used_exprs.contains(&i) {
+            write!(wgsl, "let {VAR_PREFIX}{i} = ").unwrap();
+            if write_expr(&mut wgsl, expr, name_to_index).is_none() {
+                // TODO: The default may not be a float?
+                write!(&mut wgsl, "0.0").unwrap();
+            }
+            writeln!(wgsl, ";").unwrap();
         }
-        writeln!(wgsl, ";").unwrap();
     }
 
     // TODO: Share xyz assignments with all channels?
     for (i, expr) in assignments.exprs_xyz.iter().enumerate() {
-        write!(wgsl, "let {VAR_PREFIX_XYZ}{i} = ").unwrap();
-        if write_expr_xyz(&mut wgsl, expr, name_to_index).is_none() {
-            write!(&mut wgsl, "vec3(0.0)").unwrap();
+        if used_exprs_xyz.contains(&i) {
+            write!(wgsl, "let {VAR_PREFIX_XYZ}{i} = ").unwrap();
+            if write_expr_xyz(&mut wgsl, expr, name_to_index).is_none() {
+                write!(&mut wgsl, "vec3(0.0)").unwrap();
+            }
+            writeln!(wgsl, ";").unwrap();
         }
-        writeln!(wgsl, ";").unwrap();
     }
 
     wgsl
@@ -427,6 +433,7 @@ fn write_value(
             match name.as_str() {
                 "vColor" => write_attribute(wgsl, "in.vertex_color", channel),
                 "vPos" => write_attribute(wgsl, "in.position", channel),
+                "vOldPos" => write_attribute(wgsl, "in.position", channel), // TODO: motion vectors?
                 "vNormal" => write_attribute(wgsl, "in.normal", channel),
                 "vValInf" => write_attribute(wgsl, "in.val_inf", channel),
                 "vTan" => write_attribute(wgsl, "in.tangent", channel),
@@ -694,6 +701,7 @@ fn write_value_xyz(
             match a.name.as_str() {
                 "vColor" => write!(wgsl, "in.vertex_color{c}").unwrap(),
                 "vPos" => write!(wgsl, "in.position{c}").unwrap(),
+                "vOldPos" => write!(wgsl, "in.position{c}").unwrap(), // TODO: motion vectors?
                 "vNormal" => write!(wgsl, "in.normal{c}").unwrap(),
                 "vValInf" => write!(wgsl, "in.val_inf{c}").unwrap(),
                 "vTan" => write!(wgsl, "in.tangent{c}").unwrap(),
@@ -757,4 +765,105 @@ fn channel_xyz_wgsl(c: Option<ChannelXyz>) -> &'static str {
         ChannelXyz::W => ".www",
     })
     .unwrap_or_default()
+}
+
+fn find_used_exprs(assignments: &OutputAssignments) -> (BTreeSet<usize>, BTreeSet<usize>) {
+    let mut used_exprs = BTreeSet::new();
+    let mut used_exprs_xyz = BTreeSet::new();
+
+    for (i, assignment) in assignments.output_assignments.iter().enumerate() {
+        if i != 3 && i != 4 {
+            if let Some(i) = assignment.xyz {
+                visit_exprs_xyz(
+                    i,
+                    &assignments.exprs,
+                    &assignments.exprs_xyz,
+                    &mut used_exprs,
+                    &mut used_exprs_xyz,
+                );
+            } else {
+                if let Some(i) = assignment.x {
+                    visit_exprs(i, &assignments.exprs, &mut used_exprs);
+                }
+                if let Some(i) = assignment.y {
+                    visit_exprs(i, &assignments.exprs, &mut used_exprs);
+                }
+                if let Some(i) = assignment.z {
+                    visit_exprs(i, &assignments.exprs, &mut used_exprs);
+                }
+            }
+
+            if let Some(i) = assignment.w {
+                visit_exprs(i, &assignments.exprs, &mut used_exprs);
+            }
+        }
+    }
+
+    if let Some(i) = assignments.discard_condition {
+        visit_exprs(i, &assignments.exprs, &mut used_exprs);
+    }
+
+    (used_exprs, used_exprs_xyz)
+}
+
+fn visit_exprs(i: usize, exprs: &[OutputExpr], visited: &mut BTreeSet<usize>) {
+    if visited.insert(i) {
+        match &exprs[i] {
+            OutputExpr::Value(v) => match v {
+                Value::Texture(t) => {
+                    for arg in &t.texcoords {
+                        visit_exprs(*arg, exprs, visited);
+                    }
+                }
+                Value::Parameter(p) => {
+                    if let Some(i) = p.index {
+                        visit_exprs(i, exprs, visited);
+                    }
+                    if let Some(i) = p.index2 {
+                        visit_exprs(i, exprs, visited);
+                    }
+                }
+                _ => (),
+            },
+            OutputExpr::Func { args, .. } => {
+                for arg in args {
+                    visit_exprs(*arg, exprs, visited);
+                }
+            }
+        }
+    }
+}
+
+fn visit_exprs_xyz(
+    xyz: usize,
+    exprs: &[OutputExpr],
+    exprs_xyz: &[OutputExprXyz],
+    visited: &mut BTreeSet<usize>,
+    visited_xyz: &mut BTreeSet<usize>,
+) {
+    if visited_xyz.insert(xyz) {
+        match &exprs_xyz[xyz] {
+            OutputExprXyz::Value(v) => match v {
+                ValueXyz::Texture(t) => {
+                    for arg in &t.texcoords {
+                        visit_exprs(*arg, exprs, visited);
+                    }
+                }
+                ValueXyz::Parameter(p) => {
+                    if let Some(i) = p.index {
+                        visit_exprs(i, exprs, visited);
+                    }
+                    if let Some(i) = p.index2 {
+                        visit_exprs(i, exprs, visited);
+                    }
+                }
+                _ => (),
+            },
+            OutputExprXyz::Func { args, .. } => {
+                for arg in args {
+                    visit_exprs_xyz(*arg, exprs, exprs_xyz, visited, visited_xyz);
+                }
+            }
+        }
+    }
 }
