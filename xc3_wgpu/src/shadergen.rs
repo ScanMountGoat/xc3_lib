@@ -411,21 +411,29 @@ fn write_value(
 ) -> Option<()> {
     match value {
         Value::Texture(t) => {
-            let i = name_to_index.entry_index(t.name.clone());
+            match t.name.as_str() {
+                "texCol" | "texEtc" | "texNom" | "texDep" | "texSpecular" => write_texture(wgsl, t),
+                _ => {
+                    let i = name_to_index.entry_index(t.name.clone());
 
-            if i < TEXTURE_SAMPLER_COUNT as usize {
-                // TODO: Support cube maps.
-                if t.texcoords.len() == 3 {
-                    write!(wgsl, "textureSample(textures_d3[{i}], samplers[{i}], ").unwrap();
-                } else {
-                    write!(wgsl, "textureSample(textures[{i}], samplers[{i}], ").unwrap();
+                    if i < TEXTURE_SAMPLER_COUNT as usize {
+                        // TODO: Support cube maps.
+                        if t.texcoords.len() == 3 {
+                            write!(wgsl, "textureSample(textures_d3[{i}], samplers[{i}], ")
+                                .unwrap();
+                        } else {
+                            write!(wgsl, "textureSample(textures[{i}], samplers[{i}], ").unwrap();
+                        }
+                        write_texture_coordinates(wgsl, &t.texcoords);
+                        write!(wgsl, ")").unwrap();
+                        write_channel(wgsl, t.channel);
+                    } else {
+                        error!(
+                            "Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}"
+                        );
+                        return None;
+                    }
                 }
-                write_texture_coordinates(wgsl, &t.texcoords);
-                write!(wgsl, ")").unwrap();
-                write_channel(wgsl, t.channel);
-            } else {
-                error!("Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}");
-                return None;
             }
         }
         Value::Attribute(Attribute { name, channel }) => {
@@ -518,6 +526,13 @@ fn write_value(
         Value::Bool(b) => write!(wgsl, "{b}").unwrap(),
     }
     Some(())
+}
+
+fn write_texture(wgsl: &mut String, t: &xc3_model::shader_database::Texture) {
+    write!(wgsl, "textureSample({}, tex_sampler, ", t.name.to_snake()).unwrap();
+    write_texture_coordinates(wgsl, &t.texcoords);
+    write!(wgsl, ")").unwrap();
+    write_channel(wgsl, t.channel);
 }
 
 fn write_parameter(
@@ -677,22 +692,32 @@ fn write_value_xyz(
 ) -> Option<()> {
     match value {
         ValueXyz::Texture(t) => {
-            let i = name_to_index.entry_index(t.name.clone());
-
-            if i < TEXTURE_SAMPLER_COUNT as usize {
-                let channels = channel_xyz_wgsl(t.channel);
-                // TODO: Support cube maps.
-                if t.texcoords.len() == 3 {
-                    write!(wgsl, "textureSample(textures_d3[{i}], samplers[{i}], ").unwrap();
-                } else {
-                    write!(wgsl, "textureSample(textures[{i}], samplers[{i}], ").unwrap();
+            match t.name.as_str() {
+                "texCol" | "texEtc" | "texNom" | "texDep" | "texSpecular" => {
+                    write_texture_xyz(wgsl, t)
                 }
-                write_texture_coordinates(wgsl, &t.texcoords);
-                write!(wgsl, "){channels}").unwrap();
-                Some(())
-            } else {
-                error!("Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}");
-                None
+                _ => {
+                    let i = name_to_index.entry_index(t.name.clone());
+
+                    if i < TEXTURE_SAMPLER_COUNT as usize {
+                        let channels = channel_xyz_wgsl(t.channel);
+                        // TODO: Support cube maps.
+                        if t.texcoords.len() == 3 {
+                            write!(wgsl, "textureSample(textures_d3[{i}], samplers[{i}], ")
+                                .unwrap();
+                        } else {
+                            write!(wgsl, "textureSample(textures[{i}], samplers[{i}], ").unwrap();
+                        }
+                        write_texture_coordinates(wgsl, &t.texcoords);
+                        write!(wgsl, "){channels}").unwrap();
+                        Some(())
+                    } else {
+                        error!(
+                            "Sampler index {i} exceeds supported max of {TEXTURE_SAMPLER_COUNT}"
+                        );
+                        None
+                    }
+                }
             }
         }
         ValueXyz::Attribute(a) => {
@@ -754,6 +779,14 @@ fn write_value_xyz(
             }
         }
     }
+}
+
+fn write_texture_xyz(wgsl: &mut String, t: &xc3_model::shader_database::TextureXyz) -> Option<()> {
+    let channels = channel_xyz_wgsl(t.channel);
+    write!(wgsl, "textureSample({}, tex_sampler, ", t.name.to_snake()).unwrap();
+    write_texture_coordinates(wgsl, &t.texcoords);
+    write!(wgsl, "){channels}").unwrap();
+    Some(())
 }
 
 fn channel_xyz_wgsl(c: Option<ChannelXyz>) -> &'static str {

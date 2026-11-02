@@ -4,6 +4,25 @@ enable wgpu_binding_array;
 @group(0) @binding(0)
 var<uniform> camera: super::camera::Camera;
 
+// Some passes write to G-buffer textures.
+@group(0) @binding(1)
+var tex_sampler: sampler;
+
+@group(0) @binding(2)
+var tex_col: texture_2d<f32>;
+
+@group(0) @binding(3)
+var tex_etc: texture_2d<f32>;
+
+@group(0) @binding(4)
+var tex_nom: texture_2d<f32>;
+
+@group(0) @binding(5)
+var tex_dep: texture_2d<f32>;
+
+@group(0) @binding(6)
+var tex_specular: texture_2d<f32>;
+
 // PerGroup values for ModelGroup.
 struct PerGroup {
     // TODO: Should this be with the model?
@@ -441,6 +460,11 @@ fn fragment_output(in: VertexOutput, front_facing: bool) -> FragmentOutput {
     _unused = textureSample(textures[0], alpha_test_sampler, vec2(0.0));
     _unused = camera.projection[0];
     _unused = u_mate.g_mat_col[0];
+    _unused = textureSample(tex_col, tex_sampler, vec2(0.0));
+    _unused = textureSample(tex_etc, tex_sampler, vec2(0.0));
+    _unused = textureSample(tex_nom, tex_sampler, vec2(0.0));
+    _unused = textureSample(tex_dep, tex_sampler, vec2(0.0));
+    _unused = textureSample(tex_specular, tex_sampler, vec2(0.0));
     let REMOVE_END = 0.0;
 
     // The layout of G-Buffer textures is mostly fixed but assignments are not.

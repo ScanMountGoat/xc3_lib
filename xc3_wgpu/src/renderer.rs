@@ -99,6 +99,12 @@ struct Textures {
     snn_filter_bind_group0: crate::shader::snn_filter::bind_groups::BindGroup0,
     blit_deferred_bind_group: crate::shader::blit::bind_groups::BindGroup0,
     blit_hair_bind_group: crate::shader::blit::bind_groups::BindGroup0,
+    // G-buffer texture copies to enable read/write in same pass.
+    tex_col: wgpu::TextureView,
+    tex_etc: wgpu::TextureView,
+    tex_nom: wgpu::TextureView,
+    tex_dep: wgpu::TextureView,
+    tex_specular: wgpu::TextureView,
 }
 
 impl Textures {
@@ -128,6 +134,13 @@ impl Textures {
         let blit_hair_bind_group = create_blit_bindgroup(device, &snn_filter_output);
         let blit_deferred_bind_group = create_blit_bindgroup(device, &deferred_output);
 
+        let tex_col = create_texture(device, width, height, "texCol", GBUFFER_COLOR_FORMAT);
+        let tex_etc = create_texture(device, width, height, "texEtc", GBUFFER_COLOR_FORMAT);
+        let tex_nom = create_texture(device, width, height, "texNom", GBUFFER_NORMAL_FORMAT);
+        let tex_dep = create_texture(device, width, height, "texDep", GBUFFER_COLOR_FORMAT);
+        let tex_specular =
+            create_texture(device, width, height, "texSpecular", GBUFFER_COLOR_FORMAT);
+
         Self {
             depth_stencil,
             mat_id_depth: mat_id_depth_view,
@@ -139,6 +152,11 @@ impl Textures {
             snn_filter_bind_group0,
             blit_hair_bind_group,
             blit_deferred_bind_group,
+            tex_col,
+            tex_etc,
+            tex_nom,
+            tex_dep,
+            tex_specular,
         }
     }
 }
@@ -193,13 +211,6 @@ impl Renderer {
                 view_projection: Mat4::IDENTITY,
                 position: Vec4::ZERO,
                 resolution: Vec2::ONE,
-            },
-        );
-
-        let model_bind_group0 = crate::shader::model::bind_groups::BindGroup0::from_bindings(
-            device,
-            crate::shader::model::bind_groups::BindGroupLayout0 {
-                camera: camera_buffer.as_entire_buffer_binding(),
             },
         );
 
@@ -318,6 +329,8 @@ impl Renderer {
 
         let collisions_pipeline = collision_pipeline(device, surface_format, "Collisions Pipeline");
 
+        let model_bind_group0 = per_scene_bind_group(device, &camera_buffer, &textures);
+
         Self {
             camera_buffer,
             camera,
@@ -359,9 +372,17 @@ impl Renderer {
         // TODO: changing the texture for output5 requires a new render pass?
         // TODO: does the in game rendering group these in any meaningful way?
         self.opaque_pass(encoder, models, options.models_index, options.model_index);
+
+        // wgpu doesn't support reading and writing to the same texture in a single pass.
+        // Copy the previous color attachments to separate textures instead.
+        self.copy_gbuffer_textures(encoder);
         self.alpha1_pass(encoder, models, options.models_index, options.model_index);
+
+        self.copy_gbuffer_textures(encoder);
         self.alpha2_pass(encoder, models, options.models_index, options.model_index);
+
         self.unbranch_to_depth_pass(encoder);
+
         if self.render_mode == RenderMode::Shaded {
             self.deferred_pass(encoder);
             // TODO: pass for technique type unk5?
@@ -375,6 +396,34 @@ impl Renderer {
             self.deferred_debug_pass(encoder);
         }
         self.final_pass(encoder, output_view, models, collisions, options);
+    }
+
+    fn copy_gbuffer_textures(&self, encoder: &mut wgpu::CommandEncoder) {
+        copy_texture(
+            encoder,
+            &self.textures.gbuffer.color,
+            &self.textures.tex_col,
+        );
+        copy_texture(
+            encoder,
+            &self.textures.gbuffer.etc_buffer,
+            &self.textures.tex_etc,
+        );
+        copy_texture(
+            encoder,
+            &self.textures.gbuffer.normal,
+            &self.textures.tex_nom,
+        );
+        copy_texture(
+            encoder,
+            &self.textures.gbuffer.depth,
+            &self.textures.tex_dep,
+        );
+        copy_texture(
+            encoder,
+            &self.textures.gbuffer.spec_color,
+            &self.textures.tex_specular,
+        );
     }
 
     pub fn update_camera(&mut self, queue: &wgpu::Queue, camera_data: &CameraData) {
@@ -395,6 +444,7 @@ impl Renderer {
     pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32) {
         // Update each resource that depends on window size.
         self.textures = Textures::new(device, width, height);
+        self.model_bind_group0 = per_scene_bind_group(device, &self.camera_buffer, &self.textures);
     }
 
     pub fn update_debug_settings(
@@ -1064,6 +1114,27 @@ impl Renderer {
     }
 }
 
+fn per_scene_bind_group(
+    device: &wgpu::Device,
+    camera_buffer: &wgpu::Buffer,
+    textures: &Textures,
+) -> crate::shader::model::bind_groups::BindGroup0 {
+    let tex_sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
+
+    crate::shader::model::bind_groups::BindGroup0::from_bindings(
+        device,
+        crate::shader::model::bind_groups::BindGroupLayout0 {
+            camera: camera_buffer.as_entire_buffer_binding(),
+            tex_sampler: &tex_sampler,
+            tex_col: &textures.tex_col,
+            tex_etc: &textures.tex_etc,
+            tex_nom: &textures.tex_nom,
+            tex_dep: &textures.tex_dep,
+            tex_specular: &textures.tex_specular,
+        },
+    )
+}
+
 fn create_unbranch_to_depth_bindgroup(
     device: &wgpu::Device,
     gbuffer: &GBuffer,
@@ -1158,7 +1229,10 @@ fn create_texture(
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_SRC
+            | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
 
@@ -1499,4 +1573,31 @@ pub fn default_toon_grad(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Te
         wgpu::util::TextureDataOrder::LayerMajor,
         &[255u8; 4 * 4 * 4],
     )
+}
+
+fn copy_texture(
+    encoder: &mut wgpu::CommandEncoder,
+    source: &wgpu::TextureView,
+    destination: &wgpu::TextureView,
+) {
+    // Assume source and destination have the same size.
+    encoder.copy_texture_to_texture(
+        wgpu::TexelCopyTextureInfo {
+            texture: source.texture(),
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::TexelCopyTextureInfo {
+            texture: destination.texture(),
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::Extent3d {
+            width: destination.texture().width(),
+            height: destination.texture().height(),
+            depth_or_array_layers: 1,
+        },
+    );
 }

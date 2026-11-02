@@ -1481,6 +1481,7 @@ pub enum MeshRenderPass {
     Unk2 = 2,
     Unk4 = 4, // TODO: xc1 maps?
     /// The alpha pass immediately after [MeshRenderPass::Unk0] without depth writes.
+    // TODO: this sometimes does have depth writes?
     Unk8 = 8,
     // TODO: xcxde maps
     Unk12 = 12,
