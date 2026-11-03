@@ -371,7 +371,9 @@ impl crate::expr::Operation for Operation {
         // Simplify any expressions that would interfere with queries.
         let mut expr = expr;
         // TODO: Preserve the normal flip for double-sided lighting.
-        if let Some(new_expr) = normal_map_fma(graph, expr).or_else(|| flip_backfacing(graph, expr))
+        if let Some(new_expr) = normal_map_fma(graph, expr)
+            .or_else(|| flip_backfacing(graph, expr))
+            .or_else(|| morph_normal_remap(graph, expr))
         {
             // TODO: Only check for normal map fma for normal maps?
             expr = new_expr;

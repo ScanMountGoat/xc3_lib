@@ -277,11 +277,13 @@ impl ModelGroup {
             // TODO: The main pass is shared with outline, ope, and zpre?
             // TODO: How to handle transparency?
             // Only check the output5 type if needed.
+            // TODO: the fur_Lgt materials write to a texture used later for fur rendering.
             if (write_to_all_outputs == material.pipeline_key.write_to_all_outputs())
                 && mesh.flags2.render_pass() == pass_id
                 && output5_type
                     .map(|ty| material.pipeline_key.output5_type == ty)
                     .unwrap_or(true)
+                && !material.pipeline_key.is_fur
             {
                 mesh.per_mesh.set(render_pass);
 

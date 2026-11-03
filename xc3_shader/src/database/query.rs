@@ -2053,3 +2053,23 @@ pub fn flip_backfacing<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr>
         .or_else(|| query_nodes(expr, graph, &CALC_NORMAL_Z_ABS2))
         .and_then(|r| r.get("result").copied())
 }
+
+static MORPH_NORMAL_REMAP: LazyLock<Graph> = LazyLock::new(|| {
+    let query = indoc! {"
+        result = vNormal - 0.5;
+        result = result * 2.0;
+    "};
+    Graph::parse_glsl_query(query).unwrap().simplify()
+});
+
+pub fn morph_normal_remap<'a>(graph: &'a Graph, expr: &'a Expr) -> Option<&'a Expr> {
+    // Some morph target attributes are parsed in the 0.0 to 1.0 range and remapped in the shader.
+    // TODO: preserve this to show rendering errors if using morph shader for non morph vertices?
+    let result = query_nodes_vars(
+        expr,
+        graph,
+        &MORPH_NORMAL_REMAP,
+        &[("vNormal".into(), "vNormal".into())].into(),
+    )?;
+    result.get("vNormal").copied()
+}

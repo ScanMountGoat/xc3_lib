@@ -28,6 +28,7 @@ pub struct PipelineKey {
     pub is_outline: bool,
     pub output5_type: Output5Type,
     pub is_depth_prepass: bool,
+    pub is_fur: bool, // true for "fur_Lgt" materials
     pub wgsl: ShaderWgsl,
 }
 

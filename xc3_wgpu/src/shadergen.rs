@@ -280,13 +280,24 @@ fn write_func(wgsl: &mut String, op: &Operation, args: &[usize]) -> Option<()> {
         Operation::MatMulVectorInstanceX => write!(wgsl, "{a}{}", arg0?).unwrap(),
         Operation::MatMulVectorInstanceY => write!(wgsl, "{a}{}", arg1?).unwrap(),
         Operation::MatMulVectorInstanceZ => write!(wgsl, "{a}{}", arg2?).unwrap(),
-        // TODO: Should skinning always be included in the shader?
+        // TODO: Does skinning normals include the projection transform?
         Operation::SkinVectorX => write!(wgsl, "{a}{}", arg0?).unwrap(),
         Operation::SkinVectorY => write!(wgsl, "{a}{}", arg1?).unwrap(),
         Operation::SkinVectorZ => write!(wgsl, "{a}{}", arg2?).unwrap(),
-        Operation::SkinPointX => write!(wgsl, "{a}{}", arg0?).unwrap(),
-        Operation::SkinPointY => write!(wgsl, "{a}{}", arg1?).unwrap(),
-        Operation::SkinPointZ => write!(wgsl, "{a}{}", arg2?).unwrap(),
+        // Skinning includes the camera transforms.
+        // TODO: Skinning doesn't include the camera projection transform for xcxde?
+        Operation::SkinPointX => write!(wgsl,
+            "(camera.projection * vec4({a}{}, {a}{}, {a}{}, 1.0)).x", 
+            arg0?, arg1?, arg2?
+        ).unwrap(),
+        Operation::SkinPointY => write!(wgsl,
+            "(camera.projection * vec4({a}{}, {a}{}, {a}{}, 1.0)).y", 
+            arg0?, arg1?, arg2?
+        ).unwrap(),
+        Operation::SkinPointZ => write!(wgsl,
+            "(camera.projection * vec4({a}{}, {a}{}, {a}{}, 1.0)).z", 
+            arg0?, arg1?, arg2?
+        ).unwrap(),
         Operation::IsNaN => write!(wgsl, "false").unwrap(), // TODO: does WGSL support isnan?
         Operation::ValInfIntensityX => write!(wgsl,
             "val_inf_intensity(vec3({a}{}, {a}{}, {a}{}), in.val_inf.xyz, {a}{}).x",
@@ -458,6 +469,7 @@ fn write_value(
                 "is_back_facing" => write!(wgsl, "!front_facing").unwrap(),
                 // The database uses "vBitan" to represent calculated bitangent attributes.
                 "vBitan" => write_attribute(wgsl, "bitangent", channel),
+                "undef" => write!(wgsl, "0").unwrap(),
                 _ => {
                     if let Some(c) = channel {
                         error!("Unsupported attribute {name}.{c}");
@@ -742,6 +754,7 @@ fn write_value_xyz(
                 "vBlend" => write!(wgsl, "in.blend{c}").unwrap(),
                 // The database uses "vBitan" to represent calculated bitangent attributes.
                 "vBitan" => write!(wgsl, "bitangent{c}").unwrap(),
+                "undef" => write!(wgsl, "0").unwrap(),
                 _ => {
                     warn!("Unsupported attribute {a}");
                     return None;

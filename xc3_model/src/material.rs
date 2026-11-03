@@ -228,6 +228,22 @@ impl MaterialParameters {
             ]
             .get(index?)?
             .get(c),
+            // U_LGT uniform buffer values taken from XC2 in RenderDoc.
+            // data[0] 0.78978, 0.59035, 0.16654, 1.00 0 float4
+            // data[1] -0.75335, 0.65744, -0.01518, 0.00 16 float4
+            // data[2] 9.00, 8.49, 8.10, 0.00          32 float4
+            // data[3] 0.00277, 0.0036, 0.00462, 0.00  48 float4
+            // data[4] 0.20, 0.29, 0.50, 1.00          64 float4
+            ("U_LGT", "gLgtPreDir") => [
+                [0.78978, 0.59035, 0.16654, 1.00],
+                [-0.75335, 0.65744, -0.01518, 0.00],
+            ]
+            .get(index?)?
+            .get(c),
+            ("U_LGT", "gLgtPreCol") => [[9.00, 8.49, 8.10, 0.00], [0.00277, 0.0036, 0.00462, 0.00]]
+                .get(index?)?
+                .get(c),
+            ("U_LGT", "gLgtPreAmb") => [0.20, 0.29, 0.50, 1.00].get(c),
             _ => None,
         };
 

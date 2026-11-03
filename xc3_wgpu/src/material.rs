@@ -153,7 +153,13 @@ pub fn create_material(
                 *material_texture = Some(texture);
             }
         } else {
-            error!("Unable to assign {name} for {:?}", material.name);
+            // TODO: find a more elegant way to properly detect errors for G-buffer textures as inputs.
+            if !matches!(
+                name.as_str(),
+                "texCol" | "texEtc" | "texNom" | "texDep" | "texSpecular"
+            ) {
+                error!("Unable to assign {name} for {:?}", material.name);
+            }
         }
     }
 
@@ -310,6 +316,7 @@ pub fn create_material(
             is_outline: material.name.ends_with("_outline"),
             output5_type,
             is_depth_prepass: false,
+            is_fur: material.flags.fur(),
             wgsl,
         };
         let prepass_pipeline_key = PipelineKey {
@@ -327,6 +334,7 @@ pub fn create_material(
                 is_outline: material.name.ends_with("_outline"),
                 output5_type,
                 is_depth_prepass: false,
+                is_fur: material.flags.fur(),
                 wgsl,
             },
             None,
